@@ -12,11 +12,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
@@ -61,6 +63,8 @@ type Item struct {
 	Reason     string             `json:"reason,omitempty"`
 	Ask        *contract.Question `json:"ask,omitempty"`        // 判断の行の問いの JSON の写し
 	Answerable *bool              `json:"answerable,omitempty"` // 判断の行だけ
+	Steps      string             `json:"steps,omitempty"`      // 手作業の行だけ: 依頼書（brief.md）の本文
+	Links      []string           `json:"links,omitempty"`      // 手作業の行だけ: 依頼書に出てくる http(s) の URL
 	Holds      []string           `json:"holds"`
 }
 
@@ -72,6 +76,7 @@ const timeLayout = "2006-01-02T15:04:05Z"
 // issue は数えるのに読む課題1件。
 type issue struct {
 	raw       ledger.Issue
+	dir       string // issues/<id>/ の置き場（依頼書を読む）
 	id        string
 	title     string
 	status    string
@@ -174,7 +179,7 @@ func readIssues(dir string) ([]*issue, []string) {
 			continue
 		}
 		raw["id"] = id
-		t := &issue{raw: raw, id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
+		t := &issue{raw: raw, dir: filepath.Join(dir, "issues", e.Name()), id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
 			who: raw.Str("who"), notBefore: raw.Str("not_before"), created: raw.Str("created"), updated: raw.Str("updated"),
 			onlyOwner: firstLine(raw.Str("only_owner"))}
 		if list, ok := raw["after"].([]any); ok {
@@ -436,7 +441,49 @@ func taskItem(t *issue, byID map[string]*issue, done string, now time.Time) (Ite
 			return Item{}, false // 日付を待っている
 		}
 	}
-	return Item{Kind: "task", ID: t.id, Title: t.title, Since: firstOf(t.created, t.updated), Reason: t.onlyOwner}, true
+	steps, links := brief(t.dir)
+	return Item{Kind: "task", ID: t.id, Title: t.title, Since: firstOf(t.created, t.updated), Reason: t.onlyOwner,
+		Steps: steps, Links: links}, true
+}
+
+// maxSteps は手作業の行に運ぶ依頼書の本文の上限（文字数）。超えた分は落として末尾に印を付ける（URL は全文から拾う）。
+const maxSteps = 6000
+
+// stepsCut は本文を上限で切ったときの末尾の印。
+const stepsCut = "\n…（続きは依頼書）"
+
+// urlPattern は依頼書の中の http(s) の URL。印字できる ASCII の続きで、空白・全角の文字（日本語の文にくっついた URL）で切れる。
+var urlPattern = regexp.MustCompile(`https?://[!-~]+`)
+
+// brief は手作業の行に運ぶ依頼書（issues/<id>/brief.md）の本文と、その中の http(s) の URL（出てくる順、重ねない）。
+// 依頼書が無い・読めない・空なら両方とも空（行はそのまま出す）。手順の部分を切り出さず、本文を運ぶ（依頼書の形は課題ごとに違う）。
+func brief(dir string) (string, []string) {
+	b, err := os.ReadFile(filepath.Join(dir, "brief.md"))
+	if err != nil || !utf8.Valid(b) {
+		return "", nil
+	}
+	text := strings.TrimSpace(strings.ReplaceAll(string(b), "\r\n", "\n"))
+	if text == "" {
+		return "", nil
+	}
+	var links []string
+	for _, u := range urlPattern.FindAllString(text, -1) {
+		// 山括弧・引用符・バッククォートで切り、文の終わりの句読点と、Markdown のリンクや括弧の閉じを落とす
+		if i := strings.IndexAny(u, "<>\"'`"); i >= 0 {
+			u = u[:i]
+		}
+		if i := strings.Index(u, "]("); i >= 0 {
+			u = u[:i] // [URL](URL) の前の URL
+		}
+		u = strings.TrimRight(u, ".,;:!?()[]{}*_")
+		if _, host, _ := strings.Cut(u, "://"); host != "" && !slices.Contains(links, u) {
+			links = append(links, u)
+		}
+	}
+	if r := []rune(text); len(r) > maxSteps {
+		text = strings.TrimSpace(string(r[:maxSteps])) + stepsCut
+	}
+	return text, links
 }
 
 // firstLine は値の 1 行目（前後の空白を除く）。

@@ -62,6 +62,13 @@
         "reason": { "description": "Why it waits, for people. On a task item, the first line of only_owner; on the decision item of an owner issue with no question, what to fix.", "type": "string", "minLength": 1 },
         "ask": { "description": "A copy of the question JSON (docs/contract.md section 5) of a decision item. Absent when the question has none.", "$ref": "#/$defs/ask" },
         "answerable": { "description": "Decision items only: whether the owner's pane may answer it (it has options and is not irreversible). false on an owner issue with no question.", "type": "boolean" },
+        "steps": { "description": "Task items only: the text of the issue's brief (issues/<id>/brief.md), trimmed, with line ends as LF; past 6000 characters it is cut and ends with a mark. What the owner does to finish the task. Absent when the brief is missing, unreadable or empty.", "type": "string", "minLength": 1 },
+        "links": {
+          "description": "Task items only: the http(s) URLs in the whole brief, in order, each once. Absent when there are none.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "description": "A URL: http or https, printable ASCII.", "type": "string", "pattern": "^https?://[!-~]+$" }
+        },
         "holds": {
           "description": "The issues not done that wait on this one through after, directly or behind those.",
           "type": "array",

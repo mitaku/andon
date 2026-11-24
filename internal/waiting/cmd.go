@@ -119,6 +119,12 @@ func Text(r Result) string {
 		if it.PR != "" {
 			fmt.Fprintf(&b, "。PR %s", it.PR)
 		}
+		if it.Steps != "" {
+			b.WriteString("。手順は依頼書にある（--json の steps）")
+		}
+		if len(it.Links) > 0 {
+			fmt.Fprintf(&b, "。リンク: %s", strings.Join(it.Links, " "))
+		}
 		b.WriteString("\n")
 	}
 	return b.String()

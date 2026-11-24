@@ -829,6 +829,40 @@ await check('waiting: フォーカスが別のフォルダへ移った直後、�
   assert.deepEqual(calls.exec.filter((c) => c[1][1] === 'answer').map((c) => c[1]), [['waiting', 'answer', 'S-0030#1', '--option', '1']], '選んだ選択肢が移った間に変わったか、戻っても答えない');
 });
 
+// A task row carries the brief as steps and its web links (contract.md §25 items[].steps and items[].links).
+const TASK_STEPS = { kind: 'task', id: 'S-0033', title: 'ruleset に andon/gate を足す', since: '2026-11-21T08:00:00Z',
+  reason: 'repo の ruleset を変えるのは repo の管理者のオーナーにしかできない',
+  steps: '手順:\n1. https://github.com/example/sample-site/settings/rules/123 を開き、andon/gate を足す。\n\n終わった見え方: マージの欄が andon/gate を待つ。',
+  links: ['https://github.com/example/sample-site/settings/rules/123', 'javascript:alert(1)', 'https://example.com/b'], holds: [] };
+
+await check('waiting: 手作業の行を開くと依頼書の手順を行ごとに出し、リンクを押すとブラウザで開く（http(s) だけ）。手順もリンクも無い手作業の行も描ける', async () => {
+  const { v, calls, draw, cx } = await waitingPane(json({ ...SAMPLE_WAITING, items: [...SAMPLE_WAITING.items, TASK_STEPS] }));
+  v.toggle('S-0033');
+  v.toggle('S-0031');
+  const tree = draw();
+  const detail = byId(tree, 'waiting-detail-S-0033');
+  assert.ok(detail, '手作業の行が開かない');
+  const said = textOf(detail);
+  for (const want of [TASK_STEPS.reason, 'Steps', '手順:', '1. https://github.com/example/sample-site/settings/rules/123 を開き、andon/gate を足す。',
+    '終わった見え方: マージの欄が andon/gate を待つ。', 'Links']) assert.ok(said.includes(want), `${want} が無い: ${said}`);
+  assert.deepEqual(textOf(byId(tree, 'waiting-steps-S-0033')).length, 4, '手順を行ごとに出さない（空の行も 1 行）');
+  // Only the http(s) links are drawn, in the output's order.
+  const links = walk(detail).filter((n) => /^waiting-link-/.test(String(last(n, 'id') ?? '')));
+  assert.deepEqual(links.map((n) => textOf(n)[0]), ['https://github.com/example/sample-site/settings/rules/123', 'https://example.com/b'], 'http(s) でないリンクを出したか、並びが違う');
+  clickOn(cx)(links[1]);
+  assert.deepEqual(calls.exec.at(-1), ['xdg-open', ['https://example.com/b'], { cwd: undefined, on: null }], 'リンクを押してもブラウザで開かない');
+  // A task row without steps or links (no brief, an older andon): the reason only.
+  const bare = byId(tree, 'waiting-detail-S-0031');
+  assert.ok(bare, '手順の無い手作業の行が開かない');
+  assert.ok(!byId(tree, 'waiting-steps-S-0031') && !walk(bare).some((n) => /^waiting-link-/.test(String(last(n, 'id') ?? ''))), '手順の無い行に手順かリンクを出した');
+  assert.ok(!textOf(bare).includes('Steps') && !textOf(bare).includes('Links'), '手順の無い行に見出しを出した');
+  // Steps and links stay off rows that are not tasks.
+  const merge = { ...SAMPLE_WAITING.items[0], steps: 'x', links: ['https://example.com/x'] };
+  const other = await waitingPane(json({ ...SAMPLE_WAITING, items: [merge] }));
+  other.v.toggle('S-0021');
+  assert.ok(!byId(other.draw(), 'waiting-steps-S-0021'), 'マージの依頼の行に手順を出した');
+});
+
 // What the two mods run (ADR-0042 acceptance 12): the first argument of every exec( call, in order.
 function execTargets(src) {
   const out = [];

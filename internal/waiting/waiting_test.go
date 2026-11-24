@@ -240,6 +240,78 @@ func TestOwnerIssueWithMark(t *testing.T) {
 	}
 }
 
+// 手作業の行は、依頼書（brief.md）の本文を steps に、その中の http(s) の URL を links に運ぶ。依頼書が無い・空の課題も行は出し、
+// steps と links を持たない。
+const ownerBrief = `kind: users
+手順: main の ruleset の必須の check に andon/gate を足す。repo の GitHub の設定で auto-merge を切る。
+見ること: 次の担当の PR で、gate の判定の前はマージの欄が andon/gate を待つと出て押せないこと。
+
+## 追記（手順を具体にする）
+1. ruleset: https://github.com/example/sample-site/settings/rules/123 を開き、「Add checks」で ` + "`andon/gate`" + ` を足す。「Save changes」。
+2. auto-merge: https://github.com/example/sample-site/settings の General で「Allow auto-merge」を外す。
+   コマンドなら ` + "`gh api -X PATCH repos/example/sample-site -F allow_auto_merge=false`" + `。
+3. 文にくっついた URL https://example.com/a。と、括弧の中の URL（https://example.com/b）と、<https://example.com/c> と、
+   [リンク](https://example.com/d) と、もう一度 https://github.com/example/sample-site/settings。
+終わった見え方: マージの欄が andon/gate を待つと出る。
+`
+
+func TestTaskSteps(t *testing.T) {
+	f := newFake(t, 4)
+	f.issue("S-0001", "todo", "who: person", "only_owner: repo の ruleset と auto-merge の設定を変えるのは、repo の管理者のオーナーにしかできない")
+	f.write("kanban/issues/S-0001/brief.md", "\n"+strings.ReplaceAll(ownerBrief, "\n", "\r\n")+"\n\n")
+	f.issue("S-0002", "todo", "who: person", "only_owner: 依頼書が無い")
+	f.issue("S-0003", "todo", "who: person", "only_owner: 依頼書が空")
+	f.write("kanban/issues/S-0003/brief.md", " \n\t\n")
+	f.issue("S-0004", "todo", "who: person", "only_owner: URL の無い依頼書")
+	f.write("kanban/issues/S-0004/brief.md", "ホストで image を焼き直す。\n")
+	f.issue("S-0005", "todo", "who: person", "only_owner: 長い依頼書")
+	f.write("kanban/issues/S-0005/brief.md", strings.Repeat("あ", maxSteps+10)+"\nhttps://example.com/tail\n")
+	r := f.read()
+	want(t, r, "S-0001=task", "S-0002=task", "S-0003=task", "S-0004=task", "S-0005=task")
+	byID := map[string]Item{}
+	for _, it := range r.Items {
+		byID[it.ID] = it
+	}
+	if got := byID["S-0001"].Steps; got != strings.TrimSpace(ownerBrief) {
+		t.Errorf("S-0001 の steps = %q, want 依頼書の本文（前後の空白を除き、改行は LF）", got)
+	}
+	wantLinks := []string{"https://github.com/example/sample-site/settings/rules/123", "https://github.com/example/sample-site/settings",
+		"https://example.com/a", "https://example.com/b", "https://example.com/c", "https://example.com/d"}
+	if got := byID["S-0001"].Links; !slices.Equal(got, wantLinks) {
+		t.Errorf("S-0001 の links = %q, want %q", got, wantLinks)
+	}
+	for _, id := range []string{"S-0002", "S-0003"} {
+		if it := byID[id]; it.Steps != "" || it.Links != nil || it.Reason == "" {
+			t.Errorf("%s = %+v, want steps と links を持たず理由はある", id, it)
+		}
+	}
+	if it := byID["S-0004"]; it.Steps != "ホストで image を焼き直す。" || it.Links != nil {
+		t.Errorf("S-0004 = %+v, want 本文だけで links を持たない", it)
+	}
+	long := byID["S-0005"]
+	if !strings.HasSuffix(long.Steps, stepsCut) || len([]rune(long.Steps)) != maxSteps+len([]rune(stepsCut)) {
+		t.Errorf("長い依頼書の steps の長さ = %d, want 上限で切って印を付ける", len([]rune(long.Steps)))
+	}
+	if !slices.Equal(long.Links, []string{"https://example.com/tail"}) {
+		t.Errorf("長い依頼書の links = %q, want 切った先の URL も拾う", long.Links)
+	}
+	// 手作業でない行は依頼書を運ばない
+	f.issue("S-0006", "todo", "who: person")
+	f.write("kanban/issues/S-0006/brief.md", ownerBrief)
+	for _, it := range f.read().Items {
+		if it.ID == "S-0006" && (it.Steps != "" || it.Links != nil) {
+			t.Errorf("判断の行が依頼書を運んだ: %+v", it)
+		}
+	}
+	out := Text(r)
+	for _, s := range []string{"手作業 S-0001", "手順は依頼書にある（--json の steps）",
+		"リンク: https://github.com/example/sample-site/settings/rules/123 https://github.com/example/sample-site/settings https://example.com/a"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("人が読む行に %q が無い:\n%s", s, out)
+		}
+	}
+}
+
 // ADR-0057 受け入れ条件 3: 印の無いオーナーの課題の灯りの種類の問いが全部受け取られていれば、片付いていなくてもどの行にも出ない。
 func TestOwnerIssueAllReceived(t *testing.T) {
 	f := newFake(t, 4)
