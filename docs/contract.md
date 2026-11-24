@@ -104,7 +104,7 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 | `acceptance` | 受け入れ条件の番号を、報告の `acceptance[].id` と同じ綴りでコンマで並べた文字列（`A4,A13`。空白を入れない） | 番号を持たない課題（何も確かめない） | Chief of Staff（Chief Engineer の文書から課題を切るとき。依頼書の完了条件が名指す番号の写し） | `andon issue ready`・担当 | 課題が満たす受け入れ条件。`andon issue ready` は、番号ごとに `report.json` の `acceptance[]` に同じ `id` の行（`pass`・`fail`・`manual` のどれでもよい）が無ければ断り、足りない番号を出す。形が違う値も断る（黙って通さない）。履歴の照合は見ない（担当が書き換えても、求める行が増えるか、キーを消して今までどおりになるだけ。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 3） |
 | `hold` | 理由の課題の id（`A-0015`。1つ） | 止めていない | Chief of Staff（`andon issue hold <id> <理由の課題>` が書き、`andon issue unhold <id>` が消す） | `andon gate`・dispatcher（`andon issue merge`・`settle`）・`andon waiting` | Chief of Staff が、理由の課題の答えが担当の直しに入るまで、この課題の PR を止めている（[ADR-0056](adr/0056-gate-required-before-merge.md) 決めたこと 7〜11）。止めている間、gate は回らず（`andon gate` は GitHub を読まずに `wait`。§7）、dispatcher はマージせず、判定のあとに止めたら判定を捨てて gate の問いを閉じ、PR の印は黄（`andon gate: メンテナーの確認を待っています`）。`andon waiting` はマージの依頼に出さず、理由の課題の行の `holds` に数える（§25）。理由の課題が done になっても外れない（dispatcher が通知 `hold` で1回知らせる。§6）。値が空でも、最後にこのキーを変えた行を書いたのがこの課題の担当かそのレビュアーの端末なら、止めているものとして読む（担当が自分で外せないように。理由は消す直前の値）。止め（`log.jsonl`・子の課題の一覧）を読めなければ止めているものとして扱う |
 | `later` | 空でない 1 行の文字列（急がない理由。改行があれば 1 行目だけを読む） | 置いておかない（オーナー待ちの行は呼ぶ） | Chief of Staff（`kanban set <id> later="<理由>"` で書き、`kanban set <id> later=` で消す） | `andon waiting` | オーナー待ち（判断と手作業）を、行燈を灯さずに置いておく印（[ADR-0062](adr/0062-later-owner-waits.md) 決めたこと 3）。読むのは、オーナーの課題（`who: person`）か、状態が `todo` か `queued` の課題だけで、そのような課題を「置いておける課題」と呼ぶ。`doing` か `review` の、オーナーの課題でない課題の印は読まない。照合は下の「履歴の照合」と違い、このキーを最後に変えた行の書き手を、**その行の時点の** Chief of Staff の端末と比べる（`log.jsonl` の `chief_of_staff` の config の行を順に辿る。config の行が 1 つも無い kanban では今の `chief_of_staff` と比べる）。Chief of Staff が起き直しても打ち直さない。照合が外れた印は無いものとして読む。印があっても呼ぶ条件は §25 の `call` |
-| `later_until` | `YYYY-MM-DD` | 日付で呼び戻さない | Chief of Staff（`kanban set <id> later_until=<日付>`） | `andon waiting` | 印 `later` のある課題を、この日（`config.yaml` の `timezone`。無ければ UTC）から呼ぶ（[ADR-0062](adr/0062-later-owner-waits.md) 決めたこと 3・4）。照合は `later` と同じで、外れたときと形の違う値は、日が来たものとして読む |
+| `later_until` | `YYYY-MM-DD` | 日付で呼び戻さない | Chief of Staff（`kanban set <id> later_until=<日付>`） | `andon waiting` | 印 `later` のある課題を、この日（`config.yaml` の `timezone`。無ければ UTC）から呼ぶ（[ADR-0062](adr/0062-later-owner-waits.md) 決めたこと 3・4）。照合は `later` と同じで、外れたとき（その時点の Chief of Staff でない端末が最後に書いたか消したとき）と、形の違う値（文字列でない値を含む）は、日が来たものとして読む |
 
 `kanban show <id> --json` の `.issue`（Andon の予約キー以外は kanban の形式のキー）:
 
@@ -1154,7 +1154,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
   1. マージの依頼は `true`。
   2. 判断の 2 つ目（問いも印 `only_owner` も無いオーナーの課題）は `true`。
   3. 行の課題が置いておける課題（§2 の `later`。オーナーの課題か `todo`・`queued` の課題で、信じる印 `later` を持つ）でなければ `true`。
-  4. `later_until` があり、照合が外れたか、形が違うか、その日（`config.yaml` の `timezone`。無ければ UTC）が来ていれば `true`。
+  4. `later_until` があり、照合が外れたか、形が違うか、その日（`config.yaml` の `timezone`。無ければ UTC）が来ていれば `true`。`later_until` が無くても、最後に消したのがその時点の Chief of Staff でなければ `true`。
   5. 行の `holds` に、置いておける課題でない課題があれば `true`。相手の印と状態だけを読み、相手の行の `call` は読まない。止め（§2 の `hold`）で入った課題も同じに見る。止められるのは `review` の担当の課題なので、PR を止めている判断は印があっても呼ぶ。
   6. それ以外は `false`。
 

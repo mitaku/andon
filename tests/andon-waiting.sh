@@ -84,7 +84,7 @@ printf '%s\n' '呼んでいるもの 1 件（行燈を灯す）' '^判断 S-0002
 paste -d '\t' "$tmp/later.want" "$tmp/later.body" | while IFS=$'\t' read -r re line; do
   grep -q -- "$re" <<<"$line" || die "人が読む行が違う（$re）: $line"
 done
-[[ $(wc -l <"$tmp/later.body") == 4 ]] || die "人が読む行の数が違う: $(cat "$tmp/later.text")"
+[[ $(wc -l <"$tmp/later.text") == 5 ]] || die "人が読む行の数が違う: $(cat "$tmp/later.text")"
 # 当たる場合があること: 印を担当の端末（t7）が書き直すと、置いてある行は無くなる
 printf '{"at":"2026-11-21T06:00:00Z","by":"terminal:t7","id":"S-0001","change":{"later":"急がない。次のリリースで決めればよい"}}\n' >>"$lk/log.jsonl"
 KANBAN_ROOT=$lp "$andon" waiting >"$tmp/later2.text"

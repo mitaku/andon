@@ -251,6 +251,19 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 // 印が何日も残る予約キー（later・later_until）のための照合で、Chief of Staff が起き直して端末が替わっても印を信じ続ける。
 // 起き直したら打ち直す決まりの予約キー（merge・deliverable など）は、今の端末と比べる Trusted で読む。
 func TrustedThen(rows []Row, t Issue, key, cos string) bool {
+	last, byCoS := LastChangeThen(rows, t, key, cos)
+	if last == nil || !byCoS {
+		return false
+	}
+	v, ok := last.Change[key].(string)
+	return ok && v != "" && v == t.Str(key)
+}
+
+// LastChangeThen は、課題 t の key を最後に変えた log.jsonl の行（消した行も含む。無ければ nil）と、その行の by が
+// その行の時点の Chief of Staff の端末か（TrustedThen と同じ辿り方。純粋関数）。消した行の書き手を見たい読み手
+// （担当が later_until を消したか）のため。行より前に Chief of Staff の行が無く、あとの行で初めて出る kanban では、
+// 行の時点の Chief of Staff が分からないので false。
+func LastChangeThen(rows []Row, t Issue, key, cos string) (*Row, bool) {
 	id := CanonID(t.Str("id"))
 	then, seen := "", false
 	var last *Row
@@ -273,21 +286,15 @@ func TrustedThen(rows []Row, t Issue, key, cos string) bool {
 		}
 	}
 	if last == nil {
-		return false
+		return nil, false
 	}
 	if !lastSeen {
-		// その行より前に Chief of Staff の行が無い。履歴のどこにも無ければ今の値と比べる。
-		// あとの行で初めて書かれたなら、行の時点の Chief of Staff は分からないので信じない
 		if seen {
-			return false
+			return last, false
 		}
-		lastCoS = cos
+		lastCoS = cos // 履歴のどこにも Chief of Staff の行が無い
 	}
-	if lastCoS == "" || last.By != "terminal:"+lastCoS {
-		return false
-	}
-	v, ok := last.Change[key].(string)
-	return ok && v != "" && v == t.Str(key)
+	return last, lastCoS != "" && last.By == "terminal:"+lastCoS
 }
 
 // HoldOf は課題 t の止め（予約キー hold。Chief of Staff が PR を止めた理由の課題の id。ADR-0056 決めたこと 7・10）を読む

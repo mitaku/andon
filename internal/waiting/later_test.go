@@ -160,6 +160,20 @@ func TestLaterUntil(t *testing.T) {
 	if u := itemOf(t, r, "S-0003#1").LaterUntil; u != "2026-11-22" {
 		t.Errorf("later_until = %q, want 2026-11-22", u)
 	}
+	// 担当の端末が later_until を消した: 最後に書いたのがその時点の Chief of Staff でないので、日が来たものとして読む
+	f.decision("S-0006", f.later("S-0006", "t1", why))
+	until(f, "S-0006", "t1", "2026-11-22")
+	f.row("2026-11-21T06:00:00Z", "terminal:t7", "S-0006", `{"later_until":null}`)
+	// Chief of Staff が消したなら日付は無い（置いたまま）
+	f.decision("S-0007", f.later("S-0007", "t1", why))
+	until(f, "S-0007", "t1", "2026-11-22")
+	f.row("2026-11-21T06:00:00Z", "terminal:t1", "S-0007", `{"later_until":null}`)
+	// 文字列でない値（kanban を通さずに書いた issue.yaml。引用符の無い日付）は、形の違う値として日が来たものと読む
+	f.decision("S-0008", f.later("S-0008", "t1", why), "later_until: 2026-11-30")
+	r = f.read()
+	wantCall(t, r, "S-0006#1", true, why)
+	wantCall(t, r, "S-0007#1", false, why)
+	wantCall(t, r, "S-0008#1", true, why)
 	// 日は config.yaml の timezone で読む
 	f.write("kanban/config.yaml", "version: 3\nprefix: S\nchief_of_staff: t1\ntimezone: Pacific/Kiritimati\n")
 	// キリバスは UTC+14 で、2026-11-22 00:00 を過ぎている
@@ -193,8 +207,11 @@ func TestLaterTask(t *testing.T) {
 	f.issue("S-0001", "todo", "who: person", "only_owner: ホストで焼き直す")
 	f.issue("S-0002", "todo", "who: person", "only_owner: ホストで焼き直す", f.later("S-0002", "t1", why))
 	f.issue("S-0003", "todo", "who: person", f.later("S-0003", "t1", why))
+	// doing のオーナーの課題も置いておける（オーナーの課題か、todo・queued の課題）
+	f.issue("S-0004", "doing", "who: person", "only_owner: ホストで焼き直す", f.later("S-0004", "t1", why))
 	r := f.read()
-	want(t, r, "S-0001=task", "S-0002=task", "S-0003=decision")
+	want(t, r, "S-0001=task", "S-0002=task", "S-0003=decision", "S-0004=task")
+	wantCall(t, r, "S-0004", false, why)
 	wantCall(t, r, "S-0001", true, "")
 	wantCall(t, r, "S-0002", false, why)
 	if it := itemOf(t, r, "S-0003"); !it.Call {

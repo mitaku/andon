@@ -96,6 +96,7 @@ type issue struct {
 	onlyOwner string // 手作業の印（予約キー only_owner の 1 行目。ADR-0057 決めたこと 3）
 	later     string // 置いておく印（予約キー later の 1 行目。ADR-0062 決めたこと 3）
 	until     string // 予約キー later_until（YYYY-MM-DD）
+	untilBad  bool   // later_until が文字列でない（kanban を通さずに書いた引用符の無い日付など。日が来たものとして読む）
 	questions []question
 }
 
@@ -207,6 +208,12 @@ func readIssues(dir string) ([]*issue, []string) {
 		out = append(out, t)
 	}
 	sort.Slice(out, func(i, j int) bool { return ledger.IDLess(out[i].id, out[j].id) })
+	for _, t := range out {
+		if v, ok := t.raw["later_until"]; ok && v != nil {
+			_, isStr := v.(string)
+			t.untilBad = !isStr
+		}
+	}
 	return out, warn
 }
 
@@ -339,12 +346,17 @@ func call(it Item, t *issue, placeable map[string]bool, rows []ledger.Row, cos, 
 	case t == nil || !placeable[it.ID]:
 		return true
 	}
+	// 形の違う日付と、最後に書いた（消した）のがその時点の Chief of Staff でない日付は、日が来たものとして読む
+	if t.untilBad {
+		return true
+	}
 	if t.until != "" {
 		day, err := time.Parse("2006-01-02", t.until)
-		// 形の違う日付と、その時点の Chief of Staff が書いていない日付は、日が来たものとして読む
 		if err != nil || !ledger.TrustedThen(rows, t.raw, "later_until", cos) || day.Format("2006-01-02") <= today {
 			return true
 		}
+	} else if last, byCoS := ledger.LastChangeThen(rows, t.raw, "later_until", cos); last != nil && !byCoS {
+		return true
 	}
 	for _, h := range it.Holds {
 		if !placeable[h] {
