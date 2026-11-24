@@ -485,6 +485,7 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 // 次の打ち直しでも空のまま。--data に gaps があれば丸ごと置き換える。
 func TestReportCarriesGaps(t *testing.T) {
 	f := newFixture(t)
+	f.task["repo"] = "github.com/example/app"
 	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
 	rp := filepath.Join(f.root, "kanban/issues/T-0001/library/report.json")
 	report := func(args ...string) *contract.Report {
@@ -526,6 +527,18 @@ func TestReportCarriesGaps(t *testing.T) {
 	var out, errb bytes.Buffer
 	if rc := Main([]string{"report", "T-0001", "--data", `{"gaps": [{"kind": "stale", "where": "AGENTS.md", "text": "x"}]}`}, strings.NewReader("## Report\n"), &out, &errb); rc != 1 || !strings.Contains(errb.String(), "gaps") {
 		t.Fatalf("知らない kind を断らない: rc=%d err=%q", rc, errb.String())
+	}
+	// 前の report.json が壊れていて gaps を引き継げないときは、pr・estimate・plan を渡しても黙って越えない
+	// （越えると途中の報告に書いた申告が消える）。gaps も渡せば書ける。
+	f.write("kanban/issues/T-0001/library/report.json", "{")
+	all := `"pr": "https://github.com/example/app/pull/7", "estimate": {"size": "large", "reason": "x"}, "plan": [{"id": "p1", "text": "x", "done": false}]`
+	out.Reset()
+	errb.Reset()
+	if rc := Main([]string{"report", "T-0001", "--data", "{" + all + "}"}, strings.NewReader("## Report\n"), &out, &errb); rc != 1 {
+		t.Fatalf("壊れた前の報告を gaps 無しで越えた: rc=%d err=%q", rc, errb.String())
+	}
+	if r := report("--data", "{"+all+`, "gaps": []}`); len(r.Gaps) != 0 || r.PR == "" {
+		t.Fatalf("gaps も渡したのに書けない: %+v", r)
 	}
 }
 
