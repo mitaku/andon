@@ -337,7 +337,7 @@ if [ "$self" = true ]; then
   lib=$c/ws/projects/v/kanban/issues/V-0002/library; mkdir -p "$lib"
   # 起動は andon issue resume（launch が resume）で、セッションの記録 sess の最初のメッセージの最後の段落が [resume] で始まる（wl-resume が確かめられ、0 で終わる）
   launch() { echo "{\"at\": \"$1\", \"issue\": \"V-0002\", \"role\": \"worker\", \"launch\": \"resume\", \"terminal\": \"t$2\", \"harness\": {\"name\": \"claude\"}, \"session\": \"sess\", \"package\": {\"commit\": \"$2\", \"source\": \"applied\", \"drift\": false, \"root\": \"$c/pkg\"}}"; }
-  umsg() { jq -cn --arg t "$1" --arg m "$2" '{type: "user", timestamp: $t, message: {role: "user", content: $m}}'; } # umsg <時刻> <文>: セッションの記録の user の行
+  umsg() { jq -cn --arg t "$1" --arg m "$2" '{type: "user", timestamp: $t, origin: {kind: "human"}, message: {role: "user", content: $m}}'; } # umsg <時刻> <文>: セッションの記録のオーナーの印の user の行
   rmsg='<pasted_content id="ab12">\nAndon の担当として働く。\n\n[resume] 課題 `v/V-0002` の続き。セルが起き直した。worktree は同じ場所に戻した。\n</pasted_content id="ab12">\n'
   sess=$c/claude/projects/-v/sess.jsonl; mkdir -p "${sess%/*}"
   { umsg 2026-01-01T00:02:05.000Z "$(printf "$rmsg")"; umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")"; } >"$sess"
@@ -398,11 +398,26 @@ if [ "$self" = true ]; then
   [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: resume の起動が無いのに未確認の 3 で終わらない（$jrc）: $jout"
   wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.launch = "fresh"')" "$(umsg 2026-01-01T00:12:05.000Z '課題 `v/V-0002`。依頼書は x')"
   [ "$jrc" = 3 ] && grep -qF 'resume の起動 0 件' <<<"$jout" || die "wl-resume: --fresh の起動を resume に数える（$jrc）: $jout"
-  # 印の無い文・印が最後の段落でなく先頭にある文（template の本文が後ろに来た）は壊れ
+  # 印の無い文・resume なのに start の形の文は壊れ。印が文の頭にある文は、製品（spawn.Marked・振り返りの machineText）と同じく印つきと読む
   wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg" | sed 's/\[resume\] //')")"
   [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 最後の段落に印が無いのに落ちない（$jrc）: $jout"
-  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf '[resume] 課題 `v/V-0002` の続き。セルが起き直した。\n\nAndon の担当として働く。')")"
-  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 印が最後の段落でなく先頭にあるのに落ちない（$jrc）: $jout"
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf 'Andon の担当として働く。\n\n課題 `v/V-0002`。\n依頼書は x')")"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: resume の最初のメッセージが start の形なのに落ちない（$jrc）: $jout"
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf '[resume] 課題 `v/V-0002` の続き。セルが起き直した。\n\n足した段落。')")"
+  [ "$jrc" = 0 ] && grep -qF 'ok   wl-resume' <<<"$jout" || die "wl-resume: 印が文の頭にあるのに ok でない（製品の判定と食い違う）（$jrc）: $jout"
+  # 起動の直後に入る裏の作業の知らせ（origin.kind が task-notification）と道具の結果は、最初のメッセージに数えない
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:02.000Z '<task-notification>x</task-notification>' | jq -c '.origin.kind = "task-notification"')" \
+    "$(umsg 2026-01-01T00:12:03.000Z x | jq -c 'del(.origin) | .message.content = [{type: "tool_result", content: "y"}]')" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")")"
+  [ "$jrc" = 0 ] && grep -qF 'ok   wl-resume' <<<"$jout" || die "wl-resume: 起動の直後の知らせや道具の結果を最初のメッセージと読む（$jrc）: $jout"
+  # 同じ課題の次の起動のあとの文を、この起動の証拠にしない（次の起動の前に文が無ければ未確認）
+  wl "$(launch 2026-01-01T00:12:00Z beef02; launch 2026-01-01T00:13:00Z beef02 | jq -c '.launch = "start" | .session = "other"')" "$(umsg 2026-01-01T00:13:05.000Z "$(printf "$rmsg")")"
+  [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: 次の起動のあとの印つきの文を前の起動の証拠にした（$jrc）: $jout"
+  # 前に当てた commit を見るときは、次に当てた時刻のあとの文を証拠にしない（c0ffee は 00:00 から 00:10 まで）
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x",\n "previous": [{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}]}\n' >"$c/pkg/applied.json"
+  echo "$(launch 2026-01-01T00:02:00Z c0ffee)" >"$lib/launches.jsonl"; umsg 2026-01-01T00:11:00.000Z "$(printf "$rmsg")" >"$sess"
+  VERIFY_COMMIT=c0ffee journey worker-launch
+  [ "$jrc" = 3 ] && grep -qF 'note wl-resume' <<<"$jout" || die "wl-resume: 次に当てた時刻のあとの文を前の commit の証拠にした（$jrc）: $jout"
+  printf '{"commit": "beef02", "applied_at": "2026-01-01T00:10:00Z", "image_commit": "x"}\n' >"$c/pkg/applied.json"
   # 起動の前の文（前に印の付いた resume）を、この起動の証拠にしない。起動のあとの印の無い文で落ちる
   wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:11:59.000Z "$(printf "$rmsg")")" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg" | sed 's/\[resume\] //')")"
   [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 起動の前の文を証拠にした（$jrc）: $jout"
@@ -415,9 +430,19 @@ if [ "$self" = true ]; then
   printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
   wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
   rm -f "$c/screen"
-  [ "$jrc" = 0 ] && grep -qF '画面に印 [resume] の行がある' <<<"$jout" || die "wl-resume: 画面に印の行があるのに ok でない（$jrc）: $jout"
+  [ "$jrc" = 0 ] && grep -qF '画面の続きの行は全部印 [resume] つき' <<<"$jout" || die "wl-resume: 画面に印の行があるのに ok でない（$jrc）: $jout"
+  # 画面は前の起動の印つきの文も映す。印の無い続きの行が1つでもあれば ok にしない（壊れとも言えないので未確認）
+  printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n…\n› 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
+  wl "$(launch 2026-01-01T00:12:00Z beef02 | jq -c '.harness.name = "codex" | .session = null')"
+  rm -f "$c/screen"
+  [ "$jrc" = 3 ] && grep -qF '画面に印の無い続きの行がある' <<<"$jout" || die "wl-resume: 画面に印の無い続きの行があるのに未確認の 3 で終わらない（$jrc）: $jout"
+  # Claude Code の担当はセッションの記録で決める。画面に前の起動の印つきの行があっても、記録の印の無い文で落ちる
+  printf '› [resume] 課題 `v/V-0002` の続き。セルが起き直した。\n' >"$c/screen"
+  wl "$(launch 2026-01-01T00:12:00Z beef02)" "$(umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg" | sed 's/\[resume\] //')")"
+  rm -f "$c/screen"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL wl-resume' <<<"$jout" || die "wl-resume: 画面の前の起動の印で、記録の印の無い文を ok にした（$jrc）: $jout"
   { umsg 2026-01-01T00:02:05.000Z "$(printf "$rmsg")"; umsg 2026-01-01T00:12:05.000Z "$(printf "$rmsg")"; } >"$sess"
-  ok "verify-andon: wl-resume は、resume の起動の最初のメッセージの最後の段落に印 [resume] が無いと落ち、resume の起動が無いか読めなければ未確認の 3 で終わる"
+  ok "verify-andon: wl-resume は、resume の起動のあとの最初のオーナーの印の文の頭にも最後の段落の頭にも [resume] が無いと落ち、知らせ・次の起動や次に当てたあとの文・画面の前の起動の印を証拠にせず、確かめられなければ未確認の 3 で終わる"
 
   # gate の gt-answer: dispatcher が閉じた問いは gate の問いだけで、「決め直した」の答えが名指す gate の記録が在る。
   # 偽のセルに本物の kanban の CLI で kanban を作り、dispatcher の端末として問いを出して答えて受け取る（今の時刻なので、上の beef02 の間に入る）
