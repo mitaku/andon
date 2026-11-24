@@ -7,7 +7,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, focused, terminals, exec, run, theme, window } from "herdr";
+import { spaces, panes, focused, terminals, exec, run, theme, window, layout, nextCommand } from "herdr";
 
 const CHROME = "mods/workspace-chrome";
 export const VERSION = 1;
@@ -16,6 +16,14 @@ const TIMEOUT_MS = 15000;
 const KIND = { merge: "Merge", decision: "Decide", task: "Do" };
 // A question as the output names it (schema/waiting.schema.json): it starts with a letter or digit, so it is never a flag.
 const QUESTION = /^[A-Za-z0-9][A-Za-z0-9._-]*#[1-9][0-9]*$/;
+// The andon layout's right panel, which the inbox shows this block in (layout.show) and this pane hides.
+export const PANEL = "panel";
+
+// Whether the shown layout has this mod inside the panel: only then can the pane close it.
+export function inPanel(node = layout(), under = false) {
+  const here = under || node?.id === PANEL;
+  return (here && node?.content?.mod === "waiting") || (node?.children ?? []).some((n) => inPanel(n, here));
+}
 
 // Where the person is: the focused pane's folder and machine, as Herdr's Files panel finds them.
 function location() {
@@ -73,6 +81,7 @@ function openWeb(url) {
 
 export default class Waiting extends View {
   init(_props, cx) {
+    this.handle = cx.focus_handle();
     this.where = null;
     this.data = null;
     this.reason = null;
@@ -81,6 +90,32 @@ export default class Waiting extends View {
     this.forget();
     this.refresh(cx);
     cx.timer.every(POLL_MS, (cx) => this.refresh(cx));
+    // pane.go hands the keyboard over with "focus" (mod.json: focusable).
+    cx.spawn(async (cx) => {
+      for (;;) {
+        const c = await nextCommand();
+        if (c === "focus" || c === "waiting.focus") this.handle.focus();
+        cx.notify();
+      }
+    });
+  }
+
+  // Hides the right panel. The copy stays alive while hidden, so what was read, the open rows, the picks and an
+  // answer in flight are there when the inbox shows the panel again. Holding the keyboard, it is first handed to
+  // the left, as the inbox's Esc hands it to the right, so it doesn't stay on a hidden pane.
+  close() {
+    if (!inPanel()) return false;
+    if (this.handle.is_focused()) run("pane.go", { direction: "left" });
+    run("layout.hide", { id: PANEL });
+    return true;
+  }
+
+  // Keys while the pane holds the keyboard: Esc closes the panel. (key(i) is a row's key.)
+  onKey(e, cx) {
+    if (e.modifiers?.control || e.modifiers?.alt || e.modifiers?.platform) return;
+    if (e.key !== "escape" || !this.close()) return;
+    cx.stop_propagation();
+    cx.notify();
   }
 
   // Runs the command in the focused pane's folder on its machine; a new place drops what was read.
@@ -297,10 +332,20 @@ export default class Waiting extends View {
           .children(d.items.map((i) => this.row(t, i, now, chief))));
       }
     }
-    return v_flex().id("waiting").size_full().min_h(0).bg(t.background).text_size(13)
+    const closable = inPanel(), keyboard = this.handle.is_focused();
+    return v_flex().id("waiting").track_focus(this.handle).on_key_down((e, cx) => this.onKey(e, cx))
+      .size_full().min_h(0).bg(t.background).text_size(13)
       .child(h_flex().h(31).pl(16).pr(8).gap(8).flex_none().items_center().justify_between().text_size(11.5).text_color(t.dim)
         .child(div().flex_none().child("Waiting on you"))
-        .when(Boolean(d?.project), (el) => el.child(div().min_w(0).truncate().child(String(d.project)))))
-      .children(body);
+        .child(h_flex().min_w(0).gap(4).items_center()
+          .when(Boolean(d?.project), (el) => el.child(div().min_w(0).truncate().child(String(d.project))))
+          // The inbox's waiting button shows the panel again.
+          .when(closable, (el) => el.child(div().id("waiting-close").size(24).flex_none().flex().items_center().justify_center()
+            .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("Close (Esc)")
+            .on_click((_e, cx) => { cx.stop_propagation(); this.close(); cx.notify(); })
+            .child(svg(`${CHROME}/x.svg`).size(13))))))
+      .children(body)
+      .when(keyboard && closable, (el) => el.child(div().id("waiting-keys").h(24).px(16).flex_none().flex().items_center()
+        .text_size(10.5).text_color(t.dim).child("Esc close")));
   }
 }
