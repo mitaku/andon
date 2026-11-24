@@ -58,7 +58,6 @@ func TestPruneAge(t *testing.T) {
 	if !exists(dir) {
 		t.Error("プロジェクトの置き場そのものを消した")
 	}
-	// 2 度走っても結果は同じ
 	if n, err := Prune(dir, now, Default); err != nil || n != 0 || !exists(young) {
 		t.Errorf("2 度目の片付け: 消した数 %d・err %v", n, err)
 	}
@@ -100,7 +99,6 @@ func TestPruneMaxBytes(t *testing.T) {
 	}
 }
 
-// 置き場が無ければ何もしない。置き場の中の symlink は辿らず消さない。
 func TestPruneMissingAndSymlink(t *testing.T) {
 	now := time.Now()
 	if n, err := Prune(filepath.Join(t.TempDir(), "none"), now, Default); n != 0 || err != nil {
@@ -125,7 +123,6 @@ func TestPruneMissingAndSymlink(t *testing.T) {
 	}
 }
 
-// PruneDue は 1 日に 1 回だけ走らせる。置き場の無いプロジェクトは何もしない。形の違う名前は断る。
 func TestPruneDue(t *testing.T) {
 	def := func() Limits { return Default }
 	state := t.TempDir()
@@ -156,7 +153,6 @@ func TestPruneDue(t *testing.T) {
 	}
 }
 
-// 片付けの一部が失敗しても、残りは片付けて失敗を返す。
 func TestPruneReportsErrorsAndContinues(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root では権限で失敗させられない")

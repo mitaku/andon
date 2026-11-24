@@ -50,7 +50,6 @@ func (f *fake) write(rel, body string) {
 	}
 }
 
-// issue は課題を置く（keys は issue.yaml に足す行）。
 func (f *fake) issue(id, status, updated string, keys ...string) {
 	body := fmt.Sprintf("id: %s\ntitle: タイトル %s\nstatus: %s\nupdated: \"%s\"\n", id, id, status, updated)
 	for _, k := range keys {
@@ -150,7 +149,6 @@ func TestBoardRangeEachRuleMatters(t *testing.T) {
 	}
 }
 
-// 親の循環でも止まり、線の内側の境目（since ちょうど）は内側に入る。updated の読めない片付いた課題は内側に入れる
 func TestBoardCycleAndEdges(t *testing.T) {
 	f := newFake(t)
 	f.issue("S-0001", "doing", fresh, "parent: S-0002")
@@ -403,7 +401,6 @@ func TestGuardAlias(t *testing.T) {
 	}
 }
 
-// snapshot は root の下の全部のファイルの中身（パス → sha256）。
 func snapshot(t *testing.T, root string) map[string][32]byte {
 	t.Helper()
 	m := map[string][32]byte{}
@@ -553,7 +550,6 @@ func TestValuesLikeKanban(t *testing.T) {
 	}
 }
 
-// 読めた課題が自分で broken というキーを持っていても、kanban list --json と同じに写し、出力は schema を通る（落ちない）
 func TestOwnBrokenKey(t *testing.T) {
 	f := newFake(t)
 	for i, v := range []string{"yes", `""`, "null", "5"} {
@@ -601,7 +597,6 @@ func TestOwnBrokenKeyIsUnreadable(t *testing.T) {
 	}
 }
 
-// kanban/issues が symlink なら、先を読まずに断る
 func TestIssuesDirSymlink(t *testing.T) {
 	f := newFake(t)
 	f.write("outside/S-0001/issue.yaml", "title: "+marker+"\nstatus: doing\n")
@@ -613,7 +608,6 @@ func TestIssuesDirSymlink(t *testing.T) {
 	}
 }
 
-// 人が読む出力は 1 課題 1 行と older
 func TestText(t *testing.T) {
 	f, want, _ := rangeFixture(t)
 	res, err := Board(f.root, since, now)

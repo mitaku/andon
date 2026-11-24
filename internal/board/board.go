@@ -49,7 +49,6 @@ type Result struct {
 	More    *int             `json:"more,omitempty"`
 }
 
-// issue は読んだ課題 1 件。
 type issue struct {
 	id      string // フォルダの名前
 	key     string // ledger.CanonID(id)。親と after を引く鍵
@@ -64,7 +63,6 @@ type issue struct {
 	ownBroken bool
 }
 
-// kanban は読んだ kanban。
 type kanban struct {
 	project string
 	done    string
@@ -217,7 +215,6 @@ func parse(b []byte) (*yaml.Node, error) {
 	return m, nil
 }
 
-// hasAlias は木のどこかに alias があるか（alias の先はたどらない）。
 func hasAlias(n *yaml.Node) bool {
 	if n.Kind == yaml.AliasNode {
 		return true
@@ -230,7 +227,6 @@ func hasAlias(n *yaml.Node) bool {
 	return false
 }
 
-// fill は mapping から出力の中身と、範囲を決めるのに読む値を取る。
 func (t *issue) fill(m *yaml.Node) {
 	t.value = map[string]any{}
 	var status, parent, updated *yaml.Node
@@ -366,7 +362,6 @@ const (
 	RuleAfter     Rule = "o" // オ: アとイの after の相手
 )
 
-// AllRules は範囲を決める 5 つの組の全部。
 var AllRules = []Rule{RuleOpen, RuleRecent, RuleAncestors, RuleSiblings, RuleAfter}
 
 // Board は andon issue board の中身: 範囲の課題（番号の順）と older。
@@ -502,7 +497,6 @@ func History(root string, limit int, match string, now time.Time) (Result, error
 	return res, nil
 }
 
-// matches は番号・タイトル・repo・プロファイル・端末の名前（agent）のどれかに needle（小文字）を含むか。
 func (t *issue) matches(needle string) bool {
 	fields := []string{t.id}
 	for _, k := range []string{"title", "repo", "profile", "agent"} {

@@ -172,7 +172,6 @@ func TestDraftReadsMainCIOnlyWithRepos(t *testing.T) {
 	}
 }
 
-// 案内は入れたときだけ 1 行で、消すなら間に合うように commit の手順より前に出す。
 func TestGuideTellsAboutTheSignalOnlyWhenPutIn(t *testing.T) {
 	for _, tc := range []struct {
 		args []string
@@ -246,7 +245,6 @@ func TestRoleTerminalIsRefused(t *testing.T) {
 		t.Errorf("rc=%d %s", rc, errs)
 	}
 	assertEmpty(t, ws)
-	// オーナーの端末（ラベルが無い）なら通る
 	t.Setenv("HC_TERMINAL_ID", "t2")
 	if rc, _, errs := run(strings.NewReader(""), "sample-site"); rc != 0 {
 		t.Errorf("オーナーの端末: rc=%d %s", rc, errs)
@@ -267,7 +265,6 @@ func TestBadInputsStopBeforeAnything(t *testing.T) {
 	assertEmpty(t, ws)
 }
 
-// The longest slug andon chief-of-staff takes is made.
 func TestSlugOf28IsMade(t *testing.T) {
 	ws, _ := setup(t)
 	slug := strings.Repeat("a", 28)
@@ -288,7 +285,6 @@ func TestKanbanInitFailureLeavesNothing(t *testing.T) {
 	assertEmpty(t, ws)
 }
 
-// terminal は answers を読ませる端末のふり（isTerminal を差し替え、パイプを stdin にする）。
 func terminal(t *testing.T, answers string) *os.File {
 	t.Helper()
 	old := isTerminal
@@ -339,7 +335,6 @@ func TestInteractiveNoCancels(t *testing.T) {
 		t.Errorf("rc=%d %s", rc, errs)
 	}
 	assertEmpty(t, ws)
-	// 入力が途中で終わったら作らない
 	if rc, _, errs := run(terminal(t, "sample-site\n")); rc != exitUsage || !strings.Contains(errs, "途中で終わった") {
 		t.Errorf("rc=%d %s", rc, errs)
 	}
@@ -377,7 +372,6 @@ func TestNonCloneInGhqRootStops(t *testing.T) {
 	if _, err := os.Stat(log); err == nil {
 		t.Error("clone でないものがあるのに ghq を打った")
 	}
-	// 追加しても clone にならなければ止まる
 	t.Setenv("GHQ_BROKEN", "1")
 	if rc, _, errs := run(strings.NewReader(""), "sample-site", "--repo", "example.com/o/new"); rc != exitFail || !strings.Contains(errs, "のあとも") {
 		t.Errorf("rc=%d %s", rc, errs)
@@ -426,7 +420,6 @@ func TestGuideQuotesTheWorkspace(t *testing.T) {
 	if !strings.Contains(out, want) || !strings.Contains(quote(odd), `'\''`) {
 		t.Errorf("案内: %s", out)
 	}
-	// 案内のとおりに cd がシェルで通る
 	if b, err := exec.Command("sh", "-c", "cd "+quote(odd)+" && pwd").Output(); err != nil || strings.TrimSpace(string(b)) != odd {
 		t.Errorf("cd: %q %v", b, err)
 	}

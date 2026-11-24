@@ -25,7 +25,6 @@ import (
 	"strings"
 )
 
-// Usage は andon version の使い方。
 const Usage = "usage: andon version\n" +
 	"パッケージの置き場（ANDON_HOME。既定 /opt/andon）の commit と、中身がその commit と食い違うかを JSON で出す（読むだけ）。\n" +
 	"  root     置き場\n" +
@@ -35,12 +34,10 @@ const Usage = "usage: andon version\n" +
 	"  reasons  drift が true か null のときの理由\n" +
 	"焼いたときの印は andon version stamp が書く。\n"
 
-// StampUsage は andon version stamp の使い方。
 const StampUsage = "usage: andon version stamp <revision>\n" +
 	"焼くとき（image の build・image/apply-main.sh）だけ打つ。置き場（ANDON_HOME。既定 /opt/andon）の中身を数えて version.json を書く。\n" +
 	"<revision> は 40 桁の commit（汚れた checkout なら末尾に -dirty）か unknown。\n"
 
-// StampMain は andon version stamp。
 func StampMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprint(stderr, StampUsage)
@@ -55,7 +52,6 @@ func StampMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// Info は andon version の出力。
 type Info struct {
 	Root    string   `json:"root"`
 	Commit  *string  `json:"commit"`
@@ -261,7 +257,6 @@ func Read(root string) Info {
 	return info
 }
 
-// Main は andon version。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	root := Home()
 	switch {

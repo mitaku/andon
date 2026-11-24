@@ -14,7 +14,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// BoardUsage は andon issue board の使い方。
 const BoardUsage = "usage: andon issue board --since <時刻> [--json] [--project <slug>]\n" +
 	"ボードが読む課題だけを出す。読むだけで、kanban のファイルも履歴も書かない（docs/adr/0059-board-leaves-old-done-to-history.md 決めたこと 6・7）。\n" +
 	"出すのは、片付いていない課題と読めない課題、updated が --since 以降の片付いた課題、その 2 つの親をたどった先、\n" +
@@ -24,14 +23,12 @@ const BoardUsage = "usage: andon issue board --since <時刻> [--json] [--projec
 	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
 	"--json は docs/contract.md §29 の形。\n"
 
-// HistoryUsage は andon issue history の使い方。
 const HistoryUsage = "usage: andon issue history [--json] [--limit <件数>] [--match <文字>] [--project <slug>]\n" +
 	"片付いた課題を updated の新しい順に出す（ボードの表示 History が読む）。読むだけで、kanban のファイルも履歴も書かない（docs/adr/0059-board-leaves-old-done-to-history.md 決めたこと 8）。\n" +
 	"--limit は件数（既定 200、上限 2000）。more は条件に合うのに出さなかった数。\n" +
 	"--match は、番号・タイトル・repo・プロファイル・端末の名前（agent）のどれかにその文字を含む課題だけを残す（大文字と小文字を分けない）。\n" +
 	"読み方の守りと kanban の探し方は andon issue board と同じ。--json は docs/contract.md §29 の形。\n"
 
-// BoardMain は andon issue board。
 func BoardMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	asJSON, slug, sinceArg, hasSince := false, "", "", false
 	for len(args) > 0 {
@@ -69,7 +66,6 @@ func BoardMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return emit("andon issue board", res, asJSON, stdout, stderr)
 }
 
-// HistoryMain は andon issue history。
 func HistoryMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	asJSON, slug, match, limit := false, "", "", DefaultLimit
 	for len(args) > 0 {

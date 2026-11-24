@@ -13,13 +13,11 @@ import (
 // トレースは andon. の属性を span ごと（span_attributes）にだけ持ち、resource には持たない。ログは andon. の属性を
 // resource（環境変数 OTEL_RESOURCE_ATTRIBUTES）に持ち、codex.tool_result にツールの出力の写し output と個人の属性を持つ。
 
-// spansOf は書き出しの要求の最初の resource の span の並び。
 func spansOf(m map[string]any) []any {
 	scope := m["resourceSpans"].([]any)[0].(map[string]any)["scopeSpans"].([]any)[0].(map[string]any)
 	return scope["spans"].([]any)
 }
 
-// attrValue は属性の並びの key の文字列の値（無ければ "" と false）。
 func attrValue(list []any, key string) (string, bool) {
 	for _, a := range list {
 		kv := a.(map[string]any)
@@ -66,8 +64,6 @@ func TestReceiveCodexTraceSpanAttributes(t *testing.T) {
 	}
 }
 
-// span ごとの andon. の属性が揃わないトレースは、どの課題のものとも決められないので、書かずに捨てる。
-// どの span にも無ければ、今までどおり「andon.project が無い」で捨てる。
 func TestReceiveCodexTraceSpanAttributesDisagree(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -119,8 +115,6 @@ func TestReceiveCodexTraceSpanAttributesDisagree(t *testing.T) {
 	}
 }
 
-// resource に andon. の属性があれば（Codex に OTEL_RESOURCE_ATTRIBUTES を渡したとき）、span の属性は写さない
-// （resource の属性が二重にならない）。
 func TestReceiveCodexTraceResourceWins(t *testing.T) {
 	c := newCell(t)
 	in := sample(t, "codex-traces.json")
@@ -187,7 +181,6 @@ func TestReceiveCodexLogs(t *testing.T) {
 	}
 }
 
-// 名前の違うイベントの output（ツールの出力でない属性）は落とさない。
 func TestReceiveKeepsOutputOfOtherEvents(t *testing.T) {
 	c := newCell(t)
 	in := sample(t, "codex-logs.json")

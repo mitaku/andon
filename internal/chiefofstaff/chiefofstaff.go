@@ -30,7 +30,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// Usage は andon chief-of-staff の使い方。
 const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。オーナーの Herdr App の <slug> / CoS に出る\n" +
 	"動いていればそれを使い、無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos）。\n" +
 	"kanban の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
@@ -45,7 +44,6 @@ const (
 	exitFirst = 3 // 起きたが、最初のメッセージが届いていない
 )
 
-// Main は andon chief-of-staff を走らせ、終了コードを返す。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 0 {
 		fmt.Fprint(stderr, Usage)

@@ -23,7 +23,6 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// 葉ごとの使い方（andon process <動詞> --help の中身と、引数を誤ったときに出す文）。
 const (
 	RenderUsage = "usage: andon process render [--check] [<repo の根>]\n" +
 		"process/workstreams/*.yaml と process/states/*.yaml から docs/process/<名>.md（表と Mermaid の図）を作る。\n" +
@@ -33,7 +32,6 @@ const (
 		"YAML の定義を JSON にして出す（tests/process.sh が schema/process/ に通すため）。\n"
 )
 
-// RenderMain は andon process render。
 func RenderMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("andon process render", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -70,7 +68,6 @@ func RenderMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// JSONMain は andon process json。
 func JSONMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprint(stderr, JSONUsage)
@@ -105,7 +102,6 @@ func ToJSON(path string) ([]byte, error) {
 // Strings は 1 つの文字列か文字列の並び（YAML のどちらの書き方も受ける）。
 type Strings []string
 
-// UnmarshalYAML は scalar を 1 件の並びにする。
 func (s *Strings) UnmarshalYAML(n *yaml.Node) error {
 	if n.Kind == yaml.ScalarNode {
 		*s = Strings{n.Value}
@@ -129,7 +125,6 @@ type Workstream struct {
 	Counts   []string  `yaml:"counts"`
 }
 
-// Trigger はきっかけ。
 type Trigger struct {
 	Name         string `yaml:"name"`
 	Kind         string `yaml:"kind"`
@@ -138,7 +133,6 @@ type Trigger struct {
 	Start        string `yaml:"start"`
 }
 
-// Step は手順の 1 件。
 type Step struct {
 	ID      string   `yaml:"id"`
 	Title   string   `yaml:"title"`
@@ -154,13 +148,11 @@ type Step struct {
 	Asks    []Ask    `yaml:"asks"`
 }
 
-// Next は続く手順。
 type Next struct {
 	ID   string `yaml:"id"`
 	When string `yaml:"when"`
 }
 
-// Ask はオーナーに聞くこと。
 type Ask struct {
 	Question string `yaml:"question"`
 	Kind     string `yaml:"kind"`
@@ -176,14 +168,12 @@ type StateMachine struct {
 	Transitions []Transition `yaml:"transitions"`
 }
 
-// State は状態の 1 件。
 type State struct {
 	ID     string  `yaml:"id"`
 	Title  string  `yaml:"title"`
 	Record Strings `yaml:"record"`
 }
 
-// Transition は移り方の 1 件。
 type Transition struct {
 	From    string `yaml:"from"`
 	To      string `yaml:"to"`
@@ -563,7 +553,6 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-// RenderStates はステートマシンの Markdown を作る。
 func RenderStates(s StateMachine, src string) []byte {
 	var b strings.Builder
 	header(&b, s.Title, src)

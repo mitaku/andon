@@ -35,7 +35,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// Usage は andon chief-engineer の使い方。
 const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<タイトル>\"\n" +
 	"projects/<slug>/ で打つ。--repo を省くと kanban の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
 	"kanban に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
@@ -61,7 +60,6 @@ var (
 
 var output = spawn.Output
 
-// Main は andon chief-engineer を走らせ、終了コードを返す。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	repo, title, withBrief, ok := parseArgs(args)
 	if !ok {

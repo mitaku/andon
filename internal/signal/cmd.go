@@ -20,17 +20,14 @@ import (
 // jsonDecode は出所の応答を読む（知らないキーは無視。出所の形は Andon の約束ではない）。
 func jsonDecode(b []byte, v any) error { return json.Unmarshal(b, v) }
 
-// CollectMain は andon signal collect。
 func CollectMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("collect", args, stdin, stdout, stderr)
 }
 
-// DeliveredMain は andon signal delivered。
 func DeliveredMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("delivered", args, stdin, stdout, stderr)
 }
 
-// AuthMain は andon signal auth。
 func AuthMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run("auth", args, stdin, stdout, stderr)
 }

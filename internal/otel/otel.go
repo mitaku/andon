@@ -64,7 +64,6 @@ var (
 	roleRe    = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 )
 
-// signal は受ける道の 1 つ（トレースかログ）。
 type signal struct {
 	key  string // 書き出しの要求の中の resource の並びのキー
 	file string // 置き場のファイルの名前の部分
@@ -85,7 +84,6 @@ func Root() string {
 	return filepath.Join(dir, "andon", "otel")
 }
 
-// Receiver は受け口の HTTP の handler。
 type Receiver struct {
 	Root string           // 置き場の根（Root()）
 	Log  io.Writer        // ログ（1 行ずつ。頭に時刻）
@@ -264,7 +262,6 @@ func (r *Receiver) place(sig signal, entry any) (string, string) {
 	return filepath.Join(project, "roles", role, r.now().UTC().Format("2006-01-02")+"."+sig.file+".jsonl"), ""
 }
 
-// short は送り手が書いた値をログに出す長さに切る（長い値でログを膨らませない）。
 func short(s string) string {
 	if r := []rune(s); len(r) > 64 {
 		return string(r[:64]) + "…"
@@ -284,7 +281,6 @@ func resourceAttrs(entry any) map[string]string {
 	return andonAttrs(list)
 }
 
-// andonAttrs は属性の並びのうち andonKeys のものを、文字列の値で返す（文字列でない値の扱いは resourceAttrs と同じ）。
 func andonAttrs(list []any) map[string]string {
 	out := map[string]string{}
 	for _, a := range list {
@@ -408,7 +404,6 @@ func contentOf(rec map[string]any) map[string]bool {
 	return nil
 }
 
-// dropPersonal は属性の並びから個人の属性と content（その記録の本文を運ぶ属性）を落とし、名前が秘密の名前の値を伏せる。
 func dropPersonal(list []any, content map[string]bool) []any {
 	out := list[:0:0]
 	for _, a := range list {

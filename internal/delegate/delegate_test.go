@@ -102,7 +102,6 @@ func TestOwner(t *testing.T) {
 	}
 }
 
-// Read は HEAD だけを読み、author が owner でなければ無委譲。
 func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git が無い")
@@ -127,7 +126,6 @@ func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	if r := Read(ws, "sample-site", "2026-11-10"); !r.Trusted || r.Merge() != "B" || len(r.Grants) != 2 {
 		t.Errorf("owner の commit: %+v", r)
 	}
-	// 作業ツリーの変更は読まない
 	os.WriteFile(p, []byte(projectOf(strings.Replace(sample, `"hobby"`, `"work"`, 1))), 0o644)
 	if r := Read(ws, "sample-site", "2026-11-10"); r.Preset != "hobby" {
 		t.Errorf("作業ツリーを読んだ: %+v", r)
@@ -139,7 +137,6 @@ func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	if r := Read(ws, "nothing", "2026-11-10"); r.Trusted || r.Merge() != "none" {
 		t.Errorf("無いのに委譲がある: %+v", r)
 	}
-	// 移す前の delegation.json は、owner が commit していても読まない（無委譲。理由に移すことを書く）
 	os.MkdirAll(filepath.Join(ws, "projects", "legacy"), 0o755)
 	os.WriteFile(filepath.Join(ws, LegacyRel("legacy")), []byte(strings.Replace(sample, "sample-site", "legacy", 1)), 0o644)
 	run(owner, "add", "-A")
@@ -147,7 +144,6 @@ func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	if r := Read(ws, "legacy", "2026-11-10"); r.Trusted || r.Merge() != "none" || !strings.Contains(r.Reason, "delegation.json は読まない") {
 		t.Errorf("delegation.json を読んだ: %+v", r)
 	}
-	// project.json に delegation が無ければ無委譲
 	os.WriteFile(filepath.Join(ws, ProjectRel("legacy")), []byte(`{"version":1,"project":{"title":"L","prefix":"L"},"repos":[]}`), 0o644)
 	run(owner, "add", "-A")
 	run(owner, "commit", "-qm", "project")
@@ -159,12 +155,10 @@ func TestReadTrustsOnlyOwnerAtHead(t *testing.T) {
 	}
 }
 
-// projectOf は委譲 d を delegation に持つ project.json。
 func projectOf(d string) string {
 	return `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"], "delegation": ` + d + `}`
 }
 
-// signalsOf は signals に出所 sig を1つ持つ project.json（references に読むだけの repo と URL）。
 func signalsOf(sig string) string {
 	return `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"],
  "references": ["github.com/example/design-notes", "https://example.com/spec"], "signals": [` + sig + `]}`
@@ -321,7 +315,6 @@ func TestParseProject(t *testing.T) {
 	}
 }
 
-// show は --project と --json だけを受ける。grant・revoke の option は、projects/<slug>/ で打っても使い方の誤りになる。
 func TestShowRefusesOtherCommandsOptions(t *testing.T) {
 	ws := t.TempDir()
 	t.Setenv("ANDON_WORKSPACE", ws)
@@ -341,8 +334,6 @@ func TestShowRefusesOtherCommandsOptions(t *testing.T) {
 	}
 }
 
-// grant は端末の git の user が owner と違っても、andon.toml の owner を author と committer にして commit する（読み手が信じる）。
-// owner が andon.toml に無ければ commit せずに止まる。
 func TestGrantCommitsAsOwner(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git が無い")
@@ -383,7 +374,6 @@ func TestGrantCommitsAsOwner(t *testing.T) {
 		t.Errorf("grant の commit を信じない: %+v", r)
 	}
 
-	// owner が andon.toml に無ければ commit しない
 	os.WriteFile(filepath.Join(ws, "andon.toml"), []byte("# owner が無い\n"), 0o644)
 	head := run("rev-parse", "HEAD")
 	errb.Reset()
@@ -395,7 +385,6 @@ func TestGrantCommitsAsOwner(t *testing.T) {
 	}
 }
 
-// .env は最後の空でない行の値（前後の空白と引用符を除く）。無ければ既定。boot と andon publish が読む。
 func TestDotenv(t *testing.T) {
 	for body, want := range map[string]string{
 		"":          "def",

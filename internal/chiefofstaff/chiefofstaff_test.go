@@ -314,7 +314,6 @@ func TestUsage(t *testing.T) {
 	}
 }
 
-// 作り直しで戻った端末（ラベル・名前・cwd はそのまま、中身が素のシェル）: 使わずに片付け、起動し直して chief_of_staff を合わせる。
 func TestShellChiefOfStaffIsReplaced(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"}]}`)
@@ -329,7 +328,6 @@ func TestShellChiefOfStaffIsReplaced(t *testing.T) {
 	}
 }
 
-// 中身がシェルの端末は2人と数えない（動いている1人を使い、シェルの端末は片付ける）。
 func TestShellChiefOfStaffNotCounted(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t1"},{"address":"t2"}]}`)
@@ -388,8 +386,6 @@ func TestChiefOfStaffForegroundUnknown(t *testing.T) {
 	})
 }
 
-// オーナーがシェルで使っている端末（top-level はエージェントの command で前にシェル・top-level がシェルで前に別のもの）は片付けない。
-// 使いも数えもせず、確かめられないとして止まる（kanban を書かない）。
 func TestHumanShellChiefOfStaffKept(t *testing.T) {
 	for _, term := range []string{
 		`"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}`,
@@ -408,8 +404,6 @@ func TestHumanShellChiefOfStaffKept(t *testing.T) {
 	}
 }
 
-// agent が Claude Code でない端末（前に別のもの・agent の情報が無い）は動いているとして使わない。
-// agent が claude-code の sh -c claude は動いているとして使う（TestUsesRunningOne）。
 func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
 	for _, term := range []string{
 		`"argv":["sh","-c","claude"],"status":null,"foreground":{"name":"vim","argv":["/usr/bin/vim"]}`,
@@ -426,7 +420,6 @@ func TestNonAgentChiefOfStaffNotUsed(t *testing.T) {
 	}
 }
 
-// 起動の直後: 最初の hc get には agent の情報がまだ無く、読み直すと status.app=claude-code。動いているとして使う（打ち直しを求めない）。
 func TestChiefOfStaffAgentAppearsLater(t *testing.T) {
 	f := newFake(t)
 	spawn.SettleWait = time.Minute // 2回目の答えで終わる。上限は届かない天井（偽の hc の起動が遅くても、時刻で読み直しを打ち切らない）

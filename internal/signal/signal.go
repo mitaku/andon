@@ -25,7 +25,6 @@ import (
 	"andon/internal/flock"
 )
 
-// 葉ごとの使い方（andon signal <動詞> --help の中身と、引数を誤ったときに出す文）。
 const (
 	CollectUsage = "usage: andon signal collect [--due] [--project <slug>]\n" +
 		"project.json の signals の出所を読み、信号の記録を書く。\n" +
@@ -58,7 +57,6 @@ type Record struct {
 	Release          string `json:"release,omitempty"`
 }
 
-// File は <slug>.signals.json。
 type File struct {
 	Signals []Record `json:"signals"`
 	// ReadAt は出所と repo の組（"<source> <repo>"）ごとに、collect が最後に読みに行った時刻（読めなかったときも）。--due の間隔に使う
@@ -68,7 +66,6 @@ type File struct {
 // Every は出所を読む間隔の既定（分。contract.md §11 の signals[].every）。
 const Every = 10
 
-// Seen は出所を1回読んで見えた信号1つ。
 type Seen struct {
 	Key, URL, Title, Release string
 	// Runs は、最新の run から成功の手前までの失敗の run の URL（github-ci だけ）。Bounded は、その手前に成功の run を読めたか。
@@ -78,10 +75,8 @@ type Seen struct {
 	Bounded bool
 }
 
-// GH は gh を引数で打ち、標準出力を返す。
 type GH func(args ...string) ([]byte, error)
 
-// Options は collect の入力。
 type Options struct {
 	Slug     string
 	Project  *delegate.Project
@@ -171,7 +166,6 @@ func (f *File) unique() error {
 	return nil
 }
 
-// save は記録を、fingerprint の一意と schema を確かめてから書く。
 func save(path string, f *File) error {
 	if err := f.unique(); err != nil {
 		return err
@@ -356,7 +350,6 @@ func merge(f *File, slug, source, weight, prefix string, seen []Seen, judged fun
 	return
 }
 
-// split は <host>/<owner>/<repo> を host と owner/repo に分ける。
 func split(repo string) (string, string) {
 	host, rest, _ := strings.Cut(repo, "/")
 	return host, rest
@@ -455,7 +448,6 @@ func readIssues(gh GH, repo string, filter *string) ([]Seen, func(string) bool, 
 	return out, func(string) bool { return complete }, nil
 }
 
-// issueLimit は1回に読む issue の上限。
 var issueLimit = 1000
 
 // RunGH は本物の gh。誤りには stderr の最後の行を添える。

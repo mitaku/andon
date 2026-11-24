@@ -148,7 +148,6 @@ func TestRenderRefusesSymlinks(t *testing.T) {
 	}
 }
 
-// 確かめたあと書く・消す前に docs/process を外への symlink に差し替えても、外は変わらない（os.Root が止める）。
 func TestRenderSwapAfterCheckStaysInside(t *testing.T) {
 	for name, stale := range map[string]bool{"書く": false, "消す": true} {
 		t.Run(name, func(t *testing.T) {

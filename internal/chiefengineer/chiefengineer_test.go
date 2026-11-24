@@ -72,7 +72,6 @@ func newFake(t *testing.T) *fake {
 	}
 	f := &fake{t: t, root: filepath.Join(dir, "projects", "sample-site"), log: filepath.Join(dir, "log"),
 		repoDir: filepath.Join(dir, "ghq", "github.com", "example", "sample-site"), home: filepath.Join(dir, "home")}
-	// 案件の repo: 既定の branch が main の bare な origin と、その clone
 	origin := filepath.Join(dir, "origin.git")
 	git(t, "", "init", "-q", "--bare", "-b", "main", origin)
 	git(t, "", "clone", "-q", origin, f.repoDir)
@@ -109,7 +108,6 @@ func git(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// config は kanban の config.yaml に、kanban の CLI が書く形で repos を置く。
 func (f *fake) config(repos string) {
 	f.t.Helper()
 	p := filepath.Join(f.root, "kanban", "config.yaml")
@@ -228,7 +226,6 @@ func TestNoLedger(t *testing.T) {
 	}
 }
 
-// 文書（design.md・skill・README.md・README.ja.md）に書いた andon chief-engineer の呼び出しを、そのまま打って通る
 func TestDocumentedInvocations(t *testing.T) {
 	re := regexp.MustCompile("andon chief-engineer((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?)( --brief -)? \"<タイトル>\"")
 	files, _ := filepath.Glob("../../package/skills/*/SKILL.md")
@@ -293,13 +290,11 @@ func TestLedgerRepos(t *testing.T) {
 			t.Errorf("%q: rc=%d err=%q", c.repos, rc, errs)
 		}
 	}
-	// 1つなら --repo 無しで通り、--repo があれば repos より --repo
 	f := newFake(t)
 	f.config("repos:\n  - \"github.com/example/sample-site\"\n")
 	if rc, _, errs := runMain("タイトル"); rc != 0 || !f.has("kanban add タイトル --repo github.com/example/sample-site ") {
 		t.Errorf("1つ: rc=%d err=%q", rc, errs)
 	}
-	// flow の並び（repos: [x]）も読む
 	f = newFake(t)
 	f.config("repos: [github.com/example/sample-site]\n")
 	if rc, _, errs := runMain("タイトル"); rc != 0 || !f.has("kanban add タイトル --repo github.com/example/sample-site ") {
@@ -324,7 +319,6 @@ func TestBadRepo(t *testing.T) {
 	}
 }
 
-// contract の project slug（英小文字・数字・_・-）は通る
 func TestUnderscoreSlug(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_ROOT", filepath.Join(t.TempDir(), "projects", "sample_site"))
@@ -373,7 +367,6 @@ func TestShellChiefEngineerIsLeft(t *testing.T) {
 	}
 }
 
-// --brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。省けば既定の行だけ。
 func TestBriefFromStdin(t *testing.T) {
 	head := "# タイトル\n\nChief Engineer の課題。オーナーと直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
 		"タイトルはオーナーの1行。手順は skill chief-engineer。\n"
@@ -401,7 +394,6 @@ func TestBriefFromStdin(t *testing.T) {
 	}
 }
 
-// --brief - の stdin が空なら、何もせずに usage の終了コード。stdin のほかの値は受けない。
 func TestBriefBad(t *testing.T) {
 	f := newFake(t)
 	var out, errb bytes.Buffer

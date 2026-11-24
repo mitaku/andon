@@ -27,7 +27,6 @@ type Usage struct {
 	CacheWrite int64 `json:"cache_write"` // キャッシュに書いた入力
 }
 
-// Add は v を足す。
 func (u *Usage) Add(v Usage) {
 	u.Input += v.Input
 	u.Output += v.Output
@@ -35,7 +34,6 @@ func (u *Usage) Add(v Usage) {
 	u.CacheWrite += v.CacheWrite
 }
 
-// Log は1つのセッションの記録から数えたもの。
 type Log struct {
 	Models  []string // 使われたモデルの id（出た順に、重ねずに）
 	Efforts []string // effort（出た順に、重ねずに）
@@ -290,7 +288,6 @@ func CodexLogs(files []string, skip Skip) (ids []string, logs map[string]*Log) {
 	return ids, logs
 }
 
-// one は rollout 1本を数えたもの（turnIDs はターンの id）。
 type one struct {
 	Log
 	turnIDs []string

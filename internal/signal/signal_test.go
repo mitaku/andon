@@ -16,7 +16,6 @@ import (
 
 const repo = "github.com/example/sample-site"
 
-// fake は偽の gh。ci と issues が応答で、err があれば落ちる。打たれた引数を calls に残す。
 type fake struct {
 	ci, issues string
 	err        error
@@ -374,8 +373,6 @@ func TestDelivered(t *testing.T) {
 	}
 }
 
-// fingerprint が重なった記録は、読むときに断る。collect も delivered も、その記録を書き直さない
-// （schema の uniqueKeys は検査器が読み飛ばすので、command の側で見る）。
 func TestDuplicateFingerprintRefused(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.signals.json")
@@ -405,14 +402,12 @@ func TestDuplicateFingerprintRefused(t *testing.T) {
 	}
 }
 
-// commit は検査の commit の SHA（1 字を 40 個並べる）。
 func commit(c string) string { return strings.Repeat(c, 40) }
 
 func runURL(id int) string {
 	return fmt.Sprintf("https://github.com/example/sample-site/actions/runs/%d", id)
 }
 
-// ciRun は偽の gh が返す run の1件。
 func ciRun(id int, workflow, event, conclusion, sha string) string {
 	return fmt.Sprintf(`{"path": ".github/workflows/%s.yml", "name": %q, "event": %q, "conclusion": %q, "html_url": %q, "head_sha": %q, "display_title": "run %d"}`,
 		workflow, workflow, event, conclusion, runURL(id), sha, id)

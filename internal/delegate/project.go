@@ -47,13 +47,11 @@ type Digest struct {
 	Destinations []DigestDestination `json:"destinations"`
 }
 
-// DigestDestination は送り先1つ（kind ごとに1件）。
 type DigestDestination struct {
 	Kind    string `json:"kind"`
 	Channel string `json:"channel"`
 }
 
-// ProjectInfo はタイトルと接頭字。
 type ProjectInfo struct {
 	Title  string `json:"title"`
 	Prefix string `json:"prefix"`
@@ -90,7 +88,6 @@ var (
 	urlRe     = regexp.MustCompile(`^https://[!-~]+$`)
 )
 
-// ProjectRel はセルの repo の中の project.json の置き場。
 func ProjectRel(slug string) string { return filepath.Join("projects", slug, "project.json") }
 
 // LegacyRel は移す前の委譲の置き場（読まない。無委譲の理由を言うためだけに見る）。

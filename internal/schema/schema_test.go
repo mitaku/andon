@@ -24,7 +24,6 @@ func write(t *testing.T, dir, name, body string) string {
 	return p
 }
 
-// TestCheck は andon schema check の終了コード（0 合う・1 合わない・2 検査できない）と、理由の出し先を見る。
 func TestCheck(t *testing.T) {
 	dir := t.TempDir()
 	good := write(t, dir, "good.json", `{"commit": "`+strings.Repeat("a", 40)+`"}`)
@@ -64,7 +63,6 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-// TestBatch は andon schema batch が1行1件を check と同じ終了コードで、同じ順に返すかを見る。
 func TestBatch(t *testing.T) {
 	dir := t.TempDir()
 	good := write(t, dir, "good.json", `{"commit": "`+strings.Repeat("a", 40)+`"}`)

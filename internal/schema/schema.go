@@ -14,7 +14,6 @@ import (
 	"andon/internal/contract"
 )
 
-// 葉ごとの使い方（andon schema <動詞> --help の中身と、引数を誤ったときに出す文）。
 const (
 	CheckUsage = "usage: andon schema check <schema> <json>\n" +
 		"<schema> は andon に埋め込んだ schema/ の直下の名前（report・question・findings など）か、*.schema.json のパス。\n" +
@@ -26,7 +25,6 @@ const (
 		"行ごとに `終了コード<TAB>理由の1行目` を出す（終了コードは check と同じ）。batch そのものは、表が読めれば 0。\n"
 )
 
-// CheckMain は andon schema check。
 func CheckMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 2 {
 		fmt.Fprint(stderr, CheckUsage)
@@ -42,7 +40,6 @@ func CheckMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return rc
 }
 
-// BatchMain は andon schema batch。
 func BatchMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprint(stderr, BatchUsage)
@@ -51,7 +48,6 @@ func BatchMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return batch(args[0], stdin, stdout, stderr)
 }
 
-// isPath は <schema> の引数がファイルの置き場か（/ を含むか .json で終わる）。でなければ埋め込んだ schema の名前。
 func isPath(arg string) bool { return strings.Contains(arg, "/") || strings.HasSuffix(arg, ".json") }
 
 func names() string {
@@ -95,7 +91,6 @@ func check(schemaArg, jsonArg string, stdin io.Reader) (int, string) {
 	}
 }
 
-// batch は表の1行ずつを check と同じに照らし、`終了コード<TAB>理由の1行目` を出す。
 func batch(path string, stdin io.Reader, stdout, stderr io.Writer) int {
 	r := stdin
 	if path != "-" {

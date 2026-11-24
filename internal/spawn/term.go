@@ -13,7 +13,6 @@ import (
 // 起動した役の端末の top-level の argv は template の command（sh -c '… claude …'）のまま。
 // ラベルと live だけでは「動いている」と言えないので、top-level の argv と、hc の agent の情報（status.app）で見分ける。
 
-// Shells は、前に出ていれば「中身がシェル」とみなすもの。
 var Shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ash": true, "fish": true, "nu": true}
 
 // BareShell は argv が引数の無いシェル（戻った端末の中身・オーナーが抜けたあと）か。sh -c '…' のような起動の途中は含めない。
@@ -21,7 +20,6 @@ func BareShell(argv []string) bool {
 	return len(argv) == 1 && Shells[strings.TrimPrefix(filepath.Base(argv[0]), "-")]
 }
 
-// Term は hc get --json のうち、役の端末の見分けに読むもの。
 type Term struct {
 	Address    string            `json:"address"`
 	Name       string            `json:"name"`
@@ -46,7 +44,6 @@ func (t *Term) Agent() string {
 	return t.Status.App
 }
 
-// Kind は役の端末の見分け。
 type Kind int
 
 const (
@@ -76,10 +73,8 @@ func (t *Term) Kind() Kind {
 	return Unsure
 }
 
-// Shell は前に出ているものが引数の無いシェルか。
 func (t *Term) Shell() bool { return t.Foreground != nil && BareShell(t.Foreground.Argv) }
 
-// Describe はオーナーに見せる端末の様子（argv・前に出ているもの・agent）。
 func (t *Term) Describe() string {
 	fg := "取れない"
 	if t.Foreground != nil {
@@ -92,7 +87,6 @@ func (t *Term) Describe() string {
 	return fmt.Sprintf("argv %s・前に %s・agent %s", strings.Join(t.Argv, " "), fg, agent)
 }
 
-// SettleWait は前に出ているものが取れるまで読み直す上限。settlePoll はその間隔。テストで差し替える。
 var (
 	SettleWait = 5 * time.Second
 	settlePoll = 500 * time.Millisecond
@@ -122,7 +116,6 @@ func Look(addr string) (*Term, error) {
 // シェルには打ち込まない（入力欄にオーナーの打ちかけがあれば、それに足して実行してしまう）。
 func Discard(addr string) error { return DiscardWith("hc", addr) }
 
-// DiscardWith は hc（hc の実行ファイルのパス）で Discard する。
 func DiscardWith(hc, addr string) error {
 	for _, args := range [][]string{{"keep", addr, "--off"}, {"kill", addr}, {"rm", addr}} {
 		if _, err := Output(nil, "", hc, args...); err != nil {

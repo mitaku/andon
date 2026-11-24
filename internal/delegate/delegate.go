@@ -23,7 +23,6 @@ import (
 	"andon/internal/spawn"
 )
 
-// Scopes は範囲（最初のバージョンの8つ）。
 var Scopes = []string{"merge", "deploy", "publish", "irreversible", "external-requests", "profile", "package-update", "line-change"}
 
 // levels は順序のある範囲の値（狭い順）。
@@ -50,14 +49,12 @@ var Presets = map[string]map[string]any{
 var None = map[string]any{"merge": "none", "deploy": "none", "publish": "none", "irreversible": []string{},
 	"external-requests": false, "profile": false, "package-update": false, "line-change": "none"}
 
-// Revoked は取り消し。
 type Revoked struct {
 	At     string `json:"at"`
 	By     string `json:"by"`
 	Reason string `json:"reason"`
 }
 
-// Grant は1つの付与。
 type Grant struct {
 	ID       string          `json:"id"`
 	Scope    string          `json:"scope"`
@@ -255,7 +252,6 @@ func (f *File) Effective(today string) map[string]any {
 	return out
 }
 
-// Result は読み手が受け取る委譲。
 type Result struct {
 	Project   string         `json:"project"`
 	Trusted   bool           `json:"trusted"`
@@ -354,7 +350,6 @@ func Owner(ws string) string {
 
 func git(ws string, args ...string) (string, error) { return gitEnv(ws, nil, args...) }
 
-// gitEnv は env（KEY=VALUE）を足して git を打つ。
 func gitEnv(ws string, env []string, args ...string) (string, error) {
 	var errb bytes.Buffer
 	c := exec.Command("git", append([]string{"-C", ws}, args...)...)

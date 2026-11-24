@@ -32,10 +32,8 @@ import (
 	"andon/internal/spawn"
 )
 
-// File は記録のファイルの名前。
 const File = "launches.jsonl"
 
-// 役（role）と起動のしかた（launch）の値。
 const (
 	RoleWorker         = "worker"
 	RoleReviewer       = "reviewer"
@@ -96,14 +94,12 @@ type Harness struct {
 	Version *string `json:"version"`
 }
 
-// Checkout は git の checkout の commit と、commit していない変更があるか。
 type Checkout struct {
 	Path   string  `json:"path"`
 	Commit *string `json:"commit"`
 	Dirty  *bool   `json:"dirty"`
 }
 
-// Repo は案件の repo（担当・レビュアー・Chief Engineer の worktree）。
 type Repo struct {
 	Name string `json:"name"`
 	Checkout
@@ -120,7 +116,6 @@ type External struct {
 	Revision *string `json:"revision"`
 }
 
-// Spec は呼び手が決めて渡すもの。
 type Spec struct {
 	Role     string
 	Launch   string
@@ -357,7 +352,6 @@ func skillOf(dirName, path string, b []byte) External {
 	return x
 }
 
-// frontmatter は先頭の --- と次の --- の間（無ければ nil）。
 func frontmatter(b []byte) []byte {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
