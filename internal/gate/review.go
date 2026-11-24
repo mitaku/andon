@@ -42,7 +42,7 @@ func NeedsReview(repo, review string, rep *contract.Report) (bool, Classified, e
 		return false, Classified{}, err
 	}
 	slug := owner + "/" + name
-	files, err := prFiles(slug, number)
+	files, err := PRFiles(slug, number)
 	if err != nil {
 		return false, Classified{}, err
 	}

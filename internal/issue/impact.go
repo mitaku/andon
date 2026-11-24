@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"andon/internal/contract"
+	"andon/internal/delegate"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -72,6 +74,18 @@ func (c *ctx) impact(stdout io.Writer) error {
 		res.Files = append(res.Files, f.Path)
 	}
 	sort.Strings(res.Files)
+	owner, name, number, ok := contract.ParsePR(rep.PR)
+	if !ok {
+		return fail("report.json の pr が PR の URL でない: %s", rep.PR)
+	}
+	prFiles, err := gate.PRFiles(owner+"/"+name, number)
+	if err != nil {
+		return fail("PR のファイルの一覧が読めない: %s %v", rep.PR, err)
+	}
+	checks, err := mergedCheckPlaces(repoDir, repo, sha, prFiles)
+	if err != nil {
+		return err
+	}
 	tasks, err := c.l.List()
 	if err != nil {
 		return err
@@ -82,16 +96,17 @@ func (c *ctx) impact(stdout io.Writer) error {
 			(t.Str("parent") != "" && strings.HasSuffix(t.Str("profile"), "-review")) {
 			continue
 		}
-		res.Issues = append(res.Issues, c.impactOf(t, repoDir, sha, res.Files))
+		res.Issues = append(res.Issues, c.impactOf(t, repoDir, sha, res.Files, checks))
 	}
 	_, err = stdout.Write(contract.Marshal(res))
 	return err
 }
 
-func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) contract.ImpactIssue {
+// impactOf は1つの課題の事実を集める。checks はマージで変わった検査の置き場（mergedCheckPlaces）。
+func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged, checks []string) contract.ImpactIssue {
 	id := t.Str("id")
 	it := contract.ImpactIssue{Issue: id, Title: t.Str("title"), Status: t.Str("status"), Agent: t.Str("agent"), Branch: t.Str("branch"),
-		ConflictFiles: []string{}, Overlap: []string{}, BriefRefs: []string{}}
+		ConflictFiles: []string{}, Overlap: []string{}, BriefRefs: []string{}, ChecksMoved: []string{}}
 	if r, err := contract.ReadReport(filepath.Join(c.l.Library(id), "report.json")); err == nil {
 		it.PR = r.PR
 	}
@@ -108,6 +123,8 @@ func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged []string) con
 		it.Contains = true
 		return it
 	}
+	// branch がマージの commit を含まない: マージで変わった検査の置き場は、この branch の checks に入っていない
+	it.ChecksMoved = append([]string{}, checks...)
 	base, err := git(repoDir, "merge-base", head, sha)
 	if err != nil {
 		it.Error = "マージの commit との merge-base が無い"
@@ -160,6 +177,25 @@ func mergeTree(repoDir, head, sha string) (bool, []string, error) {
 		return true, Intersect(ls, ls), nil
 	}
 	return false, nil, fmt.Errorf("git merge-tree に失敗")
+}
+
+// mergedCheckPlaces は、マージで変わったファイルのうち検査の置き場に当たるものを返す（判定は gate.CheckPlaceFiles だけ。
+// 条件表の strip_prefix を外し、rename の元も見る）。ファイルは REST の PR の一覧（全ページ。gate.PRFiles）に、マージの commit と
+// その1番目の親の差分（rename の両側）を足す。gh pr view の files は 100 件で切れ、rename の元を持たないので使わない。
+func mergedCheckPlaces(repoDir, repo, sha string, prFiles []gate.File) ([]string, error) {
+	table, _, err := gate.LoadTable(pkgHome(), delegate.Workspace())
+	if err != nil {
+		return nil, fail("条件表が読めない: %v", err)
+	}
+	diff, err := git(repoDir, "diff", "--name-only", "--no-renames", sha+"^1", sha)
+	if err != nil {
+		return nil, fail("マージの commit %s の差分が読めない: %v", sha, err)
+	}
+	files := append([]gate.File{}, prFiles...)
+	for _, f := range lines(diff) {
+		files = append(files, gate.File{Path: f})
+	}
+	return gate.CheckPlaceFiles(table.Repos[repo], files), nil
 }
 
 // BriefRefs は、files のうち依頼書の文に path そのものか、名前（base name）が出てくるものを返す（並びは files の順）。

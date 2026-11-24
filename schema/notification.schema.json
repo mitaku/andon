@@ -180,7 +180,7 @@
         "error": { "description": "Why the dispatcher gave up collecting the facts (after retries).", "type": "string", "minLength": 1 },
         "sha": { "description": "The merge commit.", "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "issues": {
-          "description": "Running issues in the same repo that conflict, overlap, are referenced by the brief, or could not be read.",
+          "description": "Running issues in the same repo that conflict, overlap, are referenced by the brief, miss moved check places (review issues), or could not be read.",
           "type": "array", "minItems": 1,
           "items": {
             "type": "object", "required": ["issue", "conflict", "overlap", "brief_refs"], "additionalProperties": false,
@@ -189,6 +189,7 @@
               "conflict": { "description": "git merge-tree of the branch and the merge commit conflicts.", "type": "boolean" },
               "overlap": { "description": "Files both changed (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
               "brief_refs": { "description": "Merged files named in the issue's brief (at most 20).", "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "checks_moved": { "description": "Check places (tests, workflows, Go tests; the gate's definition) the merged PR changed and the branch does not contain yet (at most 20). Absent in notifications written before it.", "type": "array", "items": { "type": "string", "minLength": 1 } },
               "error": { "description": "Why the facts could not be read.", "type": "string", "minLength": 1 }
             }
           }

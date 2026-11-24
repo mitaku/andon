@@ -520,6 +520,8 @@ pass|notification|.kind = "hold" | .detail = {reason: "A-0015"}|kind hold（止�
 fail|notification|.kind = "hold" | .detail = {}|hold に reason が無い
 fail|notification|.kind = "hold" | .detail = {reason: "A-0015", pr: .detail.pr}|hold に知らないキー
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: ["docs/a.md"], error: "x"}]}|kind impact
+pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: [], checks_moved: [".github/workflows/go.yml"]}]}|kind impact（検査の置き場が動いた）
+fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: [{issue: "A-14", conflict: false, overlap: [], brief_refs: [], checks_moved: [""]}]}|impact の checks_moved に空のパス
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr, sha: "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08", issues: []}|impact の issues が空
 pass|notification|.kind = "impact" | .detail = {pr: .detail.pr, error: "3 回打って失敗"}|kind impact（集められなかった）
 fail|notification|.kind = "impact" | .detail = {pr: .detail.pr}|impact に issues も error も無い

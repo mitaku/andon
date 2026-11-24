@@ -376,7 +376,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
 	}
 
-	files, err := prFiles(slug, number)
+	files, err := PRFiles(slug, number)
 	if err != nil {
 		return nil, "", err
 	}
@@ -590,8 +590,8 @@ func ParseCompare(b []byte) ([]File, int, bool, error) {
 	return files, *v.AheadBy, len(*v.Files) >= compareFilesLimit, nil
 }
 
-// prFiles は PR の変更されたファイル（REST を全ページ。GraphQL の files は100件で切れ、rename 元も無い）。
-func prFiles(slug, number string) ([]File, error) {
+// PRFiles は PR の変更されたファイル（REST を全ページ。GraphQL の files は100件で切れ、rename 元も無い）。
+func PRFiles(slug, number string) ([]File, error) {
 	b, err := gh("api", "--paginate", "--slurp", "repos/"+slug+"/pulls/"+number+"/files")
 	if err != nil {
 		return nil, err

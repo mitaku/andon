@@ -37,8 +37,9 @@
 | `error`（branch・worktree が読めない） | 確かめる | `kanban show <id>`・`git worktree list` で branch を確かめる（規約6）。直せなければオーナーへ知らせる |
 | マージした PR が、その課題の**前提**を変えた: `brief_refs` があるか、PR が ADR・設計書・約束（contract・schema）・skill を変えていて、依頼書の「なぜ」「入力」「完了条件」に関わる（PR と依頼書を読んで決める） | **一度止めて向きを確かめる** | 担当へ `hc send <agent> "<マージした id>（タイトル）が入り <PR> で <ファイル> が変わった。次の commit の前に手を止めて読み、依頼書の追記を待って"`。向きが変わらなければ「変わらない。そのまま続けて」、変われば依頼書に `## 追記（<日付>）` を足して「追記した。読んでから続けて」（`conflict` もあれば rebase も一緒に頼む）。向きを決めるのが決断（4種・委譲の外）ならオーナーへ1問（ask-one-by-one skill）。担当は止めたまま |
 | `conflict: true` | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、<conflict_files> でぶつかる。origin の main に rebase して衝突を解き、検査を通して push。review にいたら kanban start で戻してから。Review: on ならレビューを頼み直す"` |
+| `checks_moved` があって、`review` にいる | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、検査の置き場 <checks_moved> が変わった。origin の main に rebase して新しい検査で checks を通し直し、push。kanban start で戻してから。Review: on ならレビューを頼み直す"`。gate が通したあとでも頼む（古い base の checks のままマージされると main が赤になる） |
 | `overlap` だけ（衝突しない）で、`review` にいる | **rebase を頼む** | 同じ文（「ぶつからないが <overlap> が重なる。rebase して検査を通し直す」）。マージの前に新しい main で検査を通すため |
-| `overlap` だけで、`doing` | 影響なし（いまは） | 何もしない。担当は PR を出す前に main を取り直す（同じファイルの次のマージでまた届く） |
+| `overlap` だけで、`doing`（`checks_moved` があっても） | 影響なし（いまは） | 何もしない。担当は PR を出す前に main を取り直す（同じファイルの次のマージでまた届く。検査の置き場が古い base のまま ready すると gate が返す） |
 | 上のどれでもない | 影響なし | 何もしない |
 
 - 決めたことは、オーナーがいるターンならその返事で知らせる（`S-0011（…）に rebase を頼んだ。S-0012（…）は止めて、向きを確かめている。`）。影響なしだけなら `andon news ack` を打って文は書かない。
