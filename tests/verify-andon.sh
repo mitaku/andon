@@ -172,13 +172,18 @@ ok "verify-andon: 変えたら動かすパスの下のファイル $nseen 件は
 #   見るファイルに載っているだけでは、変えた振る舞いを通る細かい機能があるとは限らない（載ったファイルの新しい振る舞いを、どの細かい機能も
 #   通らないまま当たる）。変えた側が名指せなければ、同じ変更で細かい機能を足す
 #   - 変えたファイル（テストでないもの）が細かい機能の見るファイルに入るなら、それを見る細かい機能の1つ以上が名指されている
-#   - 名指した名前は、どれも地図の細かい機能にある（同じ変更で足した細かい機能も数える）
+#   - 名指した名前は、どれも地図の細かい機能にある（同じ変更で足した細かい機能も、同じ変更で消した細かい機能も数える）
+#   - 見るファイルは HEAD と base の地図の両方から引く（同じ変更で地図から外したファイル・消したファイルも名指しを求める）
 # 名指しの行は、比べる base から HEAD までの commit の本文のどこにあってもよい（後から足すなら、行だけの commit を積む）
-declare -A subsee=()
+# see_pairs: 機能のファイル（stdin）から「細かい機能<TAB>見るファイル」を1行ずつ出す
+see_pairs() {
+  sed -n '/^## 細かい機能$/,/^## /p' | awk '/^- `/ { match($0, /`[^`]+`/); s = substr($0, RSTART + 1, RLENGTH - 2); next } /^  - 見るファイル: / { n = split($0, a, "`"); for (i = 2; i < n; i += 2) print s "\t" a[i] }'
+}
+declare -A subsee=() oldsee=() # HEAD の地図・base の地図（base は下の本物の確かめで読む）
 for name in $files; do
   while IFS=$'\t' read -r s e; do
     subsee[$s]="${subsee[$s]:+${subsee[$s]} }$e"
-  done < <(sed -n '/^## 細かい機能$/,/^## /p' "$skill/features/$name.md" | awk '/^- `/ { match($0, /`[^`]+`/); s = substr($0, RSTART + 1, RLENGTH - 2); next } /^  - 見るファイル: / { n = split($0, a, "`"); for (i = 2; i < n; i += 2) print s "\t" a[i] }')
+  done < <(see_pairs <"$skill/features/$name.md")
 done
 [ "${#subsee[@]}" -gt 30 ] || die "細かい機能と見るファイルの対が ${#subsee[@]} 件しか読めない（読み方が壊れている）"
 # named_gaps <変えたファイル（1行1つ）> <commit の本文>: 足りないものを1行ずつ出す（何も出さなければ通る）
@@ -194,13 +199,13 @@ named_gaps() {
     fi
   done < <(sed -n 's/^Verify-features:[[:space:]]*//p' <<<"$2")
   for n in "${names[@]}"; do
-    [ -n "${subsee[$n]+x}" ] || echo "Verify-features: で名指した $n は、地図の細かい機能に無い"
+    [ -n "${subsee[$n]+x}${oldsee[$n]+x}" ] || echo "Verify-features: で名指した $n は、地図の細かい機能に無い"
   done
   while IFS= read -r t; do
     [ -n "$t" ] || continue
     want=() covered=false
-    for s in "${!subsee[@]}"; do
-      for e in ${subsee[$s]}; do
+    for s in "${!subsee[@]}" "${!oldsee[@]}"; do
+      for e in ${subsee[$s]:-} ${oldsee[$s]:-}; do
         if inpart "$e" "$t"; then want+=("$s"); break; fi
       done
     done
@@ -226,16 +231,30 @@ gaps=$(named_gaps 'internal/issue/resume.go' $'fix\n\nVerify-features: wl-resume
 grep -qF 'Verify-features: の行の書き方が違う' <<<"$gaps" || die "名前でない語の並ぶ行を、書き方の誤りとして拾わない: $gaps"
 gaps=$(named_gaps $'internal/issue/resume.go\npackage/skills/worker/SKILL.md\ninternal/issue/resume_test.go' $'a\n\nVerify-features: wl-resume\n---\nb\n\nVerify-features: wl-first-turn, wl-record')
 [ -z "$gaps" ] || die "見るファイルを覆う名指し（置き場の見るファイル・複数の commit・コンマで並べた名前）で通らない: $gaps"
+# 同じ変更で地図から外した見るファイル（base の地図にだけある）にも名指しを求め、base にだけある名前は名指せる
+oldsee=([wl-gone]=internal/issue/gone.go)
+gaps=$(named_gaps 'internal/issue/gone.go' '')
+grep -qF 'internal/issue/gone.go を変えたのに、それを見る細かい機能（wl-gone）' <<<"$gaps" || die "base の地図にだけある見るファイルの変更に名指しを求めない: $gaps"
+gaps=$(named_gaps 'internal/issue/gone.go' $'x\n\nVerify-features: wl-gone')
+[ -z "$gaps" ] || die "base の地図にだけある細かい機能を名指せない: $gaps"
+oldsee=()
 if [ "$self" = true ]; then
   # 比べる base: CI の tests の job は PR の base（merge commit の1つ目の親）を ANDON_VERIFY_BASE で渡す。手元は origin/main との分かれ目
   grep -qE '^ +echo "ANDON_VERIFY_BASE=' .github/workflows/tests.yml || die ".github/workflows/tests.yml の tests の job が ANDON_VERIFY_BASE を渡さない（CI で名指しを見ない）"
   base=$verify_base
-  if [ -z "$base" ] && [ "${CI:-}" != true ] && git rev-parse -q --verify origin/main >/dev/null; then base=$(git merge-base HEAD origin/main); fi
+  if [ -z "$base" ] && [ "${CI:-}" != true ] && git rev-parse -q --verify origin/main >/dev/null; then
+    base=$(git merge-base HEAD origin/main) || die "HEAD と origin/main の分かれ目が読めない（shallow か、関係の無い履歴）。ANDON_VERIFY_BASE で base を渡す"
+  fi
   if [ -z "$base" ]; then
     echo "skip verify-andon: 変更ごとの名指し（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
   else
     git rev-parse -q --verify "$base^{commit}" >/dev/null || die "比べる base $base が読めない（CI は履歴を全部取る）"
     changed=$(git -c core.quotepath=off diff --name-only --no-renames "$base" HEAD)
+    while IFS= read -r p; do
+      while IFS=$'\t' read -r s e; do
+        oldsee[$s]="${oldsee[$s]:+${oldsee[$s]} }$e"
+      done < <(git show "$base:$p" | see_pairs)
+    done < <(git ls-tree --name-only "$base" "$skill/features/" | grep '\.md$' || true)
     gaps=$(named_gaps "$changed" "$(git log --format=%B "$base..HEAD")")
     [ -z "$gaps" ] || die "変更ごとの名指しが足りない（変えた振る舞いを通る細かい機能を commit の本文の「Verify-features: <名前>, …」の行で名指す。名指せなければ、同じ変更で細かい機能を足す。features/README.md の「変更ごとの名指し」）:
 $gaps"
