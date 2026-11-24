@@ -53,7 +53,7 @@ type fixture struct {
 }
 
 func issueYAML(id, status string, extra ...string) string {
-	return fmt.Sprintf("id: %s\ntitle: %s の題\nstatus: %s\n%s", id, id, status, strings.Join(extra, ""))
+	return fmt.Sprintf("id: %s\ntitle: %s のタイトル\nstatus: %s\n%s", id, id, status, strings.Join(extra, ""))
 }
 
 func launchLine(at, session, commit string) string {
@@ -115,7 +115,7 @@ func newFixture(t *testing.T) *fixture {
 		return string(b) + "\n"
 	}
 	cos := hum("u0", ago(3*day), "プロジェクト sample-site の Chief of Staff。") + // 起動の最初のメッセージ
-		hum("u1", ago(2*day), "PR の題に課題番号を書かないで。鍵は "+dummyKey()) +
+		hum("u1", ago(2*day), "PR のタイトルに課題番号を書かないで。鍵は "+dummyKey()) +
 		hum("u2", ago(2*day), `<hc from="t9 x">担当から届いた文</hc>`) +
 		hum("u3", ago(2*day), "<pasted_content id=\"1\">\n<hc from=\"t9 x\">貼った中の hc</hc>") +
 		hum("u4", ago(2*day), "<news project=\"sample-site\">\nA-0001 review\n</news>") +
@@ -125,7 +125,7 @@ func newFixture(t *testing.T) *fixture {
 		`{"type":"user","uuid":"u8","timestamp":"` + ago(2*day) + `","isMeta":true,"origin":{"kind":"human"},"message":{"content":"meta"}}` + "\n" +
 		`{"type":"user","uuid":"u9","timestamp":"` + ago(2*day) + `","isSidechain":true,"origin":{"kind":"human"},"message":{"content":"sidechain"}}` + "\n" +
 		hum("u11", ago(2*day), "[dispatcher] 一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）") +
-		hum("u12", ago(2*day), "[gate] A-0001（題）: gate が fix を返した。理由: checks が落ちた。記録は /x。") +
+		hum("u12", ago(2*day), "[gate] A-0001（タイトル）: gate が fix を返した。理由: checks が落ちた。記録は /x。") +
 		`{"type":"user","uuid":"u10","timestamp":"` + ago(1*day) + `","origin":{"kind":"human"},"message":{"content":[{"type":"text","text":"block の文"}]}}` + "\n"
 	write(t, filepath.Join(f.claude, "projects", "-sample-site", cosSess+".jsonl"), cos)
 	work := strings.ReplaceAll(hum("w0", ago(3*day), "<hc from=\"t1 cos\">課題 A-0001。依頼書は …</hc>")+hum("w1", ago(2*day), "そこは直さなくていい"), f.root, wt)

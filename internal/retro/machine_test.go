@@ -14,7 +14,7 @@ func TestMachineText(t *testing.T) {
 	for s, want := range map[string]bool{
 		spawn.Mark(spawn.FromDispatcher, dispatcher.RetryText):                       true,
 		spawn.Mark(spawn.FromGate, "A-0017（PR #262 の衝突を解く）: gate が fix を返した。理由: x。"): true,
-		"<pasted_content id=\"1\">\n[gate] A-0017（題）: gate が fix を返した。":              true,
+		"<pasted_content id=\"1\">\n[gate] A-0017（タイトル）: gate が fix を返した。":           true,
 		"  [dispatcher] 課題 `sample-site/S-7`。":                                       true,
 		"[dispatcher]の文はどこから？":                                                       false,
 		"[cos] オーナーが書いた角括弧":                                                          false,

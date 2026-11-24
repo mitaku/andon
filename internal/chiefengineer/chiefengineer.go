@@ -1,15 +1,15 @@
 // Package chiefengineer は andon chief-engineer: オーナーと仕様・設計を対話する Chief Engineer を
 // kanban の課題として起動する（docs/design.md §1.8）。
 //
-//	andon chief-engineer "<題>"                           projects/<slug>/ で打つ。repo は kanban の repos が1つならそれ
-//	andon chief-engineer --repo <host/owner/repo> "<題>"   kanban の repos が2つ以上（か無い）とき
-//	andon chief-engineer --brief - "<題>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
+//	andon chief-engineer "<タイトル>"                           projects/<slug>/ で打つ。repo は kanban の repos が1つならそれ
+//	andon chief-engineer --repo <host/owner/repo> "<タイトル>"   kanban の repos が2つ以上（か無い）とき
+//	andon chief-engineer --brief - "<タイトル>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
 // することは4つ: kanban に課題を足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこの課題から出すため）・hc でプロファイル chief-engineer を起動する（hc run）・
 // 課題を doing にして agent をその端末にする（kanban start）。
 // 端末にはラベル herdr.space=andon-<slug>・herdr.tab=andon-<slug>-<課題 id> を付け、オーナーの Herdr App の指揮側の Space に
-// 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <題>」で出す（ADR-0002 決めたこと 8・14・17）。
+// 課題の tab として出す。hc attach は打たず、最後に出た場所を「<slug> / CE <id> <タイトル>」で出す（ADR-0002 決めたこと 8・14・17）。
 // --brief - の文は依頼書の既定の行の下に続ける（Chief Engineer が最初に読むのは依頼書なので、送り直しが要っても残る）。
 // Chief Engineer は1プロジェクトに同時に複数いてよい（ADR-0009 決めたこと 3）。ほかの Chief Engineer の端末には触らない
 // （作り直しで戻った端末も片付けない。その課題は doing のまま残り、andon issue resume で続きから起動する。ADR-0012 決めたこと 12）。
@@ -17,7 +17,7 @@
 // 置き場（andon issue start と同じ形。internal/spawn）:
 //
 //	worktree  <セルの repo>/.worktrees/<repo 名>/<slug>-<id>
-//	branch    <slug>/<id>-<題の英字の短い形>。origin/<既定の branch> から --no-track で切る
+//	branch    <slug>/<id>-<タイトルの英字の短い形>。origin/<既定の branch> から --no-track で切る
 //	repo      $GHQ_ROOT（無ければ ghq root）/<host/owner/repo>
 package chiefengineer
 
@@ -36,7 +36,7 @@ import (
 )
 
 // Usage は andon chief-engineer の使い方。
-const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<題>\"\n" +
+const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<タイトル>\"\n" +
 	"projects/<slug>/ で打つ。--repo を省くと kanban の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
 	"kanban に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起動し、課題を doing にする。文書の PR はその課題から出る。\n" +
@@ -139,7 +139,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	brief := "# " + title + "\n\n" +
 		"Chief Engineer の課題。オーナーと直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
-		"題はオーナーの1行。手順は skill chief-engineer。\n"
+		"タイトルはオーナーの1行。手順は skill chief-engineer。\n"
 	if extra != "" {
 		brief += "\n" + extra + "\n"
 	}
@@ -218,7 +218,7 @@ func where(slug, id, title string) string {
 	return slug + " / CE " + id + " " + title
 }
 
-// parseArgs は --repo <r>（--repo=<r> も）・--brief -（--brief=- も。stdin のほかは受けない）と題1つを受ける。
+// parseArgs は --repo <r>（--repo=<r> も）・--brief -（--brief=- も。stdin のほかは受けない）とタイトル1つを受ける。
 func parseArgs(args []string) (repo, title string, brief, ok bool) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]

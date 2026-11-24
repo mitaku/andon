@@ -12,7 +12,7 @@ import (
 )
 
 // fakePersonKanban は list・add・set・ask だけを受ける偽の kanban の CLI。課題は無い（list は空）。
-// add は T-0100 から順に id を出し、打った command は FAKE_LOG に1行ずつ（add は題も）残す。ask は <id>#1 を返す。
+// add は T-0100 から順に id を出し、打った command は FAKE_LOG に1行ずつ（add はタイトルも）残す。ask は <id>#1 を返す。
 const fakePersonKanban = `#!/usr/bin/env bash
 log=$FAKE_LOG
 case $1 in

@@ -346,7 +346,7 @@ await check('inbox: 節は Needs you と Projects の 2 つ。担当は blocked 
   let m = v.model();
   for (const k of ['done', 'working', 'idle', 'settled']) assert.ok(!(k in m), `m に ${k} がある`);
   const ids = (rows) => fromMod(rows.map((i) => i.address));
-  assert.deepEqual(ids(m.projects), ['t9', 't11', 't10', 't1', 't2'], 'プロジェクトの名前順 → CoS → CE（題の順）でない');
+  assert.deepEqual(ids(m.projects), ['t9', 't11', 't10', 't1', 't2'], 'プロジェクトの名前順 → CoS → CE（タイトルの順）でない');
   assert.deepEqual(ids(m.needs).sort(), ['t20', 't3', 't8'].sort());
   assert.equal(m.needs.find((i) => i.address === 't20').peek, 't21', 'sub-agent の error で親を peek しない');
   for (const a of ['t4', 't5', 't6', 't7']) assert.ok(!ids(m.rows).includes(a), `${a} が出た`);

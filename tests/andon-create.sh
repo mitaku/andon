@@ -57,7 +57,7 @@ p=$ws/projects/sample-site
 "$andon" schema check project "$p/project.json" >"$tmp/schema" 2>&1 \
   && pass "project.json の下書きは schema を通る" || fail "schema: $(cat "$tmp/schema")"
 [ "$(jq -c '[.project, .repos, has("delegation")]' "$p/project.json")" = '[{"title":"Sample site","prefix":"SS"},["example.com/o/have","example.com/o/new"],false]' ] \
-  && pass "project.json は題・prefix・repos で、delegation が無い（無委譲）" || fail "project.json: $(cat "$p/project.json")"
+  && pass "project.json はタイトル・prefix・repos で、delegation が無い（無委譲）" || fail "project.json: $(cat "$p/project.json")"
 [ "$(jq -c '.signals' "$p/project.json")" = '[{"source":"github-ci","weight":"now"}]' ] \
   && [ "$(grep -c 'signals' "$tmp/out")" = 1 ] \
   && [[ "$(sed '/git add/,$d' "$tmp/out")" == *"signals"*"要らなければ"* ]] \
@@ -99,7 +99,7 @@ r=0; "$andon" create Bad_Slug </dev/null >/dev/null 2>"$tmp/err" || r=$?
   && [ "$(jq -c '[.project, .repos, has("signals")]' "$ws/projects/web-app/project.json")" = '[{"title":"web-app","prefix":"WA"},[],false]' ] \
   && ! grep -q signals "$tmp/out" \
   && grep -qx 'prefix: WA' "$ws/projects/web-app/kanban/config.yaml" \
-  && pass "slug だけなら既定（題は slug・prefix は頭文字・repos も signals も無し）" || fail "既定: $(cat "$tmp/err" "$ws/projects/web-app/project.json" 2>&1)"
+  && pass "slug だけなら既定（タイトルは slug・prefix は頭文字・repos も signals も無し）" || fail "既定: $(cat "$tmp/err" "$ws/projects/web-app/project.json" 2>&1)"
 
 # === GHQ_ROOT の下に clone でないものがあれば止まる ===
 mkdir -p "$GHQ_ROOT/example.com/o/empty"

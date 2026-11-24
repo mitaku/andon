@@ -415,7 +415,7 @@ func (p *resumePlan) print(w io.Writer) {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
 		}
 	}
-	row("題", p.Title)
+	row("タイトル", p.Title)
 	row("プロファイル", p.Profile)
 	row("template", p.Template)
 	row("端末の名前", p.Terminal)

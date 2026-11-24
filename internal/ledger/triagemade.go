@@ -10,7 +10,7 @@ import (
 
 // TriageMade は、課題 t を足したトリアージの apply の記録（kanban の library/triage/<日付>-<トリアージの id>.json の items。
 // fix と bundle の決定）を探し、そのトリアージの id と、決定の review（束ならどれか1つが on で on）を返す。無ければ空。
-// 記録の項目が t を指すのは、created_issue が t の id のときか、apply が足す前に残す印（adding）があって、題が t の題と同じで、
+// 記録の項目が t を指すのは、created_issue が t の id のときか、apply が足す前に残す印（adding）があって、タイトルが t のタイトルと同じで、
 // t を足したのが今の Chief of Staff の端末（log.jsonl の最初の add の行。行が無ければ、t が印を残した時刻〈adding_at〉より後に作られた）のとき。andon issue start が無い予約キーを埋めるかの判定に使い、
 // トリアージの検査も、止まったあと足した課題を辿れるかを同じ判定で見る。kanban add が返ったあと記録の前で止まった課題も分かる。
 func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
@@ -18,7 +18,7 @@ func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 	id := CanonID(t.Str("id"))
 	// 足した行が無い課題は、kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まったもの（kanban add は行を書かずに
 	// 終わらない）。足した端末は分からないので、課題が印（adding_at）より後に作られた（created）ときだけ、その印の課題と見る。
-	// 前に別の端末が足す途中で止めた同じ題の課題は、印より前に作られているので辿らない。
+	// 前に別の端末が足す途中で止めた同じタイトルの課題は、印より前に作られているので辿らない。
 	// log.jsonl が読めない・空のときは、行が無いのか読めないのかを分けられないので辿らない
 	hasRow, byCos := false, false
 	for _, r := range rows {

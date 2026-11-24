@@ -38,7 +38,7 @@ mkdir -p "$root"
 (cd "$root" && kanban init --prefix S --repo github.com/example/sample-site >/dev/null)
 export KANBAN_ROOT=$root
 k=$root/kanban
-yaml() { local id=$1; shift; mkdir -p "$k/issues/$id/library"; printf 'id: %s\ntitle: %s の題\n%b' "$id" "$id" "$*" >"$k/issues/$id/issue.yaml"; }
+yaml() { local id=$1; shift; mkdir -p "$k/issues/$id/library"; printf 'id: %s\ntitle: %s のタイトル\n%b' "$id" "$id" "$*" >"$k/issues/$id/issue.yaml"; }
 yaml S-0010 'status: done\nprofile: claude\nroutine: retro\n'
 yaml S-0011 'status: done\nprofile: claude\nrepo: github.com/example/sample-site\n'
 yaml S-0012 'status: done\nprofile: claude\nrepo: github.com/example/sample-site\n'
@@ -55,9 +55,9 @@ done >>"$k/log.jsonl"
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/-sample-site"
 hum() { jq -cn --arg u "$1" --arg at "$2" --arg cwd "$root" --arg text "$3" \
   '{type: "user", uuid: $u, timestamp: $at, cwd: $cwd, origin: {kind: "human"}, promptSource: "typed", message: {role: "user", content: $text}}'; }
-{ hum a0 "$(ago '4 days')" '起動'; hum a1 "$(ago '3 days')" '題に番号を書かないで'; hum a2 "$(ago '1 day')" 'また題に番号が入っている'; } \
+{ hum a0 "$(ago '4 days')" '起動'; hum a1 "$(ago '3 days')" 'タイトルに番号を書かないで'; hum a2 "$(ago '1 day')" 'またタイトルに番号が入っている'; } \
   >"$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl"
-{ hum b0 "$(ago '5 days')" '起動'; hum b1 "$(ago '4 days')" '前にも言ったが題に番号'; } \
+{ hum b0 "$(ago '5 days')" '起動'; hum b1 "$(ago '4 days')" '前にも言ったがタイトルに番号'; } \
   >"$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000002.jsonl"
 
 KANBAN_ROOT=$root "$andon" retro collect >"$tmp/in.json"
@@ -66,9 +66,9 @@ jq -e '[.typed[].id] == ["h-b1", "h-a1", "h-a2"] and .previous_retro.issue == "S
 
 # p <evidence の JSON の配列> [jq の式]: パターン1つの入力
 p() {
-  jq -cn --argjson ev "$1" '{patterns: [{id: "p1", summary: "PR の題に課題番号が入り、オーナーが直した", evidence: $ev, level: "test", action: "add",
+  jq -cn --argjson ev "$1" '{patterns: [{id: "p1", summary: "PR のタイトルに課題番号が入り、オーナーが直した", evidence: $ev, level: "test", action: "add",
     target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/pr-title.sh"]},
-    effect: "題に課題番号が入った PR が CI で落ちる", risk: "誤検知", decision: "fix", reason: "テストで止められる"}], fixes: []}' | jq -c "${2:-.}"
+    effect: "タイトルに課題番号が入った PR が CI で落ちる", risk: "誤検知", decision: "fix", reason: "テストで止められる"}], fixes: []}' | jq -c "${2:-.}"
 }
 out=$k/issues/S-0020/library/retro.json
 refuse() { # refuse <説明> <理由の語> <入力>: 断り（終了コード 1・理由の行）、retro.json を書かない
@@ -153,26 +153,26 @@ jq -e '.complete == true and ([.issues[] | [.pattern, .who]] == [["p1", "worker"
   || die "記録: $(jq -c . "$rec")"
 fix=$(jq -r '.issues[0].issue' "$rec") person=$(jq -r '.issues[1].issue' "$rec")
 kanban show "$fix" --json >"$tmp/fix.json"
-jq -e '.issue.parent == "S-0020" and .issue.repo == "github.com/example/sample-site" and .issue.title == "PR の題に課題番号が入り、オーナーが直した" and (.issue.who // "") != "person"' "$tmp/fix.json" >/dev/null \
+jq -e '.issue.parent == "S-0020" and .issue.repo == "github.com/example/sample-site" and .issue.title == "PR のタイトルに課題番号が入り、オーナーが直した" and (.issue.who // "") != "person"' "$tmp/fix.json" >/dev/null \
   || die "直す課題: $(jq -c .issue "$tmp/fix.json")"
 brief=$(jq -r .brief "$tmp/fix.json")
-for want in '解決すべき問題: PR の題に課題番号が入り、オーナーが直した' '直す先: テスト・lint の段で足す' 'tests/pr-title.sh' '期待する効果: 題に課題番号が入った PR が CI で落ちる' \
-  'リスク: 誤検知' '- S-0012: S-0012 の題' '- h-a2: オーナーが打った文' "PR の本文に書いてよい根拠の PR: $pr/12" 'S-0020 の library/retro.json のパターン p1'; do
+for want in '解決すべき問題: PR のタイトルに課題番号が入り、オーナーが直した' '直す先: テスト・lint の段で足す' 'tests/pr-title.sh' '期待する効果: タイトルに課題番号が入った PR が CI で落ちる' \
+  'リスク: 誤検知' '- S-0012: S-0012 のタイトル' '- h-a2: オーナーが打った文' "PR の本文に書いてよい根拠の PR: $pr/12" 'S-0020 の library/retro.json のパターン p1'; do
   grep -qF -- "$want" <<<"$brief" || die "直す課題の依頼書に「$want」が無い: $brief"
 done
-! grep -q 'また題に番号が入っている' <<<"$brief" || die "依頼書にオーナーの文の本文が入った"
+! grep -q 'またタイトルに番号が入っている' <<<"$brief" || die "依頼書にオーナーの文の本文が入った"
 # 根拠の課題の下に、在る記録のパスを1行で書く（直す担当が日報や指摘を探し直さない）。無い記録のパスと本文は書かない
 grep -qxF -- "  中身の置き場（本文は写さない）: $k/issues/S-0012/report.md" <<<"$brief" || die "依頼書の根拠に S-0012 の報告のパスが無い: $brief"
 ! grep -q '担当の報告の本文' <<<"$brief" || die "依頼書に報告の本文が入った"
 grep -q '担当の報告の本文' "$k/issues/S-0012/report.md" || die "検査の前提: 報告の本文がファイルにある"
-grep -q 'また題に番号が入っている' "$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl" || die "検査の前提: オーナーの文がログにある"
+grep -q 'またタイトルに番号が入っている' "$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl" || die "検査の前提: オーナーの文がログにある"
 [ "$(kanban list --all --json | jq '[.[] | select(.parent == "S-0020")] | length')" = 5 ] || die "足した課題が5件でない: $(issues)"
 # 足した順（課題の番号の順）が一覧の順と同じ
 order=$(jq -r '[.issues[].issue] | join(" ")' "$rec")
 [ "$order" = "$(jq -r '[.issues[].issue] | sort | join(" ")' "$rec")" ] || die "足した順が一覧の順でない: $order"
 [ "$(kanban list --all --json | jq -r '[.[] | select(.parent == "S-0020") | .title] | join("|")')" = \
   "$(jq -r '[.patterns[] | select(.decision == "fix") | if .target.kind == "andon" then "Andon へ伝えるか: " + .summary else .summary end] | join("|")' "$tmp/good.json")" ] \
-  || die "足した課題の題の並びが一覧の順でない: $(kanban list --all --json | jq -c '[.[] | select(.parent == "S-0020") | [.id, .title]]')"
+  || die "足した課題のタイトルの並びが一覧の順でない: $(kanban list --all --json | jq -c '[.[] | select(.parent == "S-0020") | [.id, .title]]')"
 f2=$(jq -r '[.issues[] | select(.who == "worker") | .issue] | join("・")' "$rec")
 grep -q "直す課題 4 件（$f2）・オーナーの課題 1 件（$person）・捨てた 1 件" "$tmp/apply.out" || die "当てた行: $(cat "$tmp/apply.out")"
 ! grep -q '上限' "$tmp/ok" "$tmp/apply.out" || die "上限の理由の行が出た: $(cat "$tmp/ok" "$tmp/apply.out")"

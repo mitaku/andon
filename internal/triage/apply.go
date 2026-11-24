@@ -139,7 +139,7 @@ func (l *ledger) applyItems(id, date, base string, data obj, items []item, past 
 	}
 	for _, g := range applyGroups(items) {
 		// 課題を足す決定（fix・bundle）は、足す前に「足している」印（adding）と印を残した時刻（adding_at）を記録に残す。kanban add が
-		// 返ったあと記録の前で止まっても、andon issue start が印（題と、Chief of Staff の端末が足した課題か。足した行が無ければ、
+		// 返ったあと記録の前で止まっても、andon issue start が印（タイトルと、Chief of Staff の端末が足した課題か。足した行が無ければ、
 		// 課題が印より後に作られたか）からトリアージの課題と分かる（ledger.TriageMade）
 		adding := g[0].decision() == "fix" || g[0].decision() == "bundle"
 		if adding {
@@ -580,7 +580,7 @@ func summary(slug, date string, goal any, items []item) string {
 			b.WriteString(row(it.key(), text(it), orDefault(it["closing"], "なし"), it["reason"]))
 		}
 	}
-	b.WriteString("\n## 直す（起動した課題）\n| 課題 | 題 | 出どころ | Review |\n|---|---|---|---|\n")
+	b.WriteString("\n## 直す（起動した課題）\n| 課題 | タイトル | 出どころ | Review |\n|---|---|---|---|\n")
 	for _, it := range items {
 		if d := it.decision(); d == "fix" || d == "bundle" {
 			b.WriteString(row(it["created_issue"], it.issue()["title"], it.key(), it.issue()["review"]))

@@ -181,7 +181,7 @@ func TestSummaryEvidenceAndIssue(t *testing.T) {
 		t.Fatal("A-0001 が要約に無い")
 	}
 	if strings.Join(s.Findings, "|") != "major — a.go:3 空の入力で落ちる。" || strings.Join(s.GateFixes, "|") != "Must fix 以上が 1 件" ||
-		s.Corrections == nil || *s.Corrections || s.Remember != 2 || s.DoneAt == "" || s.Title != "A-0001 の題" {
+		s.Corrections == nil || *s.Corrections || s.Remember != 2 || s.DoneAt == "" || s.Title != "A-0001 のタイトル" {
 		t.Errorf("要約 = %+v", *s)
 	}
 	b, _, err := Redacted(in)

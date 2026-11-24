@@ -46,7 +46,7 @@ export PATH="$tmp/bin:$PATH"
 root=$tmp/sample-site
 k=$root/kanban
 lib() { mkdir -p "$k/issues/$1/library"; echo "$k/issues/$1/library"; }
-yaml() { local id=$1; shift; mkdir -p "$k/issues/$id"; printf 'id: %s\ntitle: %s の題\n%b' "$id" "$id" "$*" >"$k/issues/$id/issue.yaml"; }
+yaml() { local id=$1; shift; mkdir -p "$k/issues/$id"; printf 'id: %s\ntitle: %s のタイトル\n%b' "$id" "$id" "$*" >"$k/issues/$id/issue.yaml"; }
 mkdir -p "$k"
 printf 'version: 3\nprefix: S\n' >"$k/config.yaml"
 launch() { printf '{"at": "%s", "role": "worker", "launch": "start", "session": %s, "package": {"commit": "%s"}, "memory_index": "- 目録\\n"}\n' "$1" "$2" "$3"; }
@@ -84,11 +84,11 @@ hum() { jq -cn --arg u "$1" --arg at "$2" --arg cwd "$root" --arg text "$3" \
   '{type: "user", uuid: $u, timestamp: $at, cwd: $cwd, origin: {kind: "human"}, promptSource: "typed", message: {role: "user", content: $text}}'; }
 {
   hum u0 "$(ago '3 days')" 'プロジェクト sample-site の Chief of Staff。'
-  hum u1 "$(ago '2 days')" "PR の題に課題番号を書かないで。鍵は $key"
+  hum u1 "$(ago '2 days')" "PR のタイトルに課題番号を書かないで。鍵は $key"
   hum u2 "$(ago '2 days')" '<hc from="t9 x">ほかの端末から届いた文</hc>'
   hum u3 "$(ago '2 days')" $'<news project="sample-site">\nS-0001 review\n</news>'
   hum u4 "$(ago '2 days')" '[dispatcher] 一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）'
-  hum u6 "$(ago '2 days')" '[gate] S-0001（題）: gate が fix を返した。理由: checks が落ちた。'
+  hum u6 "$(ago '2 days')" '[gate] S-0001（タイトル）: gate が fix を返した。理由: checks が落ちた。'
   jq -cn --arg at "$(ago '2 days')" '{type: "user", uuid: "u5", timestamp: $at, origin: {kind: "human"}, message: {content: [{type: "tool_result", content: "道具の結果"}]}}'
 } >"$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000001.jsonl"
 
@@ -121,7 +121,7 @@ jq -e '.issues[] | select(.id == "S-0001") | .after_merge == {merge_commit: "111
 echo 'ok 10: マージ commit の checks の失敗と revert が元の課題に付く'
 
 # 18: 前の直し（3日前のものだけ。マージのあとに片付いた担当の課題は S-0001 と S-0003）
-jq -e '.fixes == [{issue: "S-0007", title: "S-0007 の題", retro: "S-0006", pr: "https://github.com/example/sample-site/pull/7", merged_at: .fixes[0].merged_at, issues_after: 2, recurred_before: 0}]' \
+jq -e '.fixes == [{issue: "S-0007", title: "S-0007 のタイトル", retro: "S-0006", pr: "https://github.com/example/sample-site/pull/7", merged_at: .fixes[0].merged_at, issues_after: 2, recurred_before: 0}]' \
   "$tmp/out.json" >/dev/null || die "前の直し: $(jq -c '.fixes' "$tmp/out.json")"
 echo 'ok 18: 前の直しはマージから 14 日以内のものだけ、マージのあとの課題の数つき'
 
@@ -149,7 +149,7 @@ groot=$tmp/split
 gk=$groot/kanban
 mkdir -p "$gk"
 printf 'version: 3\nprefix: S\n' >"$gk/config.yaml"
-gyaml() { local id=$1; shift; mkdir -p "$gk/issues/$id/library"; printf 'id: %s\ntitle: %s の題\n%b' "$id" "$id" "$*" >"$gk/issues/$id/issue.yaml"; }
+gyaml() { local id=$1; shift; mkdir -p "$gk/issues/$id/library"; printf 'id: %s\ntitle: %s のタイトル\n%b' "$id" "$id" "$*" >"$gk/issues/$id/issue.yaml"; }
 journal="- 理解: $(printf '迷った。%.0s' $(seq 300))"
 gbundle() { # gbundle <id> <片付いた時刻>
   local id=$1 at=$2 l=$gk/issues/$1/library
@@ -209,7 +209,7 @@ jq -e '.issues[0].id == "S-0800"' "$tmp/split.json" >/dev/null || die "S-0800 �
 echo 'ok ADR-0039 5: 前の振り返りが集めてから片付くまでの間に片付いた束は全文'
 
 # 7: 要約にはつまずきの跡の見出しだけ（日報の本文は無い）
-jq -e '.summaries[] | select(.id == "S-0001") | . == {id: "S-0001", title: "S-0001 の題", done_at: .done_at, pr: null,
+jq -e '.summaries[] | select(.id == "S-0001") | . == {id: "S-0001", title: "S-0001 のタイトル", done_at: .done_at, pr: null,
   findings: ["major — a.go:3 空の入力で落ちる。"], gate_fixes: ["Must fix 以上が 1 件"], corrections: false, remember: 2}' "$tmp/split.json" >/dev/null \
   || die "S-0001 の要約: $(jq -c '.summaries[] | select(.id == "S-0001")' "$tmp/split.json")"
 [ "$(grep -o -- '- 理解: 迷った。' "$tmp/split.json" | wc -l)" = 25 ] || die "日報の本文が全文の束の外にもある"
@@ -243,7 +243,7 @@ jq -e '.id == "S-0001" and (.journal | startswith("- 理解: ")) and .reviews[0]
 echo 'ok ADR-0039 6: 要約の束の全文を --issue で引ける'
 
 # 9: 前の直しに、前の振り返りが書いた再発の数
-jq -e '.fixes == [{issue: "S-0950", title: "S-0950 の題", retro: "S-0899", pr: "'"$pr"'/7", merged_at: .fixes[0].merged_at, issues_after: 25, recurred_before: 2}]' \
+jq -e '.fixes == [{issue: "S-0950", title: "S-0950 のタイトル", retro: "S-0899", pr: "'"$pr"'/7", merged_at: .fixes[0].merged_at, issues_after: 25, recurred_before: 2}]' \
   "$tmp/split.json" >/dev/null || die "前の直し: $(jq -c '.fixes' "$tmp/split.json")"
 echo 'ok ADR-0039 9: 前の直しに前の振り返りが数えた再発の数（2）が添わる'
 
@@ -271,7 +271,7 @@ mkdir -p "$croot/kanban"
 printf 'version: 3\nprefix: S\n' >"$croot/kanban/config.yaml"
 for i in $(seq 1 130); do
   id=$(printf 'S-%04d' "$i"); mkdir -p "$croot/kanban/issues/$id"
-  printf 'id: %s\ntitle: %s の題\nstatus: done\nprofile: claude\n' "$id" "$id" >"$croot/kanban/issues/$id/issue.yaml"
+  printf 'id: %s\ntitle: %s のタイトル\nstatus: done\nprofile: claude\n' "$id" "$id" >"$croot/kanban/issues/$id/issue.yaml"
   printf '{"at":"%s","by":"terminal:t1","id":"%s","change":{"status":"done"}}\n' "$(ago "$((200 - i)) minutes")" "$id"
 done >"$croot/kanban/log.jsonl"
 KANBAN_ROOT=$croot "$andon" retro collect >"$tmp/cut.json"

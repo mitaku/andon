@@ -46,7 +46,7 @@ func TestSignalRepo(t *testing.T) {
 func TestSignalItems(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "demo.signals.json")
 	rec := func(source, key, weight string, active bool) signal.Record {
-		return signal.Record{Source: source, Project: "demo", Key: key, URL: "https://example.com/" + key, Title: "<b>題</b>",
+		return signal.Record{Source: source, Project: "demo", Key: key, URL: "https://example.com/" + key, Title: "<b>タイトル</b>",
 			Weight: weight, Fingerprint: signal.Fingerprint(source, key), FirstSeen: "2026-11-01T00:00:00Z",
 			LastSeen: "2026-11-10T00:00:00Z", Count: 1, Active: active, Episodes: 1}
 	}

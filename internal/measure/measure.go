@@ -1340,8 +1340,8 @@ func Table(w io.Writer, res *Result, states []string) {
 	if val.DaysToObserve.Days != nil {
 		seen = fmt.Sprintf("%.2f日（中央値。%d件）", *val.DaysToObserve.Days, val.DaysToObserve.Count)
 	}
-	fmt.Fprintf(w, "  題から結果を見るまで           %s\n", seen)
-	fmt.Fprintf(w, "  価値の仮説「無し」の題         %d\n", val.NoHypothesis)
+	fmt.Fprintf(w, "  テーマから結果を見るまで       %s\n", seen)
+	fmt.Fprintf(w, "  価値の仮説「無し」のテーマ     %d\n", val.NoHypothesis)
 	f, e, c := res.Flow, res.Efficiency, res.Counter
 	fmt.Fprintln(w, "\n流れ")
 	fmt.Fprintf(w, "  依頼書からマージまで（中央値）  %s\n", hours(f.LeadTime))

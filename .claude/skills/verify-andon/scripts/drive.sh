@@ -14,7 +14,7 @@ scripts=$(cd "$(dirname "$0")" && pwd)
 journey=$scripts/journeys/$1.sh
 [ -f "$journey" ] || { echo "drive.sh: 知らない機能 $1（features/README.md の一覧から選ぶ）" >&2; exit 2; }
 
-# 跡の印。切り離した場所で作る課題の題・一時の置き場の名前に入れ、片付けたあとセルの本物に残っていないかを探す
+# 跡の印。切り離した場所で作る課題のタイトル・一時の置き場の名前に入れ、片付けたあとセルの本物に残っていないかを探す
 run=verify-$1-$(date -u +%Y%m%dT%H%M%SZ)-$$
 ws=${ANDON_WORKSPACE:-/workspace}
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/$run.XXXXXX")

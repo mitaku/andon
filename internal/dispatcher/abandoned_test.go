@@ -117,7 +117,7 @@ func TestWaitedGone(t *testing.T) {
 }
 
 // ready の行: 待つ相手がやめになったら「待つ相手 <id> がやめになった」、確かめられなければその旨の1句が付く。
-// 無ければ今どおり題だけ。控えから読み直した通知（[]any）も同じ文に描く。
+// 無ければ今どおりタイトルだけ。控えから読み直した通知（[]any）も同じ文に描く。
 func TestReadyLine(t *testing.T) {
 	cases := []struct {
 		detail map[string]any

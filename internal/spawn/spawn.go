@@ -4,7 +4,7 @@
 // 置き場（docs/contract.md §8）:
 //
 //	worktree  <セルの repo>/.worktrees/<repo 名>/<slug>-<id>（レビュアーは …-r<回>。置き場の根の .gitignore は *）
-//	branch    <slug>/<id>-<題の英字の短い形>。origin/<既定の branch> から --no-track で切る
+//	branch    <slug>/<id>-<タイトルの英字の短い形>。origin/<既定の branch> から --no-track で切る
 //	repo      $GHQ_ROOT（無ければ ghq root）/<host/owner/repo>
 package spawn
 
@@ -339,7 +339,7 @@ func defaultBranchError(repoDir string, cause error) error {
 	return errors.New(msg)
 }
 
-// BranchName は担当の branch の名前: <slug>/<id>-<題の英字の短い形>（題に英字が無ければ <slug>/<id>）。
+// BranchName は担当の branch の名前: <slug>/<id>-<タイトルの英字の短い形>（タイトルに英字が無ければ <slug>/<id>）。
 func BranchName(slug, id, title string) string {
 	branch := slug + "/" + id
 	if short := ShortTitle(title); short != "" {
@@ -394,7 +394,7 @@ func (w *Worktree) Remove() {
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
 
-// ShortTitle は題の英字の短い形: ASCII の英数字以外を - にして小文字・30字まで（日本語だけの題なら空）。
+// ShortTitle はタイトルの英字の短い形: ASCII の英数字以外を - にして小文字・30字まで（日本語だけのタイトルなら空）。
 func ShortTitle(title string) string {
 	s := strings.Trim(nonAlnum.ReplaceAllString(strings.ToLower(title), "-"), "-")
 	if len(s) > 30 {

@@ -532,7 +532,7 @@ func TestValueMatchesHandCount(t *testing.T) {
 	}
 	var b bytes.Buffer
 	Table(&b, res, columnsOrder(res))
-	for _, want := range []string{"価値: 仮説を確かめた数 3件（hit 1・miss 1・unknown 1）", "3.75日（中央値。2件）", "価値の仮説「無し」の題         1"} {
+	for _, want := range []string{"価値: 仮説を確かめた数 3件（hit 1・miss 1・unknown 1）", "3.75日（中央値。2件）", "価値の仮説「無し」のテーマ     1"} {
 		if !strings.Contains(b.String(), want) {
 			t.Errorf("表に %q が無い:\n%s", want, b.String())
 		}

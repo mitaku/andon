@@ -38,7 +38,7 @@ func TestWorked(t *testing.T) {
 		want int
 	}{
 		{"待ち無し", []Row{
-			row(0, "cos", "A-0001", map[string]any{"add": "題"}),
+			row(0, "cos", "A-0001", map[string]any{"add": "タイトル"}),
 			st(5, "w", "doing"), st(45, "w", "review"),
 		}, nil, 100, 40},
 		{"doing のまま今まで", []Row{st(0, "w", "doing")}, nil, 25, 25},

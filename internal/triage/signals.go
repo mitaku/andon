@@ -13,7 +13,7 @@ import (
 // 信号の項目（kind: signal。ADR-0011 決めたこと 6・受け入れ条件 4・11）。
 // 読むのは dispatcher が書く信号の記録（<slug>.signals.json。contract.md §15）だけで、出所（GitHub など）は読まない。
 // key は <slug>:sig-<fingerprint の先頭 12 桁>-e<episodes>:signal:<fingerprint>（ADR-0011 決めたこと 6 の反論の追記 (b)）。
-// count や題が変わっても同じで、消えてまた出た（episodes が増えた）ら新しい key になり、仕分け直せる。
+// count やタイトルが変わっても同じで、消えてまた出た（episodes が増えた）ら新しい key になり、仕分け直せる。
 
 var (
 	fingerprintRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -53,7 +53,7 @@ func signalKey(slug string, r signal.Record) string {
 // signalItems は、いま見えている（active）信号のうち、課題に切られていない（どの課題の links にも url も key も無い）ものを1件1項目にする。
 // key でも照らすのは、github-ci の url が run ごとに変わり、課題に書いた url が古い run を指すことがあるから。
 // later の信号はトリアージで仕分けるためのもの。now の信号は通知で届き Chief of Staff が課題に切るが、切られていなければここで拾う。
-// 題（title）は外の人の文なので、項目に untrusted: true を付ける。
+// タイトル（title）は外の人の文なので、項目に untrusted: true を付ける。
 func (l *ledger) signalItems(issues []ledgerIssue, recs []signal.Record) []Item {
 	linked := map[string]bool{}
 	for _, t := range issues {
