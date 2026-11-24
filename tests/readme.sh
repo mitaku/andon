@@ -117,7 +117,7 @@ if len(docs) == 2:
 
     en, ja = docs[EN], docs[JA]
     def heads(d):
-        return [len(m.group(1)) for _, line in d["prose"] if (m := re.match(r"^(#{1,6})\s", line))]
+        return [len(m.group(1)) for _, line in d["prose"] if (m := re.match(r"^ {0,3}(#{1,6})(?:\s|$)", line))]
     if heads(en) != heads(ja):
         errs.append(f"見出しのレベルの並びが違う: {EN} {heads(en)} / {JA} {heads(ja)}")
     def relset(d):
@@ -133,7 +133,7 @@ if len(docs) == 2:
         for lang, _, body in d["blocks"]:
             if lang == "mermaid":
                 continue
-            out.append([re.sub(r"<[^<>]*>", "", re.sub(r"\s*#.*$", "", l)).rstrip() for l in body])
+            out.append([lang] + [re.sub(r"<[^<>]*>", "", re.sub(r"\s*#.*$", "", l)).rstrip() for l in body])
         return out
     if code(en) != code(ja):
         errs.append(f"コードブロックの command が違う: {EN} {code(en)} / {JA} {code(ja)}")
@@ -225,6 +225,9 @@ setup; both '[x](/tmp)'; expect fail '/ で始まるリンクは repo の根か�
 setup; both '[x](../no-such.md)'; expect fail 'GitHub のページでない根の外のリンクで落ちる' 'リンクが repo の外を指す: ../no-such.md'
 setup; both '[x](/docs/design.md "title") `[y](docs/no-such-doc.md)`'; expect ok '/ で始まる在る先と、インラインのコードの中は通る'
 setup; both '* [0001 skill の配り方](docs/adr/0001-skills-distribution.md): 決定'; expect fail '* で始まる ADR の一覧の行で落ちる' 'ADR の一覧の行がある'
+setup; sed -i 's/^## 開発と履歴$/  ## 開発と履歴/' "$tmp/r/README.ja.md"; expect ok '行頭に 3 字までの空白を置いた見出しも見出しに数える'
+setup; sed -i 's/^## 開発と履歴$/  ### 開発と履歴/' "$tmp/r/README.ja.md"; expect fail '行頭に空白を置いた見出しのレベルが違う写しで落ちる' '見出しのレベルの並びが違う'
+setup; sed -i '0,/^```bash$/s//```text/' "$tmp/r/README.ja.md"; expect fail '片方のコードブロックの言語を替えた写しで落ちる' 'コードブロックの command が違う'
 setup; rm "$tmp/r/README.ja.md"; expect fail 'README.ja.md の無い写しで落ちる' 'README.ja.md が無い'
 setup; sed -i 's|(#the-cell)|(#the-cell) ([again](#the-cell))|' "$tmp/r/README.md"; expect fail 'ページの中の見出しへのリンクの数が違う写しで落ちる' '見出しへのリンクの数が違う'
 
