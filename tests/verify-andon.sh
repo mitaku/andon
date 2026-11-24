@@ -215,7 +215,7 @@ named_gaps() {
         if [[ "$n" == "$s" ]]; then covered=true; fi
       done
     done
-    [ "$covered" = true ] || echo "$t を変えたのに、それを見る細かい機能（$(tr ' ' '\n' <<<"${want[*]}" | sort | tr '\n' ' ' | sed 's/ $//')）のどれも Verify-features: で名指していない"
+    [ "$covered" = true ] || echo "$t を変えたのに、それを見る細かい機能（$(tr ' ' '\n' <<<"${want[*]}" | sort -u | tr '\n' ' ' | sed 's/ $//')）のどれも Verify-features: で名指していない"
   done <<<"$1"
 }
 # 名指しの確かめが何も見ていないことを避ける（地図の写しは要らない。読んだ対で確かめる）
