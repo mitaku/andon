@@ -15,6 +15,7 @@
     "summaries",
     "cut",
     "typed",
+    "questions",
     "fixes",
     "redacted",
     "skipped"
@@ -146,6 +147,13 @@
         "id"
       ]
     },
+    "questions": {
+      "description": "Questions asked in the period (asked after since, up to until) on any issue, oldest first. Gate questions (from: gate) and scope questions (kind: scope) are left out; a question whose JSON (library/questions/<n>.json) is missing or unreadable is left out and listed in skipped. The retro worker writes two separate questions that ask the same thing as a missing gap in its own report (ADR-0061). Not evidence for a pattern.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/question"
+      }
+    },
     "fixes": {
       "description": "Issues cut by a previous retro (parent is a retro issue) whose pull request was merged in the last 14 days, oldest merge first.",
       "type": "array",
@@ -218,6 +226,7 @@
         "corrections",
         "remember",
         "agents_md",
+        "gaps",
         "journal",
         "after_merge",
         "reapplied",
@@ -380,6 +389,14 @@
         "agents_md": {
           "description": "report.json agents_md.",
           "$ref": "#/$defs/strings"
+        },
+        "gaps": {
+          "description": "report.json gaps (knowledge gaps the worker named), copied. Empty when there are none. Read as support for a pattern found in the other records; a gap alone is not a pattern (ADR-0061).",
+          "type": "array",
+          "items": {
+            "description": "One gap, copied.",
+            "type": "object"
+          }
         },
         "journal": {
           "description": "library/journal.md, or null.",
@@ -566,7 +583,8 @@
         "findings",
         "gate_fixes",
         "corrections",
-        "remember"
+        "remember",
+        "gaps"
       ],
       "additionalProperties": false,
       "properties": {
@@ -616,6 +634,33 @@
           "description": "How many report.json remember lines there are.",
           "type": "integer",
           "minimum": 0
+        },
+        "gaps": {
+          "description": "The kind and where of each report.json gap (the text is left out). A gap without kind or where is left out and listed in skipped.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "where"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "description": "The gap kind.",
+                "enum": [
+                  "missing",
+                  "wrong",
+                  "hard_to_find"
+                ]
+              },
+              "where": {
+                "description": "The knowledge it is about.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       }
     },
@@ -865,6 +910,100 @@
         "truncated": {
           "description": "true when the text was cut at 2000 characters.",
           "type": "boolean"
+        }
+      }
+    },
+    "question": {
+      "description": "One question asked in the period.",
+      "type": "object",
+      "required": [
+        "issue",
+        "n",
+        "from",
+        "kind",
+        "question",
+        "options",
+        "answer",
+        "asked_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "issue": {
+          "description": "The issue the question is on.",
+          "$ref": "#/$defs/id"
+        },
+        "n": {
+          "description": "The question number in the ledger (questions.yaml).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "from": {
+          "description": "Who asked (from of the question JSON), or null when it has none.",
+          "anyOf": [
+            {
+              "enum": [
+                "issue",
+                "retro",
+                "chief-of-staff",
+                "chief-engineer"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "description": "The decision kind (scope is left out).",
+          "enum": [
+            "business",
+            "users",
+            "promise",
+            "irreversible",
+            "line"
+          ]
+        },
+        "question": {
+          "description": "The question, one line (from the question JSON).",
+          "type": "string",
+          "minLength": 1
+        },
+        "options": {
+          "description": "The options, copied from the question JSON; pick is true on the recommendation.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "pick"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "description": "The option.",
+                "type": "string"
+              },
+              "pick": {
+                "description": "true on the recommendation.",
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "answer": {
+          "description": "The answer in the ledger (questions.yaml answer), or null when it is not answered.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asked_at": {
+          "description": "When it was asked (questions.yaml asked).",
+          "$ref": "#/$defs/time"
         }
       }
     },

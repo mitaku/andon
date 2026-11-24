@@ -210,7 +210,7 @@ echo 'ok ADR-0039 5: 前の振り返りが集めてから片付くまでの間�
 
 # 7: 要約にはつまずきの跡の見出しだけ（日報の本文は無い）
 jq -e '.summaries[] | select(.id == "S-0001") | . == {id: "S-0001", title: "S-0001 のタイトル", done_at: .done_at, pr: null,
-  findings: ["major — a.go:3 空の入力で落ちる。"], gate_fixes: ["Must fix 以上が 1 件"], corrections: false, remember: 2}' "$tmp/split.json" >/dev/null \
+  findings: ["major — a.go:3 空の入力で落ちる。"], gate_fixes: ["Must fix 以上が 1 件"], corrections: false, remember: 2, gaps: []}' "$tmp/split.json" >/dev/null \
   || die "S-0001 の要約: $(jq -c '.summaries[] | select(.id == "S-0001")' "$tmp/split.json")"
 [ "$(grep -o -- '- 理解: 迷った。' "$tmp/split.json" | wc -l)" = 25 ] || die "日報の本文が全文の束の外にもある"
 jq -e '.issues[0].launches == [{at: .issues[0].done_at, profile: "claude", model: "opus", commit: "'"$sha"'"}]
