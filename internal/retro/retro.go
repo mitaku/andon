@@ -99,6 +99,7 @@ type Input struct {
 	Summaries     []Summary    `json:"summaries"`
 	Cut           *Cut         `json:"cut"`
 	Typed         []Typed      `json:"typed"`
+	Questions     []Question   `json:"questions"`
 	Fixes         []Fix        `json:"fixes"`
 	Redacted      int          `json:"redacted"`
 	Skipped       []Skip       `json:"skipped"`
@@ -133,6 +134,13 @@ type Summary struct {
 	GateFixes   []string `json:"gate_fixes"`
 	Corrections *bool    `json:"corrections"`
 	Remember    int      `json:"remember"`
+	Gaps        []GapRef `json:"gaps"`
+}
+
+// GapRef は要約の束に載せる申告1件の種類と先（本文は載せない。ADR-0061 決めたこと 9）。
+type GapRef struct {
+	Kind  string `json:"kind"`
+	Where string `json:"where"`
 }
 
 // Launch は起動の記録1行のうち、パターンを拾うのに使う所（ADR-0039 決めたこと 6 の細部）。全文は library の launches.jsonl。
@@ -177,6 +185,7 @@ type Bundle struct {
 	Corrections      []any        `json:"corrections"`
 	Remember         []string     `json:"remember"`
 	AgentsMD         []string     `json:"agents_md"`
+	Gaps             []any        `json:"gaps"`
 	Journal          *string      `json:"journal"`
 	AfterMerge       *AfterMerge  `json:"after_merge"`
 	Reapplied        *bool        `json:"reapplied"`
@@ -264,7 +273,7 @@ func Collect(o Options) (*Input, error) {
 	until := o.Now.UTC()
 	since := until.Add(-time.Duration(o.Days) * 24 * time.Hour)
 	in := &Input{Project: filepath.Base(o.Root), At: until.Format(time.RFC3339), Since: since.Format(time.RFC3339),
-		Until: until.Format(time.RFC3339), Issues: []Bundle{}, Summaries: []Summary{}, Typed: []Typed{}, Fixes: []Fix{}}
+		Until: until.Format(time.RFC3339), Issues: []Bundle{}, Summaries: []Summary{}, Typed: []Typed{}, Questions: []Question{}, Fixes: []Fix{}}
 
 	tasks := r.tasks()
 	byID := map[string]*task{}
@@ -363,6 +372,7 @@ func Collect(o Options) (*Input, error) {
 		if o.ClaudeDir != "" {
 			in.Typed = r.typed(tasks, since, until)
 		}
+		in.Questions = r.questions(tasks, since, until)
 	}
 	in.Skipped = r.skipped
 	if in.Skipped == nil {
@@ -553,7 +563,7 @@ func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) (Bundle, []map
 	}
 	b := Bundle{ID: t.id, Title: t.title, Profile: t.profile, Repo: strPtr(t.repo), DoneAt: doneAt.UTC().Format(time.RFC3339),
 		Library: lib, Estimate: strPtr(t.estimate), Gates: []Gate{}, Reviews: []Review{}, Waived: []any{},
-		Remember: []string{}, AgentsMD: []string{}, ReappliedReasons: []string{}}
+		Remember: []string{}, AgentsMD: []string{}, Gaps: []any{}, ReappliedReasons: []string{}}
 	raw := r.launches(filepath.Join(lib, launch.File))
 	if raw != nil {
 		b.Launches = []Launch{}
@@ -581,6 +591,9 @@ func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) (Bundle, []map
 		}
 		b.Remember = strings1(rep["remember"])
 		b.AgentsMD = strings1(rep["agents_md"])
+		if g, ok := rep["gaps"].([]any); ok {
+			b.Gaps = g
+		}
 	}
 	if c := r.object(filepath.Join(lib, "corrections.json")); c != nil {
 		if xs, ok := c["corrections"].([]any); ok {
@@ -727,7 +740,17 @@ func outcomeView(o map[string]any) *OutcomeView {
 //   - corrections: gate の問いをオーナーがマージして閉じた答えのほかに手直しがあるか。手直しの記録が無ければ null（集めていない）
 //   - remember: Remember の行数
 func (r *reader) summary(b Bundle) Summary {
-	s := Summary{ID: b.ID, Title: b.Title, DoneAt: b.DoneAt, PR: b.PR, Findings: []string{}, GateFixes: []string{}, Remember: len(b.Remember)}
+	s := Summary{ID: b.ID, Title: b.Title, DoneAt: b.DoneAt, PR: b.PR, Findings: []string{}, GateFixes: []string{}, Remember: len(b.Remember), Gaps: []GapRef{}}
+	for _, x := range b.Gaps {
+		g, _ := x.(map[string]any)
+		kind, _ := g["kind"].(string)
+		where, _ := g["where"].(string)
+		if kind == "" || where == "" {
+			r.skip(r.rel(filepath.Join(b.Library, "report.json")), "申告に kind か where が無い（要約に載せていない）")
+			continue
+		}
+		s.Gaps = append(s.Gaps, GapRef{Kind: kind, Where: where})
+	}
 	for _, rv := range b.Reviews {
 		fs, _ := rv.Findings["findings"].([]any)
 		var report []string

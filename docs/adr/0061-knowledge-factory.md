@@ -17,8 +17,8 @@
 | 6 | トリアージが申告を 1 件ずつ拾い、申告の先ごとに行き先を決める | この ADR | まだ実装していない |
 | 7 | skill とパッケージへの申告は、確かめた誤りと、根拠が 2 件そろったものを、オーナーへの問いにせず直す課題に切る | この ADR | まだ実装していない |
 | 8 | 根拠が 1 件の、skill とパッケージに足りないものの申告は「1 件目」で閉じ、次の申告のときに command が前の申告を並べる | この ADR | まだ実装していない |
-| 9 | 振り返りは申告を束に足して読むが、申告だけのパターンは作らない | この ADR | まだ実装していない |
-| 10 | 振り返りの入力にオーナーへの問いを足し、問いの繰り返しは振り返りの担当が申告として書く | この ADR | まだ実装していない |
+| 9 | 振り返りは申告を束に足して読むが、申告だけのパターンは作らない | `internal/retro/retro.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
+| 10 | 振り返りの入力にオーナーへの問いを足し、問いの繰り返しは振り返りの担当が申告として書く | `internal/retro/questions.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
 | 11 | 担当が wiki を引く口を足す | この ADR | まだ実装していない |
 | 12 | 届け方は、最初のメッセージの 1 行と、担当の skill の理解の工程の 1 行にする | この ADR | まだ実装していない |
 | 13 | wiki の目録は Entities、Topics、Sources の順に並べ、引く側は Sources の手前まで読む | この ADR | まだ実装していない |
