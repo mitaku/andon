@@ -205,7 +205,7 @@ func TestSendSlack(t *testing.T) {
 		if c.path != "/api/files.completeUploadExternal" || c.form["channel_id"] != channel || c.auth != "Bearer "+fakeToken {
 			t.Errorf("3回目: %s %v", c.path, c.form)
 		}
-		for _, want := range []string{"ボードの表示が増えた。", "オーナーの待ちは 1 件。", "オーナーを待っているもの: 0 件", "マージした PR: 1 本（自動 1 本）", "全文: " + u} {
+		for _, want := range []string{"ボードの表示が増えた。", "オーナーの待ちは 1 件。", "オーナーを呼んでいるもの: 0 件", "置いてあるもの: 0 件\n", "マージした PR: 1 本（自動 1 本）", "全文: " + u} {
 			if !strings.Contains(c.form["initial_comment"], want) {
 				t.Errorf("短い文に %q が無い: %s", want, c.form["initial_comment"])
 			}
@@ -246,7 +246,7 @@ func TestSendSlack(t *testing.T) {
 		if n := utf8.RuneCountInString(msg); n > messageMax || shown >= messageTop {
 			t.Errorf("%d 字・待ちの行 %d", n, shown)
 		}
-		for _, want := range []string{"オーナーを待っているもの: 40 件", fmt.Sprintf("（ほか %d 件は全文に載せた）", 40-shown), "全文: " + u} {
+		for _, want := range []string{"オーナーを呼んでいるもの: 40 件（マージの依頼 40・判断 0・手作業 0）", fmt.Sprintf("（ほか %d 件は全文に載せた）", 40-shown), "全文: " + u} {
 			if !strings.Contains(msg, want) {
 				t.Errorf("短い文に %q が無い", want)
 			}
@@ -685,14 +685,14 @@ func TestCheck(t *testing.T) {
 func TestMessageKeepsURLAndNoMention(t *testing.T) {
 	const u = "http://files.cell.localhost:1355/x.html"
 	in := &Input{Title: "デイリーダイジェスト", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
-	in.Waiting.Items = []waiting.Item{{Kind: "merge", ID: "S-0001", Title: "直す"}}
+	in.Waiting.Items = []waiting.Item{{Kind: "merge", ID: "S-0001", Title: "直す", Call: true}}
 	msg := Message(&Text{Headline: []string{strings.Repeat("長", messageMax), "二。"}}, in, newLoc(""), u)
-	if utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "全文: "+u) || !strings.Contains(msg, "ほか 1 件") || !strings.Contains(msg, "オーナーを待っているもの: 1 件") {
+	if utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "全文: "+u) || !strings.Contains(msg, "ほか 1 件") || !strings.Contains(msg, "オーナーを呼んでいるもの: 1 件") {
 		t.Errorf("URL か数が落ちた: %d 字", utf8.RuneCountInString(msg))
 	}
 	empty := *in
 	empty.Waiting.Items = nil
-	if msg := Message(&Text{Headline: []string{strings.Repeat("長", messageMax), "二。"}}, &empty, newLoc(""), u); utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "オーナーを待っているもの: 0 件") {
+	if msg := Message(&Text{Headline: []string{strings.Repeat("長", messageMax), "二。"}}, &empty, newLoc(""), u); utf8.RuneCountInString(msg) > messageMax || !strings.Contains(msg, "オーナーを呼んでいるもの: 0 件") {
 		t.Errorf("待ちが無いときに数の行が落ちた: %d 字", utf8.RuneCountInString(msg))
 	}
 	in.Waiting.Items[0].Title = "<!channel> を呼ぶ"

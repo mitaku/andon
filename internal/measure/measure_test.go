@@ -983,3 +983,48 @@ printf '['; head -n "$limit" "`+filepath.Join(dir, "prs")+`" | sed '1!s/^/,/'; p
 		t.Errorf("1000 本を超えると期間の数が変わる:\n got  %s\n want %s", g, w)
 	}
 }
+
+// 置いておける課題の問い（ADR-0062 決めたこと 9・受け入れ条件 17）: Chief of Staff の端末が印 later を書いたオーナーの課題の問いは、
+// 問いが開いていた時間の平均に入らない。印を最後に書いたのが担当の端末なら、置いておける課題でないので入る。
+func TestQuestionOpenLeavesPlaceableOut(t *testing.T) {
+	cases := []struct {
+		name      string
+		by        string // later を書いた端末
+		wantCount int
+		wantHours float64
+	}{
+		{"Chief of Staff の印は外す", "terminal:t1", 1, 2.0},
+		// 問い 11-03 00:00〜11-04 22:00 の 46h が入り、(2+46)/2 = 24
+		{"担当の端末の印は外さない", "terminal:t4", 2, 24.0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := fakeLedger(t)
+			k := filepath.Join(root, "kanban")
+			put(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: S\nchief_of_staff: t1\n")
+			put(t, filepath.Join(k, "issues/S-0005/issue.yaml"),
+				"id: S-0005\ntitle: later\nstatus: todo\nwho: person\nlater: 急がない\ncreated: \"2026-11-03T00:00:00Z\"\n")
+			put(t, filepath.Join(k, "issues/S-0005/questions.yaml"),
+				"- n: 1\n  text: x\n  asked: \"2026-11-03T00:00:00Z\"\n  status: received\n  answered: \"2026-11-04T22:00:00Z\"\n")
+			b, err := os.ReadFile(filepath.Join(k, "log.jsonl"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			log := ledgertest.Log(t, `{"at":"2026-10-31T00:00:00Z","by":"terminal:t1","config":{"chief_of_staff":"t1"}}`) + string(b) + ledgertest.Log(t,
+				`{"at":"2026-11-03T00:00:00Z","by":"terminal:t1","id":"S-0005","change":{"add":"later"}}`,
+				`{"at":"2026-11-03T00:00:00Z","by":"`+c.by+`","id":"S-0005","change":{"later":"急がない"}}`,
+			)
+			put(t, filepath.Join(k, "log.jsonl"), log)
+			res, err := Measure(opts(root))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := res.Flow.QuestionOpen.Count; got != c.wantCount {
+				t.Errorf("questions = %d, want %d", got, c.wantCount)
+			}
+			if got := val(res.Flow.QuestionOpen.Value); got != c.wantHours {
+				t.Errorf("question open = %v, want %v", got, c.wantHours)
+			}
+		})
+	}
+}

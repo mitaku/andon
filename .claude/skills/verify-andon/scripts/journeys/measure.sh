@@ -16,6 +16,12 @@ HC_TERMINAL_ID=tc "$kanban" set "$done_id" "session=$session" >/dev/null
 mkdir -p "$HOME/.claude/projects/verify"
 echo '{"type":"assistant","requestId":"req_1","message":{"id":"msg_1","model":"claude-verify","usage":{"input_tokens":11,"output_tokens":22,"cache_read_input_tokens":33,"cache_creation_input_tokens":44}}}' \
   >"$HOME/.claude/projects/verify/$session.jsonl"
+# オーナーの判断 2 件: Chief of Staff（tc）が呼ぶもの（--now）と、置いておくもの（--later）を足す。問いはどちらも開いたまま（ms-question-later）
+echo '{"labels":{"role":"chief-of-staff"}}' >"$tmp/hc/tc.json"
+q="{\"kind\": \"users\", \"question\": \"$run の書き出しは CSV だけにするか\", \"options\": [{\"label\": \"CSV だけ\", \"pick\": true}, {\"label\": \"Excel も\"}], \"from\": \"chief-of-staff\"}"
+called=$(HC_TERMINAL_ID=tc "$andon" issue ask --new --now - <<<"$q" | sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p')
+placed=$(HC_TERMINAL_ID=tc "$andon" issue ask --new --later "$run 急がない" - <<<"${q/CSV だけにするか/並びを変えるか}" | sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p')
+echo "  | 呼ぶ判断: ${called:-無い}。置いておく判断: ${placed:-無い}"
 sums() { find "$tmp/project" "$HOME/.claude" -type f -exec sha256sum {} + | sort; }
 before=$(sums)
 
@@ -25,6 +31,14 @@ jq -c '{project, since, until, closed: .flow.closed, wip_end: .flow.wip_end}' "$
 jq -e '.flow.closed.count == 1 and .flow.wip_end == 1' "$tmp/step.out" >/dev/null \
   && ok "ms-flow: 片付いた課題 1・期間の終わりの WIP 1 を数える" \
   || fail "ms-flow: 流れの数が履歴と違うか、JSON が読めない"
+
+# ms-question-later: 問いが開いていた時間の平均は、置いておける課題の問いを入れない（開いている問い 2 つのうち 1 つだけ数える）
+jq -c '.flow.question_open' "$tmp/step.out" 2>/dev/null | sed 's/^/  question_open: /'
+if [ -n "$called" ] && [ -n "$placed" ] && jq -e '.flow.question_open.count == 1' "$tmp/step.out" >/dev/null; then
+  ok "ms-question-later: 呼ぶ $called の問いだけを数え、置いた $placed の問いを入れない"
+else
+  fail "ms-question-later: 判断を足せなかったか、置いた判断の問いを数えた"
+fi
 
 # ms-tokens: 片付いた課題の担当のセッションの記録から、トークンを数える。記録の無い課題は null
 jq -c '.tokens[]' "$tmp/step.out" 2>/dev/null | sed 's/^/  tokens: /'

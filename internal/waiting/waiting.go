@@ -324,10 +324,16 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 // 信じる印 later（その行の時点の Chief of Staff の端末が最後に書いた、空でない値）を持つ。状態が doing か review の、
 // オーナーの課題でない課題（担当と Chief Engineer が動かしている課題と、マージの依頼）は、印があっても置いておけない。
 func (t *issue) placeable(rows []ledger.Row, cos string) bool {
-	if t.who != "person" && t.status != "todo" && t.status != "queued" {
+	return Placeable(t.raw, rows, cos)
+}
+
+// Placeable は課題 raw（issue.yaml。id を入れたもの）が置いておける課題か（placeable と同じ規則）。cos は config.yaml の
+// chief_of_staff。andon measure が、問いが開いていた時間から置いておける課題の問いを外すのに使う（ADR-0062 決めたこと 9）。
+func Placeable(raw ledger.Issue, rows []ledger.Row, cos string) bool {
+	if st := raw.Str("status"); raw.Str("who") != "person" && st != "todo" && st != "queued" {
 		return false
 	}
-	return t.later != "" && ledger.TrustedThen(rows, t.raw, "later", cos)
+	return firstLine(raw.Str("later")) != "" && ledger.TrustedThen(rows, raw, "later", cos)
 }
 
 // call は行が呼んでいるか（ADR-0062 決めたこと 4 の細部の 1〜6 を上から順に）。holds の相手は、相手の印と状態だけを読み、

@@ -13,6 +13,7 @@
 package digest
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -253,6 +254,19 @@ func readInput(root, id string) (*Input, error) {
 	}
 	if _, err := contract.Encode(contract.SchemaWaiting, in.Waiting); err != nil {
 		return nil, fmt.Errorf("%s の waiting: %v", path, err)
+	}
+	var rows struct {
+		Waiting struct {
+			Items []map[string]json.RawMessage `json:"items"`
+		} `json:"waiting"`
+	}
+	if err := json.Unmarshal(b, &rows); err != nil {
+		return nil, fmt.Errorf("%s が読めない: %v", path, err)
+	}
+	for _, it := range rows.Waiting.Items {
+		if _, ok := it["call"]; !ok {
+			in.noCall = true
+		}
 	}
 	if in.Issue != id {
 		return nil, fmt.Errorf("%s は課題 %s のもの（%s でない）", path, in.Issue, id)

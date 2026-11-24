@@ -10,6 +10,8 @@
   - 見るファイル: `internal/digest/build.go`
 - `dg-build` 照らした文から `digest.json`・図を持つ `digest.html`・`message.txt` が書かれる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/build.go`、`internal/digest/render.go`、`internal/digest/digest.html.tmpl`、`schema/digest.schema.json`
+- `dg-later` 冒頭の「オーナーが呼ばれている」の数と琥珀は呼んでいるオーナー待ちだけで、節 2 は「呼んでいるもの」と「置いてあるもの」に分かれ、置いてある行に置いた理由が出る。`message.txt` は呼んでいるものと置いてあるものの 2 つの数を書く。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/digest/build.go`、`internal/digest/render.go`、`internal/digest/digest.html.tmpl`、`internal/digest/collect.go`、`internal/digest/digest.go`、`internal/waiting/waiting.go`
 - `dg-send` 送り先の無い `project.json` では `digest.html` を files/ にそのまま出し、URL を返し、`sent.json` の送り先は files だけ。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/send.go`、`internal/publish/publish.go`、`schema/digest-sent.schema.json`
 - `dg-check-refuse` 送り先が無ければ、`andon digest check` は何も送らずに断る。見る道: 検証の担当だけ。
@@ -32,6 +34,7 @@
 - **集める。** `dg-collect` の行に `input.json` の `since`・`until`・`issues`・`skipped` が出る。`ok   dg-collect` が見えれば動いた。
 - **断られる。** `dg-build-refuse` の行に `andon digest build` の終了コード 1 と、入力に無い課題を指したという理由1行が出る。`ok   dg-build-refuse` が見えれば動いた。
 - **組み立てる。** `dg-build` の行に3つのファイルのパスと `ls -l` が出る。`ok   dg-build` が見えれば動いた。
+- **分けて描く。** 集める前に、Chief of Staff の端末が呼ぶ判断（`andon issue ask --new --now`）と置いておく判断（`--later`）を 1 件ずつ足してある。`dg-later` の行に節 2 の 2 つの見出しと置いた理由、`message.txt` の 2 つの数の行が出る。`ok   dg-later` が見えれば動いた。
 - **送る。** `dg-send` の行に files/ の URL と `sent.json` が出る。`sent.json` の `destinations` が `files` の1件だけで、`ok   dg-send` が見えれば動いた。
 - **確かめを断る。** `dg-check-refuse` の行に「送り先の設定が無いので何も送らない」が出る。`ok   dg-check-refuse` が見えれば動いた。
 - **Slack を見る（`dg-slack`）。** オーナーが送り先を書いたプロジェクトで、次のダイジェストのあとにチャンネルを見る。報告の `acceptance[]` に `manual` と書き、見る場所（チャンネルとダイジェストの課題）を `evidence` に書く。

@@ -41,6 +41,17 @@ type Input struct {
 	Decided   *Decided       `json:"decided,omitempty"` // 節 5。前のバージョンの入力には無い（build は入っていないと描く）
 	Redacted  int            `json:"redacted"`
 	Skipped   []Skip         `json:"skipped"`
+	// noCall は waiting の行に call の無いものがある入力（ADR-0062 より前のバージョンが集めた input.json）。readInput が書く。
+	// そのような入力は、今までの数え方（マージの依頼と判断が呼んでいる）で組み立てる（ADR-0062 決めたこと 9）
+	noCall bool
+}
+
+// calling は待っているものの行が呼んでいるか（ADR-0062 決めたこと 9）。call の無い入力は、マージの依頼と判断を呼んでいると読む。
+func (in *Input) calling(it waiting.Item) bool {
+	if in.noCall {
+		return it.Kind == "merge" || it.Kind == "decision"
+	}
+	return it.Call
 }
 
 type Previous struct {

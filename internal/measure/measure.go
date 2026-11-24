@@ -31,6 +31,7 @@ import (
 	"andon/internal/dispatcher"
 	"andon/internal/ghpr"
 	"andon/internal/ledger"
+	"andon/internal/waiting"
 )
 
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
@@ -280,6 +281,8 @@ type reader struct {
 	root    string
 	dir     string
 	skipped []Skip
+	cos     string       // config.yaml の chief_of_staff
+	ledger  []ledger.Row // log.jsonl の読めた行（印 later を信じるかの照合に使う）
 }
 
 func (r *reader) skip(src string, line int, format string, a ...any) {
@@ -541,6 +544,10 @@ func Measure(o Options) (*Result, error) {
 		if !since.IsZero() && cur != first && cur != "queued" && cur != last {
 			f.WIPEnd++
 		}
+		// 置いておける課題の問いは入れない（ADR-0062 決めたこと 9）。数えるときの印だけを見るので、途中で印を外した問いは置いてあった間も入る
+		if waiting.Placeable(t.raw, r.ledger, r.cos) {
+			continue
+		}
 		for _, q := range t.asked {
 			to := q.to
 			if to.IsZero() {
@@ -776,6 +783,7 @@ func median(xs []float64) *float64 {
 // config は config.yaml の columns（無ければ既定）。バージョンが 3 でなければ止まる（kanban の形式の規則）。
 func (r *reader) config() ([]string, error) {
 	c, err := ledger.ReadConfig(r.dir)
+	r.cos = c.ChiefOfStaff
 	var pathErr *fs.PathError
 	switch {
 	case errors.As(err, &pathErr):
@@ -890,6 +898,11 @@ func (r *reader) log() []logRow {
 			}
 		}
 		rows = append(rows, row)
+		var lr ledger.Row
+		if json.Unmarshal([]byte(line), &lr) == nil {
+			lr.ID = ledger.CanonID(lr.ID)
+			r.ledger = append(r.ledger, lr)
+		}
 	}
 	return rows
 }

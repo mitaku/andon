@@ -13,11 +13,11 @@
 | 3 | 集める command、書く担当、組み立てて送る command の 3 段で作る | `internal/digest/collect.go`・`internal/digest/build.go`・`package/skills/digest/SKILL.md` | 生きている |
 | 4 | 回すきっかけは kanban のルーチンにし、並行の枠を別に持たせない | `package/skills/digest/assets/daily-digest.yaml`・`package/skills/chief-of-staff/playbooks/digest.md`・`process/workstreams/digest.yaml` | 生きている（kanban へ写すのはオーナーの go のあと） |
 | 5 | 読む期間は、前に送ったダイジェストの終わりから今までにする | `internal/digest/collect.go` | 生きている |
-| 6 | 載せる節を 8 つに定める | `internal/digest/digest.html.tmpl`・`internal/digest/decided.go` | 生きている |
+| 6 | 載せる節を 8 つに定める | `internal/digest/digest.html.tmpl`・`internal/digest/decided.go` | 生きている。オーナーが呼ばれているものを「呼んでいるオーナー待ちの数」に改め、節 2 を呼んでいるものと置いてあるものに分けた（ADR-0062 決めたこと 9） |
 | 7 | 依存の無い単一の HTML にし、図を必ず入れ、スクリプトを持たせない | `internal/digest/build.go` | 生きている |
 | 8 | 数と一覧と図は command が描き、担当が書くのは要旨とテーマと気になることだけにする | `internal/digest/render.go`・`package/skills/digest/SKILL.md` | 生きている |
 | 9 | 担当が中身を書く図は、2 つの型から選ぶ | `schema/digest.schema.json` | 生きている |
-| 10 | 色は行燈に合わせ、琥珀はマージの依頼と判断だけ、赤は失敗だけに使う | `internal/digest/render.go` | 生きている |
+| 10 | 色は行燈に合わせ、琥珀はマージの依頼と判断だけ、赤は失敗だけに使う | `internal/digest/render.go` | 生きている。「琥珀はマージの依頼と判断だけ」を「琥珀は呼んでいるオーナー待ちだけ」に改めた（ADR-0062 決めたこと 9） |
 | 11 | 文は書き方の決まりに従い、経緯と捨てた案と同じ一覧の繰り返しを書かない | `package/skills/digest/SKILL.md`・`package/writing.md` | 生きている |
 | 12 | 送り先はオーナーが `project.json` に書き、書いてあることを毎回の送信へのオーナーの go として扱う | `internal/digest/send.go`・`schema/project.schema.json` | 生きている |
 | 13 | Slack へは、短い文と HTML のファイルを 1 回の投稿で送る | `internal/digest/slack.go` | 生きている |
