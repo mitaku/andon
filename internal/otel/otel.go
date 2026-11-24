@@ -15,11 +15,13 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sync"
 	"time"
 
@@ -42,6 +44,12 @@ var personal = map[string]bool{
 	"user.account_id":   true,
 	"user.id":           true,
 	"organization.id":   true,
+}
+
+// contentAttrs は、イベントの名前ごとに、本文を運ぶので落とす属性（決めたこと 7・8）。Codex のログの
+// codex.tool_result は、ツールの出力の写しを output に載せる（v0.166.0。既定で 2 KB まで）。
+var contentAttrs = map[string]map[string]bool{
+	"codex.tool_result": {"output": true},
 }
 
 // secretKey は値を伏せる属性の名前（名前を区切った語のどれかが秘密の名前）。値の形に秘密が現れない短い値
@@ -206,6 +214,12 @@ func (r *Receiver) store(sig signal, raw json.RawMessage) error {
 		r.drop("resource が読めない")
 		return nil
 	}
+	if sig == traces {
+		if why := liftSpanAttrs(entry); why != "" {
+			r.drop(why)
+			return nil
+		}
+	}
 	rel, reason := r.place(sig, entry)
 	if reason != "" {
 		r.drop(reason)
@@ -258,19 +272,25 @@ func short(s string) string {
 	return s
 }
 
+// andonKeys は振り分けに使う resource 属性（決めたこと 6）。書き足すときもこの順にする。
+var andonKeys = []string{"andon.project", "andon.issue", "andon.role"}
+
 // resourceAttrs は resource の属性のうち andon. で始まるものを、文字列の値で返す。文字列でない値は
 // 形の違う値として「"" でない別の値」にして返す（呼び手の形の確かめで落ちる）。
 func resourceAttrs(entry any) map[string]string {
-	out := map[string]string{}
 	m, _ := entry.(map[string]any)
 	res, _ := m["resource"].(map[string]any)
 	list, _ := res["attributes"].([]any)
+	return andonAttrs(list)
+}
+
+// andonAttrs は属性の並びのうち andonKeys のものを、文字列の値で返す（文字列でない値の扱いは resourceAttrs と同じ）。
+func andonAttrs(list []any) map[string]string {
+	out := map[string]string{}
 	for _, a := range list {
 		kv, _ := a.(map[string]any)
 		key, _ := kv["key"].(string)
-		switch key {
-		case "andon.project", "andon.issue", "andon.role":
-		default:
+		if !slices.Contains(andonKeys, key) {
 			continue
 		}
 		val, _ := kv["value"].(map[string]any)
@@ -283,14 +303,60 @@ func resourceAttrs(entry any) map[string]string {
 	return out
 }
 
+// liftSpanAttrs は、resource に andon. の属性が 1 つも無いトレースで、span の属性の andon. の値（Codex の
+// span_attributes。ADR-0060 決めたこと 19）を resource の属性に写す。全部の span が同じ値を持つときだけ写し、
+// 揃わなければ捨てる理由を返す。どの span にも無ければ何もしない（place が「andon.project が無い」で捨てる）。
+func liftSpanAttrs(entry any) string {
+	if len(resourceAttrs(entry)) != 0 {
+		return ""
+	}
+	m, _ := entry.(map[string]any)
+	if m == nil {
+		return ""
+	}
+	var want map[string]string
+	scopes, _ := m["scopeSpans"].([]any)
+	for _, sc := range scopes {
+		scm, _ := sc.(map[string]any)
+		spans, _ := scm["spans"].([]any)
+		for _, sp := range spans {
+			spm, _ := sp.(map[string]any)
+			list, _ := spm["attributes"].([]any)
+			got := andonAttrs(list)
+			if want == nil {
+				want = got
+			} else if !maps.Equal(want, got) {
+				return "span ごとの andon. の属性が揃わない"
+			}
+		}
+	}
+	if len(want) == 0 {
+		return ""
+	}
+	res, _ := m["resource"].(map[string]any)
+	if res == nil {
+		res = map[string]any{}
+		m["resource"] = res
+	}
+	list, _ := res["attributes"].([]any)
+	for _, k := range andonKeys {
+		if v, ok := want[k]; ok {
+			list = append(list, map[string]any{"key": k, "value": map[string]any{"stringValue": v}})
+		}
+	}
+	res["attributes"] = list
+	return ""
+}
+
 // strip は、属性の並び（どの深さの "attributes" も。kvlistValue の "values" も）から個人の属性を落とし、
 // 名前が秘密の名前の属性の文字列の値を伏せる。
 func strip(v any) {
 	switch x := v.(type) {
 	case map[string]any:
+		content := contentOf(x)
 		for k, child := range x {
 			if list, ok := child.([]any); ok && (k == "attributes" || k == "values") {
-				x[k] = dropPersonal(list)
+				x[k] = dropPersonal(list, content)
 			}
 			strip(x[k])
 		}
@@ -322,12 +388,33 @@ func redactStrings(v any) any {
 	return v
 }
 
-func dropPersonal(list []any) []any {
+// contentOf は記録（ログの 1 件か span のイベント）の名前から、落とす本文の属性を引く。名前は属性 event.name の文字列の値と
+// OTLP の eventName の両方を見る。Codex のログの eventName は tracing の呼び出し元の名前（event <ファイル>:<行>）で、
+// codex.tool_result の名前は属性 event.name にだけある（opentelemetry-appender-tracing 0.31）。
+func contentOf(rec map[string]any) map[string]bool {
+	if s, ok := rec["eventName"].(string); ok && contentAttrs[s] != nil {
+		return contentAttrs[s]
+	}
+	list, _ := rec["attributes"].([]any)
+	for _, a := range list {
+		kv, _ := a.(map[string]any)
+		if k, _ := kv["key"].(string); k == "event.name" {
+			val, _ := kv["value"].(map[string]any)
+			if s, _ := val["stringValue"].(string); contentAttrs[s] != nil {
+				return contentAttrs[s]
+			}
+		}
+	}
+	return nil
+}
+
+// dropPersonal は属性の並びから個人の属性と content（その記録の本文を運ぶ属性）を落とし、名前が秘密の名前の値を伏せる。
+func dropPersonal(list []any, content map[string]bool) []any {
 	out := list[:0:0]
 	for _, a := range list {
 		if kv, ok := a.(map[string]any); ok {
 			key, _ := kv["key"].(string)
-			if personal[key] {
+			if personal[key] || content[key] {
 				continue
 			}
 			if val, ok := kv["value"].(map[string]any); ok && secretKey.MatchString(key) {

@@ -11,6 +11,42 @@ name=$(curl -s -m 2 http://127.0.0.1:4318/ 2>/dev/null | tr -d '\r\n') || name=
 echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 [ "$name" = andon-otel ] && ok "ot-listen: 受け口が listen し、名前 andon-otel を返す" || fail "ot-listen: 受け口が listen していないか、ほかのプロセスがポートを取っている"
 
+# ot-codex: 当てたあとに Codex のプロファイルで起動した課題ごとに、置き場の traces.jsonl と logs.jsonl を読む（ADR-0060 受け入れ条件 17）。
+# 記録が無いことは報告に書く条件なので、note にして道の終了コードを変えない。個人の属性かツールの出力が残っていれば fail。
+# 数えるのは、その課題を当てたあとに Codex で最初に起動した時刻より後の時刻（span の startTimeUnixNano・ログの timeUnixNano）を
+# 持つ行だけ（同じ課題の前の起動の行で ok にしない）。起動の記録の時刻は秒までなので、起動と同じ秒の行は前の起動のものと
+# 見分けられず、数えない（次の秒の頭から数える。Codex は立ち上がりに 1 秒より長くかかる）。
+# 個人の属性とツールの出力は、前の行も含めてファイルの全部を見る。
+# codex_tied は、resource に andon.issue と andon.role があり、時刻 $t（ナノ秒）以後の記録を持つ行を出す。
+codex_tied='select([.. | objects | (.startTimeUnixNano?, .timeUnixNano?) | select(type == "string" or type == "number") | tonumber] | (max // 0) >= $t)
+  | (.resourceSpans // .resourceLogs)[0].resource.attributes | map(.key) | select(index("andon.issue") != null and index("andon.role") != null)'
+cx=0
+prev=
+while IFS=$'\t' read -r kanban id at; do
+  [ -n "$id" ] || continue
+  [ "$kanban/$id" != "$prev" ] || continue # 同じ課題は最初の起動の時刻で数える（並びは課題ごとに時刻の順）
+  prev=$kanban/$id
+  slug=$(basename "$(dirname "$kanban")")
+  t=$(date -u -d "$at" +%s 2>/dev/null) || { echo "  | $slug/$id: 起動の時刻 $at が読めない"; continue; }
+  for kind in traces logs; do
+    f=$root/$slug/issues/$id/$kind.jsonl
+    [ -f "$f" ] || { echo "  | $slug/$id: Codex の $kind.jsonl が無い"; continue; }
+    tied=$(jq -c --argjson t "$((t + 1))000000000" "$codex_tied" "$f" 2>/dev/null | grep -c . || true)
+    email=$(grep -c '"user.email"' "$f" || true)
+    output=$(jq -c '.. | objects | select(.attributes? and ((.attributes | map(select(.key == "event.name")) | .[0].value.stringValue) == "codex.tool_result" or .eventName? == "codex.tool_result")) | .attributes[] | select(.key == "output")' "$f" 2>/dev/null | grep -c . || true)
+    echo "  | $slug/$id: Codex の $kind.jsonl の、起動（$at）より後で andon.issue・andon.role を持つ行 $tied・user.email を持つ行 $email・codex.tool_result の output $output"
+    [ "$email" = 0 ] || fail "ot-codex: $f に user.email が残っている"
+    [ "$output" = 0 ] || fail "ot-codex: $f に codex.tool_result の output が残っている"
+    [ "$tied" -gt 0 ] && cx=$((cx + 1))
+  done
+done < <(for f in "$ws"/projects/*/kanban/issues/*/library/launches.jsonl; do
+  since "$f" | jq -r --arg k "${f%/issues/*}" 'select(.profile | test("codex")) | [$k, .issue, .at] | @tsv'; done | sort -t$'\t' -k1,1 -k2,2 -k3,3)
+if [ "$cx" -gt 0 ]; then
+  ok "ot-codex: 当てたあとに Codex で起動した課題の記録 $cx 本が課題に結ばれ、user.email と codex.tool_result の output が無い"
+else
+  echo "note ot-codex: 当てたあとに Codex で起動した課題の記録が無い（Codex の起動が無いか、送っていない・結べていない）。受け入れ条件 17 のとおり、その事実を報告に書く"
+fi
+
 # ot-records: 当てたあとに Claude Code のプロファイル（codex でない）で起動した課題ごとに、置き場の traces.jsonl を読む
 lines=$(since "$ws"/projects/*/kanban/issues/*/library/launches.jsonl | jq -c 'select(.profile | test("codex") | not)')
 n=$(grep -c . <<<"$lines" || true)

@@ -100,7 +100,7 @@ func TestEnvRoles(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			d := deps(t, c.labels, c.profile)
-			got, why := d.env()
+			got, why := d.env(claudeCode)
 			if why != "" {
 				t.Fatalf("送らない: %s", why)
 			}
@@ -151,15 +151,68 @@ func TestEnvSendsNothing(t *testing.T) {
 		{"ほかのプロセスがポートを取っている", func(d *envDeps) { d.addr = nameServer(t, "portless") }, false},
 		{"受け口を起動できない", func(d *envDeps) { d.addr = freeAddr(t) }, false},
 	} {
+		for _, h := range []harness{claudeCode, codexArgs, codexEnv} {
+			t.Run(fmt.Sprintf("%s/%d", c.name, h), func(t *testing.T) {
+				d := deps(t, worker, "claude")
+				c.change(&d)
+				got, why := d.env(h)
+				if len(got) != 0 {
+					t.Errorf("送る設定を出した: %q", got)
+				}
+				if (why == "") != c.quiet {
+					t.Errorf("理由 %q（理由を出さないのは送らない設定のときだけ）", why)
+				}
+			})
+		}
+	}
+}
+
+// ADR-0060 決めたこと 19: --codex は Codex の -c の並び（ログとトレースを受け口の道へ JSON で、span_attributes に
+// 決めたこと 6 の 3 つ、ツールの出力の写しは 0 バイト）を出し、metrics_exporter は書かない。--codex-env は
+// resource 属性の環境変数を 1 つだけ出す（Codex の SDK が resource に読み、ログも課題に結ぶ）。
+func TestEnvCodex(t *testing.T) {
+	cos := map[string]string{"role": "chief-of-staff", "project": "sample-site"}
+	for _, c := range []struct {
+		name    string
+		labels  map[string]string
+		profile string
+		span    string
+		res     string
+	}{
+		{"レビュアー", worker, "codex-review", `"andon.project"="sample-site","andon.issue"="S-0012","andon.role"="reviewer"`,
+			"andon.project=sample-site,andon.issue=S-0012,andon.role=reviewer"},
+		{"担当", worker, "codex", `"andon.project"="sample-site","andon.issue"="S-0012","andon.role"="worker"`,
+			"andon.project=sample-site,andon.issue=S-0012,andon.role=worker"},
+		{"Chief of Staff", cos, "", `"andon.project"="sample-site","andon.role"="chief-of-staff"`,
+			"andon.project=sample-site,andon.role=chief-of-staff"},
+	} {
 		t.Run(c.name, func(t *testing.T) {
-			d := deps(t, worker, "claude")
-			c.change(&d)
-			got, why := d.env()
-			if len(got) != 0 {
-				t.Errorf("送る設定を出した: %q", got)
+			d := deps(t, c.labels, c.profile)
+			got, why := d.env(codexArgs)
+			if why != "" {
+				t.Fatalf("送らない: %s", why)
 			}
-			if (why == "") != c.quiet {
-				t.Errorf("理由 %q（理由を出さないのは送らない設定のときだけ）", why)
+			want := []string{
+				"-c", `otel.exporter={otlp-http={endpoint="http://` + d.addr + `/v1/logs",protocol="json"}}`,
+				"-c", `otel.trace_exporter={otlp-http={endpoint="http://` + d.addr + `/v1/traces",protocol="json"}}`,
+				"-c", "otel.span_attributes={" + c.span + "}",
+				"-c", "otel.tool_result.max_bytes=0",
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("並びが違う:\n got %q\nwant %q", got, want)
+			}
+			for _, w := range got {
+				// template は $(…) を引用符なしで展開するので、1 行が 1 語のまま渡るには空白も glob の文字も持てない
+				if strings.ContainsAny(w, " \t\n*?[") {
+					t.Errorf("1 語にならない行: %q", w)
+				}
+				if strings.Contains(w, "metrics_exporter") || strings.Contains(w, "log_user_prompt") || strings.Contains(w, "log_agent_responses") {
+					t.Errorf("出さないはずの設定: %q", w)
+				}
+			}
+			got, why = d.env(codexEnv)
+			if why != "" || !slices.Equal(got, []string{"OTEL_RESOURCE_ATTRIBUTES=" + c.res}) {
+				t.Errorf("--codex-env が %q（理由 %q）", got, why)
 			}
 		})
 	}
@@ -181,7 +234,7 @@ func TestEnvStartsReceiver(t *testing.T) {
 		t.Cleanup(s.Close)
 		return nil
 	}
-	got, why := d.env()
+	got, why := d.env(claudeCode)
 	if why != "" || started != 1 {
 		t.Fatalf("起動 %d 回・理由 %q", started, why)
 	}
@@ -189,7 +242,7 @@ func TestEnvStartsReceiver(t *testing.T) {
 		t.Errorf("並びが違う: %q", got)
 	}
 	// もう listen しているので、2 回目は起動しない
-	if _, why := d.env(); why != "" || started != 1 {
+	if _, why := d.env(claudeCode); why != "" || started != 1 {
 		t.Errorf("2 回目: 起動 %d 回・理由 %q", started, why)
 	}
 }
@@ -201,21 +254,32 @@ func TestEnvMainWithoutTerminal(t *testing.T) {
 	if rc := EnvMain(nil, nil, &out, &errb); rc != 0 || out.Len() != 0 {
 		t.Errorf("終了コード %d・出力 %q", rc, out.String())
 	}
-	if rc := EnvMain([]string{"x"}, nil, &out, &errb); rc != 2 {
-		t.Errorf("引数があると終了コード 2: %d", rc)
+	for _, args := range [][]string{{"--codex"}, {"--codex-env"}} {
+		if rc := EnvMain(args, nil, &out, &errb); rc != 0 || out.Len() != 0 {
+			t.Errorf("%v: 終了コード %d・出力 %q", args, rc, out.String())
+		}
+	}
+	for _, args := range [][]string{{"x"}, {"--codex", "--codex-env"}, {"--codex=1"}} {
+		if rc := EnvMain(args, nil, &out, &errb); rc != 2 {
+			t.Errorf("%v: 知らない引数で終了コード 2 のはず: %d", args, rc)
+		}
 	}
 }
 
 // claudeRe は claude を起動する語（前が空白か / の claude のあとに空白）。/usr/bin/claude のような書き方も Claude Code の行と見る。
 var claudeRe = regexp.MustCompile(`(^|[ /])claude `)
 
-// 決めたこと 5: Claude Code を起動する template の行（command・resume）は、どれも andon otel env を env に渡す。Codex の行は渡さない（切る案 7）。
+// codexRe は codex を起動する語（claudeRe と同じ見方）。
+var codexRe = regexp.MustCompile(`(^|[ /])codex `)
+
+// 決めたこと 5・19: Claude Code を起動する template の行（command・resume）は、どれも andon otel env を env に渡す。
+// Codex を起動する行は、resource 属性を env に、-c の並びを codex の引数に渡す。
 func TestTemplatesPassOtelEnv(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "package", "templates", "*.md"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("template が無い: %v", err)
 	}
-	n := 0
+	n, nCodex := 0, 0
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
@@ -234,10 +298,18 @@ func TestTemplatesPassOtelEnv(t *testing.T) {
 			if claude {
 				n++
 			}
+			codex := codexRe.MatchString(l)
+			passesCodex := strings.Contains(l, "env $(andon otel env --codex-env) codex $(andon otel env --codex) ")
+			if codex != passesCodex {
+				t.Errorf("%s: Codex の行が andon otel env --codex-env・--codex を渡さないか、Codex でない行が渡す: %s", filepath.Base(f), l)
+			}
+			if codex {
+				nCodex++
+			}
 		}
 	}
-	if n == 0 {
-		t.Error("Claude Code を起動する行が 1 つも無い（検査が何も見ていない）")
+	if n == 0 || nCodex == 0 {
+		t.Errorf("Claude Code を起動する行 %d・Codex を起動する行 %d（どちらかが 0 だと検査が何も見ていない）", n, nCodex)
 	}
 }
 
