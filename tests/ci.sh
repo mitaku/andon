@@ -147,6 +147,57 @@ elif [ "${CI:-false}" = true ]; then die "CI に go が無い"
 else echo "skip scope の import の確かめ（go が無い）"; fi
 ok "scope: 重い検査は見る部分を変えたときだけ（retro は dispatcher・schema・apply-main を外す）。知らないパスは重い検査を含む"
 
+# 1d. scope --isolation（CI の job isolation が tests/isolation に渡す検査）: 検査の土台では image.sh を除く全部、
+#     tests/ の検査と置き場ではその検査、Go では smoke.sh（go test は tests/isolation が毎回回す）。ほかは空で、job は回さない
+iso() { printf '%s\n' "$@" | bash tests/lib/scope.sh --isolation | tr '\n' ' '; }
+for p in tests/lib/isolate.sh tests/lib/kanban.sh tests/lib/andon.sh tests/lib/andon-refs.sh tests/lib/run-tests.sh tests/isolation .github/workflows/tests.yml; do
+  got=$(iso "$p")
+  [ "$(wc -w <<<"$got")" -eq $((n_all - 1)) ] || die "検査の土台 $p で image.sh を除く全部にならない: $got"
+  has "$got" tests/image.sh && die "検査の土台 $p で image.sh（docker が要る）: $got"
+done
+# 検査が読む置き場で、隔離の漏れが main に入った形（tests/host/ の検査がセルの kanban を読んだ）
+[ "$(iso tests/host/screen.mjs)" = "tests/host.sh " ] || die "tests/host/ で host.sh だけにならない: $(iso tests/host/screen.mjs)"
+[ "$(iso package/host/kanban-board/index.js)" = "tests/host.sh " ] || die "host.sh が見る plugin のコードで host.sh だけにならない: $(iso package/host/kanban-board/index.js)"
+[ "$(iso tests/kanban/test-deck.mjs)" = "tests/kanban.sh " ] || die "tests/kanban/ で kanban.sh だけにならない: $(iso tests/kanban/test-deck.mjs)"
+[ "$(iso tests/package/01-names.sh)" = "tests/package.sh " ] || die "tests/package/ で package.sh だけにならない: $(iso tests/package/01-names.sh)"
+[ "$(iso tests/andon-gate.sh)" = "tests/andon-gate.sh " ] || die "触った検査だけにならない: $(iso tests/andon-gate.sh)"
+got=$(iso tests/schema.sh)
+for t in tests/schema.sh $emitters; do has "$got" "$t" || die "schema.sh で $t が無い（emitters を並べる）: $got"; done
+for p in internal/issue/issue.go cmd/andon/main.go internal/issue/issue_test.go internal/issue/testdata/x.json workflow_test.go embed.go go.mod go.sum; do
+  [ "$(iso "$p")" = "tests/smoke.sh " ] || die "Go の $p で smoke.sh だけにならない: $(iso "$p")"
+done
+for p in docs/image.md README.md AGENTS.md tests/README.md package/skills/worker/SKILL.md schema/report.schema.json image/Dockerfile \
+  model/IssueLife.tla mise.toml tests/lib/scope.sh tests/lib/docs-scope.sh tests/lib/image-scope.sh tests/lib/pty-probe.py tests/image.sh tests/no-such.sh; do
+  [ -z "$(iso "$p")" ] || die "$p で偽のセルの検査を選ぶ: $(iso "$p")"
+done
+[ -z "$(iso)" ] || die "変更が無いのに偽のセルの検査を選ぶ"
+( set -o pipefail; { echo tests/isolation; seq 100000 | sed 's|^|docs/|'; } | bash tests/lib/scope.sh --isolation >/dev/null ) || die "--isolation が途中で抜けて前のコマンドが落ちる"
+# job isolation が PR で、選んだ検査を tests/isolation に渡す
+# 行ごと比べる（注釈にした行・|| true を付けた行・step の if は当たらない）
+job=$(sed -n '/^  isolation:$/,/^  [a-z][a-z-]*:$/p' .github/workflows/tests.yml)
+[ -n "$job" ] || die "tests.yml に job isolation が無い"
+grep -qxF "    if: github.event_name == 'pull_request'" <<<"$job" || die "job isolation が PR で動かない"
+grep -qxF '          git diff --name-only --no-renames HEAD^1 HEAD | bash tests/lib/scope.sh --isolation | tee "$RUNNER_TEMP/isolation"' <<<"$job" \
+  || die "job isolation が PR の変更を scope.sh --isolation で選ばない"
+grep -qxF '          tests/isolation "${tests[@]}"' <<<"$job" || die "job isolation が選んだ検査を tests/isolation に渡さない"
+# 落ちても成功にしない・選んだのに飛ばさない: job に continue-on-error が無く、tests/isolation を打つ step は選んだときだけ動き、
+# tests/isolation の行で終わる（後ろに true などを足して終了コードを消さない）。選ぶ step は一覧が空でないとき run=true を出す
+grep -qE '^[[:space:]]*continue-on-error:' <<<"$job" && die "job isolation に continue-on-error がある（落ちても成功になる）"
+step='' cur=''
+while IFS= read -r l; do
+  [[ "$l" == '      - '* ]] && cur=''
+  cur+="$l"$'\n'
+  [ "$l" = '          tests/isolation "${tests[@]}"' ] && step=$cur
+done <<<"$job"
+[ -n "$step" ] || die "job isolation に tests/isolation を打つ step が無い"
+[ "$(grep -cE '^[[:space:]]*if:' <<<"$step")" = 1 ] && grep -qxF "        if: steps.scope.outputs.run == 'true'" <<<"$step" \
+  || die "tests/isolation を打つ step の if が選んだときだけ（steps.scope.outputs.run == 'true'）でない: $(grep -E '^[[:space:]]*if:' <<<"$step")"
+after=$(sed -n '/^          tests\/isolation "\${tests\[@\]}"$/,/^      - /p' <<<"$job" | sed '1d' | grep -vE '^      - |^  [a-z][a-z-]*:$|^[[:space:]]*(#|$)' || true)
+[ -z "$after" ] || die "tests/isolation を打つ行の後ろに行がある（終了コードを消しうる）: $after"
+grep -qxF '        id: scope' <<<"$job" && grep -qxF '          if [ -s "$RUNNER_TEMP/isolation" ]; then' <<<"$job" \
+  && grep -qxF '            echo "run=true" >>"$GITHUB_OUTPUT"' <<<"$job" || die "選ぶ step が、一覧が空でないとき run=true を出さない"
+ok "scope --isolation: 検査の土台では全部、tests/ の検査と置き場ではその検査、Go では smoke.sh を、job isolation が tests/isolation で回す"
+
 # 2. run-tests: 1本ごとに出力をまとめ（混ざらない）、表を出し、落ちたものがあれば 1。skip は走らせない
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

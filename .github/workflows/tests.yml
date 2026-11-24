@@ -75,6 +75,55 @@ jobs:
           fi
           mapfile -t tests <"$RUNNER_TEMP/tests"
           bash tests/lib/run-tests.sh "${tests[@]}"
+  # PR だけ: 検査がセルの本物（kanban・HOME）を読み書きしないかを、偽のセル（番兵）で回して見る（tests/isolation）。
+  # 回す検査は tests/lib/scope.sh --isolation が PR の変更から選ぶ（検査の土台なら全部、tests/ の検査と置き場ならその検査、
+  # Go なら go test と smoke.sh）。選ぶものが無ければ回さず、job は成功で終わる（docs/image.md の「検査の隔離」）。
+  # image.sh は docker が要るので回さない。main の隔離は週1回の点検 check-isolation が見る
+  isolation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Decide which checks run in the sentinel cell
+        id: scope
+        run: |
+          set -euo pipefail
+          # PR の merge commit の1つ目の親が base（tests の job と同じ。rename は元と先の両方）
+          git diff --name-only --no-renames HEAD^1 HEAD | bash tests/lib/scope.sh --isolation | tee "$RUNNER_TEMP/isolation"
+          if [ -s "$RUNNER_TEMP/isolation" ]; then
+            echo "run=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "run=false" >>"$GITHUB_OUTPUT"
+            echo "::notice title=tests/isolation::検査の土台・tests/ の検査・Go の変更が無いので、偽のセルでの検査を飛ばす"
+          fi
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: steps.scope.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+      - name: go build (andon and kanban for tests/isolation)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/bin/andon" ./cmd/andon
+          go build -ldflags "-X main.version=${GITHUB_SHA::12}" -o "$RUNNER_TEMP/bin/kanban" ./cmd/kanban
+          {
+            echo "ANDON_BIN=$RUNNER_TEMP/bin/andon"
+            echo "KANBAN_BIN=$RUNNER_TEMP/bin/kanban"
+          } >>"$GITHUB_ENV"
+          # tests/isolation は番兵の kanban を PATH の kanban で作る
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+      - name: tests/isolation
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          mapfile -t tests <"$RUNNER_TEMP/isolation"
+          tests/isolation "${tests[@]}"
   # vX.Y.Z の tag の push だけ: tag の名前と main に含まれる commit かを確かめ、同じ job の中で
   # tests/*.sh（image/build.sh で焼いた andon:test の検査を含む）を通した image を GHCR へ push する。
   # packages: write はこの job だけ（workflow_test.go が確かめる）
