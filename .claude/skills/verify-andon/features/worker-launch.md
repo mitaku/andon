@@ -5,8 +5,11 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 ## 細かい機能
 
 - `wl-record` 当てたあとの起動の記録が、全部当てた commit のパッケージ（`/opt/andon`・食い違い無し）を指す。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/start.go`、`internal/issue/resume.go`、`internal/issue/lock.go`、`internal/dispatcher/loop.go`、`internal/dispatcher/fallback.go`、`internal/dispatcher/resume.go`、`internal/launch/launch.go`、`internal/pkgversion/pkgversion.go`、`internal/sessionlog/sessionlog.go`、`internal/ledger/triagemade.go`、`process/states/reviewer.yaml`
 - `wl-terminal` 起動した端末のうち動いているものが、課題のラベル `issue=` を持つ。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/spawn/spawn.go`、`internal/spawn/term.go`、`process/states/worker.yaml`
 - `wl-first-turn` 起動した担当が、最初の turn で依頼書を読んで動き出し、課題に書く（テンプレート・skill・`--append-system-prompt-file` の効き）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `package/templates/`、`package/skills/worker/`、`package/.claude-plugin/`、`package/settings.json`
 
 ## 辿り着き方（利用者から）
 
@@ -41,6 +44,11 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `package/skills/worker/`
 - `package/.claude-plugin/`
 - `package/settings.json`
+- `internal/issue/lock.go`
+- `internal/dispatcher/resume.go`
+- `internal/ledger/triagemade.go`
+- `process/states/worker.yaml`
+- `process/states/reviewer.yaml`
 
 ## 既に見ている検査
 

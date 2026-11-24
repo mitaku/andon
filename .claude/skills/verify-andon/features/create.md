@@ -5,9 +5,13 @@
 ## 細かい機能
 
 - `cr-role-refuse` 役の端末（`hc` のラベル `role=` か `issue=`）では断り、`projects/<slug>` を作らない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/create/create.go`、`internal/spawn/spawn.go`
 - `cr-create` オーナーの端末で、kanban・`project.json` の下書き（接頭字・repos・main の CI の信号の行。委譲は無し）・`AGENTS.md` ができ、作った kanban に接頭字の番号の課題を足せる。dispatcher が無ければ `hc run` で起動しようとする。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/create/create.go`、`internal/dispatcher/terminal.go`、`internal/spawn/term.go`、`internal/delegate/project.go`、`schema/project.schema.json`
 - `cr-exists-refuse` 在る slug は断り、`projects/<slug>` の中身を変えない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/create/create.go`
 - `cr-ask` 端末で引数を省くと、slug・repos・接頭字・タイトルを既定値つきで1つずつ聞く。見る道: オーナーが見る。
+  - 見るファイル: `internal/spawn/tty_linux.go`、`internal/spawn/tty_other.go`
 
 ## 辿り着き方（利用者から）
 

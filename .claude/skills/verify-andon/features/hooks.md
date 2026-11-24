@@ -5,14 +5,23 @@ Claude Code が managed settings から呼ぶ5本の hook（`/opt/andon/hooks/pr
 ## 細かい機能
 
 - `hk-wired` managed settings の hook が `/opt/andon/hooks` の5本だけを指し（PreToolUse は matcher `Bash`）、5本とも実行できる。見る道: 検証の担当だけ。
+  - 見るファイル: `package/hooks/`、`package/settings.json`、`internal/boot/boot.go`
 - `hk-stop-block` 報告も問いも無い `doing` の担当の Stop が block と理由を返す。見る道: 検証の担当だけ。
+  - 見るファイル: `package/hooks/stop`、`internal/issue/stopcheck.go`
 - `hk-stop-pass` 報告を書いた担当の Stop は何も出さずに通す。見る道: 検証の担当だけ。
+  - 見るファイル: `package/hooks/stop`、`internal/issue/stopcheck.go`
 - `hk-pre-deny` コマンドの位置にある `pgrep -f` の Bash の呼び出しに、PreToolUse が deny と理由を返す。見る道: 検証の担当だけ。
+  - 見るファイル: `package/hooks/pre-tool-use`
 - `hk-pre-pass` ふつうの Bash の呼び出しと、`'pgrep -f'` を引数の文字列に含むだけの呼び出しは、PreToolUse が何も出さずに通す。見る道: 検証の担当だけ。
+  - 見るファイル: `package/hooks/pre-tool-use`
 - `hk-other-pass` ラベルの無い端末では5本とも何も出さずに 0 で通す。見る道: 検証の担当だけ。
+  - 見るファイル: `package/hooks/`、`internal/dispatcher/drain.go`、`internal/dispatcher/wait.go`、`internal/dispatcher/rewake.go`、`internal/issue/stopcheck.go`
 - `hk-cos-news` turn 中の通知が、Chief of Staff の Stop で続きの turn として届く。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/dispatcher/drain.go`、`package/hooks/stop`
 - `hk-wait` 離席中に `stop-wait` が合図で Chief of Staff の新しいターンを始め、入力欄の書きかけが残る。見る道: オーナーが見る。
+  - 見るファイル: `internal/dispatcher/wait.go`、`package/hooks/stop-wait`
 - `hk-esc` 渡した turn を Esc で止めたら、次の turn で1回だけ届け直す。見る道: オーナーが見る。
+  - 見るファイル: `internal/dispatcher/drain.go`、`package/hooks/user-prompt-submit`
 
 ## 辿り着き方（利用者から）
 

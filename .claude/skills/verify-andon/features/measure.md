@@ -5,9 +5,13 @@
 ## 細かい機能
 
 - `ms-flow` `--json` の流れの数（期間に片付いた数・期間の終わりの WIP）が、kanban の履歴どおりになる。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/measure/measure.go`、`internal/measure/estimate.go`、`internal/ledger/worked.go`、`internal/ghpr/ghpr.go`、`schema/measure.schema.json`
 - `ms-tokens` 課題の担当のセッションの記録（Claude Code）から、トークンを入力・出力・キャッシュの読み書きに分けて数える。記録の無い課題は `null`。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/measure/tokens.go`、`internal/sessionlog/sessionlog.go`
 - `ms-table` 人向けの表が「価値:」の行で始まる。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/measure/measure.go`
 - `ms-readonly` 打つ前と後で、kanban とセッションの記録が変わらない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/measure/measure.go`
 
 ## 辿り着き方（利用者から）
 

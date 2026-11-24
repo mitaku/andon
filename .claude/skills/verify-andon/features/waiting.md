@@ -5,9 +5,13 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 ## 細かい機能
 
 - `ow-ask-new` `andon issue ask --new --parent <id>` で、オーナーの課題が `who: person`・その親・「（オーナーの判断待ち）」のタイトルで足され、問いが `library/questions/1.json` に置かれる。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/ledger/ask.go`、`schema/question.schema.json`
 - `ow-same-title` 同じ問いでも親が違えば別のオーナーの課題になる。同じ親で打ち直すと断り、課題を増やさない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/ledger/ask.go`
 - `ow-waiting` `andon waiting --json` と人が読む出力に、足したオーナーの課題が答えられる判断の行として出る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`schema/waiting.schema.json`
 - `ow-pane` Herdr App のオーナー待ちのパネル（`package/host/waiting/`）に、オーナーの課題が判断の行として出て、選択肢で答えられる。見る道: オーナーが見る。
+  - 見るファイル: `internal/waiting/answer.go`
 
 ## 辿り着き方（利用者から）
 

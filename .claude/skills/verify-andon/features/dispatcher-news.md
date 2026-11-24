@@ -5,11 +5,17 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 ## 細かい機能
 
 - `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/dispatcher.go`、`internal/dispatcher/state.go`、`internal/dispatcher/terminal.go`、`internal/flock/flock.go`
 - `dn-delivered` 当てたあとに Chief of Staff へ通知を届けた記録がある。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/pickup.go`、`internal/dispatcher/deliver.go`、`internal/dispatcher/delivered.go`、`internal/dispatcher/route.go`、`internal/dispatcher/abandoned.go`、`internal/dispatcher/estimate.go`、`internal/dispatcher/impact.go`、`internal/dispatcher/memory.go`、`internal/issue/impact.go`、`internal/contract/impact.go`、`schema/notification.schema.json`、`process/states/delivery.yaml`、`process/states/estimate.yaml`、`process/states/memory.yaml`
 - `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを線の上で、`idle_hours` を持つルーチンを時間の上で撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/idle.go`、`internal/dispatcher/retro.go`、`process/states/idle.yaml`
 - `dn-corrections` 当てたあとに片付いた課題の手直しの記録（`library/corrections.json`）を、当てた dispatcher が書いた。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/corrections.go`、`internal/dispatcher/outcome.go`、`process/states/aftermath.yaml`
 - `dn-signal` 当てたあとの通知 signal に、記録にあるときだけ失敗が始まった commit（`release`、40 桁）が載った。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/dispatcher/signals.go`、`internal/signal/signal.go`、`internal/signal/cmd.go`、`internal/signal/echo_linux.go`、`internal/signal/echo_other.go`、`process/states/signal.yaml`
 - `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/dispatcher/news.go`、`internal/dispatcher/ack.go`、`package/hooks/stop`
 
 ## 辿り着き方（利用者から）
 
@@ -39,6 +45,10 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `schema/notification.schema.json`
 - `process/states/`
 - `package/hooks/`
+- `internal/flock/`
+- `internal/signal/`
+- `internal/contract/impact.go`
+- `internal/issue/impact.go`
 
 ## 既に見ている検査
 

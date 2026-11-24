@@ -5,11 +5,17 @@
 ## 細かい機能
 
 - `dg-collect` 期間の記録が `library/digest/input.json` に集まり、期間に片付いた課題が入る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/digest/collect.go`、`internal/digest/decided.go`、`internal/digest/digest.go`、`internal/redact/redact.go`、`internal/ledger/cron.go`、`internal/ledger/config.go`、`internal/measure/measure.go`、`internal/waiting/waiting.go`、`schema/digest-input.schema.json`
 - `dg-build-refuse` 入力に無い課題を指す文は理由1行で断り、何も書かない。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/digest/build.go`
 - `dg-build` 照らした文から `digest.json`・図を持つ `digest.html`・`message.txt` が書かれる。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/digest/build.go`、`internal/digest/render.go`、`internal/digest/digest.html.tmpl`、`schema/digest.schema.json`
 - `dg-send` 送り先の無い `project.json` では `digest.html` を files/ にそのまま出し、URL を返し、`sent.json` の送り先は files だけ。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/digest/send.go`、`internal/publish/publish.go`、`schema/digest-sent.schema.json`
 - `dg-check-refuse` 送り先が無ければ、`andon digest check` は何も送らずに断る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/digest/send.go`
 - `dg-slack` 送り先の Slack のチャンネルに、`digest.html` と `message.txt` の文が届く。見る道: オーナーが見る。
+  - 見るファイル: `internal/digest/slack.go`
 
 ## 辿り着き方（利用者から）
 
