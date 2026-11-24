@@ -10,15 +10,15 @@
 |---|---|---|---|
 | 1 | 範囲は README の組み直しと、それに要る図・ADR の一覧の引っ越し・description の直しにする | この ADR | まだ実装していない |
 | 2 | 主な読み手は日本語の開発者で、README の役目は数分で判断できるところまでにする | この ADR | まだ実装していない |
-| 3 | `README.md` を英語にし、日本語は `README.ja.md` に置く | この ADR | まだ実装していない |
-| 4 | 個人が学習と実験で作っている不安定なものだという注記を冒頭に置く | この ADR | まだ実装していない |
-| 5 | README の節の順と、節ごとに言うことを決める | この ADR | まだ実装していない |
-| 6 | 冒頭の文と注記の文言を決める | この ADR | まだ実装していない |
-| 7 | 課題 1 本の流れと行燈の図を Mermaid で 1 枚、それぞれの README に置く | この ADR | まだ実装していない |
+| 3 | `README.md` を英語にし、日本語は `README.ja.md` に置く | `README.md`・`README.ja.md` | 生きている |
+| 4 | 個人が学習と実験で作っている不安定なものだという注記を冒頭に置く | `README.ja.md`・`README.md` | 生きている |
+| 5 | README の節の順と、節ごとに言うことを決める | `README.ja.md`・`README.md` | 生きている |
+| 6 | 冒頭の文と注記の文言を決める | `README.md`・`README.ja.md` | 生きている |
+| 7 | 課題 1 本の流れと行燈の図を Mermaid で 1 枚、それぞれの README に置く | `README.md`・`README.ja.md` | 生きている |
 | 8 | Andon 自身の開発の流れの数は、README に載せない | この ADR | 生きている |
 | 9 | ADR の一覧を `docs/adr/README.md` に移し、検査の読み先も移す | `docs/adr/README.md` | 覆された → ADR-0055（新しい ADR の PR が 1 行足すことと、検査が行と状態を見ること。置き場と読み方は生きている） |
-| 10 | 2 つの README の構成がずれないことを検査 1 本で守る | この ADR | まだ実装していない |
-| 11 | 英語の文では kanban・issue・owner と書く | この ADR | まだ実装していない |
+| 10 | 2 つの README の構成がずれないことを検査 1 本で守る | `tests/readme.sh` | 生きている |
+| 11 | 英語の文では kanban・issue・owner と書く | `README.md` | 生きている |
 | 12 | repo の description を、今の語と README の英語の語に合わせる | この ADR | まだ実装していない |
 | 13 | README の本文の PR は、独立レビューが通れば自動でマージする | この ADR | 生きている |
 

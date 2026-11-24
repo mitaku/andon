@@ -228,11 +228,11 @@ func TestNoLedger(t *testing.T) {
 	}
 }
 
-// 文書（design.md・skill・README）に書いた andon chief-engineer の呼び出しを、そのまま打って通る
+// 文書（design.md・skill・README.md・README.ja.md）に書いた andon chief-engineer の呼び出しを、そのまま打って通る
 func TestDocumentedInvocations(t *testing.T) {
 	re := regexp.MustCompile("andon chief-engineer((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?)( --brief -)? \"<タイトル>\"")
 	files, _ := filepath.Glob("../../package/skills/*/SKILL.md")
-	files = append(files, "../../docs/design.md", "../../README.md")
+	files = append(files, "../../docs/design.md", "../../README.md", "../../README.ja.md")
 	found := 0
 	for _, file := range files {
 		b, err := os.ReadFile(file)

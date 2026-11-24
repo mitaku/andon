@@ -59,7 +59,7 @@ done
 setup; echo 'freee の KPI「人の介在率」。人の答え 2026-11-07' >"$tmp/r/docs/design.md"
 expect fail 'docs/design.md の引用と同じ行の地の文の「人の答え」で落ちる'
 # 生きている文書（docs/ の4本と root の5本）も替えた範囲。CHANGELOG.md は未リリースの節だけ
-for f in docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md; do
+for f in docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md README.md README.ja.md AGENTS.md REVIEW.md SECURITY.md; do
   setup; echo '| マージは人がする。 | 無し。 |' >"$tmp/r/$f"; expect fail "$f の「人がする」で落ちる"
 done
 setup; sed -i 's/^## 未リリース$/&\n- 人の判断待ちの課題を数える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「人の判断待ち」で落ちる'
@@ -176,7 +176,7 @@ setup; echo 'gate が kanban の課題を読む。版を上げる' >"$tmp/r/docs
 setup; echo '日本語の呼び名を「台帳」のままにした。2006 版では' >"$tmp/r/docs/design.md"; expect ok 'docs/design.md の「」の中と「2006 版」は通る'
 # 生きている文書（docs/ の5本と root の4本）も替えた範囲。CHANGELOG.md は未リリースの節だけ。docs/adr/README.md の一覧の行は ADR と同じに読む
 for f in docs/contract.md:台帳に書く docs/dispatcher.md:ゲートを回す docs/operate.md:版を上げるとき docs/image.md:各版の節 docs/ledger.md:台帳の形式 \
-  README.md:役・ゲート・約束 REVIEW.md:前の版に戻す SECURITY.md:台帳の外; do
+  README.md:役・ゲート・約束 README.ja.md:課題を台帳に置く REVIEW.md:前の版に戻す SECURITY.md:台帳の外; do
   setup; echo "${f#*:}" >"$tmp/r/${f%%:*}"; expect fail "替えた範囲（${f%%:*}）の「${f#*:}」で落ちる"
 done
 setup; sed -i 's/^## 未リリース$/&\n- 前の版の台帳を読む/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「版」「台帳」で落ちる'
@@ -276,6 +276,10 @@ solo() { # solo <根からのパス> <中身>。根にそのファイル1つだ�
   rm -rf "$tmp/r"; mkdir -p "$tmp/r/$(dirname "$1")"; printf '%s\n' "$2" >"$tmp/r/$1"
 }
 solo README.md '費用を数える'; expect fail 'README.md だけの根の「費用」で落ちる（語の段）'
+solo README.ja.md 'エージェントを起こす'; expect fail 'README.ja.md だけの根の「起こす」で落ちる（語の段。日本語の README。ADR-0046）'
+solo README.ja.md 'マージは人がする'; expect fail 'README.ja.md だけの根の「人がする」で落ちる（役の「人」の段）'
+solo README.ja.md '課題の kanban、 gate を読む'; expect fail 'README.ja.md だけの根の「、 gate」で落ちる（句読点の段）'
+solo README.ja.md '1 人の開発者が 1 人用の repo で人間の判断を見る'; expect ok 'README.ja.md だけの根の役でない「人」は通る（役の「人」の段）'
 solo CHANGELOG.md "$(printf '# CHANGELOG\n\n## 未リリース\n- 費用を数える\n\n## v0.0.1\n- x')"; expect fail 'CHANGELOG.md だけの根の未リリースの「費用」で落ちる（語の段）'
 solo CHANGELOG.md "$(printf '# CHANGELOG\n\n## 未リリース\n\n## v0.0.1\n- 費用を数えた')"; expect ok 'CHANGELOG.md だけの根のバージョンの節の「費用」は通る（語の段）'
 solo README.md '人がマージする'; expect fail 'README.md だけの根の「人がマージする」で落ちる（役の「人」の段）'

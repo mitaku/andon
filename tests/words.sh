@@ -20,7 +20,7 @@ root="$(cd "${1:-$here/..}" && pwd)"
 cd "$root"
 
 words='費用|持ち主|逃げ口|文脈|提供元|端末の土台|迎え(?:る|た|て|ず|な)|の席|(?<!離)(?<!着)(?<!出)席(?:だけ|を|が|の無)|(?<!引き)(?<!書き)起こ[さしすせそ]|で起こる|起きた(?:とき|時)'
-paths=(docs package init image internal cmd tests process .claude README.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md)
+paths=(docs package init image internal cmd tests process .claude README.md README.ja.md CHANGELOG.md AGENTS.md REVIEW.md SECURITY.md)
 existing=()
 for p in "${paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 
@@ -73,7 +73,7 @@ echo "ok   words: ADR-0013 決めたこと 4 の「今」の語が repo に出�
 #   「」の中・語の表の「今」の列・「X→」の形（語そのものを挙げた所）。名指しした引用だけを外し、同じ行のほかの「人」は当たる。
 role='(?<![0-9０-９一二三四五六七八九十何個他本外数うくすつぬむるいたほ])(?:(?<![0-9] )|(?<=-[0-9]{2} )|(?<=[A-Za-z][0-9] ))(?<!外の)(?<!ほかの)(?<!他の)人(?!間|用|向|数|物|手|が読|と ?AI|の名前)(?:[がにへのはをともや]|（[0-9]|から|だけ| [0-9]{4}-|(?<=-[0-9]{2} 人)[）)])'
 role_paths=(package internal init cmd tests docs/design.md process docs/process model docs/contract.md docs/dispatcher.md
-  docs/operate.md docs/image.md README.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md docs/adr docs/decisions docs/decisions.md
+  docs/operate.md docs/image.md README.md README.ja.md AGENTS.md REVIEW.md SECURITY.md CHANGELOG.md docs/adr docs/decisions docs/decisions.md
   .claude/skills/verify-andon)
 existing=()
 for p in "${role_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
@@ -140,7 +140,7 @@ echo "ok   words: 役を指す「人」が替えた範囲（${role_paths[*]}）�
 #   ADR-0040 の「決めたこと」の表の「今」の列（行の頭が「   | 」の表の最初の欄。語そのものを挙げた所）は外す。
 # 範囲は替え終えた場所だけで、替えるたびに old_paths に足す（.github/ は足さない）。
 old_paths=(package .yomiyasu-words internal cmd init tests .claude/skills/verify-andon docs/design.md
-  docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/ledger.md README.md REVIEW.md SECURITY.md CHANGELOG.md
+  docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/ledger.md README.md README.ja.md REVIEW.md SECURITY.md CHANGELOG.md
   docs/decisions.md process docs/process model image AGENTS.md .golangci.yml workflow_test.go
   docs/adr docs/decisions)
 existing=()

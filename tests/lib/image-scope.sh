@@ -17,7 +17,7 @@ while IFS= read -r p; do
     # image に入らない場所の Go のテスト（go build は読まない。package/ の下は image に丸ごと入るので含めない）・
     # 人用の文書・ほかの tests
     cmd/*_test.go | internal/*_test.go | docs/* | tests/*) ;;
-    README.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
+    README.md | README.ja.md | CHANGELOG.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # セルに main の commit を当てる道具（ADR-0027）。image/ の下だが Dockerfile は COPY しない
     image/apply-main.sh) ;;
     # repo の中の skill の置き場（ADR-0035 決めたこと 4。image に入らず、tests/verify-andon.sh・words.sh が見る）

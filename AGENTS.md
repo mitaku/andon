@@ -68,6 +68,7 @@
 | `package/` の変更のうち、検証の skill（`.claude/skills/verify-andon/`）の機能の地図の「変えたら動かすパス」に当たるものは、マージしてセルへ当てたあと（`image/apply-main.sh apply`）、検証の課題が当たる機能をセルの本物で動かす。検証の課題は Chief of Staff が `package/skills/chief-of-staff/playbooks/verify.md` の手順で切る。地図に無いパス（`package/lib/`・`package/host/` など）の変更では、検証の課題は切られない。 | `tests/verify-andon.sh`。機能の地図の形と、地図の「変えたら動かすパス」が repo に在ること、`.claude/skills/verify-andon/scripts/features.sh` が差分から機能を引くことを見る。地図が `package/` の全部を覆うかは見ない。 |
 | `package/skills` の文を `playbooks/` へ移したら、`tests/words.sh` の禁止語に当たらないか回す。 | `tests/words.sh`。CI でいつも走る。 |
 | 報告や依頼書の文を `docs/`・注釈に写したら、commit の前に `bash tests/words.sh` を回す（報告・依頼書は語の検査を通らず、禁止語が残っている）。 | `tests/words.sh`。CI でいつも走る。 |
+| README を直すときは、同じ PR で `README.md`（英語）と `README.ja.md`（日本語）の両方を直す。文の正は `README.ja.md`（ADR-0046 決めたこと 3）。 | `tests/readme.sh`。2 つの見出しの並び・相対リンクの先・command・図のノードと矢印がずれると落ちる。文の意味のずれは見ない。 |
 | 設計の正は `docs/design.md` と `docs/adr/`。 | 無し。どれを正とするかの決まりで、見るものが無い。 |
 | Chief Engineer の skill の骨格の正は `docs/design.md` §1.8。`package/skills/chief-engineer/SKILL.md` の手順を変える PR は、同じ PR で §1.8 も直す。 | 無し。`tests/package.sh` は skill の有無を見るだけで、SKILL.md と §1.8 の食い違いは見ない。 |
 | 決定の記録は `docs/decisions/` に1件1ファイルで足す（書き方は `docs/decisions.md` の冒頭。`docs/decisions.md` の表には行を足さない）。 | `tests/smoke.sh`。`docs/decisions/` のファイルの名前と行の形、`docs/decisions.md` の凍結した表に行が足されていないことを見る。 |
