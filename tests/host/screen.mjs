@@ -1065,6 +1065,182 @@ await check('kanban-board: Flow はボタンで開き、棒に状態の名前、
   assert.ok(!byId(filtered, 'wb-flow-task:sample-site/S-0004'), '絞り込みで隠した S-0004 が出た');
 });
 
+// Old done issues (ADR-0059 decisions 2–5, acceptance 7–9): the board on a fake clock, with the body drawn.
+const NOW = Date.parse('2026-11-24T12:00:00Z');
+const hoursAgo = (h) => new Date(NOW - h * 3600 * 1000).toISOString().replace(/\.000Z$/, 'Z');
+const textIn = (n) => (n ? walk(n).flatMap((x) => args(x, 'child').map((a) => a[0])).filter((c) => typeof c === 'string') : []);
+const idsUnder = (n, prefix) => walk(n).map((x) => last(x, 'id')).filter((x) => typeof x === 'string' && x.startsWith(prefix));
+// A board whose focused folder is `root`. `show(data)` puts read contents in place without a read.
+async function boardAt(root, herdr = {}, clock = { t: NOW }) {
+  const ui = recordingUi();
+  const FakeDate = class extends Date { static now() { return clock.t; } };
+  const ns = await load(`${HOST}/kanban-board`, { window: () => ({ platform: 'linux' }), theme: () => THEME, focused: () => null, panes: () => [],
+    spaces: () => [{ active: true, folder: root }], agents: () => [], terminals: () => [], props: () => ({}),
+    exec: async () => ({ code: 1, stdout: '', stderr: 'no machine here' }), ...herdr }, ui, { Date: FakeDate });
+  const spawned = [];
+  const cx = { focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after() {} }, notify() {}, stop_propagation() {},
+    spawn: (fn) => { spawned.push(fn(cx)); } };
+  const b = new ns.default();
+  b.init({}, cx);
+  return {
+    b, cx, clock,
+    settle: async () => { for (let i = 0; i < spawned.length; i++) await spawned[i]; },
+    show: (ledger, tasks) => {
+      b.where = { key: JSON.stringify([root, null]), cwd: root, on: null };
+      b.root = root; b.searched = true;
+      b.data = { ledgers: [ledger], tasks, columns: ledger.columns, unreadable: [] };
+    },
+    press: (key, ch = key.length === 1 ? key : '') => b.key({ key, key_char: ch, modifiers: {} }, cx),
+    draw: () => b.render(cx),
+    click: (node) => { assert.ok(node, '押す所が無い'); args(node, 'on_click').at(-1)[0]({}, cx); },
+  };
+}
+
+await check('kanban-board: 戻った道で、Board の Done の列は 24 時間のうちに片付いた課題だけを新しい順に出し、一番下に古い課題の数と History への行を出す。絞っている間は数を出さない。List は古い片付いた課題を外し、下に出す課題を持つ古い親を残す（ADR-0059 受け入れ条件 7）', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-old-'));
+  try {
+    const root = `${tmp}/projects/sample-site`;
+    const put = async (id, text) => { await mkdir(`${root}/kanban/issues/${id}`, { recursive: true }); await writeFile(`${root}/kanban/issues/${id}/issue.yaml`, text); };
+    await mkdir(`${root}/kanban`, { recursive: true });
+    await writeFile(`${root}/kanban/config.yaml`, 'version: 3\n');
+    await put('S-0001', 'title: Open\nstatus: todo\n');
+    await put('S-0002', `title: Done an hour ago\nstatus: done\nupdated: "${hoursAgo(1)}"\n`);
+    await put('S-0003', `title: Done long ago\nstatus: done\nupdated: "${hoursAgo(30)}"\n`);
+    await put('S-0004', `title: Done 23 hours ago\nstatus: done\nupdated: "${hoursAgo(23)}"\n`);
+    await put('S-0005', `title: Old parent\nstatus: done\nupdated: "${hoursAgo(48)}"\n`);
+    await put('S-0006', 'title: Open child\nstatus: doing\nparent: S-0005\n');
+    await put('S-0007', `title: Old child\nstatus: done\nparent: S-0005\nupdated: "${hoursAgo(40)}"\n`);
+    // Unquoted: js-yaml reads it as a Date.
+    await put('S-0008', `title: Done two hours ago\nstatus: done\nupdated: ${hoursAgo(2)}\n`);
+    // No time: counted as old.
+    await put('S-0009', 'title: Done without a time\nstatus: done\n');
+    const calls = [];
+    const { b, cx, clock, settle, show, draw, click } = await boardAt(root, {
+      readTextFile: async () => { throw new Error('read without the fixed script'); },
+      watchFolder: async () => { throw new Error('no watching here'); },
+      exec: async (cmd, a, opts = {}) => {
+        calls.push([cmd, a[0], a[1]]);
+        // A cell whose andon has no `issue board` (nor anything else here): it refuses what it doesn't know.
+        if (cmd === 'andon') return { code: 2, stdout: '', stderr: `andon: unknown command "${a[0]}"` };
+        if (cmd === 'git') return { code: 128, stdout: '', stderr: 'not a git repository' };
+        // The board looks above the project too; above tmp is the real machine, so nothing is there.
+        if (a.slice(3).some((x) => x.startsWith('/') && !`${x}/`.startsWith(`${tmp}/`))) return { code: 0, stdout: '', stderr: '' };
+        const r = spawnSync(cmd, a, { cwd: opts.cwd, encoding: 'utf8' });
+        return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+      },
+    });
+    b.refresh(cx);
+    await settle();
+    assert.equal(b.failure, null, `ボードが読めない: ${JSON.stringify(b.failure)}`);
+    assert.equal(b.data.tasks.length, 9, '決まったシェルの文で全部の課題を読んでいない');
+    assert.ok(calls.some(([c, x]) => c === 'sh' && x === '-c'), '決まったシェルの文を呼んでいない');
+    const cards = (tree, col) => idsUnder(byId(tree, `wb-cards-${col}`), 'wb-card-');
+    let tree = draw();
+    assert.deepEqual(cards(tree, 'done'), ['wb-card-sample-site/S-0002', 'wb-card-sample-site/S-0008', 'wb-card-sample-site/S-0004'],
+      'Done の列が 24 時間のうちの課題を新しい順に出していない');
+    assert.deepEqual(cards(tree, 'todo'), ['wb-card-sample-site/S-0001']);
+    assert.deepEqual(cards(tree, 'doing'), ['wb-card-sample-site/S-0006'], 'ほかの列が変わった');
+    const doneCol = byId(tree, 'wb-col-done');
+    assert.ok(textIn(doneCol).includes('3'), `Done の見出しの数が列の枚数でない: ${textIn(doneCol)}`);
+    assert.deepEqual(textIn(byId(tree, 'wb-older')), ['4 older · History'], '一番下の行に古い課題の数が無い');
+    assert.equal(last(doneCol, 'child'), byId(tree, 'wb-older'), '古い課題の行が Done の列の一番下に無い');
+    assert.equal(idsUnder(tree, 'wb-older').length, 1, '古い課題の行が Done の列のほかにも出た');
+    // Filtered, the whole project's count would mislead: the row has no number.
+    b.filter = 'S-000';
+    tree = draw();
+    assert.deepEqual(textIn(byId(tree, 'wb-older')), ['Older · History'], '絞っている間に数を出した');
+    assert.equal(cards(tree, 'done').length, 3);
+    b.filter = '';
+    // List: no old done issue, but the old parent heads what is open under it.
+    b.view = 'list';
+    tree = draw();
+    assert.deepEqual(idsUnder(tree, 'wb-row-'), ['S-0001', 'S-0002', 'S-0004', 'S-0005', 'S-0006', 'S-0008'].map((id) => `wb-row-sample-site/${id}`),
+      'List が古い片付いた課題を外していないか、下に開いた課題を持つ古い親を外した');
+    b.view = 'board';
+    click(byId(draw(), 'wb-older'));
+    assert.equal(b.view, 'history', '一番下の行で History に替わらない');
+    // Nothing old (the clock before every time, the issue without one gone): no row.
+    clock.t = NOW - 100 * 3600 * 1000;
+    show(b.data.ledgers[0], b.data.tasks.filter((x) => x.id !== 'S-0009'));
+    b.view = 'board';
+    tree = draw();
+    assert.equal(byId(tree, 'wb-older'), undefined, '古い課題が無いのに行を出した');
+    assert.equal(cards(tree, 'done').length, 6, '線の内側の片付いた課題を外した');
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+await check('kanban-board: Flow は、片付いていない子を持つ古い片付いた親の行と、その下の古い片付いた子の薄い行を出す。Board と List の 24 時間の線は Flow に当てない（ADR-0059 受け入れ条件 8）', async () => {
+  const ledger = ledgerOf('sample-site');
+  const { b, show, draw } = await boardAt(ledger.root);
+  show(ledger, [
+    issueOf('sample-site', 'S-0001', { status: 'done', updated: hoursAgo(48) }),
+    issueOf('sample-site', 'S-0002', { status: 'doing', parent: 'S-0001' }),
+    issueOf('sample-site', 'S-0003', { status: 'done', parent: 'S-0001', updated: hoursAgo(40) }),
+    issueOf('sample-site', 'S-0004', { status: 'done', updated: hoursAgo(50) }),
+  ]);
+  b.view = 'flow';
+  const tree = draw();
+  assert.ok(byId(tree, 'wb-flow'), 'Flow を描いていない');
+  assert.deepEqual(idsUnder(tree, 'wb-flow-task:'), ['S-0001', 'S-0002', 'S-0003'].map((id) => `wb-flow-task:sample-site/${id}`),
+    'Flow が古い親か古い子を外した（または近くに開いた課題の無い S-0004 を出した）');
+  const faded = (id) => args(byId(tree, `wb-flow-task:sample-site/${id}`), 'opacity').some(([o]) => o === 0.5);
+  assert.ok(faded('S-0003') && faded('S-0001'), '古い片付いた行が薄くない');
+  assert.ok(!faded('S-0002'), '開いた課題が薄い');
+  b.view = 'board';
+  assert.deepEqual(idsUnder(byId(draw(), 'wb-cards-done'), 'wb-card-'), [], 'Board の Done の列に古い課題が出た');
+});
+
+await check('kanban-board: History は片付いた課題を新しい順に 1 列で、最初は 200 件、Load older で 400 件出し、2,000 件で止めて / で探すよう伝える。戻った道では / と Enter で持っている片付いた課題の全部から絞る。キー v は Board・List・Flow・History の順に回る（ADR-0059 受け入れ条件 9）', async () => {
+  const ledger = ledgerOf('sample-site');
+  const id = (n) => `S-${String(n).padStart(4, '0')}`;
+  // S-0450 is the newest, S-0001 the oldest; S-0020 alone says "signing".
+  const done = (count) => Array.from({ length: count }, (_, i) => issueOf('sample-site', id(i + 1),
+    { status: 'done', updated: hoursAgo(count + 1 - (i + 1)), profile: 'claude', ...(i + 1 === 20 ? { title: 'Rotate the signing key' } : {}) }));
+  const { b, show, draw, click, press } = await boardAt(ledger.root);
+  show(ledger, [...done(450), issueOf('sample-site', 'S-0451', { status: 'todo' })]);
+  let tree = draw();
+  click(byId(tree, 'wb-view-history'));
+  assert.equal(b.view, 'history', 'History のボタンで替わらない');
+  const rows = (t) => idsUnder(t, 'wb-hist-').map((x) => x.replace('wb-hist-sample-site/', ''));
+  tree = draw();
+  assert.ok(byId(tree, 'wb-history'), 'History を描いていない');
+  assert.deepEqual(rows(tree), Array.from({ length: 200 }, (_, i) => id(450 - i)), '最初の 200 件が新しい順でない');
+  const first = textIn(byId(tree, 'wb-hist-sample-site/S-0450'));
+  assert.equal(first[0], 'S-0450');
+  assert.match(first[1], /^\d{4}-\d\d-\d\d \d\d:\d\d$/, `行に片付いた日時が無い: ${first}`);
+  assert.ok(first.includes('claude'), '行にプロファイルが無い');
+  click(byId(tree, 'wb-load-older'));
+  tree = draw();
+  assert.equal(rows(tree).length, 400, 'Load older で 400 件にならない');
+  assert.equal(rows(tree).at(-1), id(51));
+  // While typing, / narrows the rows shown (S-0020 is past them); Enter looks through every done issue held.
+  press('/');
+  for (const ch of 'signing') press(ch);
+  assert.deepEqual(rows(draw()), [], '打っている間に、出ていない行から探した');
+  press('enter');
+  assert.deepEqual(rows(draw()), ['S-0020'], 'Enter で持っている片付いた課題の全部から探していない');
+  press('escape');
+  assert.equal(rows(draw()).length, 400, 'Esc で絞り込みが外れない');
+  click(byId(draw(), 'wb-hist-sample-site/S-0450'));
+  assert.equal(b.openKey, 'sample-site/S-0450', '行を押して詳細が開かない');
+  b.openKey = null; b.detail = null;
+  // v goes Board → List → Flow → History → Board.
+  b.view = 'board';
+  const seen = [];
+  for (let i = 0; i < 4; i++) { press('v'); seen.push(b.view); }
+  assert.deepEqual(seen, ['list', 'flow', 'history', 'board']);
+  // Past 2,000, no more Load older: one line says to look with /.
+  show(ledger, done(2100));
+  b.view = 'history'; b.historyLimit = 200;
+  for (let i = 0; i < 9; i++) click(byId(draw(), 'wb-load-older'));
+  tree = draw();
+  assert.equal(rows(tree).length, 2000);
+  assert.equal(byId(tree, 'wb-load-older'), undefined, '2,000 件を超えて増やせる');
+  assert.deepEqual(textIn(byId(tree, 'wb-history-end')), ['Showing the newest 2000. Find older ones with /']);
+});
+
 // What kanban-board runs (ADR-0042 acceptance 12): the programs named in its exec() calls, against a
 // fixed list. Nothing that writes the ledger, no network.
 await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決まった名前だけ（andon は waiting --json だけ）。README の What it runs に andon waiting の行がある（ADR-0042 受け入れ条件 12）', async () => {
