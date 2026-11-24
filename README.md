@@ -46,7 +46,7 @@ One issue goes to merge in this order.
 
 1. The owner decides what to build in a dialogue with the Chief Engineer. The Chief Engineer researches and works out the spec and design, and hands them to the Chief of Staff as a document. It neither implements nor cuts issues.
 2. The Chief of Staff cuts the document into issues, writes a brief for each, and starts a worker. A worker works in one worktree per issue, passes the tests in its own step, and opens a pull request.
-3. The CI checks and a reviewer running a model of a different family from the implementer look at the pull request. The reviewer only returns findings with a severity; the worker fixes them.
+3. The CI checks look at the pull request. For issues that get an independent review, a reviewer running a model of a different brand from the implementer looks at it too. A tier B change needs this independent review to merge automatically. The reviewer only returns findings with a severity; the worker fixes them.
 4. The gate decides from rules and the checks whether the pull request may merge. If something must be fixed, it goes back to the worker. Tier A merges automatically when the tests pass, and tier B when the independent review passes, within the delegation. Tier C (changes to the line itself and irreversible changes) is merged by the owner. The dispatcher, a program that stays running in the cell, does the merge and cleans up.
 5. A worker's questions go to the Chief of Staff through the kanban. The Chief of Staff passes on to the owner, as the andon light, only the questions that only the owner can answer. The owner's answer goes back to the worker through the kanban.
 6. A retrospective reads the records of merges and opens pull requests that fix the skills, tests and rules that caused trouble.
@@ -65,7 +65,7 @@ The owner is called only for these five kinds of decisions.
 
 The owner is not called for reviewing ordinary diffs, merging ordinary pull requests, cleaning up, or sorting notifications. The reviewer reviews diffs, the gate and the dispatcher merge, the dispatcher cleans up, and the Chief of Staff sorts notifications.
 
-For each project, the owner can delegate to the Chief of Staff who makes these decisions. For a hobby project, even tier C merges and deploys can be delegated. Only what to build cannot be delegated.
+For each project, the owner can delegate to the Chief of Staff who makes these decisions. For a hobby project, even tier C merges and deploys can be delegated. What to build, and deleting remotes, cannot be delegated in any project.
 
 The andon light on the owner's screen has three states: off, amber and red. Amber means the owner is being called; answering or merging lets the line go on. Red means a terminal has failed and stopped.
 

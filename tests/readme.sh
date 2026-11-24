@@ -58,22 +58,24 @@ def blocks(lines):
 # [..](先) と [..](<先>)・[..](先 "title")、行頭の参照の定義 [..]: 先、HTML の src・srcset・href（" か '）
 LINK = re.compile(r"\]\(\s*(?:<([^<>]+)>|([^()\s]+))(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)"
                   r"|^\s{0,3}\[[^\]]+\]:\s*(?:<([^<>]+)>|(\S+))"
-                  r"|\b(?:src|srcset|href)=(?:\"([^\"]+)\"|'([^']+)')")
+                  r"|\b(src|srcset|href)=(?:\"([^\"]+)\"|'([^']+)')")
 
 def links(prose):
     rel, anchors = [], 0
     for _, line in prose:
         line = re.sub(r"`[^`]*`", "", line)  # インラインのコードの中はリンクでない
         for m in LINK.finditer(line):
-            t = next(g for g in m.groups() if g)
-            if m.group(5) or m.group(6):
-                t = t.split(",")[0].split()[0] if t.strip() else t  # srcset は最初の候補
-            if re.match(r"^[a-z][a-z0-9+.-]*:", t):  # http:・mailto: など
-                continue
-            if t.startswith("#"):
-                anchors += 1
-                continue
-            rel.append(t)
+            if m.group(5) == "srcset":  # srcset は「先 2x, 先 1x」の候補を全部
+                ts = [c.split()[0] for c in (m.group(6) or m.group(7)).split(",") if c.strip()]
+            else:
+                ts = [next(g for g in (m.groups()[:4] + m.groups()[5:]) if g)]
+            for t in ts:
+                if re.match(r"^[a-z][a-z0-9+.-]*:", t):  # http:・mailto: など
+                    continue
+                if t.startswith("#"):
+                    anchors += 1
+                    continue
+                rel.append(t)
     return rel, anchors
 
 docs = {}
@@ -221,6 +223,11 @@ both() { printf '%s\n' "$1" | tee -a "$tmp/r/README.md" >>"$tmp/r/README.ja.md";
 setup; both '[x](docs/no-such-doc.md "title")'; expect fail 'title つきのリンクの在りえない先で落ちる' 'リンクの先が repo に無い: docs/no-such-doc.md'
 setup; both '[x]: docs/no-such-doc.md'; expect fail '参照の定義の在りえない先で落ちる' 'リンクの先が repo に無い: docs/no-such-doc.md'
 setup; both "<img src='docs/no-such-doc.svg'>"; expect fail '単引用符の src の在りえない先で落ちる' 'リンクの先が repo に無い: docs/no-such-doc.svg'
+setup; both '<img srcset="docs/assets/logo/andon-wordmark.svg 1x, docs/no-such-doc.svg 2x">'
+expect fail 'srcset の 2 つ目の候補の在りえない先で落ちる' 'リンクの先が repo に無い: docs/no-such-doc.svg'
+setup; printf '%s\n' '<img srcset="docs/assets/logo/andon-wordmark.svg 1x, docs/assets/logo/andon-mark.svg 2x">' >>"$tmp/r/README.md"
+printf '%s\n' '<img srcset="docs/assets/logo/andon-wordmark.svg 1x">' >>"$tmp/r/README.ja.md"
+expect fail '片方の srcset にだけ候補がある写しで落ちる' '相対リンクの先が違う'
 setup; both '[x](/tmp)'; expect fail '/ で始まるリンクは repo の根から読み、根に無い先で落ちる' 'リンクの先が repo に無い: /tmp'
 setup; both '[x](../no-such.md)'; expect fail 'GitHub のページでない根の外のリンクで落ちる' 'リンクが repo の外を指す: ../no-such.md'
 setup; both '[x](/docs/design.md "title") `[y](docs/no-such-doc.md)`'; expect ok '/ で始まる在る先と、インラインのコードの中は通る'
