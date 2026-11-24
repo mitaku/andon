@@ -290,8 +290,8 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 // laterReason は「Andon へ伝えるか」の課題に書く置いておく印の理由（ADR-0062 決めたこと 10）。
 const laterReason = "振り返りの直しの提案で、答えを待って止まる仕事が無い"
 
-// addOwner は「Andon へ伝えるか」の課題を、置いておく印 later を書いて足す。打ち直しで見つけた課題（found）に who: person が
-// 無ければ（前の回が課題を足したあと、書く前に落ちた）、who と印を同じ kanban set で書く。
+// addOwner は「Andon へ伝えるか」の課題を、置いておく印 later を書いて足す。打ち直しで見つけた課題（found）に who: person か
+// 印が無ければ（前の回が課題を足したあと、書く前に落ちた。印を書かない前のバージョンが who だけ書いて落ちた）、who と印を同じ kanban set で書く。
 func addOwner(l *ledger.Ledger, retro string, found ledger.Issue, pl plan) (string, error) {
 	id := ""
 	if found != nil {
@@ -301,8 +301,7 @@ func addOwner(l *ledger.Ledger, retro string, found ledger.Issue, pl plan) (stri
 		newID, _, err := l.NewOwnerIssue(pl.Question, pl.Title, pl.Brief, retro, nil, ledger.Mark{Later: laterReason})
 		return newID, err
 	}
-	// who と印は NewOwnerIssue が同じ kanban set で書くので、who: person があれば印も書いてある
-	if found.Str("who") != "person" {
+	if found.Str("who") != "person" || found.Str("later") == "" {
 		if _, err := l.Run("", "set", id, "who=person", "later="+laterReason); err != nil {
 			return "", err
 		}
