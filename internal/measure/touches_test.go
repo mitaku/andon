@@ -295,3 +295,58 @@ func TestAnswerWithoutTimeIsSkipped(t *testing.T) {
 		})
 	}
 }
+
+// もう片付いている課題に done を打ち直した行は、期間に片付いた課題（flow.closed）にも、期間に最後の列へ動いた課題の
+// 見込みと実際（issues）にも入らない。期間の前に片付いた課題を期間の中で打ち直しても、期間ごとに数え直さない。
+func TestClosedSkipsRedoneIssue(t *testing.T) {
+	base := func(t *testing.T) int {
+		res, err := Measure(withGH(opts(touchesLedger(t))))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Flow.Closed.Count
+	}(t)
+	for name, c := range map[string]struct {
+		between string
+		closed  int
+		listed  bool
+	}{
+		"打ち直し":     {"", base, false},
+		"戻してから片付け": {"todo", base + 1, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := touchesLedger(t)
+			k := filepath.Join(root, "kanban")
+			put(t, filepath.Join(k, "issues/S-0015/issue.yaml"), "id: S-0015\ntitle: t\nstatus: done\ncreated: \"2026-10-10T00:00:00Z\"\n")
+			rows := []string{`{"at":"2026-10-20T00:00:00Z","by":"terminal:t1","id":"S-0015","change":{"status":"done"}}`}
+			if c.between != "" {
+				rows = append(rows, `{"at":"2026-10-25T00:00:00Z","by":"terminal:t1","id":"S-0015","change":{"status":"`+c.between+`"}}`)
+			}
+			rows = append(rows, `{"at":"2026-11-02T00:00:00Z","by":"terminal:t1","id":"S-0015","change":{"status":"done"}}`)
+			log, err := os.ReadFile(filepath.Join(k, "log.jsonl"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			put(t, filepath.Join(k, "log.jsonl"), string(log)+ledgertest.Log(t, rows...))
+			res, err := Measure(withGH(opts(root)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := res.Flow.Closed.Count; got != c.closed {
+				t.Errorf("flow.closed: got %d, want %d", got, c.closed)
+			}
+			listed := false
+			for _, x := range res.Issues {
+				listed = listed || x.Issue == "S-0015"
+			}
+			if listed != c.listed {
+				t.Errorf("issues に S-0015: got %v, want %v", listed, c.listed)
+			}
+		})
+	}
+}
+
+func withGH(o Options) Options {
+	o.GH = touchesGH
+	return o
+}

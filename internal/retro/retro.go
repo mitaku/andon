@@ -529,11 +529,13 @@ func (r *reader) log() []ledger.Row {
 	return ledger.At(r.o.Root).Log()
 }
 
-// doneTimes は課題ごとの最後の done の時刻（log.jsonl）。
+// doneTimes は課題ごとの、最後にほかの列から done へ動いた時刻（log.jsonl）。片付いた課題への kanban done の打ち直しは
+// 動いたうちに入れない（打ち直しで、前の振り返りが集めた課題を新しい束に戻さない）。
 func doneTimes(rows []ledger.Row) map[string]time.Time {
 	out := map[string]time.Time{}
-	for _, row := range rows {
-		if row.Change == nil || row.Change["status"] != "done" {
+	moved := ledger.MovedTo(rows, "done")
+	for i, row := range rows {
+		if !moved[i] {
 			continue
 		}
 		if at, err := time.Parse(time.RFC3339, row.At); err == nil {

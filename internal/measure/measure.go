@@ -453,20 +453,15 @@ func Measure(o Options) (*Result, error) {
 		res.PRs = append(res.PRs, x)
 	}
 
-	closedIn := map[string]bool{} // 期間に最後の列の行がある課題（flow.closed）
-	movedIn := map[string]bool{}  // そのうち、ほかの列から動いた課題。kanban done の打ち直しも同じ形の行を足す
-	column := map[string]string{}
-	for _, row := range rows {
-		if row.status == "" {
-			continue
-		}
-		if row.status == last && in(row.at) {
-			closedIn[row.id] = true
-			if column[row.id] != last {
-				movedIn[row.id] = true
+	// 期間にほかの列から最後の列へ動いた課題（flow.closed と問いの無いオーナーの課題）。kanban done の打ち直しも
+	// 同じ形の行を足すので、前の列が最後の列の行は動いたうちに入れない
+	movedIn := map[string]bool{}
+	for id, at := range arrivals(rows, last) {
+		for _, a := range at {
+			if in(a) {
+				movedIn[id] = true
 			}
 		}
-		column[row.id] = row.status
 	}
 
 	// 効率。介在は操作ごとの時刻で期間に入れる（PR の行の和ではない。ADR-0049 決めたこと 11）
@@ -554,7 +549,7 @@ func Measure(o Options) (*Result, error) {
 			}
 		}
 		account(end)
-		if closedIn[id] {
+		if movedIn[id] {
 			closed++
 		}
 		if !since.IsZero() && cur != first && cur != "queued" && cur != last {
@@ -589,12 +584,12 @@ func Measure(o Options) (*Result, error) {
 	// 価値（ADR-0011 決めたこと 18）。観察の課題は parent が Chief Engineer の課題。
 	v := &res.Value
 	var doneAt, reportedAt = map[string]time.Time{}, map[string]time.Time{}
+	for id, at := range arrivals(rows, last) {
+		doneAt[id] = at[len(at)-1] // 最後に done へ動いた時刻（打ち直しの行は動いたうちに入れない）
+	}
 	for _, row := range rows {
 		if row.status == "" {
 			continue
-		}
-		if row.status == last {
-			doneAt[row.id] = row.at // 最後に done へ動いた時刻
 		}
 		if _, seen := reportedAt[row.id]; !seen && (row.status == "review" || row.status == last) {
 			reportedAt[row.id] = row.at // 報告を返した（review か done に最初に動いた）時刻
@@ -706,6 +701,23 @@ func Measure(o Options) (*Result, error) {
 	})
 	res.Skipped = append([]Skip{}, r.skipped...)
 	return res, nil
+}
+
+// arrivals は課題ごとに、ほかの列から status の列へ動いた時刻（履歴の順）。前の列が同じ列の行（kanban done の打ち直し）は
+// 動いたうちに入れない。履歴に前の列が無い課題の最初の行は動いたうちに入れる。
+func arrivals(rows []logRow, status string) map[string][]time.Time {
+	out := map[string][]time.Time{}
+	column := map[string]string{}
+	for _, row := range rows {
+		if row.status == "" {
+			continue
+		}
+		if row.status == status && column[row.id] != status {
+			out[row.id] = append(out[row.id], row.at)
+		}
+		column[row.id] = row.status
+	}
+	return out
 }
 
 func (t *issue) born() time.Time {
