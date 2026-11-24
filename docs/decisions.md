@@ -6,7 +6,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 
 `decisions/` の 1 ファイルの書き方:
 
-- 名前は `YYYY-MM-DD-<英字の短い題>.md`（決めた日。小文字・数字・`-`）。ADR は `YYYY-MM-DD-adr-NNNN-<題>.md`。名前の順がそのまま日付の順の一覧になる（一覧のファイルは作らない。作れば、それが次のぶつかる所になる）。
+- 名前は `YYYY-MM-DD-<英字の短いタイトル>.md`（決めた日。小文字・数字・`-`）。ADR は `YYYY-MM-DD-adr-NNNN-<タイトル>.md`。名前の順がそのまま日付の順の一覧になる（一覧のファイルは作らない。作れば、それが次のぶつかる所になる）。
 - 中身は次の形。1 件に 1 ファイル。ADR 1 本にも 1 ファイル（要点と番号。中身・理由・捨てた案は ADR が正）。
 
   ```
@@ -25,7 +25,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 
 - 出典に書くのは、repo の中の文書・外の URL・オーナーの発言の日付だけ（[ADR-0026](adr/0026-pr-rules-for-outside-readers.md)）。セルの kanban や wiki は指さず、中身を写す。ほかの作業は課題の番号でなく PR の番号か何の変更かで指す。
 - **設計書 §6 問いN** — [design.md](design.md) の §6 の問いと、その「オーナーの答え」の列。
-- **ADR-NNNN** — [adr/](adr/) の文書（Chief Engineer の題。design.md §1.8）。ADR 1本につき1件（要点と番号。§14 は凍結した表、2026-11-07 から `decisions/` に1ファイル）。各決定の中身・理由・捨てた案は ADR が正。
+- **ADR-NNNN** — [adr/](adr/) の文書（Chief Engineer のテーマ。design.md §1.8）。ADR 1本につき1件（要点と番号。§14 は凍結した表、2026-11-07 から `decisions/` に1ファイル）。各決定の中身・理由・捨てた案は ADR が正。
 - **仮設の記録（private）** — 仮設の工場（Andon の前身の実装）の設計文書・gate の文書・トリアージの文書。private で、public の読み手には届かない。決定の中身はここに写してあるので、設計の正はこの文書。仮設の語（yard・コーディネーター・段 A/B/C・知らせ）は、Andon の語（セル・Chief of Staff・レベル A/B/C・通知）に直して写す。対応は design.md §2.4。
 
 語の改め: 2026-11-07 より前の行の「建屋」（plant）は、今の語では**セル**（cell。design.md §0.1・§2.4）。行は書き換えない。
@@ -35,6 +35,8 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 語の改め（2026-11-20 から）: 「台帳」を kanban に、「ゲート」を gate に、「版」を「バージョン」に替える置き換え（[ADR-0040](adr/0040-kanban-gate-version-words.md) 決めたこと 2〜4）も、凍結した行と `decisions/` の古いファイルに及ぶ。語だけで、決定の中身は変えない。置き換えが済むまでは、古い行に古い語が残る（[decisions/2026-11-20-three-word-replacement-reaches-frozen-records.md](decisions/2026-11-20-three-word-replacement-reaches-frozen-records.md)）。
 
 語の改め（2026-11-20 から）: 役を指す「人」を「オーナー」に替える置き換え（[ADR-0036](adr/0036-owner-not-hito.md) 決めたこと 1・4）も、凍結した行と `decisions/` の古いファイルと ADR の本文に及び、替え終えた。語だけで、決定の中身は変えない。替えないのは、オーナーの発言の引用と、外の文の写しと、数えたデータの値（前のバージョンの答え「人がマージした」）と、当時の識別子をバッククォートで写した所（[decisions/2026-11-20-role-name-replacement-reaches-frozen-records.md](decisions/2026-11-20-role-name-replacement-reaches-frozen-records.md)）。
+
+語の改め（2026-11-22 から）: 熟語でない漢字 1 字の「題」を、名前を指す所は「タイトル」に、Chief Engineer が受け持つ検討の単位は「テーマ」に替える置き換え（[ADR-0052](adr/0052-title-and-theme-not-dai.md) 決めたこと 2〜4・8）も、凍結した行と `decisions/` の古いファイルと ADR の本文に及ぶ。語だけで、決定の中身は変えない。替えないのは、熟語と、オーナーの発言の引用と、語そのものを挙げた所。置き換えが済むまでは、古い行に古い語が残る（[decisions/2026-11-22-dai-replacement-reaches-frozen-records.md](decisions/2026-11-22-dai-replacement-reaches-frozen-records.md)）。
 
 ## 1. 設計書 §6 のオーナーの答え（27 問）
 

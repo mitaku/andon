@@ -11,6 +11,7 @@
 ### 上げるときにすること
 
 - **今あるオーナーの課題を仕分ける**（[ADR-0057](docs/adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 12）: `andon waiting` は、問いも印 `only_owner` も無いオーナーの課題を、手作業でなく判断に数えて灯す。上げた直後は、今ある手作業の行が問いの番号の無い判断の行に移り、行燈が灯る。Chief of Staff は、起動し直したあとの最初の `andon waiting` で、その行を 1 件ずつ直す。判断なら `andon issue ask <id> -` で問いを置き、オーナーにしかできない手作業なら `kanban set <id> only_owner="<理由>"` を書く。依頼書の文から機械で仕分けることはしない。
+- **セルの側の文の語を直す**（[ADR-0052](docs/adr/0052-title-and-theme-not-dai.md) 決めたこと 11）: Andon の文は漢字 1 字の「題」をやめ、名前を指す所は「タイトル」、Chief Engineer が受け持つ検討の単位は「テーマ」と書く。セルの側の文はパッケージのバージョンアップでは届かないので、Chief of Staff がセルの指針（`AGENTS.local.md` とプロジェクトの `AGENTS.md`）と wiki のページを直す。`wiki/log.md` の冒頭の、見出しの形を言う行も直す。kanban に残る過去の依頼書と報告、wiki の発言の写しは直さない。
 
 ## v0.0.14 — 2026-11-23
 
