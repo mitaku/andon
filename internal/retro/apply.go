@@ -191,6 +191,15 @@ func loadApplied(l *ledger.Ledger, id string) (Applied, error) {
 }
 
 func applyPlans(l *ledger.Ledger, id string, plans []plan, dropped []Dropped, rec Applied, stdout io.Writer) error {
+	// オーナーの課題には置いておく印を書く。印を信じるのは Chief of Staff の端末が書いたときだけなので、
+	// まだ足していないオーナーの課題があれば、打った端末を確かめてから何かを書く（ADR-0062 決めたこと 10）。
+	if slices.ContainsFunc(plans, func(pl plan) bool {
+		return pl.Who == "person" && !slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Pattern == pl.Pattern })
+	}) {
+		if cos, me := l.ChiefOfStaff(), os.Getenv("HC_TERMINAL_ID"); cos == "" || me != cos {
+			return fmt.Errorf("オーナーの課題に置いておく印を書くのは Chief of Staff の端末だけ（config.yaml の chief_of_staff: %q・HC_TERMINAL_ID: %q）", cos, me)
+		}
+	}
 	rec.AppliedAt = time.Now().UTC().Format(time.RFC3339)
 	rec.Dropped = dropped
 	recPath := filepath.Join(l.Library(id), appliedFile)
@@ -234,13 +243,13 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 	}
 	parent := ledger.CanonID(id)
 	for _, pl := range left {
-		newID, who := "", ""
+		newID := ""
 		var found ledger.Issue
 		for _, t := range all {
 			tid := ledger.CanonID(t.Str("id"))
 			if ledger.CanonID(t.Str("parent")) == parent && t.Str("title") == pl.Title &&
 				!slices.ContainsFunc(rec.Issues, func(a AppliedIssue) bool { return a.Issue == tid }) {
-				newID, who, found = tid, t.Str("who"), t
+				newID, found = tid, t
 				break
 			}
 		}
@@ -248,7 +257,7 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 		added := newID == ""
 		if pl.Who == "person" {
 			// オーナーの課題は andon issue ask --new と同じ関数で、課題と問いを置く（ADR-0057 決めたこと 11）。
-			if newID, err = addOwner(l, id, newID, who, pl); err != nil {
+			if newID, err = addOwner(l, id, found, pl); err != nil {
 				return err
 			}
 		} else if added {
@@ -278,30 +287,40 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 	return nil
 }
 
-func addOwner(l *ledger.Ledger, retro, found, who string, pl plan) (string, error) {
-	if found == "" {
-		newID, _, err := l.NewOwnerIssue(pl.Question, pl.Title, pl.Brief, retro, nil, ledger.Mark{})
+// laterReason は「Andon へ伝えるか」の課題に書く置いておく印の理由（ADR-0062 決めたこと 10）。
+const laterReason = "振り返りの直しの提案で、答えを待って止まる仕事が無い"
+
+// addOwner は「Andon へ伝えるか」の課題を、置いておく印 later を書いて足す。打ち直しで見つけた課題（found）に who: person が
+// 無ければ（前の回が課題を足したあと、書く前に落ちた）、who と印を同じ kanban set で書く。
+func addOwner(l *ledger.Ledger, retro string, found ledger.Issue, pl plan) (string, error) {
+	id := ""
+	if found != nil {
+		id = ledger.CanonID(found.Str("id"))
+	}
+	if id == "" {
+		newID, _, err := l.NewOwnerIssue(pl.Question, pl.Title, pl.Brief, retro, nil, ledger.Mark{Later: laterReason})
 		return newID, err
 	}
-	if who != "person" {
-		if _, err := l.Run("", "set", found, "who=person"); err != nil {
+	// who と印は NewOwnerIssue が同じ kanban set で書くので、who: person があれば印も書いてある
+	if found.Str("who") != "person" {
+		if _, err := l.Run("", "set", id, "who=person", "later="+laterReason); err != nil {
 			return "", err
 		}
 	}
-	n, err := l.Questions(found)
+	n, err := l.Questions(id)
 	if err != nil {
 		return "", err
 	}
 	if n == 0 {
-		if _, err := l.Ask(found, pl.Question); err != nil {
+		if _, err := l.Ask(id, pl.Question); err != nil {
 			return "", err
 		}
-		return found, nil
+		return id, nil
 	}
-	if _, err := l.RestoreQuestion(found, pl.Question); err != nil {
+	if _, err := l.RestoreQuestion(id, pl.Question); err != nil {
 		return "", err
 	}
-	return found, nil
+	return id, nil
 }
 
 const (

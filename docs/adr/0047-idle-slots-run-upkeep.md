@@ -22,7 +22,7 @@
 | 12 | kanban の整合（`kanban lint`）は、空きを見た回に dispatcher が打つ | `internal/dispatcher/idle.go` | 生きている |
 | 13 | wiki の lint は、通知 `idle` を受けたターンに Chief of Staff が今の条件のまま回す | `package/skills/chief-of-staff/playbooks/idle.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 14 | Chief of Staff の手は、手引き `idle.md` の 1 枚に置く | `package/skills/chief-of-staff/playbooks/idle.md` | 生きている |
-| 15 | 空きで回した仕事から出るオーナーの課題は、今と同じ線で切り、1 日の数に上限を置かない | この ADR | まだ実装していない |
+| 15 | 空きで回した仕事から出るオーナーの課題は、今と同じ線で切り、1 日の数に上限を置かない | この ADR | まだ実装していない。「今と同じ線で切り」を、トリアージが拾う Andon の skill とパッケージの直しをオーナーへの問いにしない 1 点で改めた（ADR-0062 決めたこと 13） |
 | 16 | 空きの仕事のトークンと Chief of Staff の手には上限を置かず、線と、止める設定 1 つで抑える | この ADR | まだ実装していない |
 | 17 | Chief of Staff が留守の間と、オーナー待ちが上限に達している間は、空きを見ない | `internal/dispatcher/idle.go` | 生きている |
 | 18 | Andon を開発するセルには、点検のルーチンを 2 つ置く | この ADR | まだ実装していない |

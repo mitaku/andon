@@ -8,7 +8,7 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | 直すのは「1 件の待ちが、ほかを止めない」ことで、オーナーに聞く線と数は変えない | この ADR | 生きている |
+| 1 | 直すのは「1 件の待ちが、ほかを止めない」ことで、オーナーに聞く線と数は変えない | この ADR | 生きている。「オーナーに聞く線と数は変えない」を、トリアージが拾う Andon の skill とパッケージの直しをオーナーへの問いにしない 1 点で改めた（ADR-0062 決めたこと 13） |
 | 2 | オーナー待ちの一覧と課題の連なりは、Herdr App の mod に出す | `package/host/waiting/`・`package/host/kanban-board/main.js` | 生きている |
 | 3 | Chief of Staff は、どの問いも返事の本文に書き、答えを待たずにターンを終える | `package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 4 | Chief of Staff の起動行で、ダイアログの道具を使えなくする | `package/templates/chief-of-staff.md` | 生きている |

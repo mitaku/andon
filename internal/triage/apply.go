@@ -113,6 +113,13 @@ func runApply(l *ledger, id string, maxIssues int, dry bool, now time.Time, stdo
 	if err := checkVerdicts(items, verdicts, writer(l)); err != nil {
 		return err
 	}
+	// 置いておく印を信じるのは Chief of Staff の端末が書いたときだけ。ほかの端末の印は黙って書かず、何も書かずに断る（ADR-0062 決めたこと 10）。
+	if i := slices.IndexFunc(items, func(it item) bool { return it.decision() == "person" && it.mark().Later != "" }); i >= 0 {
+		cos := ledgercli.At(l.root).ChiefOfStaff()
+		if me := os.Getenv("HC_TERMINAL_ID"); cos == "" || me != cos {
+			return fail("later で置いておく印を書くのは Chief of Staff の端末だけ（config.yaml の chief_of_staff: %q・HC_TERMINAL_ID: %q）: %s", cos, me, items[i].key())
+		}
+	}
 
 	return l.applyItems(id, date, base, data, items, past, memoryPath, stdout)
 }
@@ -443,8 +450,9 @@ func personQuestion(it item) *contract.Question {
 const unsureFact = "トリアージは種類を決めきれなかった: "
 
 // addDecision は判断の person を、andon issue ask --new と同じ関数でオーナーの課題と問いにして置く（ADR-0057 決めたこと 7・9）。
+// 置いておく項目は、同じ関数が印 later と later_until を問いの前に書く（ADR-0062 決めたこと 10）。
 func (l *ledger) addDecision(it item) (string, error) {
-	newID, _, err := ledgercli.At(l.root).NewOwnerQuestion(personQuestion(it), "", nil, ledgercli.Mark{})
+	newID, _, err := ledgercli.At(l.root).NewOwnerQuestion(personQuestion(it), "", nil, it.mark())
 	if err != nil && newID != "" {
 		// トリアージの apply は打ち直せない（記録が先に置かれる）。残った課題は問いも印も無いので andon waiting が判断に数えて灯す。
 		return "", fail("%v（トリアージの apply は打ち直さず、andon issue ask %s - で問いを置く）", err, newID)
@@ -453,6 +461,7 @@ func (l *ledger) addDecision(it item) (string, error) {
 }
 
 // addHandWork は手作業の person を、印 only_owner を持つオーナーの課題にする（ADR-0057 決めたこと 8・9）。
+// 置いておく項目は、同じ kanban set で印 later と later_until も書く（ADR-0062 決めたこと 10）。
 // タイトルは question のままで「（オーナーの判断待ち）」を付けない。
 func (l *ledger) addHandWork(it item) (string, error) {
 	brief := "出どころ: " + it.key() +
@@ -463,7 +472,14 @@ func (l *ledger) addHandWork(it item) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := l.kanban("", "set", newID, "who=person", "only_owner="+it.str("only_owner")); err != nil {
+	args := []string{"set", newID, "who=person", "only_owner=" + it.str("only_owner")}
+	if m := it.mark(); m.Later != "" {
+		args = append(args, "later="+m.Later)
+		if m.Until != "" {
+			args = append(args, "later_until="+m.Until)
+		}
+	}
+	if _, err := l.kanban("", args...); err != nil {
 		return "", err
 	}
 	return newID, nil

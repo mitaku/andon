@@ -16,7 +16,7 @@
 | 5 | 名指せる欠けは申告に、名指せない学びは Remember に書き、欠けが無ければ節を書かない | `package/skills/worker/SKILL.md` | 生きている |
 | 6 | トリアージが申告を 1 件ずつ拾い、申告の先ごとに行き先を決める | この ADR | まだ実装していない |
 | 7 | skill とパッケージへの申告は、確かめた誤りと、根拠が 2 件そろったものを、オーナーへの問いにせず直す課題に切る | この ADR | まだ実装していない |
-| 8 | 根拠が 1 件の、skill とパッケージに足りないものの申告は「1 件目」で閉じ、次の申告のときに command が前の申告を並べる | この ADR | まだ実装していない |
+| 8 | 根拠が 1 件の、skill とパッケージに足りないものの申告は「1 件目」で閉じ、次の申告のときに command が前の申告を並べる | `internal/triage/decisions.go`・`internal/triage/collect.go`・`package/skills/triage/SKILL.md` | 生きている。「`first` は種類 `gap` の項目にだけ使える」を、Andon の skill とパッケージの直しの `remember`・`memory`・`next` にも使えるよう改めた（ADR-0062 決めたこと 13）。前の 1 件を並べるのは `gap` だけ |
 | 9 | 振り返りは申告を束に足して読むが、申告だけのパターンは作らない | `internal/retro/retro.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
 | 10 | 振り返りの入力にオーナーへの問いを足し、問いの繰り返しは振り返りの担当が申告として書く | `internal/retro/questions.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
 | 11 | 担当が wiki を引く口を足す | `package/skills/worker/SKILL.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |

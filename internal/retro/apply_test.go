@@ -107,7 +107,7 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := "set S-0022 review=off must_fix=major merge=person estimate=medium"
-	want := []string{"add 直す A", keys, keys, "add Andon へ伝えるか: B", "set S-0023 who=person", "ask S-0023 --kind promise"}
+	want := []string{"add 直す A", keys, keys, "add Andon へ伝えるか: B", "set S-0023 who=person later=" + laterReason, "ask S-0023 --kind promise"}
 	if got := logged(); !slices.Equal(got, want) {
 		t.Errorf("打った kanban の CLI: %q（want %q）", got, want)
 	}
@@ -140,7 +140,7 @@ func TestApplyRerunAfterAskFailurePutsOnlyTheQuestion(t *testing.T) {
 	if err := addPlans(l, "S-0020", plans, &again, func() error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"add Andon へ伝えるか: B", "set S-0021 who=person", "ask S-0021 --kind promise", "ask S-0021 --kind promise"}
+	want := []string{"add Andon へ伝えるか: B", "set S-0021 who=person later=" + laterReason, "ask S-0021 --kind promise", "ask S-0021 --kind promise"}
 	if got := logged(); !slices.Equal(got, want) {
 		t.Errorf("打った kanban の CLI: %q（want %q）", got, want)
 	}
@@ -276,5 +276,19 @@ func TestPlanEvidencePaths(t *testing.T) {
 	}
 	if pl := planOf("A-0372", p, in, []string{"github.com/example/app"}, ""); strings.Contains(pl.Brief, "中身の置き場") {
 		t.Errorf("置き場が空なのにパスの行を書いた:\n%s", pl.Brief)
+	}
+}
+
+// 課題を足したあと who と印を書く前に落ちた回は、打ち直しが同じ親とタイトルの課題を見つけ、課題を足さずに who: person と
+// 置いておく印 later を同じ kanban set で書いてから問いを置く（ADR-0062 決めたこと 10）。
+func TestApplyRerunWritesWhoAndLaterTogether(t *testing.T) {
+	l, logged := applyFixture(t, "S-0021|Andon へ伝えるか: B|S-0020|||0\n")
+	var rec Applied
+	if err := addPlans(l, "S-0020", andonPlans()[1:], &rec, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"set S-0021 who=person later=" + laterReason, "ask S-0021 --kind promise"}
+	if got := logged(); !slices.Equal(got, want) {
+		t.Errorf("打った kanban の CLI: %q（want %q）", got, want)
 	}
 }

@@ -72,9 +72,9 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 | 3 | **済んでいる**: 同じ内容の課題が done／リポジトリの文書に既に入っている（`git grep`）／docs の「決めたこと」で決まっている | `close`・`closing: done`「済み: <どこで>」 |
 | 4 | **起きない**（見送りの項目だけ）: 見送りの `trivial`（起きる条件を示せない）／`minor` のうち、起きる条件がその repo に無い | `close`・`closing: wont-happen`「起きない: <理由>」 |
 | 5 | **オーナーにしかできない**: 実機・別のセル・外部サービスの UI（Revoke・支払い・プランの変更）・オーナーの目視が完了条件 | `person` の手作業（`only_owner` にオーナーにしかできない理由を1行。`question` にしてほしいことと期限の目安。`kind` と `options` を付けない） |
-| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕。ラインの変更）、または gate のレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超） | `person` の判断（`kind: business\|users\|promise\|irreversible\|line`。`options` に選択肢を2つ以上、先頭に推奨案。ラインの変更と、レベル C で4つのどれにも当たらないものは `line`） |
+| 6 | **灯りがつく決断**（呼び出し＝事業〔何を作るか〕・利用者＝使い勝手の好み・約束＝ほかの人や外部への約束と公開。定位置停止＝不可逆〔消す・本番・push 先・権限・秘密〕。ラインの変更）、または gate のレベル C（ラインそのものの変更・信頼境界・権限・秘密・1000 行超）。Andon の skill とパッケージの直しは除く（下の「Andon の skill とパッケージの直し」の表） | `person` の判断（`kind: business\|users\|promise\|irreversible\|line`。`options` に選択肢を2つ以上、先頭に推奨案。ラインの変更と、レベル C で4つのどれにも当たらないものは `line`） |
 | 7 | **直せて、束ねられる**: 8 の条件を満たし、同じ repo で各々が小さい（目安 50 行以下）ものが、今回の項目に 3 つ以上ある | `bundle`（同じ `bundle` 名。1課題1 PR、commit は意図ごと） |
-| 8 | **直せる**: 完了条件が 1〜3 行で書け、差分が 1 repo に収まり、レベル A か B、可逆 | `fix`（`issue` を付ける。§4） |
+| 8 | **直せる**: 完了条件が 1〜3 行で書け、差分が 1 repo に収まり、レベル A か B、可逆（Andon の skill とパッケージの直しは、レベル C でも下の表で `fix`） | `fix`（`issue` を付ける。§4） |
 | 9 | 待つものがある（`after` に書ける id・リリース待ち・作業中の課題） | `keep`（理由に待つものの id） |
 | 10 | それ以外（種類を決めきれない） | `person` の判断（いちばん近い `kind` にし、`"unsure": true` を付ける。`reason` に何が分からないかを書く） |
 
@@ -87,7 +87,7 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   5・6 に当たらず推奨案があり後で変えられるものだけが 8 の `fix`（推奨案で決めて文書の「決めたこと」に「仮（<日付>・Chief of Staff）」と書く課題）。
   例: 使い勝手の既定値は `person`（`users`）。テストの置き場や文書の節の分け方は `fix`。ask-one-by-one skill §1 と同じ線。
 - **`agents`**（`For AGENTS.md:`）: 行き先が決まっているので `fix`。同じ repo に 3 つ以上なら `bundle`（「AGENTS.md に n 行足す」。profile は `sonnet`）。
-- **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → ラインの変更なので 6 の `person`（`kind: line`）。
+- **`remember`**: (a) リポジトリの作法 → `agents` と同じ。(b) Andon の skill・パッケージの直し → 下の「Andon の skill とパッケージの直し」の表に当てる（オーナーへの問いにしない）。
   この kanban が Andon 自身のプロジェクトでなければ `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（渡すのは Chief of Staff。規約10）。
   (c) レビューで繰り返し出た指摘 → その repo の `REVIEW.md` への `fix`。(d) その場限り → `close`・`closing: one-off`「その場限り: <なぜ次の課題に効かないか>」。
   (e) 同じ回の `memory` の項目と同じ中身 → `memory` の仕分けに任せ、`remember` は `close`・`closing: done`「済み: memory の仕分けに任せた」とし、`reason` にその `memory` の key を書く。同じ回の `gap` の項目と同じ中身なら、`gap` の決まりのとおり申告のほうで仕分ける。
@@ -110,16 +110,30 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
   - 同じ回に、同じ欠けの申告が 2 件以上あれば、`fix` は 1 つにまとめる。残りは `close`・`closing: done`「済み: <key> の直しに任せた」とし、`reason` にその key を書く。
   - `wrong` で食い違いを確かめられないものは g5 にしない（g1 か、確かめるのに待つものがあれば `keep`）。
   - g5・g6 の直しは、Andon の skill を変える PR になり、今の gate と委譲のとおりオーナーのマージに回る。オーナーは直しの中身を PR で見るので、`person` にしない。
-  - `first` は種類 `gap` の項目にだけ使える判断の閉じで、Chief of Staff の「閉じてよい」が要る。閉じた申告は `report.json` に残り、同じ先の次の申告が来たとき `collect` が `prior` に添える。
+  - `first` は判断の閉じで、Chief of Staff の「閉じてよい」が要る。閉じた申告は `report.json` に残り、同じ先の次の申告が来たとき `collect` が `prior` に添える（`prior` を添えるのは `gap` だけ）。
   - この kanban が Andon 自身のプロジェクトでなければ、g5〜g8 に当たる申告は `close`・`closing: delegated`「Andon へ委譲: <要点>」とし、報告の `## Next` に「Andon のプロジェクトの Chief of Staff へ委譲: <要点>」を1行（`remember` (b) と同じ）。
   - 同じ回の `remember` か `memory` の項目と同じ中身の申告は、申告のほうで仕分ける。もう片方は `close`・`closing: done`「済み: 申告の仕分けに任せた」とし、`reason` に申告の key を書く。
   - 申告は、元の課題の担当が依頼書の範囲の外を直してよいという許しではない。元の課題の差分で直ったかは g1 で確かめる。
+- **Andon の skill とパッケージの直し**（`remember`・`next`・`memory` の項目のうち、直す先が Andon の skill・手引き・パッケージの設定・流れの定義・モデルのもの。ADR-0062 決めたこと 13・14）:
+  オーナーへの問いにしない。ラインの変更でオーナーが決める場所は、直す PR の gate である。上の表の 1〜5 に当たらなければ、6〜10 の代わりに次の表を上から当てる:
+
+  | 順 | 条件 | decision |
+  |---|---|---|
+  | a1 | オーナーの決定（文書に「オーナーが決めた」と書かれた決定か、受け入れ条件）を覆す／repo の外にあるオーナーの持ち物（委譲・セルの設定・プロジェクトの設定）を変える／権限か秘密か信頼の境界を弱める | `person` の判断（問いのまま置く。`later` で呼ぶか置いておくかを言い切る） |
+  | a2 | 書いてあることと実物の食い違いを、自分で確かめた | `fix`（レベル C に当たる変更でも。`reason` に食い違いの確かめ方） |
+  | a3 | 同じ直しの根拠が、同じ回に集めた別々の課題の項目に 2 件ある | `fix`（同じ repo に 3 つ以上なら `bundle`。`reason` に根拠の 2 件の key） |
+  | a4 | 根拠が 1 件 | `close`・`closing: first`「1 件目: <要点>」 |
+
+  - 根拠の 2 件は、別々の課題の項目（`remember`・`next`・`memory`・`gap` のどれでもよい）。同じ課題の 2 件は 1 件と数える。残りの項目は `close`・`closing: done`「済み: <key> の直しに任せた」とし、`reason` にその key を書く。
+  - a2・a3 の直しは、今の gate と委譲のとおりにマージされる（レベル C ならオーナーのマージ）。オーナーは直しの中身を PR で見て、要らなければ PR を閉じる。
+  - 1 件目で閉じた気づきの 2 件目は、同じ回の項目か、直近 7 日を読む振り返りが拾う。`collect` は前の 1 件を添えないので、名指せる欠けは担当が申告に書く。
+  - 確かめるのに待つものがあれば `keep`（9 と同じ）。この kanban が Andon 自身のプロジェクトでなければ、`remember` (b) と同じく `delegated`。
 - **`unreadable`**: 自分で `report.md` を開いて読む。拾うものがあれば中身で表に当て（1 key に 1 decision なので、直すものは `fix` 1つにまとめる）、無ければ `close`・`closing: read`「読んだ: 拾うものなし」。
 - **`memory`**（auto memory の1件。どの役のセッションも書く注意書き・事実で、仕分けるまで全部の役に自動で載り続ける）:
   書いてある事実と理由を、今の実物で確かめる（`git -C <repo> grep <commit>`・docs・`kanban show`）。memory は受け皿で、残す家ではない。行き先は次のどれか:
   (a) 事実か理由が今は当てはまらない・理由の無い「〜しない」「必ず確認する」の類（控えや確認を増やすだけ）→ `close`・`closing: not-applicable`「当てはまらない: <確かめ方>」。
   (b) 既に wiki・`AGENTS.md`・skill・docs にある → 3 の `close`・`closing: done`「済み: <どこで>」。
-  (c) その repo の作法・テスト・docs の直し → `agents`・`remember` (a) と同じく `fix`（`brief` に memory の本文を引用する）。Andon の skill・パッケージの直しは `remember` (b) と同じ。
+  (c) その repo の作法・テスト・docs の直し → `agents`・`remember` (a) と同じく `fix`（`brief` に memory の本文を引用する）。Andon の skill・パッケージの直しは、上の「Andon の skill とパッケージの直し」の表に当てる（`remember` (b) と同じ）。
   (d) セルやプロジェクトの事実・学びで、長く残す価値がある → `close`・`closing: wiki`「wiki へ: <タイトル>」とし、報告の `## Next` に「Chief of Staff: wiki へ ingest（raw/memory/ に写す）: <key>」を1行。
   (e) その場限り・続き（kanban にあるべきもの）・決定（文書の PR にあるべきもの） → `close`・`closing: one-off`「その場限り」。
   (f) 確かめるのに待つものがある → `keep`。`keep` のファイルは残り、20 時間たつとまた出る（§2）。
@@ -147,15 +161,21 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 | 判断の閉じ | `one-off` | その場限り | `remember`・`memory` だけ |
 | 判断の閉じ | `not-applicable` | 当てはまらない | `memory` だけ |
 | 判断の閉じ | `read` | 読んだ: 拾うものなし | `unreadable` だけ |
-| 判断の閉じ | `first` | 1 件目 | `gap` だけ |
+| 判断の閉じ | `first` | 1 件目 | `gap`・`remember`・`memory`・`next` だけ |
 
-- `next`・`issue`・`person`・`question`・`agents`・`signal`・`leftover` は判断では閉じられない。`gap` を判断で閉じられるのは `first` だけ。済んだ根拠か対象が無い根拠（`git grep` の結果・PR の状態・done の課題）が無ければ、`fix`・`person`・`keep` のどれかにする。
+- `issue`・`person`・`question`・`agents`・`signal`・`leftover` は判断では閉じられない。`gap`・`next` を判断で閉じられるのは `first` だけ（`remember`・`memory`・`next` の `first` は、Andon の skill とパッケージの直しで根拠が 1 件のものだけ）。済んだ根拠か対象が無い根拠（`git grep` の結果・PR の状態・done の課題）が無ければ、`fix`・`person`・`keep` のどれかにする。
 - 根拠の閉じは `reason` に根拠（どこで・どう確かめたか）を書く。根拠を挙げられないものは根拠の閉じにしない。
 - 判断の閉じと、kanban の課題そのもの（`issue`・`person`）を閉じる判定は、Chief of Staff が1件ずつ読み、「閉じてよい」か「覆す」かを書く（`andon triage verdict`）。全部に「閉じてよい」が揃うまで `apply` は kanban に手を入れない。
   `issue`・`person` は根拠の閉じでも読まれる。覆されたら Chief of Staff から戻ってくるので、行き先（`fix`・`person`・`keep`・根拠の閉じ）を書き直す（§5）。
 
-オーナーに届くものを減らす線（ask-one-by-one skill §1 と同じ）: 5 と 6 と 10 だけがオーナーへ行く。`unsure` の `person` は「エージェントで決められたのでは」と要約で目立つので、
-本当に種類を決めきれないときだけ使う。判断はどれも、`apply` が問いにしてオーナーの課題に置き、行燈を灯す。
+オーナーに届くものを減らす線（ask-one-by-one skill §1 と同じ）: 5 と 6 と 10 と a1 だけがオーナーへ行く。`unsure` の `person` は「エージェントで決められたのでは」と要約で目立つので、
+本当に種類を決めきれないときだけ使う。判断はどれも、`apply` が問いにしてオーナーの課題に置く。`person` はどれも、呼ぶか置いておくかを `later` で言い切る（§4）。
+呼ぶもの（`later: false`）は行燈を灯し、置いておくもの（`later` に理由）は灯さずに、ペインとダイジェストに置いてある行として出る。
+
+**置いておくのは、次の3つを全部満たすときだけにし、迷ったら呼ぶ**（skill `ask-one-by-one` にも同じ文がある）:
+1. 答えが出なくても、動いている課題が止まらない。
+2. 後ろで待つ課題が無いか、あっても続きの手順や観察で、それも急がない。
+3. 期限が無いか、先にある。期限が先にあるものは、`later_until` に答えが要る日の前の日を書く。
 
 ## 4. decisions.json
 
@@ -173,9 +193,9 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
     {"key": "collect が返した key", "decision": "bundle", "bundle": "sample-site-agents-md", "reason": "AGENTS.md に 2 行",
      "issue": {"title": "AGENTS.md に検査のコマンドを足す", "repo": "github.com/<owner>/sample-site", "profile": "sonnet", "review": "off", "brief": "足す行"}},
     {"key": "collect が返した key", "decision": "person", "kind": "promise", "reason": "レベル A をオーナーが見ずに入れる線",
-     "question": "レベル A の PR を検収と検査だけでマージしてよいか", "options": ["よい。危ない面はレベル B・C で絞っている", "よくない。オーナーが読む"]},
+     "question": "レベル A の PR を検収と検査だけでマージしてよいか", "options": ["よい。危ない面はレベル B・C で絞っている", "よくない。オーナーが読む"], "later": false},
     {"key": "collect が返した key", "decision": "person", "only_owner": "支払いの画面はオーナーのアカウントにだけある", "reason": "プランの変更が完了条件",
-     "question": "外部サービスのプランを上げる（今週中）"},
+     "question": "外部サービスのプランを上げる（今週中）", "later": "今週中に済めばよく、待つ課題が無い", "later_until": "2026-11-13"},
     {"key": "collect が返した key", "decision": "keep", "reason": "待つ: S-0004 のマージ"}
   ]
 }
@@ -192,12 +212,14 @@ andon triage collect > library/items.json        # cwd は issues/<自分の id>
 - `fix`／`bundle` は `issue`（`title`・`repo`＝`host/owner/repo`・`profile`・`review`＝`on`／`off`・`brief`）が必須。`bundle` は `bundle` 名も必須で、同じ名前は同じ repo に限る。
   - `brief` は `apply` が依頼書の「解決すべき問題:」の下に置く（完了条件・守ること は汎用の1行しか付かない）ので、**具体的な完了条件と守ることは `brief` の中に書く**。出どころ（`<id>` の何の行か）も1行。
   - `review` はレベル B（command・スクリプト・案件の `.claude/skills/**`）か independent-review skill §1 の条件に当たれば `on`。`profile` は chief-of-staff skill の `playbooks/cut.md` の表で選ぶ（文書の小直しは `sonnet`）。
-  - レベル C に当たる変更は `fix` にしない（表の 6 で `person`）。
+  - レベル C に当たる変更は `fix` にしない（表の 6 で `person`）。ただし Andon の skill とパッケージの直しは、レベル C でも「Andon の skill とパッケージの直し」の表で `fix` か `bundle` にする（直す PR は gate がオーナーのマージに回す）。
 - `person` は判断か手作業のどちらか1つの形にする。どちらでもない項目（`kind` も `only_owner` も無い・両方ある）があれば、`apply` は kanban に手を入れずに断る。どちらも `question`（1行・`-` で始めない）と `reason` が必須。
   - 判断（6・10）: `kind` は `business`／`users`／`promise`／`irreversible`／`line`。`options` は1行の文字列を2つ以上並べ、先頭を推奨案にする（推奨案が無いと思っても、いちばんよいと考える案を先頭に書く）。前の形の `pick` は断られる。
     `apply` は `andon issue ask --new` と同じ関数で、オーナーの課題（タイトルは `question` に「（オーナーの判断待ち）」を付けたもの）と問いを置く。同じ `question` の判断を2つ書かない。同じタイトルの片付いていない課題がもう問いを持っていれば `apply` が断るので、その課題（`person` の項目）を仕分ける。問いの `from` は `chief-of-staff`、`facts` の先頭は出どころの `key`、`reason` は項目の `reason`。
   - 種類を決めきれなかった判断（10）は、いちばん近い `kind` にし、`"unsure": true` を付ける。`apply` は問いの `facts` に「トリアージは種類を決めきれなかった: <reason>」を足すので、`reason` に何が分からないかを書く。
   - 手作業（5）: `only_owner` にオーナーにしかできない理由を1行で書く。`kind`・`options`・`unsure` は付けない。`apply` は `question` をタイトルにしたオーナーの課題を足し、`who: person` と `only_owner` を書く。
+  - 判断も手作業も、`later` を必ず書く（§3 の置いておく基準）。置いておくなら理由の1行、呼ぶなら `false`（`true` は使わない）。期限が先にあるものは、`later_until` に答えが要る日の前の日を `YYYY-MM-DD` で足す（`later` が理由のときだけ）。
+    `later` が無い・形が違う項目があれば、`apply` は kanban に手を入れずに断る。`later` が理由の項目は、`apply` が課題に印 `later`・`later_until` を書く（印を書けるのは Chief of Staff の端末で打った `apply` だけ）。
 - `fix`／`bundle` が上限（既定 3。bundle は 1 つで数える）を超えた分は、`apply` が `keep`「次回（起動する上限）」に落とす。並べる順（先に書いたものが残る）＝優先の順。
 
 書いたら確かめる:

@@ -153,14 +153,14 @@ func TestCollectPicksGapsFromReportJSON(t *testing.T) {
 }
 
 // 種類 gap の項目を閉じ方 first（1 件目）で閉じた判定は、apply --dry-run を通り、Chief of Staff の「閉じてよい」を待つ表に出る。
-// 種類 remember の項目を first で閉じた判定は断られる（ADR-0061 受け入れ条件 4）。
-func TestApplyDryRunTakesFirstOnlyForGap(t *testing.T) {
+// 種類 agents の項目を first で閉じた判定は断られる（ADR-0061 受け入れ条件 4 を ADR-0062 決めたこと 13 で読み替えたもの）。
+func TestApplyDryRunTakesFirstForGap(t *testing.T) {
 	gap := "missing package/skills/worker/SKILL.md: 置き場が書いていない"
 	issues := []gapIssue{{id: "T-0001", title: "担当の課題", status: "done",
-		reportMD:   "## Report\n本文\n## Remember\n- 学び\n",
+		reportMD:   "## Report\n本文\n## Remember\n- 学び\nFor AGENTS.md: 作法の行\n",
 		reportJSON: gapReport(`{"kind": "missing", "where": "package/skills/worker/SKILL.md", "text": "置き場が書いていない"}`)}}
 	gkey := itemKey("demo", "T-0001", "gap", gap)
-	rkey := itemKey("demo", "T-0001", "remember", "- 学び")
+	akey := itemKey("demo", "T-0001", "agents", "For AGENTS.md: 作法の行")
 	run := func(t *testing.T, key string) (map[string]any, error) {
 		t.Helper()
 		l := gapLedger(t, issues)
@@ -200,10 +200,126 @@ func TestApplyDryRunTakesFirstOnlyForGap(t *testing.T) {
 			t.Errorf("review の行: %v", row)
 		}
 	})
-	t.Run("remember は断る", func(t *testing.T) {
-		_, err := run(t, rkey)
-		if err == nil || !strings.Contains(err.Error(), "閉じ方 first は remember の項目に使えない") {
-			t.Fatalf("remember の first を断らない: %v", err)
+	t.Run("agents は断る", func(t *testing.T) {
+		_, err := run(t, akey)
+		if err == nil || !strings.Contains(err.Error(), "閉じ方 first は agents の項目に使えない") {
+			t.Fatalf("agents の first を断らない: %v", err)
+		}
+	})
+}
+
+// 種類 remember・memory・next の項目の閉じ方 first（Andon の skill とパッケージの直しで根拠が 1 件）は、Chief of Staff の
+// 「閉じてよい」があれば当たり、無ければ kanban にも記録の置き場にも手を入れない。種類 agents の first は断る（ADR-0062 受け入れ条件 12）。
+// 偽の kanban の CLI は list と show のほかを打たれると落ちるので、当たった回は kanban を書いていない。
+func TestApplyFirstForRememberMemoryNext(t *testing.T) {
+	issues := []gapIssue{{id: "T-0001", title: "担当の課題", status: "done", reportJSON: `{"commit": "` + gapCommit + `"}`,
+		reportMD: "## Report\n本文\n## Next\n- Andon の手引きに置き場を足す\n## Remember\n- skill の順を直す\nFor AGENTS.md: 作法の行\n"}}
+	nkey := itemKey("demo", "T-0001", "next", "- Andon の手引きに置き場を足す")
+	rkey := itemKey("demo", "T-0001", "remember", "- skill の順を直す")
+	akey := itemKey("demo", "T-0001", "agents", "For AGENTS.md: 作法の行")
+	memBody := "skill triage の表の順が分かりにくい（T-0001）\n"
+	mkey := itemKey("demo", memoryFrom("skill-order.md"), "memory", memBody)
+	const reason = "1 件目: 根拠が 1 件"
+	setup := func(t *testing.T, keys []string, verdicts bool) (*ledger, string) {
+		t.Helper()
+		l := gapLedger(t, issues)
+		l.memory = filepath.Join(t.TempDir(), "memory")
+		if err := os.MkdirAll(l.memory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mem := filepath.Join(l.memory, "skill-order.md")
+		if err := os.WriteFile(mem, []byte(memBody), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(l.dir, "config.yaml"), []byte("chief_of_staff: t5\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		lib := filepath.Join(l.dir, "issues", "T-0900", "library")
+		if err := os.MkdirAll(lib, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		var items, vs []any
+		for _, k := range keys {
+			it := map[string]any{"key": k, "decision": "close", "closing": "first", "reason": reason}
+			if k != mkey {
+				it["commit"] = gapCommit
+			}
+			items = append(items, it)
+			vs = append(vs, verdict{Key: k, Verdict: verdictOK, Closing: "first", Reason: reason, By: "terminal:t5", At: "2026-11-24T01:00:00Z"})
+		}
+		col, _ := json.Marshal(map[string]any{"commits": map[string]string{"example.invalid/me/app": gapCommit}, "items": []any{}})
+		dec, _ := json.Marshal(map[string]any{"goal": "g", "collected": "2026-11-24T00:00:00Z", "items": items})
+		files := map[string][]byte{"items.json": col, "decisions.json": dec}
+		if verdicts {
+			files[verdictFileName], _ = json.Marshal(map[string]any{"verdicts": vs})
+		}
+		for name, b := range files {
+			if err := os.WriteFile(filepath.Join(lib, name), b, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return l, mem
+	}
+	t.Run("閉じてよいがあれば当たる", func(t *testing.T) {
+		l, mem := setup(t, []string{nkey, rkey, mkey}, true)
+		var out bytes.Buffer
+		if err := runApply(l, "T-0900", 3, false, l.now, &out); err != nil {
+			t.Fatalf("当たらない: %v", err)
+		}
+		recs, _ := filepath.Glob(filepath.Join(l.dir, "library", "triage", "*-T-0900.json"))
+		if len(recs) != 1 {
+			t.Fatalf("記録: %v", recs)
+		}
+		b, err := os.ReadFile(recs[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rec struct {
+			Items []map[string]any `json:"items"`
+		}
+		if err := json.Unmarshal(b, &rec); err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, it := range rec.Items {
+			v, _ := it["verdict"].(map[string]any)
+			if it["closing"] == "first" && v["verdict"] == verdictOK {
+				got = append(got, it["key"].(string))
+			}
+		}
+		slices.Sort(got)
+		want := []string{nkey, rkey, mkey}
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("記録の first の項目: %q want %q", got, want)
+		}
+		if _, err := os.Stat(mem); err == nil {
+			t.Error("1 件目で閉じた memory のファイルが残った")
+		}
+	})
+	t.Run("閉じてよいが無ければ手を入れない", func(t *testing.T) {
+		l, mem := setup(t, []string{nkey, rkey, mkey}, false)
+		var out bytes.Buffer
+		err := runApply(l, "T-0900", 3, false, l.now, &out)
+		if err == nil || !strings.Contains(err.Error(), "Chief of Staff の判定が 3 件足りない") {
+			t.Fatalf("判定の無い first を断らない: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(l.dir, "library", "triage")); err == nil {
+			t.Error("断ったのに記録の置き場を作った")
+		}
+		if _, err := os.Stat(mem); err != nil {
+			t.Errorf("断ったのに memory のファイルを消した: %v", err)
+		}
+	})
+	t.Run("agents の first は断る", func(t *testing.T) {
+		l, _ := setup(t, []string{akey}, true)
+		var out bytes.Buffer
+		err := runApply(l, "T-0900", 3, false, l.now, &out)
+		if err == nil || !strings.Contains(err.Error(), "閉じ方 first は agents の項目に使えない") {
+			t.Fatalf("agents の first を断らない: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(l.dir, "library", "triage")); err == nil {
+			t.Error("断ったのに記録の置き場を作った")
 		}
 	})
 }
