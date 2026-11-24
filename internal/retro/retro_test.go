@@ -129,7 +129,7 @@ func newFixture(t *testing.T) *fixture {
 		`{"type":"user","uuid":"u10","timestamp":"` + ago(1*day) + `","origin":{"kind":"human"},"message":{"content":[{"type":"text","text":"block の文"}]}}` + "\n"
 	write(t, filepath.Join(f.claude, "projects", "-sample-site", cosSess+".jsonl"), cos)
 	work := strings.ReplaceAll(hum("w0", ago(3*day), "<hc from=\"t1 cos\">課題 A-0001。依頼書は …</hc>")+hum("w1", ago(2*day), "そこは直さなくていい")+
-		hum("w2", ago(2*day), "[resume] 課題 `sample-site/A-0001` の続き。セルが起き直した。worktree は同じ場所に戻した。"), f.root, wt) // w2: andon issue resume の最初のメッセージ（セッションの続きに入る）
+		hum("w2", ago(2*day), "\n\n<pasted_content id=\"b23d\">\nAndon の担当として働く。\n\n[resume] 課題 `sample-site/A-0001` の続き。セルが起き直した。worktree は同じ場所に戻した。\n</pasted_content id=\"b23d\">\n"), f.root, wt) // w2: andon issue resume の最初のメッセージ（セッションの続きに入り、template の本文の後ろに印が来る）
 	write(t, filepath.Join(f.claude, "projects", "-wt-A-0001", workSess+".jsonl"), work)
 	other := strings.ReplaceAll(hum("o0", ago(2*day), "最初")+hum("o1", ago(2*day), "ほかのプロジェクトの文"), f.root, filepath.Join(tmp, "other"))
 	write(t, filepath.Join(f.claude, "projects", "-other", otherSess+".jsonl"), other)
