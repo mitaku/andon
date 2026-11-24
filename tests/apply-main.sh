@@ -425,6 +425,25 @@ else
 fi
 echo "$newd" >"$DISPATCHER_PID"
 
+# === 13. dispatcher の見回りが終わらず boot を打たない道でも、受け口は止めて当てたパッケージで起動し直す（dispatcher は止めない） ===
+: >"$CALLS"
+start_rcv "$img/andon/bin/andon"
+rcv=$!
+echo "$rcv" >"$OTEL_PID"
+flock "$passlock" sleep 4 &
+holder=$!
+sleep 0.5
+ANDON_APPLY_PASS_WAIT=1 run apply
+for _ in $(seq 30); do grep -q '^andon otel serve ' "$CALLS" && break; sleep 0.1; done
+if ! alive "$rcv" && grep -q "受け口（pid $rcv）を止めた" "$tmp/out" && grep -q '15分終わらない' "$tmp/out" \
+  && [ "$(grep -c '^andon otel serve ' "$CALLS")" = 1 ] && ! grep -q '^andon boot ' "$CALLS" && ! grep -q '^hc kill ' "$CALLS"; then
+  pass "13 見回りが終わらず boot を打たない道でも、受け口を止めて当てたパッケージで起動し直す（dispatcher は止めない）"
+else
+  fail "13 見回りが終わらない道の受け口: $(cat "$CALLS") / $(cat "$tmp/out")"
+fi
+wait "$holder"
+: >"$OTEL_PID"
+
 # === 6a. 2回当ててから戻す ===
 if run apply && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ]; then
   pass "6 2回目を当てても記録のイメージのバージョンは最初のまま"

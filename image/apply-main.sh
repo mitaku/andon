@@ -10,7 +10,7 @@
 #   revert            退避からイメージのバージョンへ戻し、記録を消し、andon boot を打ち直して dispatcher とハーネスの受け口を起動し直す。
 # 書く先と元の repo は環境変数で差し替える（検査が一時の置き場に向ける）:
 #   ANDON_APPLY_REPO（既定はこのスクリプトの repo）・ANDON_APPLY_ROOT（/opt/andon）・ANDON_APPLY_KANBAN（/usr/local/bin/kanban）・
-#   ANDON_APPLY_STASH（退避。/opt/andon-image）・ANDON_APPLY_ANDON（boot を打つ andon。既定は <ROOT>/bin/andon）。
+#   ANDON_APPLY_STASH（退避。/opt/andon-image）・ANDON_APPLY_ANDON（boot を打つ andon。既定は <ROOT>/bin/andon）・ANDON_APPLY_PASS_WAIT（dispatcher の見回りの鍵を待つ秒。900）。
 # 書く先の親に書けなければ sudo で書く。andon の持ち物の置き場なら sudo は使わない。
 set -euo pipefail
 
@@ -117,9 +117,11 @@ alive() {
 # ハーネスの受け口（andon otel serve。ADR-0060 決めたこと 4）を止める。boot が、受け口が listen していなければ当てたパッケージの andon で
 # 起動し直す（boot が起動したときと同じ形。出力は /tmp/andon-otel.log）。止まっている間に届いた記録は欠ける（決めたこと 4 のとおり）。
 # 止めるのは <根>/bin/andon から起動した受け口だけ（boot と andon otel env はその実行ファイルの名前で起動する。入れ替えたあとも argv は変わらない）。
-# hc が無ければ boot は受け口を起動しないので止めない。受け口が動いていなければ何もしない
+# hc が無ければ boot は受け口を起動しないので止めない。受け口が動いていなければ何もしない。止めたら otel_stopped を 1 にする
+otel_stopped=
 stop_otel() {
   local bin=$root/bin/andon p argv pids=()
+  otel_stopped=
   command -v hc >/dev/null || return 0
   for p in /proc/[0-9]*; do
     mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
@@ -137,9 +139,19 @@ stop_otel() {
     if alive "$p"; then
       say "警告: 受け口（pid $p）が止まらない（前のパッケージのまま動く）"
     else
-      say "受け口（pid $p）を止めた（boot が当てたパッケージで起動し直す）"
+      say "受け口（pid $p）を止めた（当てたパッケージで起動し直す）"
+      otel_stopped=1
     fi
   done
+}
+
+# 止めた受け口を、boot を打たない道（dispatcher の見回りが終わらない）で起動し直す。boot が起動するときと同じ形
+# （<andon> otel serve を新しいセッションで手放し、出力は一時の置き場の andon-otel.log に足す。internal/otel の Detach）。
+# 2 つ目は bind に失敗して終わるので、役の起動が先に起動していても重ならない
+start_otel() {
+  local andon=$1
+  ANDON_HOME=$root setsid "$andon" otel serve >>"${TMPDIR:-/tmp}/andon-otel.log" 2>&1 </dev/null 8<&- 9>&- &
+  say "受け口を当てたパッケージで起動し直した（boot を打たないので、ここで起動した）"
 }
 
 # andon boot を打ち直し、dispatcher を起動し直す。dispatcher の端末を片付けてから boot（boot が無い端末を起動する）。
@@ -168,8 +180,12 @@ reboot() {
     # 鍵を取るバージョンは見回りのたびにこのファイルを作るので、ここで作ってもよい
     mkdir -p "$(dirname "$passlock")"
     exec 9>>"$passlock"
-    if ! flock -w 900 9; then
+    if ! flock -w "${ANDON_APPLY_PASS_WAIT:-900}" 9; then
+      exec 9>&-
       say "警告: dispatcher の見回りが15分終わらないので起動し直さなかった。終わってから $andon boot を打ち、hc で dispatcher を起動し直す"
+      # 受け口は dispatcher の見回りと関わらないので、ここでも当てたパッケージに替える
+      stop_otel
+      [ -z "$otel_stopped" ] || start_otel "$andon"
       return 1
     fi
   fi

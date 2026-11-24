@@ -176,7 +176,7 @@ image/apply-main.sh revert          # イメージのバージョンへ戻す
 - **古いバージョンへ戻す前に（revert でも GHCR のバージョンへ戻すときでも）**: 委譲に名指しの grant（`issues` のある行。[contract.md](contract.md) §11）があれば、オーナーが `project.json` からその行を消して commit する（`revoke` では行が残るので足りない）。名指しを知らないバージョンの `andon` と `kanban` は、その `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。`digest`（ダイジェストの送り先）も同じで、あれば先にキーごと消して commit する。
 - **消えるとき**: 当てた状態と退避はコンテナの書ける層にあるので、コンテナの再起動では残り、作り直し（`bin/bootstrap rebuild`）で消える。正はイメージのまま。
 - **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
-- **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ。
+- **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ（受け口はこの道でも止めて、当てたパッケージで起動し直す）。
 
 ## 4. ホストの道具を置く（`host-install`）
 
