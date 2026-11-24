@@ -83,6 +83,8 @@ func (r *idleRig) idles() []Notification {
 	return out
 }
 
+// 受け入れ条件 1: 前の回も今の回も枠が空いていて、仕分けていない項目が 50 件以上あり、片付いていないトリアージが無いとき、
+// kanban routine run triage を1回打つ。49 件のとき、片付いていないトリアージがあるとき、ルーチンが paused のときは打たない。
 func TestIdleFiresTriage(t *testing.T) {
 	for _, c := range []struct {
 		name     string
@@ -119,6 +121,8 @@ func TestIdleFiresTriage(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 2: 前の回に枠が空いていなかったとき、今の回が空いていても、何も打たず、通知も積まない。
+// 見る時刻の前・前の回から間が2倍を超えた回・初めて見る回・起動し直した最初の回も、控えるだけ。
 func TestIdleNeedsTwoFreeLooks(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")
@@ -155,6 +159,9 @@ func TestIdleNeedsTwoFreeLooks(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 3: ルーチンが足した課題を除いた片付いた担当の課題が retro_every の半分（25 なら 13）以上で、片付いていない振り返りが
+// 無いとき、kanban routine run retro を1回打つ。ルーチンの課題だけで半分に届くとき、同じ巡で件数のきっかけが撃っていたとき、
+// 振り返りの課題が残っているときは打たない。
 func TestIdleFiresRetro(t *testing.T) {
 	done := func(n int, routine string) ([]ledger.Issue, []ledger.Row) {
 		var tasks []ledger.Issue
@@ -207,6 +214,9 @@ func TestIdleFiresRetro(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 4: idle_hours: 24 のルーチンは、最後に課題を足してから 24 時間以上で、空いているときに撃たれる。23 時間では撃たれない。
+// 撃ち損ねの行だけが新しいときは撃たれる。1 度も足していなければ撃たれる。値が 1 以上の整数でないルーチンは撃たれず、ログに 1 行が出る
+// （同じ理由が続く間は 1 行）。idle_hours の無いルーチン・paused・課題が残っているルーチンは撃たれない。
 func TestIdleFiresHoursRoutine(t *testing.T) {
 	fired := func(ago time.Duration) ledger.Row {
 		at := time.Date(2026, 11, 23, 0, 15, 0, 0, time.UTC).Add(-ago).Format(time.RFC3339)
@@ -306,6 +316,7 @@ func TestIdleFailedRunUsesSlot(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 5: 1回に撃つルーチンの数は slots.free を超えない。kanban ready に担当の課題が残っていても、撃つ数は減らない。
 func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	var tasks []ledger.Issue
 	var rows []ledger.Row
@@ -345,6 +356,9 @@ func TestIdleFiresUpToFreeSlots(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 6（Go の側）: 前の回にも今の回にも起動できる課題の一覧に出ている課題を通知 idle に 1 回だけ入れる。
+// もう起動された課題は入れない。届く前に次の idle を積むと、前の unstarted と fired が新しいほうに残る。
+// 一覧から消えた id は知らせた控えから外す。
 func TestIdleTellsUnstartedOnce(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")
@@ -402,6 +416,8 @@ func TestIdleTellsUnstartedOnce(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 7（Go の側）: kanban lint が problem を出すとき、通知 idle の lint に件数が入る。同じ problem のままの次の回には積まない。
+// problem が 0 件に戻ったら印を消し、また出たら知らせる。
 func TestIdleTellsLintOnce(t *testing.T) {
 	r := newIdleRig(t)
 	bad := `{"ok":false,"problems":["S-0001: no title","S-0002: parent S-9, which doesn't exist"]}`
@@ -458,6 +474,8 @@ func TestIdleKeepsLintOfPendingIdle(t *testing.T) {
 	}
 }
 
+// 受け入れ条件 8: Chief of Staff が留守の回と、chief_of_staff.idle_minutes が 0 のとき、空きを見る段は何も打たない。
+// 留守の間は前の回の結果を消すので、戻った最初の回も控えるだけ。
 func TestIdleSkipsAwayAndOff(t *testing.T) {
 	r := newIdleRig(t)
 	r.routine("triage", "")
