@@ -12,7 +12,7 @@
   - 見るファイル: `internal/triage/apply.go`、`internal/triage/decisions.go`
 - `tr-not-cos` 印を書く判定を Chief of Staff でない端末で当てると、Chief of Staff の端末だけと言って断り、課題も記録も増やさない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/apply.go`
-- `tr-old-shape` `later` の無い前の形の `person` は、どの端末でも `later` が無いと言って断り、課題も記録も増やさない。`person` の無い前の形の判定（`keep` だけ）は、印を書かないので担当の端末でも当たる。見る道: 検証の担当だけ。
+- `tr-old-shape` `later` の無い前の形の `person` は、Chief of Staff の端末でも `later` が無いと言って断り、課題も記録も増やさない。`person` の無い前の形の判定（`keep` だけ）は、印を書かないので担当の端末でも当たる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/decisions.go`、`internal/triage/apply.go`
 
 ## 辿り着き方（利用者から）

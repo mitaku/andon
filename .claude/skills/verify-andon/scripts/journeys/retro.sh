@@ -32,7 +32,8 @@ step "rt-patterns: 担当の端末 tw が andon retro patterns を打つ" env HC
   && ok "rt-patterns: $r/library/retro.json に、fix 2 件と drop 1 件のパターンの一覧が置かれる" \
   || fail "rt-patterns: retro.json が無いか、形が違う"
 
-count() { "$kanban" list --all --json | jq length; }
+# 読めなければ毎回違う値を返し、「課題の数が変わらない」の比べが素通りしない
+count() { "$kanban" list --all --json | jq -e length 2>/dev/null || echo "読めない-$RANDOM"; }
 # rt-not-cos: オーナーの課題を足す apply は、Chief of Staff でない端末では何も書かずに断る
 n0=$(count)
 step "rt-not-cos: 担当の端末 tw が andon retro apply を打つ" env HC_TERMINAL_ID=tw "$andon" retro apply "$r" \

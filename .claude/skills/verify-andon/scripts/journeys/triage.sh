@@ -36,10 +36,11 @@ jq -n --arg k1 "$k1" --arg k2 "$k2" --arg k3 "$k3" --arg w "$why" --arg r "$run"
   {key: $k3, decision: "person", reason: "オーナーの手がいる", question: "\($r) の外のサービスの画面で設定を変える", only_owner: "画面はオーナーのアカウントにだけある", later: $w}]}' >"$(lib "$t1")/decisions.json"
 # 前の形: person に later が無い。kanban に何も書かずに断る
 jq 'del(.items[].later, .items[].later_until)' "$(lib "$t1")/decisions.json" >"$(lib "$t2")/decisions.json"
-count() { "$kanban" list --all --json | jq length; }
+# 読めなければ毎回違う値を返し、「課題の数が変わらない」の比べが素通りしない
+count() { "$kanban" list --all --json | jq -e length 2>/dev/null || echo "読めない-$RANDOM"; }
 recs() { find "$tmp/project/kanban/library/triage" -name '*.json' 2>/dev/null | wc -l; } # 1 回の apply は記録の .json と .md を 1 つずつ置く
 
-# tr-old-shape: 前の形の person（later が無い）は、どの端末でも何も書かずに断る。person の無い前の形は、そのまま当たる
+# tr-old-shape: 前の形の person（later が無い）は、Chief of Staff の端末でも何も書かずに断る。person の無い前の形は、そのまま当たる
 n0=$(count) r0=$(recs)
 step "tr-old-shape: later の無い前の形の decisions.json を当てる" "$andon" triage apply "$t2" \
   && fail "tr-old-shape: later の無い person を当てた" \
