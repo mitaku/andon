@@ -17,8 +17,8 @@ const (
 		"予約キー（既定で埋めたもの）・report.json・レビューの照合を JSON で出す（読むだけ）。\n"
 	ReportUsage = "usage: andon issue report <id> [--pr <url>] [--data <json>] < report.md\n" +
 		"report.json を書き（commit は HEAD）、stdin の Markdown で kanban に報告する。\n" +
-		"--data は report.json の任意のキー（pr・estimate・plan・waived・acceptance・risk・next・observation・remember・agents_md）の JSON object。\n" +
-		"--pr を省くと前の report.json の pr を、--data に estimate・plan が無ければ前のそれを引き継ぐ。\n" +
+		"--data は report.json の任意のキー（pr・estimate・plan・waived・acceptance・risk・next・observation・remember・agents_md・gaps）の JSON object。\n" +
+		"--pr を省くと前の report.json の pr を、--data に estimate・plan・gaps が無ければ前のそれを引き継ぐ（gaps は空の配列で取り下げる）。\n" +
 		"review_request は、HEAD が前の report.json の commit と同じ間だけ引き継ぐ（HEAD が進めば消える。頼み直しは review-request）。\n"
 	ReviewRequestUsage = "usage: andon issue review-request <id> [< report.md]\n" +
 		"report.json に review_request を足して報告する（レビューを頼む。回数・前回の commit は command が数える）。\n" +

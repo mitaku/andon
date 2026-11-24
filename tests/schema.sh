@@ -237,6 +237,7 @@ report|.acceptance[0]|id result evidence
 report|.risk|one_way
 report|.estimate|size reason
 report|.plan[0]|id text done
+report|.gaps[0]|kind where text
 report|.observation|hypothesis result evidence
 report|.next[0]|to text
 question|.options[0]|label pick
@@ -412,6 +413,19 @@ pass|report|del(.plan)|plan の無い report.json
 fail|report|.plan[0].done = "yes"|plan の done が真偽でない
 fail|report|.plan[0].text = ""|plan の text が空
 fail|report|.plan[0].id = ""|plan の id が空
+pass|report|del(.gaps)|gaps の無い report.json（欠けが無ければ節を書かない）
+pass|report|.gaps = []|gaps が空の配列（申告を取り下げた）
+pass|report|.gaps = [{"kind": "missing", "where": "unknown", "text": "探した先が言えない"}]|gaps の missing で where が unknown・proposal 無し
+pass|report|.gaps[2].where = "brief"|gaps の where が依頼書
+fail|report|.gaps[0].kind = "stale"|gaps の kind が 3 つのどれでもない
+fail|report|del(.gaps[1].where)|gaps に where が無い
+fail|report|del(.gaps[1].kind)|gaps に kind が無い
+fail|report|del(.gaps[1].text)|gaps に text が無い
+fail|report|.gaps[0].where = ""|gaps の where が空
+fail|report|.gaps[0].text = ""|gaps の text が空
+fail|report|.gaps[0].proposal = ""|gaps の proposal が空
+fail|report|.gaps[0] += {"by": "t1"}|gaps に知らないキー
+fail|report|.gaps = {"kind": "missing", "where": "unknown", "text": "x"}|gaps が配列でない
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
 fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない
@@ -1029,6 +1043,8 @@ project|."$defs".grant.required -= ["id"]|grant の必須から id を外す
 project|.required -= ["repos"]|project の必須から repos を外す
 project|."$defs".delegation.additionalProperties = true|delegation の知らないキーを許す
 report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
+report|.properties.gaps.items.properties.kind.enum += ["stale"]|gaps の kind を緩める
+report|.properties.gaps.items.required -= ["where"]|gaps の必須から where を外す
 findings|."$defs".finding.properties.file.pattern = "^[^\\x00-\\x1f\\x7f]+$"|file の .. の段の検査を外す
 candidates|del(.properties.candidates.uniqueKeys)|候補の id の一意を外す
 candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_scope を外す

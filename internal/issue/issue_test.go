@@ -480,6 +480,55 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 	}
 }
 
+// report の引き継ぎ（ADR-0061 決めたこと 2・受け入れ条件 2）: 知識の欠けの申告 gaps は、--data に無ければ前の
+// report.json から引き継ぐ（途中の報告に書いた申告が、最後の書き直しで消えない）。空の配列を渡すと取り下げになり、
+// 次の打ち直しでも空のまま。--data に gaps があれば丸ごと置き換える。
+func TestReportCarriesGaps(t *testing.T) {
+	f := newFixture(t)
+	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+	rp := filepath.Join(f.root, "kanban/issues/T-0001/library/report.json")
+	report := func(args ...string) *contract.Report {
+		t.Helper()
+		var out, errb bytes.Buffer
+		if rc := Main(append([]string{"report", "T-0001"}, args...), strings.NewReader("## Report\n"), &out, &errb); rc != 0 {
+			t.Fatalf("report %v: rc=%d err=%q", args, rc, errb.String())
+		}
+		r, err := contract.ReadReport(rp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	two := `{"gaps": [{"kind": "wrong", "where": "AGENTS.md", "text": "一覧が 1 つ違う", "proposal": "合わせる"},` +
+		` {"kind": "missing", "where": "docs/operate.md", "text": "順が書いていない"}]}`
+	if r := report("--data", two); len(r.Gaps) != 2 {
+		t.Fatalf("gaps を書けない: %+v", r.Gaps)
+	}
+	r := report("--data", `{"remember": ["書き直した"]}`)
+	if len(r.Gaps) != 2 || r.Gaps[0].Kind != "wrong" || r.Gaps[0].Proposal == nil || *r.Gaps[0].Proposal != "合わせる" || r.Gaps[1].Where != "docs/operate.md" {
+		t.Fatalf("--data に gaps が無いのに前の gaps が残らない: %+v", r.Gaps)
+	}
+	if r := report(); len(r.Gaps) != 2 {
+		t.Fatalf("--data 無しの打ち直しで前の gaps が残らない: %+v", r.Gaps)
+	}
+	if r := report("--data", `{"gaps": [{"kind": "hard_to_find", "where": "wiki/topics/tool-quirks.md", "text": "遅れて見つけた"}]}`); len(r.Gaps) != 1 || r.Gaps[0].Kind != "hard_to_find" {
+		t.Fatalf("--data の gaps で置き換わらない: %+v", r.Gaps)
+	}
+	if r := report("--data", `{"gaps": []}`); len(r.Gaps) != 0 {
+		t.Fatalf("空の配列で取り下げられない: %+v", r.Gaps)
+	}
+	if b, _ := os.ReadFile(rp); strings.Contains(string(b), "gaps") {
+		t.Fatalf("取り下げたのに report.json に gaps が残る: %s", b)
+	}
+	if r := report(); len(r.Gaps) != 0 {
+		t.Fatalf("取り下げたあとの打ち直しで gaps が戻る: %+v", r.Gaps)
+	}
+	var out, errb bytes.Buffer
+	if rc := Main([]string{"report", "T-0001", "--data", `{"gaps": [{"kind": "stale", "where": "AGENTS.md", "text": "x"}]}`}, strings.NewReader("## Report\n"), &out, &errb); rc != 1 || !strings.Contains(errb.String(), "gaps") {
+		t.Fatalf("知らない kind を断らない: rc=%d err=%q", rc, errb.String())
+	}
+}
+
 func (f *fixture) rebaseWorktree(conflict bool) string {
 	f.t.Helper()
 	git := func(args ...string) string {

@@ -25,6 +25,22 @@ func TestParseReport(t *testing.T) {
 	if _, err := ParseReport([]byte(strings.Replace(good, `"pr"`, `"plan":[{"id":"p1","text":"schema に足す","done":true},{"id":"p2","text":"引き継ぐ","done":false}],"pr"`, 1))); err != nil {
 		t.Errorf("plan: %v", err)
 	}
+	gaps := `"gaps":[{"kind":"missing","where":"docs/operate.md","text":"順が書いていない"},{"kind":"wrong","where":"AGENTS.md","text":"一覧が 1 つ違う","proposal":"合わせる"},{"kind":"hard_to_find","where":"wiki/topics/tool-quirks.md","text":"遅れて見つけた"}],`
+	if _, err := ParseReport([]byte(strings.Replace(good, `"pr"`, gaps+`"pr"`, 1))); err != nil {
+		t.Errorf("gaps: %v", err)
+	}
+	for name, bad := range map[string]string{
+		"gaps の kind が知らない":      strings.Replace(good, `"pr"`, `"gaps":[{"kind":"stale","where":"AGENTS.md","text":"x"}],"pr"`, 1),
+		"gaps に where が無い":       strings.Replace(good, `"pr"`, `"gaps":[{"kind":"missing","text":"x"}],"pr"`, 1),
+		"gaps の text が空":         strings.Replace(good, `"pr"`, `"gaps":[{"kind":"missing","where":"unknown","text":""}],"pr"`, 1),
+		"gaps の proposal が空":     strings.Replace(good, `"pr"`, `"gaps":[{"kind":"wrong","where":"AGENTS.md","text":"x","proposal":""}],"pr"`, 1),
+		"gaps の proposal が null": strings.Replace(good, `"pr"`, `"gaps":[{"kind":"wrong","where":"AGENTS.md","text":"x","proposal":null}],"pr"`, 1),
+		"gaps に知らないキー":           strings.Replace(good, `"pr"`, `"gaps":[{"kind":"wrong","where":"AGENTS.md","text":"x","by":"t1"}],"pr"`, 1),
+	} {
+		if _, err := ParseReport([]byte(bad)); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
+	}
 	for name, bad := range map[string]string{
 		"知らないキー":                strings.Replace(good, `"pr"`, `"x":1,"pr"`, 1),
 		"previous が無い":          strings.Replace(good, `"previous":null,`, ``, 1),

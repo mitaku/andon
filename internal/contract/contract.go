@@ -336,6 +336,15 @@ type Report struct {
 	Observation   *Observation   `json:"observation,omitempty"`
 	Remember      []string       `json:"remember,omitempty"`
 	AgentsMD      []string       `json:"agents_md,omitempty"`
+	Gaps          []Gap          `json:"gaps,omitempty"` // 知識の欠けの申告。andon issue report が前の報告から引き継ぐ
+}
+
+// Gap は知識の欠けの申告の1件（ADR-0061 決めたこと 2・3）。書くのは担当と Chief Engineer。
+type Gap struct {
+	Kind     string  `json:"kind"`  // missing・wrong・hard_to_find
+	Where    string  `json:"where"` // repo かパッケージの中のパス・wiki のページ・brief・unknown
+	Text     string  `json:"text"`
+	Proposal *string `json:"proposal,omitempty"` // 任意。空の文字列は断る（schema の minLength と同じ）
 }
 
 // Estimate は担当の見込み（依頼書の見込みと違うと見たときだけ。ADR-0014 決めたこと 4）。課題の見込み（issue.yaml の estimate）は変えない。
@@ -427,6 +436,11 @@ func (r *Report) Check() error {
 	for _, s := range append(append([]string{}, r.Remember...), r.AgentsMD...) {
 		if s == "" {
 			return errors.New("remember・agents_md に空の行")
+		}
+	}
+	for _, g := range r.Gaps {
+		if (g.Kind != "missing" && g.Kind != "wrong" && g.Kind != "hard_to_find") || g.Where == "" || g.Text == "" || (g.Proposal != nil && *g.Proposal == "") {
+			return errors.New("gaps[] は {kind: missing|wrong|hard_to_find, where, text, proposal?}")
 		}
 	}
 	return nil
