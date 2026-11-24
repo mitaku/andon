@@ -1,6 +1,6 @@
 # cell.sh: セルの本物の記録を読むだけの journeys/*.sh が source する。何も書かない・何も起動しない。
 #   当てた記録（<パッケージ>/applied.json）から、検証する commit を当てた時刻と、次に当てた時刻を読む。この間だけを読む。
-#   検証する commit は VERIFY_COMMIT（drive.sh の2つ目の引数。先頭の数文字でよい）。無ければ今当たっている commit。今当たっていれば次に当てた時刻は無く、今まで。
+#   検証する commit は VERIFY_COMMIT（drive.sh の2つ目の引数。drive.sh は省けず、先頭の 7 文字以上を必ず渡す）。無い（道を直に呼ぶ検査だけ）なら今当たっている commit。今当たっていれば次に当てた時刻は無く、今まで。
 #   前に当てた commit は記録の previous（新しい順）から探す。同じ commit を続けて当てたら、最初に当てた時刻から。
 #   記録が無い・previous に無い（前のバージョンの記録）なら、間が決まらないので 3（未確認）で終わる。
 # パッケージの置き場は /opt/andon（VERIFY_PACKAGE は tests/verify-andon.sh が偽の置き場を指すときだけ使う）。
