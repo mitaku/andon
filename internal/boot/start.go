@@ -16,6 +16,7 @@ import (
 
 	"andon/internal/delegate"
 	"andon/internal/dispatcher"
+	"andon/internal/otel"
 	"andon/internal/spawn"
 )
 
@@ -36,6 +37,7 @@ func Start(e Env) {
 		{"git の資格情報", setupGitCredentials},
 		{"portless", startPortless},
 		{"files サーバ", startFiles},
+		{"ハーネスの受け口", startOtel},
 		{"sshd", startSSHD},
 		{"前のバージョンの係の端末", dropStaleRoles},
 		{"dispatcher", startDispatcher},
@@ -191,6 +193,20 @@ func startFiles(e Env) error {
 		return fmt.Errorf("portless alias files %s: %v: %s", port, err, strings.TrimSpace(string(out)))
 	}
 	e.logf("files: http://files.%s.localhost:%s/ （files/ を読み取り公開）", e.Hostname, e.dotenv("PORTLESS_PORT", DefaultPortlessPort))
+	return nil
+}
+
+// startOtel はハーネスのトレースとログの受け口（andon otel serve）を、files サーバと同じ形で起動する（ADR-0060 決めたこと 4）。
+// andon の受け口がもう listen していれば何もしない。役は hc の端末からしか起動しないので、hc が無ければ起動しない
+// （送り手が無い。偽の PATH で boot を打つ検査が本物のポートに受け口を残さない）。起動し直す所は役の起動の口（andon otel env）にもある。
+func startOtel(e Env) error {
+	if _, ok := e.has("hc"); !ok || !otel.IsAndon(e.Self) { // go test のバイナリ（boot の Main の検査）から起動しない
+		return nil
+	}
+	if why := otel.Ensure(e.Self); why != "" {
+		return errors.New(why)
+	}
+	e.logf("ハーネスの受け口: http://%s （トレースとログを ~/.local/state/andon/otel/ に書く）", otel.Addr)
 	return nil
 }
 

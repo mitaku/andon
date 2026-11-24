@@ -57,6 +57,18 @@ const (
 	chiefOfStaffFolder = "chief-of-staff"
 )
 
+// RoleOf は課題のプロファイルから起動の記録の役を決める（Chief Engineer のプロファイルは chief-engineer、
+// 名前が -review で終わるプロファイルはレビュアー、ほかは担当）。起動の記録と andon otel env が同じ決め方で読む。
+func RoleOf(profile string) string {
+	switch {
+	case profile == RoleChiefEngineer:
+		return RoleChiefEngineer
+	case strings.HasSuffix(profile, "-review"):
+		return RoleReviewer
+	}
+	return RoleWorker
+}
+
 // Record は起動の記録の1行（schema/launch.schema.json）。
 type Record struct {
 	At           string          `json:"at"`

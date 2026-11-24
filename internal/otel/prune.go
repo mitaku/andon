@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"andon/internal/delegate"
 )
 
 // Limits は生の記録の寿命と上限（決めたこと 10）。
@@ -16,8 +18,24 @@ type Limits struct {
 	MaxBytes int64 // プロジェクトの置き場の合計がこれを超えたら、古いファイルから消す
 }
 
-// Default は既定の寿命と上限（30 日・10 GB。project.json の otel で替えるのは ADR-0060 の切る案 2）。
+// Default は既定の寿命と上限（30 日・10 GB）。project.json の otel で替える（LimitsOf。決めたこと 11）。
 var Default = Limits{Days: 30, MaxBytes: 10 << 30}
+
+// LimitsOf は project.json の otel（無ければ nil）から寿命と上限を決める。無いキーは既定のまま。
+// 送らない設定（enabled が false）でも片付けは回す（前に書いた記録を残し続けない）。
+func LimitsOf(o *delegate.Otel) Limits {
+	lim := Default
+	if o == nil {
+		return lim
+	}
+	if o.Days != nil {
+		lim.Days = *o.Days
+	}
+	if o.MaxGB != nil {
+		lim.MaxBytes = int64(*o.MaxGB) << 30
+	}
+	return lim
+}
 
 // pruneEvery は片付けを走らせる間（1 日に 1 回）。
 const pruneEvery = 24 * time.Hour
@@ -111,10 +129,11 @@ func Prune(dir string, now time.Time, lim Limits) (int, error) {
 	return removed, errs
 }
 
-// PruneDue は、前の片付けから 1 日たっていれば、プロジェクトの置き場を既定の寿命と上限で片付ける
-// （dispatcher が 1 巡ごとに呼ぶ。dispatcher.md §2.14・§7.2 #30）。走らせたら ran が true。
+// PruneDue は、前の片付けから 1 日たっていれば、プロジェクトの置き場を limits が返す寿命と上限で片付ける
+// （dispatcher が 1 巡ごとに呼ぶ。dispatcher.md §2.14・§7.2 #30）。limits は走らせるときだけ呼ぶ（project.json を読むのは 1 日に 1 回）。
+// 走らせたら ran が true。
 // 置き場が無いプロジェクトは何もしない。片付けが失敗しても印は書く（失敗を 1 分ごとに繰り返さず、次の日に走らせ直す）。
-func PruneDue(project string, now time.Time) (ran bool, removed int, err error) {
+func PruneDue(project string, now time.Time, limits func() Limits) (ran bool, removed int, err error) {
 	if !projectRe.MatchString(project) {
 		return false, 0, errors.New("プロジェクトの名前の形が違う: " + project)
 	}
@@ -130,7 +149,7 @@ func PruneDue(project string, now time.Time) (ran bool, removed int, err error) 
 	if st, err := os.Stat(stamp); err == nil && now.Sub(st.ModTime()) < pruneEvery && !st.ModTime().After(now) {
 		return false, 0, nil
 	}
-	removed, err = Prune(dir, now, Default)
+	removed, err = Prune(dir, now, limits())
 	if werr := touch(stamp, now); werr != nil {
 		err = errors.Join(err, werr)
 	}

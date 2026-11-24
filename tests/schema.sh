@@ -291,6 +291,7 @@ project|.signals[0]|source weight
 project|.signals[2]|source weight
 project|.digest|destinations
 project|.digest.destinations[0]|kind channel
+project|.otel|
 signal|.signals[0]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
 signal|.signals[1]|source project key url title weight fingerprint first_seen last_seen count active episodes delivered_episode
 launch|.harness|name version
@@ -600,6 +601,14 @@ fail|project|.chief_of_staff.idle_minutes = -1|idle_minutes が負
 fail|project|.chief_of_staff.idle_minutes = "15"|idle_minutes が文字列
 fail|project|.chief_of_staff.triage_max_tasks = .chief_of_staff.triage_max_issues | del(.chief_of_staff.triage_max_issues)|古いキー triage_max_tasks（project/2 は triage_max_issues）
 fail|project|.delegation.version = 2|委譲: 知らない version
+pass|project|del(.otel)|otel が無い（送り、30 日と 10 GB で回す）
+pass|project|.otel = {}|otel のキーが全部無い
+pass|project|.otel = {enabled: false}|otel: 送らない
+fail|project|.otel.enabled = "false"|otel: enabled が真偽値でない
+fail|project|.otel.days = 0|otel: days が 0
+fail|project|.otel.max_gb = 0|otel: max_gb が 0
+fail|project|.otel.days = 1.5|otel: days が整数でない
+fail|project|.otel += {endpoint: "http://127.0.0.1:4318"}|otel: 知らないキー（送り先は書けない）
 pass|project|.signals = []|signals が空（何も取りに行かない）
 pass|project|del(.signals)|signals が無い
 pass|project|.signals = [{source: "github-ci", weight: "now"}]|signals: repo も任意のキーも無い出所

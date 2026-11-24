@@ -124,6 +124,27 @@
           ]
         }
       }
+    },
+    "otel": {
+      "description": "The harness traces and logs (ADR-0060 decision 11). Read by andon otel env (whether role launches send to the receiver) and by the dispatcher's cleanup (the lifetime and the cap). Absent: send, and keep 30 days and 10 GB. Upper bounds (days 3650, max_gb 1048576) are checked by the command.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "false: role launches do not send. Default true.",
+          "type": "boolean"
+        },
+        "days": {
+          "description": "Raw records not written for this many days are removed. Default 30.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_gb": {
+          "description": "When the project's raw records exceed this many GB in total, the oldest are removed. Default 10.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   },
   "$defs": {

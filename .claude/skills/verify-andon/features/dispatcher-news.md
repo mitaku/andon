@@ -47,7 +47,8 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `package/hooks/`
 - `internal/flock/`
 - `internal/signal/`
-- `internal/otel/`
+- `internal/otel/otel.go`
+- `internal/otel/prune.go`
 - `internal/contract/impact.go`
 - `internal/issue/impact.go`
 - `cmd/kanban/routines.go`
@@ -71,6 +72,6 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `dn-signal` に偽の信号の出所を置く道は持たない。偽の出所で dispatcher を切り離して回しても、セルの本物の dispatcher が当てたあとに通知を作った証拠にならない。届けた記録は detail を持たないので、`release` が載ったかは、信号の出所（`project.json` の `signals`）を持つプロジェクトのあるセルで、記録だけの通知の detail を読んで見る。
 - 信号の記録（`<slug>.signals.json`）の `release` を、通知に載った証拠にしない。信号の記録は今の状態で、通知の中身でも、検証する commit が当たっていた間の状態でもない。届けた通知 signal に `release` が載ることは `tests/andon-dispatcher-signal.sh` と `go test ./internal/dispatcher/` が見ている。
 - 空きで撃つのは、`paused` でなく、片付いていない課題を持たないルーチンだけ。dispatcher は `paused` が無いか真偽値の false のときだけ撃ち、`true`・引用符の文字列・空の値では撃たない。道も YAML と同じく注釈（前に空白のある `#` から後）を外して読む。`idle_hours` はルーチンのファイルに Andon が読む欄で、1 以上の整数でない値は欄が無いものとして扱う。書いたルーチンが kanban に無ければ、`idle_hours` で撃つところは見られない。履歴の `fired` の行は、空きで撃ったか `schedule` で撃ったかを区別しない。どちらで撃ったかは dispatcher の端末のログ（`hc read dispatcher`）の行で読む。
-- dispatcher は巡ごとにハーネスの生の記録の片付け（`internal/dispatcher/otel.go`・`internal/otel/prune.go`）を呼ぶ。片付けは置き場（`~/.local/state/andon/otel/<slug>/`）が無ければ何もせず、失敗してもログに1行書くだけで巡を止めない。`dn-live` が見るのは、当てた dispatcher が片付けを含む巡を回し続けていることだけで、記録を消したことは見ない。消したかは dispatcher の端末のログ（`hc read dispatcher`）の「ハーネスの生の記録を N 本消した」の行と、置き場の `.pruned` の時刻で読む。受け口（`andon otel serve`）を誰も起動していないセルでは置き場ができず、その行も `.pruned` も現れない。そのときは片付けを未確認と書く。`internal/otel/otel.go` の受け口の本体（属性を落とす・秘密を伏せる・書く）も `dn-live` では動かないので、その部分を変えた差分で `dn-live` が ok でも、受け口を確かめたとは書かない。消し方と受け口は `go test ./internal/otel/` が見ている。
+- dispatcher は巡ごとにハーネスの生の記録の片付け（`internal/dispatcher/otel.go`・`internal/otel/prune.go`）を呼ぶ。片付けは置き場（`~/.local/state/andon/otel/<slug>/`）が無ければ何もせず、失敗してもログに1行書くだけで巡を止めない。`dn-live` が見るのは、当てた dispatcher が片付けを含む巡を回し続けていることだけで、記録を消したことは見ない。消したかは dispatcher の端末のログ（`hc read dispatcher`）の「ハーネスの生の記録を N 本消した」の行と、置き場の `.pruned` の時刻で読む。受け口（`andon otel serve`。boot と役の起動が起動する。機能の地図の `otel`）がまだ何も書いていないセルでは置き場ができず、その行も `.pruned` も現れない。そのときは片付けを未確認と書く。寿命と上限は `project.json` の `otel` から読むので、消えた本数は既定の 30 日と 10 GB と違うことがある。`internal/otel/otel.go` の受け口の本体（属性を落とす・秘密を伏せる・書く）も `dn-live` では動かないので、その部分を変えた差分で `dn-live` が ok でも、受け口を確かめたとは書かない。消し方と受け口は `go test ./internal/otel/` が見ている。
 - 通知 `idle` は課題を持たない。`dn-delivered` の行では課題が `-` になる。
 - 次の commit が当たると dispatcher は起動し直し、枠の空きの見回りは最初の回からやり直しになる。当てる間が `idle_minutes` の2倍より短い間は、ルーチンを撃つところは見られない。dn-idle の撃つところは未確認と書く。

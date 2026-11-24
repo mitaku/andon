@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"andon/internal/otel"
 )
 
 // otelCell は、Chief of Staff が生きている kanban を 1 つ持つ偽のセルを作り、dispatcher を返す。
@@ -47,7 +50,7 @@ func otelCell(t *testing.T) (*Dispatcher, *bytes.Buffer, string) {
 func TestPassOtelPruneFailureKeepsGoing(t *testing.T) {
 	c, logb, _ := otelCell(t)
 	calls := 0
-	c.OtelPrune = func(project string, _ time.Time) (bool, int, error) {
+	c.OtelPrune = func(project string, _ time.Time, _ func() otel.Limits) (bool, int, error) {
 		calls++
 		if project != "sample-site" {
 			t.Errorf("片付けに渡したプロジェクトが %q", project)
@@ -102,5 +105,80 @@ func TestPassOtelPruneRemovesOld(t *testing.T) {
 	c.Pass("")
 	if _, err := os.Stat(old); err != nil {
 		t.Errorf("同じ日の 2 度目の巡で片付けを走らせた: %v", err)
+	}
+}
+
+// putOwnerProject はセルの repo に、オーナーの commit の project.json を置く（body が project.json の中身）。
+func putOwnerProject(t *testing.T, ws, body, author string) {
+	t.Helper()
+	git := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", append([]string{"-C", ws}, args...)...)
+		c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	rel := filepath.Join("projects", "sample-site", "project.json")
+	if err := os.WriteFile(filepath.Join(ws, rel), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "andon.toml"), []byte("owner = \"owner@example.com\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("init", "-q")
+	git("add", rel)
+	git("-c", "user.name=o", "-c", "user.email="+author, "commit", "-q", "-m", "project")
+}
+
+// putOld は課題の置き場に、最後に書いたのが days 日前の生の記録を 1 本置く。
+func putOld(t *testing.T, state, id string, days int) string {
+	t.Helper()
+	dir := filepath.Join(state, "andon", "otel", "sample-site", "issues", id)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	f := filepath.Join(dir, "traces.jsonl")
+	if err := os.WriteFile(f, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	if err := os.Chtimes(f, at, at); err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// 片付けは寿命を project.json の otel.days から読む（ADR-0060 決めたこと 11）。7 日なら 8 日前のファイルを消し、6 日前は残す。
+func TestPassOtelPruneReadsProjectLimits(t *testing.T) {
+	c, logb, state := otelCell(t)
+	putOwnerProject(t, c.WS, `{"version":1,"project":{"title":"Sample","prefix":"S"},"repos":[],"otel":{"enabled":false,"days":7,"max_gb":1}}`, "owner@example.com")
+	old, fresh := putOld(t, state, "S-0001", 8), putOld(t, state, "S-0002", 6)
+	c.Pass("")
+	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("otel.days が 7 なのに 8 日前のファイルを消さない: %v", err)
+	}
+	if _, err := os.Stat(fresh); err != nil {
+		t.Errorf("6 日前のファイルを消した: %v", err)
+	}
+	if !strings.Contains(logb.String(), "寿命 7 日・上限 1 GB") || strings.Contains(logb.String(), "otel が読めない") {
+		t.Errorf("project.json の値で片付けたことがログに出ない:\n%s", logb.String())
+	}
+}
+
+// project.json が信じられない（オーナーの commit でない）ときは、既定の 30 日で片付け、ログに 1 行出す。
+func TestPassOtelPruneUnreadableProjectUsesDefault(t *testing.T) {
+	c, logb, state := otelCell(t)
+	putOwnerProject(t, c.WS, `{"version":1,"project":{"title":"Sample","prefix":"S"},"repos":[],"otel":{"days":7}}`, "someone@example.com")
+	old, kept := putOld(t, state, "S-0001", 31), putOld(t, state, "S-0002", 8)
+	c.Pass("")
+	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("31 日前のファイルを消さない: %v", err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("読めない project.json の days を使った（8 日前を消した）: %v", err)
+	}
+	if n := strings.Count(logb.String(), "project.json の otel が読めない"); n != 1 {
+		t.Errorf("読めないことのログが %d 行:\n%s", n, logb.String())
 	}
 }
