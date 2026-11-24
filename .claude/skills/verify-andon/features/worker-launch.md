@@ -8,6 +8,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   - 見るファイル: `internal/issue/start.go`、`internal/issue/resume.go`、`internal/issue/lock.go`、`internal/dispatcher/loop.go`、`internal/dispatcher/fallback.go`、`internal/dispatcher/resume.go`、`internal/launch/launch.go`、`internal/pkgversion/pkgversion.go`、`internal/sessionlog/sessionlog.go`、`internal/ledger/triagemade.go`、`process/states/reviewer.yaml`
 - `wl-terminal` 起動した端末のうち動いているものが、課題のラベル `issue=` を持つ。見る道: 検証の担当だけ。
   - 見るファイル: `internal/spawn/spawn.go`、`internal/spawn/term.go`、`process/states/worker.yaml`
+- `wl-resume` 当てたあとに `andon issue resume` で起動し直した端末（`launch` が `resume`）の最初のメッセージの最後の段落が、送り手の印 `[resume]` で始まる（オーナーの文と読まれない）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/resume.go`、`internal/spawn/spawn.go`
 - `wl-first-turn` 起動した担当が、最初の turn で依頼書を読んで動き出し、課題に書く（テンプレート・skill・`--append-system-prompt-file` の効き）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `package/templates/`、`package/skills/worker/`、`package/.claude-plugin/`、`package/settings.json`
 
@@ -30,6 +32,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh worker-launch <検証する commit>` を打つ。セルの本物の `projects/*/kanban/issues/*/library/launches.jsonl` を読むだけで、何も起動しない。
 - **記録を読む。** `wl-record` の行に、当てたあとの起動が1行ずつ（課題・役・`package.commit`・`package.drift`）出る。全部の `package.commit` が当てた commit で、`ok   wl-record` が見えれば動いた。
 - **端末を読む。** `wl-terminal` の行に、動いている端末の `hc get` のラベルが出る。`ok   wl-terminal` が見えれば動いた。
+- **resume の最初のメッセージを読む（`wl-resume`）。** 同じ `drive.sh` の出力の `wl-resume` の行を読む。道は、当てたあとの `launch` が `resume` の起動ごとに、まず `hc read <address> --lines 5000` の画面に「[resume] 課題 `<slug>/<id>` の続き」の行があるかを見る。無ければ、Claude Code の担当なら起動の記録の `session` のセッションの記録（`<CLAUDE_CONFIG_DIR>/projects/*/<session>.jsonl`）で、起動の `at` より後の最初の「の続き。セルが起き直した」の user の文を読み、貼った文の包みを外した最後の段落が `[resume] ` で始まるかを見る。`ok   wl-resume` が見えれば動いた。`FAIL wl-resume` は印の無い最初のメッセージで、壊れ。当てたあとの resume の起動が無いか、どれも画面と記録で読めなければ `note wl-resume` を出して終了コード 3（未確認）で終わる（`wl-record` と `wl-terminal` の行は確かめてある）。報告の `## Next` に「担当を `andon issue resume` で起動し直したあとで打ち直す」と書く。
 - **最初の turn を読む（`wl-first-turn`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）のうち `role` が `worker`、`launch` が `start` のものを `hc read <address>` で読み、依頼書のパスの入った最初のメッセージのあとに turn が進んだことを確かめる。担当が課題に書いたことは kanban の履歴で読む。`jq -c 'select(.id == "<id>" and .by == "terminal:<address>" and .at >= "<起動の at>" and .change.status != "doing")' <kanban>/log.jsonl` に行（`report`・`ask`・`status: review` など）が1行以上あり、`<kanban>/issues/<id>/library/report.json` の `plan` が1件以上あれば、担当が skill に従って依頼書を読んで動いた。`plan` は worker skill の計画の写しで、Stop フック（`andon issue stop-check`）は報告を促すが `plan` は促さない。報告の行だけで `plan` が無ければ、skill が効いた証拠にならないので未確認と書く。`doing` の行は数えない（start が担当の端末の名前で打った行で、担当は `doing` を見て `kanban start` を打たない。worker skill §1 の 4）。1行も無ければ、まだ最初の報告の前なので未確認と書き、壊れに数えない。起動したばかりの端末が無ければ、報告の `## Next` に「試しの課題を1件起動する」と書く。
   - 検証の担当自身も、当てたあとに Chief of Staff が起動した担当にあたる（`wl-record` に自分の課題が出る）。ほかに起動した担当が無ければ、自分の端末を `hc read <自分の address>` で読む。依頼書のパスの入った最初のメッセージのあとに turn が進んだことと、最初のメッセージの起動の文が `/opt/andon/templates/<プロファイル>.md` の今の文と同じことを確かめる。見たのが自分の端末だということを `evidence` に書く。課題に書いた行は、自分の `andon issue report` の行で足りる（ふだんの手順で報告を書いてから確かめる）。証拠を作るために `kanban start` を打たない。
 
@@ -74,4 +77,6 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `package.drift` と、記録の一番外の `drift` は別のもの。外の `drift` はセルの repo の commit していない変更でも true になるので見ない。
 - `andon issue start` は起動した担当の端末の名前で `kanban start` を1回打つ。`doing` の行は `by` が担当の端末でも start が打ったもので、担当が動いた証拠にしない。担当は `doing` を見て打ち直さないので、`doing` の行の数も見ない。
 - Claude Code の画面は打った command を畳む（`Ran 5 shell commands` など）。画面に `kanban start` が見えないことを、打たなかった証拠にしない。
+- `wl-resume` は `launch` が `resume` の起動だけを数える。`andon issue resume --fresh`（`launch` が `fresh`）の最初のメッセージは start と同じ形で印を付けないので、印が無いのは正しい。
+- Claude Code の画面は長い貼り付けを `[Pasted text #1 …]` に畳み、古い行は履歴から流れる。画面に印が見えないことを壊れの証拠にしない。壊れと言えるのは、セッションの記録の文の最後の段落に印が無いときだけ。Codex の担当はセッションの記録を読まないので、画面で見えなければ未確認。
 - 片付いた端末は `hc get` で取れない。`wl-terminal` は片付いたことを行に出すだけで、落ちとしない。
