@@ -11,6 +11,28 @@ name=$(curl -s -m 2 http://127.0.0.1:4318/ 2>/dev/null | tr -d '\r\n') || name=
 echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 [ "$name" = andon-otel ] && ok "ot-listen: 受け口が listen し、名前 andon-otel を返す" || fail "ot-listen: 受け口が listen していないか、ほかのプロセスがポートを取っている"
 
+# ot-applied: 受け口のプロセス（argv が「<パッケージ>/bin/andon otel serve」）の実体が当てたパッケージで、起動の時刻が最後に当てた時刻より後（今の状態）
+rpid=
+for p in /proc/[0-9]*; do
+  mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
+  if [ "${#argv[@]}" = 3 ] && [ "${argv[0]}" = "$pkg/bin/andon" ] && [ "${argv[1]} ${argv[2]}" = "otel serve" ]; then rpid=${p#/proc/}; fi
+done
+if [ -z "$rpid" ]; then
+  fail "ot-applied: $pkg/bin/andon otel serve のプロセスが無い"
+else
+  exe=$(readlink "/proc/$rpid/exe" 2>/dev/null) || exe=
+  st=$(cat "/proc/$rpid/stat" 2>/dev/null) || st=
+  read -ra f <<<"${st##*) }"
+  btime=$(awk '/^btime /{print $2}' /proc/stat)
+  started_ms=$((btime * 1000 + ${f[19]:-0} * 1000 / $(getconf CLK_TCK))) # stat の 22 番目（状態から数えて 20 番目）は起動からの tick
+  echo "-- ot-applied: pid $rpid・実体 ${exe:-読めない}・起動 $(date -u -d "@$((started_ms / 1000))" +%Y-%m-%dT%H:%M:%SZ)"
+  if [ -n "$exe" ] && [[ "$exe" != *"(deleted)" ]] && [ "$started_ms" -ge "$now_ms" ]; then
+    ok "ot-applied: 受け口の実体は当てたパッケージで、最後に当てた時刻より後に起動している"
+  else
+    fail "ot-applied: 受け口が前のパッケージのまま動いている（実体が消えたファイルか、起動が最後に当てた時刻より前）"
+  fi
+fi
+
 # ot-codex: 当てたあとに Codex のプロファイルで起動した課題ごとに、置き場の traces.jsonl と logs.jsonl を読む（ADR-0060 受け入れ条件 17）。
 # 記録が無いことは報告に書く条件なので、note にして道の終了コードを変えない。個人の属性かツールの出力が残っていれば fail。
 # 数えるのは、その課題を当てたあとに Codex で最初に起動した時刻より後の時刻（span の startTimeUnixNano・ログの timeUnixNano）を

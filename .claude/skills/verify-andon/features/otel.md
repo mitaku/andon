@@ -6,6 +6,8 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 
 - `ot-listen` 受け口が `127.0.0.1:4318` で listen し、`GET /` が名前 `andon-otel` を返す。見る道: 検証の担当だけ。
   - 見るファイル: `internal/otel/serve.go`、`internal/otel/env.go`
+- `ot-applied` 当てたあと、listen している受け口のプロセス（`/opt/andon/bin/andon otel serve`）の実体が当てたパッケージで（`/proc/<pid>/exe` が `(deleted)` でない）、起動の時刻が最後に当てた時刻より後。`image/apply-main.sh` の apply と revert が受け口を止め、打ち直した boot が当てたパッケージで起動し直す。見る道: 検証の担当だけ。
+  - 見るファイル: `image/apply-main.sh`
 - `ot-records` 当てたあとに起動した Claude Code の担当の課題の `traces.jsonl` に `claude_code.llm_request` の span があり、resource 属性に `andon.issue` と `andon.role` があり、`user.email` を持つ行が無い。見る道: 検証の担当だけ。
   - 見るファイル: `internal/otel/otel.go`、`internal/otel/env.go`、`internal/otel/prune.go`、`package/templates/`
 - `ot-codex` 当てたあとに Codex のプロファイル（`codex`・`codex-review`）で起動した課題の置き場に、Codex の記録（`traces.jsonl` か `logs.jsonl`）が 1 行以上あり、resource 属性に `andon.issue` と `andon.role` があり、`user.email` と `codex.tool_result` の `output` を持つ行が無い。見る道: 検証の担当だけ。
@@ -28,6 +30,7 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh otel <検証する commit>` を打つ。受け口に `GET /` を打ち、置き場のファイルを読むだけで、何も起動しない・止めない。
 - **受け口を読む（`ot-listen`）。** `ok   ot-listen` が見えれば、受け口が listen している。
+- **受け口が当てたパッケージで動いているかを読む（`ot-applied`）。** `ok   ot-applied` が見えれば、受け口の実体は当てたパッケージで、当てたあとに起動している。`fail` なら当てる道具が受け口を起動し直していない（前のパッケージの受け口が、前のコードで記録を書いている）。
 - **記録を読む（`ot-records`。ADR-0060 受け入れ条件 14）。** 記録は、Chief of Staff が起動した担当が 1 ターン以上動いたあとに読む。当てたあとの起動ごとに、課題の `traces.jsonl` の数が出る。`ok   ot-records` が見えれば、`claude_code.llm_request` と `andon.issue`・`andon.role` が載り、`user.email` が落ちている。証拠には、同じ置き場に打った `jq -c 'select(.resourceSpans[0].scopeSpans[].spans[].name == "claude_code.llm_request") | .resourceSpans[0].resource.attributes | map(select(.key | startswith("andon."))) ' ~/.local/state/andon/otel/<slug>/issues/<id>/traces.jsonl | sort -u` の出力と、`grep -c '"user.email"' <同じファイル>` が 0 であることを添える。
 - **Codex の記録を読む（`ot-codex`。ADR-0060 受け入れ条件 17）。** 記録は、当てたあとに Codex のプロファイルで起動したレビュアー（か担当）が 1 ターン以上動いたあとに読む。Codex の起動ごとに、課題の `traces.jsonl` と `logs.jsonl` の行の数が出る。`ok   ot-codex` が見えれば、Codex の記録が課題に結ばれて書かれ、個人の属性とツールの出力の写しが落ちている。記録が無いときは `note` が出て、道の終了コードは変わらない（受け入れ条件 17 は、無いこと自体を報告に書く条件）。そのときは、`hc read <その起動の端末>` で Codex が立ち上がったかと、受け口のログ（`/tmp/andon-otel.log` の「書かずに捨てた」の行）を読み、どちらの欠けかを報告に書く。証拠には、`jq -c '(.resourceSpans // .resourceLogs)[0].resource.attributes | map(select(.key | startswith("andon.")))' ~/.local/state/andon/otel/<slug>/issues/<id>/*.jsonl | sort -u` の出力と、`grep -c '"user.email"' <同じファイル>` が 0 であることを添える。
 - **受け口が止まっていても起動が通ることを読む（`ot-restart`。ADR-0060 受け入れ条件 15）。** 検証の担当は自分で担当を起動しない。報告の `## Next` に「受け口を止めてから試しの課題を 1 件起動する」と書き、Chief of Staff に頼む。止め方は、`ss -ltnp 'sport = :4318'` で受け口の PID を引いて `kill <PID>` する（`pkill -f` は使わない）。止めたあと `curl -s -m 2 http://127.0.0.1:4318/` が返らないことを確かめる。Chief of Staff が起動した担当の端末を `hc read <address>` で読み、Claude Code が立ち上がったことを確かめる。起動のあと `curl -s -m 2 http://127.0.0.1:4318/` が `andon-otel` を返すこと、その担当の端末が片付いたあと（`hc get <address>` が見つからない）にも同じく返すことを確かめ、打った command と出力を報告に書く。
@@ -36,6 +39,7 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 
 - `internal/otel/`
 - `package/templates/`
+- `image/apply-main.sh`
 
 ## 既に見ている検査
 
