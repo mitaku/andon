@@ -8,7 +8,7 @@
 set -euo pipefail
 [ $# = 1 ] && [ -n "$1" ] || { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 map=$(cd "$(dirname "$0")/../features" && pwd)
-changed=$(git diff --name-only --no-renames "$1")
+changed=$(git -c core.quotepath=off diff --name-only --no-renames "$1") # ASCII でないパスを引用符で包ませない
 
 # hits <部分> <パス>: パスが部分に入るか
 hits() {

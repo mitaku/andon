@@ -90,7 +90,7 @@ inpart() {
     *) [[ "$2" == "$1" ]] ;;
   esac
 }
-tracked=$(git -C "$root" ls-files -- internal cmd package schema process init image | grep -vE '_test\.go$|(^|/)testdata/' | grep -vE '^internal/([^/]+/)*([a-z]+)/\2test/' || true)
+tracked=$(git -C "$root" -c core.quotepath=off ls-files -- internal cmd package schema process init image | grep -vE '_test\.go$|(^|/)testdata/' | grep -vE '^internal/([^/]+/)*([a-z]+)/\2test/' || true)
 [ "$(grep -c '^internal/.*\.go$' <<<"$tracked")" -gt 100 ] || die "git ls-files から internal/ の Go のファイルが読めない（下の確かめが何も見ない）"
 allparts=() seeall=()
 for name in $files; do
@@ -111,8 +111,7 @@ for name in $files; do
     esac
     under=false
     for p in "${parts[@]}"; do
-      if inpart "$p" "$e"; then under=true; break; fi
-      if [[ "$e" == */ && "$p" == "$e"* ]]; then under=true; break; fi
+      if inpart "$p" "$e"; then under=true; break; fi # 置き場の e も、p と同じか p の下だけ（p より広い置き場は外のファイルまで名指す）
     done
     [ "$under" = true ] || die "$f の見るファイル $e が、同じ機能の変えたら動かすパスの下に無い（features.sh が、$e の差分でこの機能を選ばない）"
   done
@@ -226,6 +225,9 @@ if [ "$self" = true ]; then
   [ -z "$out" ] || die "features.sh: testdata/ とテスト用の package（ledgertest）だけの差分で $out を出す"
   c11=$(put internal/gate/latest/x.go x)
   [ "$(feat "$c10..$c11")" = gate ] || die "features.sh: 名前が test で終わるだけの置き場（internal/gate/latest/）の差分で gate を返さない: $(feat "$c10..$c11" | tr '\n' ' ')"
+  # git は ASCII でないパスを既定で "…\346…" と引用符で包んで出す。包んだまま読むと、どの機能にも当たらず黙って抜ける
+  c12=$(put internal/gate/新しい.go x)
+  [ "$(feat "$c11..$c12")" = gate ] || die "features.sh: ASCII でない名前のファイル（internal/gate/新しい.go）の差分で gate を返さない: $(feat "$c11..$c12" | tr '\n' ' ')"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "features.sh: 範囲が無いのに終了コード $rc（2 でない）"
   rc=0; bash "$skill/scripts/drive.sh" no-such-feature 0123456789abcdef0123456789abcdef01234567 2>/dev/null || rc=$?
@@ -261,6 +263,9 @@ if [ "$self" = true ]; then
   broke '見るファイル: 」の行の無いものがある: - `ms-flow`' "$tmp/j"
   cp -r "$skill" "$tmp/k" && sed -i '/^  - 見るファイル: /s/`package\/gate\.json`$/`package\/settings.json`/' "$tmp/k/features/gate.md"
   broke '見るファイル package/settings.json が、同じ機能の変えたら動かすパスの下に無い' "$tmp/k"
+  cp -r "$skill" "$tmp/l" && sed -i '/^  - 見るファイル: /s/`package\/hooks\/`、`package\/settings\.json`/`package\/`、`package\/settings.json`/' "$tmp/l/features/hooks.md"
+  grep -qF '見るファイル: `package/`、' "$tmp/l/features/hooks.md" || die "写し l の hk-wired を package/ に替えられない（自分の確かめが何も見ない）"
+  broke '見るファイル package/ が、同じ機能の変えたら動かすパスの下に無い' "$tmp/l"
   ok "verify-andon: 地図のファイルを消す・無い command を名指す・無いパスを書く・設定を外す・drive.sh の commit を省ける書き方にする・足したファイルを見るファイルに名指さない・地図の外に package を置く・見るファイルの書き方を誤ると、この検査が落ちる"
 fi
 
