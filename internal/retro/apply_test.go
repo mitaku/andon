@@ -72,8 +72,8 @@ func applyFixture(t *testing.T, state string) (*ledger.Ledger, func() []string) 
 // andonPlans は、担当の課題になるパターン p1 と、Andon の repo を持たないプロジェクトでオーナーの課題になるパターン p2 の計画。
 func andonPlans() []plan {
 	in := &Input{}
-	p1 := planOf("S-0020", Pattern{ID: "p1", Summary: "直す A", Target: Target{Kind: "project", Repo: "github.com/example/app", Paths: []string{"AGENTS.md"}}}, in, []string{"github.com/example/app"})
-	p2 := planOf("S-0020", Pattern{ID: "p2", Summary: "B", Target: Target{Kind: "andon", Paths: []string{"package/skills/worker/SKILL.md"}}}, in, []string{"github.com/example/app"})
+	p1 := planOf("S-0020", Pattern{ID: "p1", Summary: "直す A", Target: Target{Kind: "project", Repo: "github.com/example/app", Paths: []string{"AGENTS.md"}}}, in, []string{"github.com/example/app"}, "")
+	p2 := planOf("S-0020", Pattern{ID: "p2", Summary: "B", Target: Target{Kind: "andon", Paths: []string{"package/skills/worker/SKILL.md"}}}, in, []string{"github.com/example/app"}, "")
 	return []plan{p1, p2}
 }
 
@@ -228,4 +228,76 @@ func TestApplyRerunRestoresMissingQuestionJSON(t *testing.T) {
 		t.Errorf("問いの数: %d（1 つのまま）。打った CLI %q", n, logged())
 	}
 	checkOwnerQuestion(t, l, "S-0021")
+}
+
+// 振り返りが切った依頼書の根拠の行には、その課題の出来事の中身を開く記録（report.md・日報・レビュアーの子の報告と findings.json）
+// のうち在るもののパスが載る。直す担当が日報や指摘を grep で探し直さない。本文は写さない。要約の束（レビュアーの子を持たない）でも、
+// 全文の束（Reviews を持つ）でも、置き場の <親>-r<回> から引く。無い記録のパスと、ほかの課題のレビュアーの記録は載せない。
+func TestPlanEvidencePaths(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "kanban")
+	issues := filepath.Join(dir, "issues")
+	files := map[string]string{
+		// 要約の束: 報告・日報・レビュアーの子 2 回（回の順は名前の順でなく数の順）
+		"A-0283/report.md":                 "担当の報告の本文",
+		"A-0283/library/journal.md":        "日報の本文",
+		"A-0283-r1/report.md":              "レビュアーの報告の本文",
+		"A-0283-r1/library/findings.json":  `{"commit":"x","findings":[]}`,
+		"A-0283-r10/library/findings.json": `{"commit":"y","findings":[]}`,
+		"A-0283-r2/report.md":              "2 回目の報告",
+		"A-02830-r1/report.md":             "番号の違う課題のレビュアー",
+		"A-0283-rx/report.md":              "回の形でない",
+		// 全文の束: 日報は無い。レビュアーの子は Reviews にも置き場にもある
+		"A-0219/report.md":                "担当の報告",
+		"A-0219-r1/report.md":             "レビュアーの報告",
+		"A-0219-r1/library/findings.json": `{"commit":"z","findings":[]}`,
+	}
+	for rel, body := range files {
+		p := filepath.Join(issues, rel)
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pr := "https://github.com/example/app/pull/468"
+	in := &Input{
+		Summaries: []Summary{{ID: "A-0283", Title: "mod の検査で直し直した", DoneAt: "2026-11-21T23:48:16Z", PR: &pr}},
+		Issues:    []Bundle{{ID: "A-0219", Title: "検査の穴が素通りした", DoneAt: "2026-11-21T08:51:53Z", Reviews: []Review{{ID: "A-0219-r1"}}}},
+	}
+	p := Pattern{ID: "p6", Summary: "根拠に中身へ辿る道が無い", Evidence: []string{"A-0283", "A-0219"},
+		Target: Target{Kind: "project", Repo: "github.com/example/app", Paths: []string{"internal/retro/apply.go"}}}
+	pl := planOf("A-0372", p, in, []string{"github.com/example/app"}, dir)
+
+	lines := strings.Split(pl.Brief, "\n")
+	pathsAfter := func(head string) string {
+		for i, l := range lines {
+			if strings.HasPrefix(l, head) && i+1 < len(lines) {
+				return lines[i+1]
+			}
+		}
+		t.Fatalf("依頼書に %q の行が無い:\n%s", head, pl.Brief)
+		return ""
+	}
+	at := func(rel ...string) string {
+		var out []string
+		for _, r := range rel {
+			out = append(out, filepath.Join(issues, r))
+		}
+		return "  中身の置き場（本文は写さない）: " + strings.Join(out, " ")
+	}
+	if got, want := pathsAfter("- A-0283: "), at("A-0283/report.md", "A-0283/library/journal.md", "A-0283-r1/report.md",
+		"A-0283-r1/library/findings.json", "A-0283-r2/report.md", "A-0283-r10/library/findings.json"); got != want {
+		t.Errorf("要約の束の根拠の次の行:\n got %q\nwant %q", got, want)
+	}
+	if got, want := pathsAfter("- A-0219: "), at("A-0219/report.md", "A-0219-r1/report.md", "A-0219-r1/library/findings.json"); got != want {
+		t.Errorf("全文の束の根拠の次の行（日報は無いので載せない。レビュアーの子は1回だけ）:\n got %q\nwant %q", got, want)
+	}
+	for _, body := range files {
+		if strings.Contains(pl.Brief, body) {
+			t.Errorf("依頼書に記録の本文 %q を写した", body)
+		}
+	}
+	// 置き場を渡さないとき（dir が空）は、パスの行を書かない
+	if pl := planOf("A-0372", p, in, []string{"github.com/example/app"}, ""); strings.Contains(pl.Brief, "中身の置き場") {
+		t.Errorf("置き場が空なのにパスの行を書いた:\n%s", pl.Brief)
+	}
 }

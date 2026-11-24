@@ -36,8 +36,8 @@ func (r *retroFault) setup(t *testing.T) {
 	}
 	in, repos := &Input{}, []string{"github.com/example/app"}
 	r.plans = []plan{
-		planOf(faultRetro, Pattern{ID: "p1", Summary: "直す A", Target: Target{Kind: "project", Repo: "github.com/example/app", Paths: []string{"AGENTS.md"}}}, in, repos),
-		planOf(faultRetro, Pattern{ID: "p2", Summary: "B", Target: Target{Kind: "andon", Paths: []string{"package/skills/worker/SKILL.md"}}}, in, repos),
+		planOf(faultRetro, Pattern{ID: "p1", Summary: "直す A", Target: Target{Kind: "project", Repo: "github.com/example/app", Paths: []string{"AGENTS.md"}}}, in, repos, ""),
+		planOf(faultRetro, Pattern{ID: "p2", Summary: "B", Target: Target{Kind: "andon", Paths: []string{"package/skills/worker/SKILL.md"}}}, in, repos, ""),
 	}
 }
 

@@ -171,7 +171,7 @@ func runApply(root, id string, dry bool, stdout io.Writer) error {
 			dropped = append(dropped, Dropped{Pattern: x.ID, Reason: x.Reason})
 			continue
 		}
-		plans = append(plans, planOf(id, x, col, repos))
+		plans = append(plans, planOf(id, x, col, repos, l.Dir))
 	}
 	if dry {
 		out := map[string]any{"retro": id, "issues": plans, "dropped": dropped}
@@ -356,7 +356,8 @@ func list(ids []string) string {
 
 // planOf は fix のパターン1つから足す課題を組む。直す先が Andon のパッケージで、その repo をこのプロジェクトが持たなければ
 // オーナーの課題（決めたこと 2）。依頼書には要約・根拠・直す先・期待する効果・リスクを入れ、オーナーが打った文の本文は写さない。
-func planOf(retro string, x Pattern, in *Input, repos []string) plan {
+// dir は kanban の置き場（<根>/kanban）。根拠の課題ごとに、そこに在る記録のパスを書く（evidencePaths）。
+func planOf(retro string, x Pattern, in *Input, repos []string, dir string) plan {
 	pl := plan{Pattern: x.ID, Who: "worker", Title: x.Summary, Repo: x.Target.Repo}
 	if toOwner(x.Target, repos) {
 		pl.Who, pl.Repo = "person", ""
@@ -396,6 +397,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	}
 	b.WriteString("\n## 根拠（セルの中の記録。PR に写さない）\n")
 	var prs []string
+	rounds := reviewRounds(dir)
 	for _, ev := range x.Evidence {
 		if i := slices.IndexFunc(in.Issues, func(bd Bundle) bool { return bd.ID == ev }); i >= 0 {
 			bd := in.Issues[i]
@@ -407,6 +409,11 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 				}
 			}
 			fmt.Fprintf(&b, "- %s: %s（課題。%s に片付いた。%s）\n", bd.ID, bd.Title, bd.DoneAt, pr)
+			var known []string
+			for _, rv := range bd.Reviews {
+				known = append(known, rv.ID)
+			}
+			writePaths(&b, evidencePaths(dir, bd.ID, append(known, rounds[bd.ID]...)))
 			continue
 		}
 		if i := slices.IndexFunc(in.Summaries, func(sm Summary) bool { return sm.ID == ev }); i >= 0 {
@@ -419,6 +426,7 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 				}
 			}
 			fmt.Fprintf(&b, "- %s: %s（課題。%s に片付いた。%s）\n", sm.ID, sm.Title, sm.DoneAt, pr)
+			writePaths(&b, evidencePaths(dir, sm.ID, rounds[sm.ID]))
 			continue
 		}
 		if i := slices.IndexFunc(in.Typed, func(t Typed) bool { return t.ID == ev }); i >= 0 {
@@ -438,4 +446,66 @@ func planOf(retro string, x Pattern, in *Input, repos []string) plan {
 	fmt.Fprintf(&b, "辿り方: 振り返りの課題 %s の library/%s のパターン %s。\n", retro, retroFile, x.ID)
 	pl.Brief = b.String()
 	return pl
+}
+
+// reviewRounds は kanban の置き場 dir の issues/ にあるレビュアーの課題（<親>-r<回>）を、親ごとに回の順で返す。
+// 要約の束はレビュアーの子を持たないので、置き場から引く。読めなければ空（根拠の行にパスを書かないだけ）。
+func reviewRounds(dir string) map[string][]string {
+	out := map[string][]string{}
+	if dir == "" {
+		return out
+	}
+	ents, err := os.ReadDir(filepath.Join(dir, "issues"))
+	if err != nil {
+		return out
+	}
+	round := map[string]int{}
+	for _, e := range ents {
+		parent, k, ok := ledger.SplitRound(e.Name())
+		if !ok || !e.IsDir() {
+			continue
+		}
+		round[e.Name()] = k
+		out[parent] = append(out[parent], e.Name())
+	}
+	for _, ids := range out {
+		slices.SortFunc(ids, func(a, b string) int { return round[a] - round[b] })
+	}
+	return out
+}
+
+// evidencePaths は根拠の課題 id の出来事の中身を開く記録のうち、置き場 dir に在るもののパス（絶対パス）を返す:
+// 課題の report.md・日報（library/journal.md）と、レビュアーの子（reviews。重なりは1つ）ごとの report.md・library/findings.json。
+// 本文は写さない（直す担当が開く）。dir が空か、どれも無ければ空。
+func evidencePaths(dir, id string, reviews []string) []string {
+	if dir == "" {
+		return nil
+	}
+	if a, err := filepath.Abs(dir); err == nil {
+		dir = a
+	}
+	issues := filepath.Join(dir, "issues")
+	want := []string{filepath.Join(issues, id, "report.md"), filepath.Join(issues, id, "library", journalFile)}
+	var seen []string
+	for _, rid := range reviews {
+		if slices.Contains(seen, rid) {
+			continue
+		}
+		seen = append(seen, rid)
+		want = append(want, filepath.Join(issues, rid, "report.md"), filepath.Join(issues, rid, "library", "findings.json"))
+	}
+	var out []string
+	for _, p := range want {
+		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// writePaths は根拠の行の下に、中身を開く記録のパスを1行で足す（字下げして、要約の行を先に読めるようにする）。無ければ書かない。
+func writePaths(b *strings.Builder, paths []string) {
+	if len(paths) > 0 {
+		b.WriteString("  中身の置き場（本文は写さない）: " + strings.Join(paths, " ") + "\n")
+	}
 }

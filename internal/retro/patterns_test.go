@@ -234,7 +234,7 @@ func TestPlan(t *testing.T) {
 	in := patternsInput()
 	in.Typed[1].Text = "オーナーが打った本文"
 	p := pattern("S-0012", "h-b")
-	pl := planOf("S-0020", p, in, repos)
+	pl := planOf("S-0020", p, in, repos, "")
 	if pl.Who != "worker" || pl.Repo != "github.com/example/sample-site" || pl.Title != p.Summary {
 		t.Fatalf("直す課題: %+v", pl)
 	}
@@ -267,17 +267,17 @@ func TestPlan(t *testing.T) {
 	p.Target = Target{Kind: "andon", Repo: "github.com/example/andon", Paths: []string{"package/skills/worker/SKILL.md"}}
 	p.Level, p.NotUpstream = "skill", "手順の抜けで、機械が確かめる値が無い"
 	for name, rs := range map[string][]string{"repos に無い": repos, "repos が空": nil} {
-		pl := planOf("S-0020", p, in, rs)
+		pl := planOf("S-0020", p, in, rs, "")
 		if pl.Who != "person" || pl.Repo != "" || !strings.HasPrefix(pl.Title, "Andon へ伝えるか: ") {
 			t.Errorf("%s: オーナーの課題でない: %+v", name, pl)
 		}
 	}
-	pl = planOf("S-0020", p, in, append(repos, "github.com/example/andon"))
+	pl = planOf("S-0020", p, in, append(repos, "github.com/example/andon"), "")
 	if pl.Who != "worker" || pl.Repo != "github.com/example/andon" || !strings.Contains(pl.Brief, "上の段で止められない理由: 手順の抜け") {
 		t.Errorf("Andon の repo を持つプロジェクトでは直す課題: %+v", pl)
 	}
 	p.Target.Repo = ""
-	if pl := planOf("S-0020", p, in, append(repos, "github.com/example/andon")); pl.Who != "person" {
+	if pl := planOf("S-0020", p, in, append(repos, "github.com/example/andon"), ""); pl.Who != "person" {
 		t.Errorf("repo の無い Andon の直しはオーナーの課題: %+v", pl)
 	}
 }
