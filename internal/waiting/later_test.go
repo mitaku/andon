@@ -170,7 +170,10 @@ func TestLaterUntil(t *testing.T) {
 	f.row("2026-11-21T06:00:00Z", "terminal:t1", "S-0007", `{"later_until":null}`)
 	// 文字列でない値（kanban を通さずに書いた issue.yaml。引用符の無い日付）は、形の違う値として日が来たものと読む
 	f.decision("S-0008", f.later("S-0008", "t1", why), "later_until: 2026-11-30")
+	// 末尾に空白のある日付は形が違う（空白を落として未来の日付と読まない）
+	f.decision("S-0009", f.later("S-0009", "t1", why), until(f, "S-0009", "t1", "2099-12-31 "))
 	r = f.read()
+	wantCall(t, r, "S-0009#1", true, why)
 	wantCall(t, r, "S-0006#1", true, why)
 	wantCall(t, r, "S-0007#1", false, why)
 	wantCall(t, r, "S-0008#1", true, why)

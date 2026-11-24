@@ -95,7 +95,7 @@ type issue struct {
 	updated   string
 	onlyOwner string // 手作業の印（予約キー only_owner の 1 行目。ADR-0057 決めたこと 3）
 	later     string // 置いておく印（予約キー later の 1 行目。ADR-0062 決めたこと 3）
-	until     string // 予約キー later_until（YYYY-MM-DD）
+	until     string // 予約キー later_until（YYYY-MM-DD。前後の空白は落とさず、形の違う値として読む）
 	untilBad  bool   // later_until が文字列でない（kanban を通さずに書いた引用符の無い日付など。日が来たものとして読む）
 	questions []question
 }
@@ -191,7 +191,7 @@ func readIssues(dir string) ([]*issue, []string) {
 		raw["id"] = id
 		t := &issue{raw: raw, dir: filepath.Join(dir, "issues", e.Name()), id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
 			who: raw.Str("who"), notBefore: raw.Str("not_before"), created: raw.Str("created"), updated: raw.Str("updated"),
-			onlyOwner: firstLine(raw.Str("only_owner")), later: firstLine(raw.Str("later")), until: strings.TrimSpace(raw.Str("later_until"))}
+			onlyOwner: firstLine(raw.Str("only_owner")), later: firstLine(raw.Str("later")), until: raw.Str("later_until")}
 		if list, ok := raw["after"].([]any); ok {
 			for _, a := range list {
 				if s, ok := a.(string); ok && s != "" {
