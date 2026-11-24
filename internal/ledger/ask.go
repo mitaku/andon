@@ -61,10 +61,28 @@ func ownerBrief(q *contract.Question) string {
 	return b.String()
 }
 
-// NewOwnerQuestion はオーナーの課題を足し、who: person を書き、問いを置く（andon issue ask --new。ADR-0057 決めたこと 7）。
+// Mark は、オーナーの課題を足すときに書く置いておく印（予約キー later と later_until。ADR-0062 決めたこと 3・10）。
+// 空の Later は呼ぶ課題で、何も書かない。印を信じるのは Chief of Staff の端末が書いたときだけなので、呼ぶ側が端末を確かめる。
+type Mark struct {
+	Later string
+	Until string
+}
+
+func (m Mark) keys() []string {
+	if m.Later == "" {
+		return nil
+	}
+	kv := []string{"later=" + m.Later}
+	if m.Until != "" {
+		kv = append(kv, "later_until="+m.Until)
+	}
+	return kv
+}
+
+// NewOwnerQuestion はオーナーの課題を足し、who: person と印 m を書き、問いを置く（andon issue ask --new。ADR-0057 決めたこと 7）。
 // 足した id と kanban の CLI の返事（<id>#<n>）を返す。
-func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []string) (string, string, error) {
-	return l.NewOwnerIssue(q, ownerTitle(q), ownerBrief(q), parent, after)
+func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []string, m Mark) (string, string, error) {
+	return l.NewOwnerIssue(q, ownerTitle(q), ownerBrief(q), parent, after, m)
 }
 
 // NewOwnerIssue は NewOwnerQuestion の、タイトルと依頼書を呼ぶ側が決める口（振り返りの apply は今のタイトルと依頼書のまま
@@ -75,7 +93,8 @@ func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []s
 // 書く前や問いを置く前に落ちた回の打ち直し）。問いを持っていれば、同じ問いを 2 つ足さないよう断る。ただし問いが q と同じ 1 つだけで、
 // 問いの控えが無ければ（kanban ask のあと控えを書く前に落ちた回）、控えだけを書き直して続ける（RestoreQuestion）。
 // 足した id と kanban の CLI の返事（<id>#<n>）を返す。課題を足したあとで落ちたら、足した id と打ち直す command を誤りに書く。
-func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string, after []string) (string, string, error) {
+// 印 m は who と同じ kanban set で、問いを置く前に書く（問いを置いたあとに落ちると、打ち直しは同じ問いとして断るので、印が書けない）。
+func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string, after []string, m Mark) (string, string, error) {
 	if q.Kind == "scope" {
 		return "", "", fmt.Errorf("scope の問いはオーナーの課題に置かない（Chief of Staff が答える問い。kind は business/users/promise/irreversible/line）")
 	}
@@ -110,8 +129,8 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 			return "", "", fmt.Errorf("kanban の CLI の返事から課題の id が読めない: %q", id)
 		}
 	}
-	if _, err := l.Run("", "set", id, "who=person"); err != nil {
-		return id, "", fmt.Errorf("課題 %s を足したが who: person を書けなかった（%v）。同じ command を打ち直すと続きから置く", id, err)
+	if _, err := l.Run("", append([]string{"set", id, "who=person"}, m.keys()...)...); err != nil {
+		return id, "", fmt.Errorf("課題 %s を足したが who: person と印を書けなかった（%v）。同じ command を打ち直すと続きから置く", id, err)
 	}
 	out, err := l.Ask(id, q)
 	if err != nil {

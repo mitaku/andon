@@ -6,7 +6,7 @@
 # === 33. オーナーの課題の作り方（ADR-0057） ===
 aobo3() { sed -n '/^## 3\. /,/^## 4\. /p' "$1"; }
 s3=$(aobo3 package/skills/ask-one-by-one/SKILL.md)
-grep -qF 'andon issue ask --new -' <<<"$s3" && grep -qF 'only_owner="<' <<<"$s3" \
+grep -qF 'andon issue ask --new --now -' <<<"$s3" && grep -qF 'only_owner="<' <<<"$s3" \
   && pass "ADR-0057 A15: ask-one-by-one §3 は判断を andon issue ask --new、手作業を only_owner の印で作ると書く" \
   || fail "ADR-0057 A15: ask-one-by-one §3 に andon issue ask --new か only_owner の手順が無い"
 # 古い手順: kanban add の結果を id に受けて、そのあと kanban set "$id" who=person を打つ。「判断がつかない」で貯める文
@@ -20,6 +20,6 @@ printf '%s\n' '## 3. 問い' 'kanban set "$id" who=person' '`kind: 判断がつ�
 [ "$(aobo3 "$tmp/aobo/SKILL.md" | grep -cE "$old_steps")" = 2 ] \
   && pass "ADR-0057 A15: 古い手順の検査は、古い §3 の写しで 2 行とも当たる" || fail "ADR-0057 A15: 古い手順の検査が古い §3 の写しに当たらない"
 cutmd=package/skills/chief-of-staff/playbooks/cut.md
-grep -qF 'andon issue ask --new -' "$cutmd" && grep -qF 'only_owner="<' "$cutmd" && grep -qF 'ask-one-by-one skill §3' "$cutmd" \
+grep -qF 'andon issue ask --new --now -' "$cutmd" && grep -qF 'andon issue ask --new --later "<' "$cutmd" && grep -qF 'only_owner="<' "$cutmd" && grep -qF 'ask-one-by-one skill §3' "$cutmd" \
   && pass "ADR-0057 A15: cut.md はオーナーの課題を ask-one-by-one §3 と同じ形（andon issue ask --new・only_owner）で作ると書く" \
   || fail "ADR-0057 A15: cut.md がオーナーの課題の作り方（andon issue ask --new・only_owner）を指していない"

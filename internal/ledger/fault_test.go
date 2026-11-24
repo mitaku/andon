@@ -38,7 +38,26 @@ func TestNewOwnerQuestionConvergesAfterAnyStop(t *testing.T) {
 	f.Converge(t, ledgertest.Case{
 		Setup: setup,
 		Run: func() error {
-			_, _, err := cur().NewOwnerQuestion(q, "", nil)
+			_, _, err := cur().NewOwnerQuestion(q, "", nil, Mark{})
+			return err
+		},
+		Tries: 2,
+		State: state,
+	})
+}
+
+// 置いておく印も、どこで止まっても打ち直しで同じ形に揃う（印は who と同じ kanban set で、問いを置く前に書く）。
+func TestNewOwnerQuestionWithMarkConvergesAfterAnyStop(t *testing.T) {
+	f := ledgertest.NewFault(t)
+	setup, cur, state := faultLedger(f)
+	q, err := contract.ParseQuestion([]byte(`{"kind":"users","question":"どちらの画面にするか","options":[{"label":"一覧","pick":true},{"label":"表"}],"facts":["docs/a.md"],"from":"chief-of-staff"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Converge(t, ledgertest.Case{
+		Setup: setup,
+		Run: func() error {
+			_, _, err := cur().NewOwnerQuestion(q, "", nil, Mark{Later: "急がない", Until: "2026-12-01"})
 			return err
 		},
 		Tries: 2,

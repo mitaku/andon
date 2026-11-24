@@ -280,7 +280,7 @@ func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func
 
 func addOwner(l *ledger.Ledger, retro, found, who string, pl plan) (string, error) {
 	if found == "" {
-		newID, _, err := l.NewOwnerIssue(pl.Question, pl.Title, pl.Brief, retro, nil)
+		newID, _, err := l.NewOwnerIssue(pl.Question, pl.Title, pl.Brief, retro, nil, ledger.Mark{})
 		return newID, err
 	}
 	if who != "person" {
