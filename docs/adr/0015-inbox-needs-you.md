@@ -2,7 +2,7 @@
 
 - 状態: **決定（2026-11-10）**。オーナーが 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0074）。オーナーが PR をマージした日が決定の日（[decisions/2026-11-10-adr-0015-inbox-needs-you.md](../decisions/2026-11-10-adr-0015-inbox-needs-you.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。決めたこと 3 の返事で Needs you に上げる部分は覆された → [ADR-0043](0043-lamp-lights-on-owner-waits.md)。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: Andon 同梱の App の mod `inbox`（`package/host/inbox`）が何を出すか。オーナーが手を動かすもの（Needs you）と、プロジェクトで動く役（Chief of Staff・Chief Engineer）への入口の2つに絞り、担当の Done・Working・Idle をオーナーの視界から下げる。
-- 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`（この題は新しい約束を足さない。前提 4）。
+- 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`（このテーマは新しい約束を足さない。前提 4）。
 - 入力: 依頼書 A-0074（オーナーの気付き 2026-11-10 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、[ADR-0002](0002-herdr-spaces.md)（決めたこと 2・15・18・21）、[ADR-0009](0009-cos-default-entry.md)（オーナーの入口は Chief of Staff）、[ADR-0010](0010-news-ack.md)（担当の通知は dispatcher が Chief of Staff へ）、[ledger.md](../ledger.md)（Needs you is not a status・Every stopped agent has asked）、[decisions.md](../decisions.md) 2026-11-06（mod の取り込み）、kanban A-0036（Chief Engineer の端末の通知を Chief of Staff に届けない）。
 
 ## 決定の索引
@@ -21,7 +21,7 @@
 
 オーナー（2026-11-10）: 「Mod の Inbox だけど、あんまり Done にも Working にも興味がないのかもしれないと思い始めてきた」「Need You とプロジェクトで動く Agent（主に CoS）へのアクセスが担保されていれば良い気がするね」「それこそが本当の Andon だしね」。
 
-言い直し（オーナーが同意 2026-11-10）。オーナーが App の左の列（inbox）に求めるのは「自分が手を動かすべきものに迷わず着けること」で、それは2つに尽きる。1つは Needs you（オーナーにしか答えられない問い・マージの依頼・Chief of Staff と Chief Engineer の返事）、もう1つはプロジェクトで動く役（主に Chief of Staff、題があるときの Chief Engineer）の端末へすぐ行けること。いまの inbox は herdr-flightdeck 由来の「エージェントを全部さばく受信箱」で、担当がターンを終えるたびに Done に積み上がる。けれど担当の Done と Working は dispatcher が拾って Chief of Staff が処理しており、オーナーが見ても何も起きない。困りごとは「オーナーが何とも思わない情報が、オーナーの一番目につく場所に多く出ている（雑音）」こと。目的は、inbox を「オーナーの Needs you」と「役への入口」の2つに絞り、それ以外をオーナーの視界から下げること。見た目の好みの話ではなく、design.md §1.4 の「オーナーの入口は Chief of Staff」の線と、灯りがつくときだけオーナーを呼ぶ Andon の線を画面に写す話。
+言い直し（オーナーが同意 2026-11-10）。オーナーが App の左の列（inbox）に求めるのは「自分が手を動かすべきものに迷わず着けること」で、それは2つに尽きる。1つは Needs you（オーナーにしか答えられない問い・マージの依頼・Chief of Staff と Chief Engineer の返事）、もう1つはプロジェクトで動く役（主に Chief of Staff、テーマがあるときの Chief Engineer）の端末へすぐ行けること。いまの inbox は herdr-flightdeck 由来の「エージェントを全部さばく受信箱」で、担当がターンを終えるたびに Done に積み上がる。けれど担当の Done と Working は dispatcher が拾って Chief of Staff が処理しており、オーナーが見ても何も起きない。困りごとは「オーナーが何とも思わない情報が、オーナーの一番目につく場所に多く出ている（雑音）」こと。目的は、inbox を「オーナーの Needs you」と「役への入口」の2つに絞り、それ以外をオーナーの視界から下げること。見た目の好みの話ではなく、design.md §1.4 の「オーナーの入口は Chief of Staff」の線と、灯りがつくときだけオーナーを呼ぶ Andon の線を画面に写す話。
 
 事実（オーナーに聞かず読んで確かめたもの）:
 - Needs you は kanban の状態ではなく hc の live な状態（`blocked`）から来る（ledger.md）。担当の `blocked`（許可の確認）は、まず Chief of Staff が委譲の中で答える役で、オーナーへ上がるのは Chief of Staff が中継したときだけ（chief-of-staff skill §4、ask-one-by-one §1）。
@@ -37,18 +37,18 @@
 2. Done は課題の片付けで勝手に消えるので、オーナーの手間は増えない。困りごとは手間ではなく、オーナーが何とも思わない情報が多く出ていること（雑音）。
 3. 流れの俯瞰（誰が何をしているか・どの課題がどこか）は kanban-board と App の Spaces の一覧が既に持つ。inbox が Working・Idle・Settled の棚で俯瞰を兼ねる必要は無い。
 4. 配り方は今のまま: `package/host/inbox` に同梱し `host-install` がオーナーの App に置く。新しい約束（端末のラベル・schema・kanban の形）は足さず、今あるラベル（`role`・`project`・`issue`・`title`）と hc の状態だけで絞る。
-5. 範囲は inbox mod だけ。dispatcher の通知のノイズ（A-0036）・kanban-board・名前を付ける andon mod・レイアウトの列の割りはこの題で触らない。
+5. 範囲は inbox mod だけ。dispatcher の通知のノイズ（A-0036）・kanban-board・名前を付ける andon mod・レイアウトの列の割りはこのテーマで触らない。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
 
 1. **2026-11-10 inbox の節を2つに絞る: Needs you と、役への入口。Done の節と Working・Idle・Settled の棚を消す。**
    - **Needs you**: hc の状態が `blocked` の端末（担当・レビュアー・役のどれでも。sub-agent の `error` も今までどおり）と、オーナーと話す役（`role=chief-of-staff`・`role=chief-engineer`）が終えたターン（Reply。オーナーが見るまで）。
-   - **役への入口**: プロジェクトで動く役の端末（Chief of Staff と、題があるときの Chief Engineer）。idle でも working でも常に出る。
+   - **役への入口**: プロジェクトで動く役の端末（Chief of Staff と、テーマがあるときの Chief Engineer）。idle でも working でも常に出る。
    - 担当・レビュアーは `blocked` のときだけ出る。ターンを終えた（Herdr の `done`）・働いている・idle の担当は出さない（俯瞰は kanban-board と Spaces。前提 3）。
    理由: オーナーの言う2つがそのまま節になる。担当の `blocked` は安全側で残す（Chief of Staff が取りこぼしても・委譲の外の許可でも、オーナーの画面に灯りがつく。ledger.md「Needs you は blocked から来る」の線を保つ）。
    捨てた案: A「Done の節だけ消す」（棚の雑音が残り、役への入口が担保されない）／C「役だけを出し担当を一切出さない」（Chief of Staff が止まったとき灯りがつかない）。
 
-2. **2026-11-10 役への入口の節の見出しは「Projects」。** 行はプロジェクトごとに Chief of Staff → Chief Engineer（題ごと）の順。
+2. **2026-11-10 役への入口の節の見出しは「Projects」。** 行はプロジェクトごとに Chief of Staff → Chief Engineer（テーマごと）の順。
    理由: オーナーの言葉「プロジェクトで動く Agent（主に CoS）へのアクセス」にいちばん近く、mod のほかの文字（Needs you）と同じ英語。「役」はオーナーが「微妙」と言った。
    捨てた案: Staff（オーナーと話す役の集まり）／Leads（ラインを率いる役）／見出しなしでプロジェクト名を小見出しにする（プロジェクトが1つのときに見出しが slug だけになる）。
 
@@ -74,7 +74,7 @@
 - **担当・レビュアーの Done・Working・Idle を inbox に出すこと**（前提 1・3。俯瞰は kanban-board と Spaces）。
 - **settle とラベル `settled=` の読み書き**（決めたこと 5）。mod は hc に何も書かない。`settled=` の行は contract.md §8 に無い（herdr-flightdeck 由来の mod だけの印だった）ので約束の文書は変えない。オーナーが前に付けた `settled=` のラベルは読まず、端末と一緒に消える。
 - **inbox が kanban を読むこと**（ledger.md「Every stopped agent has asked」の読み手に inbox を数えること）。前提 4。kanban を読む画面は kanban-board。ledger.md のその行の「(work-board, inbox)」は、実装の課題が「kanban-board」だけに直す（inbox を外す）。
-- **dispatcher の通知のノイズ**（A-0036）・**kanban-board**・**名前を付ける andon mod**・**レイアウトの列の割り**（`layouts/andon.json` の inbox 2 : spaces 1）（前提 5）。inbox が短くなった分は、レイアウトの最小の高さ（`min: 120`）の範囲で Spaces が使う。割りを変えたくなったら別の題。
+- **dispatcher の通知のノイズ**（A-0036）・**kanban-board**・**名前を付ける andon mod**・**レイアウトの列の割り**（`layouts/andon.json` の inbox 2 : spaces 1）（前提 5）。inbox が短くなった分は、レイアウトの最小の高さ（`min: 120`）の範囲で Spaces が使う。割りを変えたくなったら別のテーマ。
 - **`news.replied` を inbox が読むこと**: 今も読んでおらず、役の返事は「オーナーが見るまで Needs you」で足りる。contract.md §8 の読み手「ボード」は herdr-flightdeck の Web ボードを指す（変えない）。
 - **ペインの無い担当（sub-agent）の畳み込みの変更**: 担当は blocked のときだけ出るので、親に畳む今の規則（urgent・peek）はそのまま。
 - **オーナーの `keys.json` を host-install が直すこと**: キーはオーナーのもの（operate.md）。消えるキー（`ctrl-shift-d`・`ctrl-shift-u`）は README と operate.md の断片から外し、オーナーが自分の `keys.json` から消す（残しても「unknown command」で害は無い）。

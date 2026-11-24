@@ -1,7 +1,7 @@
 # ADR-0029: 工場の2つの面を言い分ける（セルは場所、Andon はしくみ）（仕様・設計。2026-11-19）
 
 - 状態: **決定（2026-11-19）**。オーナーが対話の中で「用語だけ決める」と言った（[decisions/2026-11-19-adr-0029-factory-place-and-mechanism.md](../decisions/2026-11-19-adr-0029-factory-place-and-mechanism.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
-- 主題: 「工場」という語が Andon とセルのどちらを指すか。Andon とセルの定義の文。外に向けた一文の「software factory」の扱い。同じ対話で出た Chief of Staff の単位の題は [ADR-0031](0031-cell-chief-of-staff.md)（提案）に分けた。
+- 主題: 「工場」という語が Andon とセルのどちらを指すか。Andon とセルの定義の文。外に向けた一文の「software factory」の扱い。同じ対話で出た Chief of Staff の単位のテーマは [ADR-0031](0031-cell-chief-of-staff.md)（提案）に分けた。
 - 語は [design.md](../design.md) §0.1。
 
 ## 決定の索引

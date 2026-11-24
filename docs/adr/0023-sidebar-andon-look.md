@@ -2,7 +2,7 @@
 
 - 状態: **決定（2026-11-12）**。オーナーが PR をマージした日が決定の日（[decisions/2026-11-12-adr-0023-sidebar-andon-look.md](../decisions/2026-11-12-adr-0023-sidebar-andon-look.md)）。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。決めたこと 1・3 の Reply を琥珀で灯す部分は覆された → [ADR-0043](0043-lamp-lights-on-owner-waits.md)。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: Andon 同梱の App のレイアウト `andon` の左の列（サイドバー）の見た目。働き（何を出すか・並び・キー）は [ADR-0015](0015-inbox-needs-you.md) のまま変えない。
-- 語は [design.md](../design.md) §0.1。この題は新しい約束（端末のラベル・schema・kanban の形）を足さない（前提 3）。
+- 語は [design.md](../design.md) §0.1。このテーマは新しい約束（端末のラベル・schema・kanban の形）を足さない（前提 3）。
 - 入力: 依頼書 A-0163（オーナーの発言 2026-11-12 と Chief of Staff の経緯）、`package/host/inbox/`（main.js・README.md・RECIPE.md）、`package/host/layouts/andon.json`、[design.md](../design.md) §1.1・§6 問い1（モチーフ）、[assets/logo/README.md](../assets/logo/README.md)（ロゴの色と形）、[vision.md](../vision.md) §3（灯りの言い方）、[ADR-0002](0002-herdr-spaces.md) 決めたこと 18、[ADR-0015](0015-inbox-needs-you.md)、Herdr App の mod guide と同梱の `workspace-chrome`（出典の節）。
 
 ## 決定の索引
@@ -37,7 +37,7 @@
 
 1. サイドバーの働きは変えない。Inbox が出すもの（Needs you と Projects の2節。ADR-0015）・行の並び順・クリックやキーの動きはそのまま。変えるのは色・形・絵・動きだけ。
 2. 新しいモチーフや色は作らない。決定済みのモチーフと、いまあるロゴの色と形をサイドバーに持ち込む。ただし「黄＝オーナーの判断待ち・赤＝止まった」の定義のままでは Needs you の行を塗り分けられない（オーナーの指摘「今だと黄色と赤がそういう意味だと同じ状態だね」。`blocked` の端末はオーナーを待っていて、かつ止まっている）ので、サイドバーでの当て方はこの文書で決め直す（決めたこと 1）。
-3. 何もしなくても困らない（今のサイドバーで仕事は回る）。「より良く」の題で急ぎではない。小さく入れ、合わなければ元の見た目に戻せる形にする。端末のラベル・schema・kanban などの約束は足さない。
+3. 何もしなくても困らない（今のサイドバーで仕事は回る）。「より良く」のテーマで急ぎではない。小さく入れ、合わなければ元の見た目に戻せる形にする。端末のラベル・schema・kanban などの約束は足さない。
 4. 配り方は今のまま: `package/host` に同梱し `host-install` がオーナーの App の設定フォルダに置く。オーナー自身の設定（`settings.json`・`keys.json`・自分で選んだテーマ）には書かない。`host-install` は既存のファイルを上書きしないので、新しい見た目にするときはオーナーが手元で mod とレイアウトを退避して置き直す手が1回要る（operate.md「Herdr App の mod とレイアウト」）。
 
 ## 決めたこと（番号・日付・理由・捨てた案。あとから覆したら上書きせず下に足す）
@@ -80,7 +80,7 @@
 - **呼び出しと定位置停止を色で分けること**（決めたこと 1 の捨てた案）。mod が問いの種類を知る口（端末のラベル・kanban の読み取り）は足さない。
 - **緑・明滅・音・通知**（決めたこと 3・4）。
 - **役のアイコン（Chief of Staff＝`clipboard-list`・Chief Engineer＝`drafting-compass`、`accent` 色）を変えること**。今のサイドバーは良いとオーナーが見ている（依頼書 A-0163）。ADR-0002 決めたこと 18 のまま。
-- **kanban-board・context-header・files-plus の色を揃えること**。この題はサイドバーだけ。揃えたくなったら別の題。
+- **kanban-board・context-header・files-plus の色を揃えること**。このテーマはサイドバーだけ。揃えたくなったら別のテーマ。
 - **オーナーの設定（`settings.json`・`keys.json`・選んだテーマ）を `host-install` が書き換えること、既存の mod・レイアウトを上書きすること**（前提 4）。
 - **dispatcher の記号（提灯）をサイドバーに出すこと**。dispatcher はオーナーと話す役ではない（ADR-0015 決めたこと 4）。
 

@@ -49,8 +49,8 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 ## やらないこと（範囲の外。理由）
 
 - **Skills over MCP**（SEP-2640。クーリエが localhost の HTTP で出す案も）: Claude Code・Codex が未対応（client matrix 2026-11-05）。承認が manifest の digest に結び付くので、andon を上げるたびに再承認になる。運ぶ口が2つになる（前提 6）。再開の条件: Claude Code か Codex が対応を公表し、かつファイルを読めない host（クラウドのセッション等）で担当を動かす必要が出たとき。
-- **独自エージェント**（Vercel AI SDK 等で建てる）: ハーネスは Claude Code と Codex（design.md §2.7）。既製のハーネスを担当に足す（Pi など）のは別の題で、この文書の置き場（`.agents/skills`）はそれにも効く。
-- **marketplace での配布**（public の読み手向けの plugin 化）: skill は建屋が無いと動かない（前提 3）。plugin の形（決定 2）は建屋の中で `--plugin-dir` で読むためだけ。再開の条件: skill を建屋の外でも動く形に割る題が立ったとき。
+- **独自エージェント**（Vercel AI SDK 等で建てる）: ハーネスは Claude Code と Codex（design.md §2.7）。既製のハーネスを担当に足す（Pi など）のは別のテーマで、この文書の置き場（`.agents/skills`）はそれにも効く。
+- **marketplace での配布**（public の読み手向けの plugin 化）: skill は建屋が無いと動かない（前提 3）。plugin の形（決定 2）は建屋の中で `--plugin-dir` で読むためだけ。再開の条件: skill を建屋の外でも動く形に割るテーマが立ったとき。
 - **TanStack Intent／npm 同梱**: Andon は npm の package ではない。「使う対象と同じ単位で運ぶ」は image で取れている。
 - **public の読み手向けの配布の案内**: Andon が届く所に届けばよい（決定 1）。Vercel の `skills` CLI は直接パスで取れるが、Andon は何もしない。
 - **admin の置き場への移動・managed の marketplace・skill を binary に埋める**: 決定 2・4 の捨てた案。
@@ -75,7 +75,7 @@ Andon の skill 7 本は AI が読む Markdown で、中で `deck`・`andon task
 
 ## 開いている問い（残った問い。判断の種類つき）
 
-- 担当のハーネスに **Pi** を足すか（オーナーが「今後検討」と言った 2026-11-05。ラインの変更。別の題）。この文書の置き場 `~/.agents/skills` と、最初のメッセージで絶対パスを指す Codex の形がそのまま使える見込み。
+- 担当のハーネスに **Pi** を足すか（オーナーが「今後検討」と言った 2026-11-05。ラインの変更。別のテーマ）。この文書の置き場 `~/.agents/skills` と、最初のメッセージで絶対パスを指す Codex の形がそのまま使える見込み。
 - admin の置き場や managed の marketplace に移すか（ラインの変更。managed の方針で利用者・project の skill を止めるとき、またはオーナーが手で打つ `claude` にも Andon の skill を効かせたいときに戻す）。
 
 ## 出典（読んだもの・捨てた案の出所）

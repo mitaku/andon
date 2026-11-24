@@ -3,7 +3,7 @@
 - 状態: **決定（2026-11-10）**。オーナーが 2026-11-10 に「決めた」と言った（Chief Engineer の対話 A-0034）。オーナーが PR をマージした日が決定の日。実装は「依頼書に切る案」のとおり別の課題（切るのは Chief of Staff）。覆すときは新しい ADR を書き、この行を `覆された → ADR-NNNN` にする。小さな改めは「決めたこと」に下から足す。
 - 主題: (a) セルが起き直したあと、`doing` の担当とレビュアーをハーネスのセッションの resume で続きから起動する入口と手順。(b) worktree の置き場を永続の場所へ移すこと。
 - 語は [design.md](../design.md) §0.1。機械が読む形の正は [contract.md](../contract.md) と `schema/`。
-- 入力: 題（オーナーの1行。2026-11-10）、オーナーの発言（2026-11-10。「再度起すときは resume したほうがいいんじゃないかなぁ」「マウントするか worktree のディレクトリを検討する必要あるね」「workspace に .worktree とかを置くとかがいいんじゃないかな？」）、Chief of Staff の経緯（A-0010・A-0033・A-0033 のレビュアーが 02:14 の起き直しで素のシェルに戻り、worktree が消えた。`andon issue start` が「branch がもうある」で止まった）、`internal/issue/start.go`・`finish.go`、`internal/spawn/spawn.go`、`internal/dispatcher/pickup.go`・`loop.go`・`fallback.go`、`package/compose.yaml`・`internal/boot/owners.go`、`package/templates/*.md`、[dispatcher.md](../dispatcher.md) §2.3・§2.8、[operate.md](../operate.md) §8（引っ越し）、[image.md](../image.md)（信頼の表）、[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表、CoS skill の止まった担当の表、Claude Code 2.1.322 と Codex 0.166.0 の `--help`、セルでの実測（別の cwd から `claude --resume <id> --fork-session` が通る。`hc get` の `keep: true` と argv・cwd・ラベルの保持）。
+- 入力: タイトル（オーナーの1行。2026-11-10）、オーナーの発言（2026-11-10。「再度起すときは resume したほうがいいんじゃないかなぁ」「マウントするか worktree のディレクトリを検討する必要あるね」「workspace に .worktree とかを置くとかがいいんじゃないかな？」）、Chief of Staff の経緯（A-0010・A-0033・A-0033 のレビュアーが 02:14 の起き直しで素のシェルに戻り、worktree が消えた。`andon issue start` が「branch がもうある」で止まった）、`internal/issue/start.go`・`finish.go`、`internal/spawn/spawn.go`、`internal/dispatcher/pickup.go`・`loop.go`・`fallback.go`、`package/compose.yaml`・`internal/boot/owners.go`、`package/templates/*.md`、[dispatcher.md](../dispatcher.md) §2.3・§2.8、[operate.md](../operate.md) §8（引っ越し）、[image.md](../image.md)（信頼の表）、[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表、CoS skill の止まった担当の表、Claude Code 2.1.322 と Codex 0.166.0 の `--help`、セルでの実測（別の cwd から `claude --resume <id> --fork-session` が通る。`hc get` の `keep: true` と argv・cwd・ラベルの保持）。
 
 ## 決定の索引
 
@@ -45,7 +45,7 @@
    捨てた案: finish → todo → start で新しく起動する（今の手。コンテキストを捨て、PR のある課題では止まる。オーナー: ライフサイクルとしておかしい）。
 2. **2026-11-10 担当向けの指針の口は、worktree の置き場に依らせない。** セルの repo の見える所に1ファイル（名前は仮に `AGENTS.worker.md`。切る案で確定）をオーナーが書き、Andon が担当とレビュアーを起動する最初のメッセージで両ブランドとも明示して指す（あるときだけ）。
    理由: 実測（下の出典）で、Claude Code は worktree の根より上の `AGENTS.md` を読むが Codex は読まない。置き場の上に置くと効き方がブランド（Claude は暗黙・Codex は届かない）と役（Chief Engineer にも効く・cwd が `issues/<rev>/` のレビュアーには効かない）でちぐはぐになる。Andon の役の区別で「誰に効くか」を決めれば、ハーネスが親を遡る仕様にも依らない。
-   捨てた案: `/workspace/.worktrees/AGENTS.md` を置いて Claude に自動で読ませ、Codex とレビュアーには明示の1行（オーナーの最初の案。オーナーが書くファイルが機械の持ち物の隠しディレクトリに入る）／この題ではやらない。
+   捨てた案: `/workspace/.worktrees/AGENTS.md` を置いて Claude に自動で読ませ、Codex とレビュアーには明示の1行（オーナーの最初の案。オーナーが書くファイルが機械の持ち物の隠しディレクトリに入る）／このテーマではやらない。
    名前の確定（2026-11-12。A-0042）: `AGENTS.worker.md`、置き場はセルの repo の直下（`$ANDON_WORKSPACE`。既定 `/workspace`）。あるときだけ、`andon issue start`（`resume --fresh` も）と dispatcher のレビュアー（送り直しも）の最初のメッセージに「オーナーの指針 `<パス>` も読む」の1行が入る。中身はオーナーが書き、Andon は書かない。[ADR-0005](0005-cell-repo.md) 決めたこと 2 の表に1行。
 3. **2026-11-10 入口は新しい command `andon issue resume <id> [--dry-run] [--fresh]`。** 起動できるのは `doing` で、kanban に `worktree`（repo のある課題）があり、端末（`agent`）が無い・終わっている・素のシェル（`spawn.BareShell`）の課題だけ。動いていれば「端末 … がもう動いている」で止まる。`start` は「新しく作る」の一本道のまま変えない。
    理由: ライフサイクルに「死んだ → resume → doing」の辺を足す（オーナー: finish → todo → start はおかしい）。条件の違う2つを1つの動詞に畳むと `--dry-run` と失敗の文言が濁る。
@@ -72,17 +72,17 @@
 8. **2026-11-10 レビュアーも同じ `resume` の対象。** profile が `*-review` なら detached worktree を親の `review_request.commit` で戻し、cwd `issues/<rev>/` で起動する。dispatcher の自動（4）の対象。
    理由: dispatcher の「Gone を見たら resume」が1本の規則になる。
    捨てた案: レビュアーは resume せず今の経路（fallback）で新しく起動する。
-9. **2026-11-10 Chief Engineer も同じ `resume` の対象。** profile `chief-engineer` ならラベル `role=chief-engineer`・`herdr.space=andon-<slug>`・`herdr.tab=andon-<slug>-<id>`（指揮側）で戻す。dispatcher の自動の対象。`andon chief-engineer "<題>"` が戻った端末を片付けて新しく起動する今の手は、新しい題を起動するときだけに残る。
+9. **2026-11-10 Chief Engineer も同じ `resume` の対象。** profile `chief-engineer` ならラベル `role=chief-engineer`・`herdr.space=andon-<slug>`・`herdr.tab=andon-<slug>-<id>`（指揮側）で戻す。dispatcher の自動の対象。`andon chief-engineer "<タイトル>"` が戻った端末を片付けて新しく起動する今の手は、新しいテーマを起動するときだけに残る。
    理由: オーナーとの対話のコンテキストは担当より失う代償が大きく、コストは role のラベルの分岐だけ。
-10. **2026-11-10 コストの見方**（オーナー）: resume のコンテキストの読み直し（1回分の入力）は受け入れる。微々たるもので、応答のラリーの方が高い。コンパクションの制御のほうが大事かもしれない（開いている問い 1。この題では触らない）。
+10. **2026-11-10 コストの見方**（オーナー）: resume のコンテキストの読み直し（1回分の入力）は受け入れる。微々たるもので、応答のラリーの方が高い。コンパクションの制御のほうが大事かもしれない（開いている問い 1。このテーマでは触らない）。
 11. **2026-11-10 セッションは Andon が記録し、id で resume する（5 を覆す）。** 反論（出典）で「cwd の最新」が崩れたため。
    - Claude 系: 起動するとき Andon が UUID を決めて `--session-id <uuid>` で渡し、kanban の `session` に書く（`kanban` に列を足す）。resume は `claude … --resume <uuid>`。
    - Codex 系: id を指定する口が無い。resume のとき `~/.codex/sessions/**/rollout-*.jsonl` の先頭行（`session_meta` の `cwd` と `id` の2つだけを読む）から、cwd が kanban の値と同じ最新の id を引いて `codex … resume <id>` で起動し、引けた id を kanban の `session` に書く。
    - どちらも起動する前に記録の有無を確かめ（Claude は `~/.claude/projects/*/<uuid>.jsonl` の有無、Codex は上の検索）、無ければ非 0 で止まる（7 の「記録が無い」はここで判る）。
    理由（反論の実測）: 記録の無い dir で対話の `claude --continue` は「No conversation found to continue」を出したまま終わらず（live のまま黙り、dispatcher は Gone とも stalled とも見ない）、`codex exec resume --last` は黙って新しいセッションを始める。担当が自分の worktree で `claude -p …` を1回打つと、次の `--continue` はその使い捨てセッションを続ける。「記録が無ければ止まる」をハーネスに頼れないので Andon が自分で確かめる。読むのは id と cwd だけに留め、本文は読まない。
    捨てた案: cwd の最新のまま skill に「自分の cwd で claude・codex を打たない」を足す（それでも黙りは検出できない）。skill の1行は R5 で足す（二重の守り）。
-12. **2026-11-10 `andon chief-engineer` は戻った端末を片付けない（9 に足す）。** 片付けるのは resume の手順（13 の 2）と `finish` だけ。新しい題は別の課題として起動し、`doing` の旧 CE は dispatcher が resume する。
-   理由（反論）: 起き直し後にオーナーが新しい題で打つと旧 CE の端末を Discard するが kanban は `doing` のまま → 次の見回りで dispatcher が旧 CE を resume し、新旧が並ぶ。同時なら同じ端末に両方が kill を打つ。片付けのオーナーを1つにする。
+12. **2026-11-10 `andon chief-engineer` は戻った端末を片付けない（9 に足す）。** 片付けるのは resume の手順（13 の 2）と `finish` だけ。新しいテーマは別の課題として起動し、`doing` の旧 CE は dispatcher が resume する。
+   理由（反論）: 起き直し後にオーナーが新しいテーマで打つと旧 CE の端末を Discard するが kanban は `doing` のまま → 次の見回りで dispatcher が旧 CE を resume し、新旧が並ぶ。同時なら同じ端末に両方が kill を打つ。片付けのオーナーを1つにする。
    捨てた案: Discard のとき旧課題の status を変えて（`paused`）resume の対象から外す（新しい鍵が要る）。
 13. **2026-11-10 反論で直した細部**（Chief Engineer の推奨。オーナーが同意）:
    1. resume の起動のしかたは、boot が template の `resume:` 行から `<profile>-resume` の hc template を生成し、template 名＋task で起動する（3 の「argv で渡す」を改める）。argv で起動すると `first_message` が返らず、最初のメッセージの届いたかの確かめと dispatcher の送り直しが効かない。
@@ -133,7 +133,7 @@
 4. dispatcher は Gone の `doing` を見たら `resume` を1回打ち、記録だけの通知 `resumed` を書く。resume 後の端末が働かないまま（`turn` 0 のまま）また Gone なら `finished` を届け、働いたあと（`turn` ≥ 1）に死んだらまた1回 resume する。初めて見る kanban では打たない。resume の間 finish は待つ（lock）。
 5. `--fresh` は template の `command` で起動し（Claude 系は新しい `--session-id`）、最初のメッセージに `report.md` を読む1行がある。resume の失敗（記録が無い・最初のメッセージが届かない）は非 0 と理由で止まり、kanban を変えない。
 6. 新しい置き場: `start`・dispatcher・`finish` が `/workspace/.worktrees/<repo 名>/<slug>-<id>` を組み、`/workspace/.worktrees/.gitignore` が `*`。`git -C /workspace status --short` に `.worktrees` が出ない。`finish` は旧の置き場の値の課題も片付ける。
-7. セルの実測（`package/` の変更は実測。AGENTS.md）: `doing` の担当（Claude・Codex 各1）と Chief Engineer を置いてコンテナを起き直し、dispatcher の次の見回りで3つとも resume され、最初の返事で前の作業を要約できる（コンテキストが残っている）。worktree は起き直しの前後で同じパスにあり、中身が残っている。起き直しの後にオーナーが `andon chief-engineer "<新しい題>"` を打っても旧 CE は消えず、resume される。
+7. セルの実測（`package/` の変更は実測。AGENTS.md）: `doing` の担当（Claude・Codex 各1）と Chief Engineer を置いてコンテナを起き直し、dispatcher の次の見回りで3つとも resume され、最初の返事で前の作業を要約できる（コンテキストが残っている）。worktree は起き直しの前後で同じパスにあり、中身が残っている。起き直しの後にオーナーが `andon chief-engineer "<新しいタイトル>"` を打っても旧 CE は消えず、resume される。
 
 ## 価値の仮説
 
@@ -157,7 +157,7 @@
 
 ## 開いている問い
 
-1. コンパクションの制御（オーナー 2026-11-10。「むしろコンパクションをコントロールするとかのほうが大事かも」）。長く生きる担当・Chief Engineer のコンテキストをいつ・どう圧縮するか。決断の種類: 範囲（別の題にするか）。
+1. コンパクションの制御（オーナー 2026-11-10。「むしろコンパクションをコントロールするとかのほうが大事かも」）。長く生きる担当・Chief Engineer のコンテキストをいつ・どう圧縮するか。決断の種類: 範囲（別のテーマにするか）。
 2. オーナーが意図して `hc kill` した担当を dispatcher が1回 resume してしまう。抑える口（kanban の status を `paused` のようにする／ラベル）を足すか。決断の種類: 仕様（このバージョンでは受け入れた）。
 3. 対話の `codex resume --last`・`codex resume <id>` が記録の無い cwd／無い id で何をするか（反論で `exec` だけ実測。黙って新規）。R2 の担当が実測し、非 0 で止まるかを確かめる。決断の種類: 事実（オーナーには聞かない）。
    **答え（実測 2026-11-10・Codex 0.166.0・hc の端末で対話のまま）**: `codex --no-daemon resume <無い id>` は「ERROR: No saved session found with ID <id>. Run `codex resume` without an ID to choose from existing sessions.」を出して終了コード 1 で終わる（端末は finished。keep なら素のシェルに替わり、dispatcher は Gone と見る）。`codex --no-daemon resume --last` は記録の無い cwd で黙って新しいセッションを始める（live・idle のまま）。Andon は起動する前に記録から id を引いて `resume <id>` で起動するので（決めたこと 11）、`--last` は使わない。

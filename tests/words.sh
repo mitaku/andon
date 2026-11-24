@@ -181,28 +181,45 @@ echo "ok   words: 「台帳」「ゲート」「版」が替えた範囲（${old
 #   始まる行。バージョンを切って未リリースからバージョンの節へ移っても同じ行）が、語を挙げた句「漢字 1 字の「…」」。
 # CHANGELOG.md のバージョンごとの節（## v…。バージョンを切ったときの記録。ADR-0052 決めたこと 7）は、置き換えより前に切った節
 #   （## v0.0.14 から下）だけを外す。それより新しいバージョンの節は、置き換えのあとに書いた文なので見る。## v0.0.14 の行が無ければ全部を見る。
-# docs/decisions.md は、凍結した表（最初の「## 1. 」の行から下）をまだ見ない。表は ADR と決定の記録を替える課題（切る案 4）で
-#   替え、そのとき dai_frozen の行の制限を外す。
-# 範囲は替え終えた場所だけで、替えるたびに dai_paths に足す（docs/vision.md と .github/ は足さない）。
+# ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md の凍結した表も。ADR-0052 決めたこと 7・8・10）の例外:
+#   ADR-0052 と、その決定の記録 2 件（docs/decisions/2026-11-22-adr-0052-… と …-dai-replacement-reaches-frozen-records.md）の「」の中
+#   （入れ子も外す）。ADR-0017 のオーナーの指示文の引用の句「この…で入れる:」（2 か所）。語そのものを挙げた所: ADR-0013 決めたこと 20
+#   の並び（「20. **2026-11-11 Andon の語を yomiyasu から守らない。**」の行の「…」）、ADR-0040 の事実 5 の「…」2 件と、やらないことの
+#   並び（土台・…・口）。ADR-0052 のタイトルの写し（docs/adr/README.md の 0052 の行、ADR-0026 の決めたこと 16 とその索引の行の
+#   「…」をタイトル・テーマに替える置き換え、ADR-0053 の「…」をタイトルとテーマに替える作業）。
+# 範囲は repo の全部（docs/vision.md と .github/ は足さない）。
 dai='(?<![課問主話議本])題(?![名材])'
 dai_paths=(package init tests docs/design.md internal cmd .claude/skills/verify-andon
   docs/contract.md docs/dispatcher.md docs/operate.md docs/image.md docs/ledger.md docs/commands.md docs/decisions.md
-  README.md README.ja.md REVIEW.md SECURITY.md CHANGELOG.md AGENTS.md process docs/process model image)
-dai_frozen=$(grep -n -m1 '^## 1\. ' docs/decisions.md 2>/dev/null | cut -d: -f1 || true)
+  README.md README.ja.md REVIEW.md SECURITY.md CHANGELOG.md AGENTS.md process docs/process model image
+  docs/adr docs/decisions)
 dai_changelog=$(grep -n -m1 '^## v0\.0\.14\b' CHANGELOG.md 2>/dev/null | cut -d: -f1 || true)
 existing=()
 for p in "${dai_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""
 [ "${#existing[@]}" -gt 0 ] && hits=$(grep -rnHIP "$dai" "${existing[@]}" --exclude-dir=.git --exclude-dir=.task-tmp --exclude-dir=node_modules \
   | grep -v -e '^tests/words\.sh:' -e '^tests/words-selftest\.sh:' \
-  | awk -F: -v v="${dai_changelog:-0}" -v z="${dai_frozen:-0}" \
-      '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v) && !($1 == "docs/decisions.md" && z > 0 && $2 >= z)' \
+  | awk -F: -v v="${dai_changelog:-0}" '!($1 == "CHANGELOG.md" && v > 0 && $2 >= v)' \
   | perl -CSDA -Mutf8 -ne '
       BEGIN { $d = shift }
       my ($f, $n, $t) = /^([^:]*):(\d+):(.*)$/s or next;
       $t =~ s/漢字 1 字の「題」では書かない//g if $f eq "package/writing.md" && $t =~ /^- 課題や PR の名前は「タイトル」/;
       $t =~ s/漢字 1 字の「題」//g if ($f eq "CHANGELOG.md" && $t =~ /^- \*\*セルの側の文の語を直す\*\*（\[ADR-0052\]/)
         || ($f eq "docs/decisions.md" && $t =~ /^語の改め（/);
+      if ($f eq "docs/adr/0052-title-and-theme-not-dai.md" || $f eq "docs/decisions/2026-11-22-adr-0052-title-and-theme-not-dai.md"
+          || $f eq "docs/decisions/2026-11-22-dai-replacement-reaches-frozen-records.md") {
+        1 while $t =~ s/「[^「」]*」//g;                 # 「」の中（入れ子は内側から）
+      }
+      $t =~ s/「この題で入れる://g if $f eq "docs/adr/0017-process-definitions.md";
+      $t =~ s/「題」//g if $f eq "docs/adr/0013-short-role-names-and-plain-japanese.md"
+        && $t =~ /^20\. \*\*2026-11-11 Andon の語を yomiyasu から守らない。\*\*/;
+      if ($f eq "docs/adr/0040-kanban-gate-version-words.md") {
+        $t =~ s/「題」2 件//g if $t =~ /^5\. \*\*パッケージの文。\*\*/;
+        $t =~ s/（土台・題・口）//g if $t =~ /^- \*\*3 語のほかの語を見直すこと。\*\*/;
+      }
+      $t =~ s/\[0052 「題」をやめ、タイトル・テーマと書く\]//g if $f eq "docs/adr/README.md";
+      $t =~ s/「題」をタイトル・テーマに替える置き換え//g if $f eq "docs/adr/0026-pr-rules-for-outside-readers.md";
+      $t =~ s/「題」をタイトルとテーマに替える作業（ADR-0052）//g if $f eq "docs/adr/0053-command-system.md";
       if ($f =~ m{^tests/.*\.sh$} && $t =~ s/# 古い語を見る（ADR-0052 決めたこと 10）$//) {
         $t =~ s/\x27[^\x27]*\x27//g;                     # 印のある行は、単引用符の中（古い形の文字列）だけを外す
       }

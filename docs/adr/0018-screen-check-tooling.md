@@ -36,11 +36,11 @@ Andon の担当は Web の画面を持つ案件でも、今はテストとレビ
    捨てた案: Vercel の agent-browser を焼く（Rust の単体 binary。Chrome for Testing をもう1つ焼く・aqua の自前 registry・バージョンの追従が2本・E2E の spec は書けない。強みの Electron・Slack・cloud browser の特化 skill は Andon の用途に無い）／両方焼く（使い分けの決まりが要る）／Playwright を外して agent-browser に替える（製品の E2E の土台をイメージから失う。`~/.cache` は volume に無いので落とし直しがセルの作り直しごとに起きる）／Playwright MCP（公式が「コーディングエージェントには CLI＋skill」と書く。ADR-0001 の「運ぶ口は1つ」）。
 2. **2026-11-11 「画面に触れる変更には画面の証拠が要る」は gate が判定して止める。** 条件表（`package/gate.json`・セルの `gate.local.json`）に `screen_paths`（glob の配列。既定は空）を足し、当たる差分の PR に画像の添付が無ければ `fix`（担当へ戻す。自働化。灯りはつかない）。案件の gate.local.json で画面のファイル（例 `web/**`・`**/*.css`・`**/*.tsx`）を指す。Andon の repo は既定の空のまま（画面を持たない）。依頼書の完了条件（Chief of Staff が「画面の証拠」と書く）と担当の判断（書いてなくても画面に触れたら撮る）も併せて持つ。
    理由: オーナーの期待「検証のゲートを手厚く」。センサーで止める（design.md §1.2）。条件表の既存の形（パスの glob）に1キー足すだけで、約束のバージョンは上げない（contract.md §0 原則4。任意キー）。
-   捨てた案: gate を変えず依頼書と担当の判断だけ（「通した」が言葉だけになる危険が残る。A-0069 と同じ題）／レビュアーに持たせる（Review: on の課題だけに効く）。
+   捨てた案: gate を変えず依頼書と担当の判断だけ（「通した」が言葉だけになる危険が残る。A-0069 と同じテーマ）／レビュアーに持たせる（Review: on の課題だけに効く）。
 3. **2026-11-11 証拠の形: スクリーンショットを `gh pr create`／`comment --attach` で PR に添付し、`report.json` の `acceptance[].evidence` にその添付の URL と撮った command（`playwright-cli` の列）を書く。** 変更後を必ず、前後の対は見た目の直しのとき。リファクタやバックエンドだけの変更には要らない（添付は読み手の checkout を省くためのもの）。
    理由: オーナーとレビュアーは PR で見え、gate と振り返りは `report.json` で追える。添付は repo の権限で守られ、worktree を片付けても残る。
    捨てた案: 画像を repo に commit（履歴が重くなる）／PR の添付だけ（gate と振り返りが追えない）／セルの `files/`（`andon publish`。セルの外から見えない）。
-4. **2026-11-11 範囲は「選んで広げる」: レビュアーの観点を1行足す。** independent-review の依頼書の型に「画面に触れる差分（`screen_paths`）に証拠が無い・証拠と差分が合わない」を指摘する観点を足す（重さは major）。製品 repo で Playwright Test（E2E）を置くときの決まり（バージョン・ブラウザの置き場・CI）は別の題（最初の Web の案件で立てる）。
+4. **2026-11-11 範囲は「選んで広げる」: レビュアーの観点を1行足す。** independent-review の依頼書の型に「画面に触れる差分（`screen_paths`）に証拠が無い・証拠と差分が合わない」を指摘する観点を足す（重さは major）。製品 repo で Playwright Test（E2E）を置くときの決まり（バージョン・ブラウザの置き場・CI）は別のテーマ（最初の Web の案件で立てる）。
    捨てた案: 広げる（E2E の決まりも決める。製品が無い今は事実が足りない）／保つ／減らす（gate の規則を外す）。
 5. **2026-11-11 同梱の skill は boot が symlink で張る**（`~/.claude/skills/playwright-cli`〈`CLAUDE_CONFIG_DIR/skills`〉と `~/.agents/skills/playwright-cli` → イメージの実体 `playwright-core/lib/tools/skills/playwright-cli`）。Codex 向けの `andon-*` と同じ形。バージョンはイメージと構造で揃い、Playwright を上げれば一緒に上がる。boot の「`andon-` で始まらないものに触らない」規則は「自分が張った symlink（`/opt/andon-tools` の下を指すもの）も自分のもの」と広げ、ADR-0001 の受け入れ条件 1 の文を直す（覆しではなく改め）。外の skill 用の `gh skill install`／`update --all` の口（前提 4）は残すが、既定の一覧は空。
    理由（反論 1・2。セルで実測）: `gh skill install --from-local` は `--pin` と両立せず（`--from-local and --pin cannot be used together`）、写しの frontmatter は `metadata.local-path` だけでバージョンが無く、`gh skill update --all` が毎回「no GitHub metadata … skipped」で飛ばす。写しの置き場 `~/.claude`・`~/.agents` は volume なので、イメージの Playwright を上げても古い写しが残る。揃えるには毎起動 `--force` で上書きするしかなく、利用者の同名の skill を黙って潰す。
@@ -57,7 +57,7 @@ Andon の担当は Web の画面を持つ案件でも、今はテストとレビ
 - **agent-browser（Vercel Labs）を焼く**: 決めたこと 1 の捨てた案。再開の条件: Electron・Slack・cloud browser の特化の用途が出たとき、または `playwright cli` で担当が画面を確かめられない案件が実測で出たとき。そのときも Playwright は外さない（E2E の土台）。
 - **Playwright MCP**: 運ぶ口を増やさない（ADR-0001 前提 6）。公式も CLI＋skill を推奨。
 - **Anthropic の Claude in Chrome・Desktop の Browser pane**: オーナーの手元の Chrome／Desktop アプリが要り、セル（CLI・display 無し）からは使えない（公式 docs）。
-- **製品 repo の E2E（Playwright Test）の決まり**: バージョン・ブラウザの置き場（`~/.cache` は volume に無い）・CI は別の題。最初の Web の案件で立てる。焼いたブラウザ（chromium-1234）が効くのは製品も Playwright 1.62.x のときだけ、は事実として書いておく。
+- **製品 repo の E2E（Playwright Test）の決まり**: バージョン・ブラウザの置き場（`~/.cache` は volume に無い）・CI は別のテーマ。最初の Web の案件で立てる。焼いたブラウザ（chromium-1234）が効くのは製品も Playwright 1.62.x のときだけ、は事実として書いておく。
 - **オーナーが手元のブラウザで見る道の変更**: portless の名前と `andon publish` は今のまま。
 - **動画（`video-start`）の証拠**: 必須にしない。担当が流れを見せたいときに添付してよい（gh は MP4・MOV・WebM を受ける）。
 
@@ -88,7 +88,7 @@ Andon の担当は Web の画面を持つ案件でも、今はテストとレビ
 
 ## 開いている問い（残った問い。決断の種類つき）
 
-- 製品 repo の E2E（Playwright Test）の決まり（バージョン・ブラウザの置き場・CI）。最初の Web の案件で Chief Engineer の題にする（ライン）。
+- 製品 repo の E2E（Playwright Test）の決まり（バージョン・ブラウザの置き場・CI）。最初の Web の案件で Chief Engineer のテーマにする（ライン）。
 - `gh skill` は preview で「予告なく変わる」。コマンドが変わったら boot が落ちる。gh のバージョンアップ（aqua）のときに `tests/andon-boot.sh` の偽の `gh` を実物のヘルプと照らす（担当の手順。決断ではない）。
 - `allowManagedPermissionRulesOnly` で、オーナーが手で打つ `claude`（セルの中）の「常に許可」も効かなくなる。困れば managed の allow に足す（運用。決断ではない）。
 

@@ -72,9 +72,9 @@ P7（建屋 `home` を立てて Andon の PR を 1 本流す。[operate.md](../o
    |---|---|---|---|---|---|---|---|
    | C1 | ルーチンの `schedule` を撃つ（`kanban tick`） | **仕組み**。通知の係が見回りの最初に 1 分ごとに `deck tick` | **無い**（G4。誰も打たない。順だけ dispatcher.md §2.1.1 で「3 と 4 の間」と固定済み） | **ルーチンが 1 つも動かない**（週 1 のトリアージも）。アウターループの入口が開かない。P7 では未発生（A-1〜A-7 はオーナーが足した） | dispatcher の 1 巡の 3 と 4 の間で `kanban tick`（Chief of Staff が生きている kanban だけ。`tick` で足した課題を同じ巡の `ready` で拾う）。§7.2 の #8 を「今の守り」へ、§7.3 の G4 を消す | 小 | **前** |
    | C2 | トリアージ | **仕組み**＋オーナーの go。ルーチン `triage`（週 1・sonnet）＋ `yard triage collect`／`apply` | **ある**（`andon triage collect`／`apply`・triage skill・`assets/triage.yaml`）。ルーチンのファイルを kanban に写すのはオーナーの go（skill §10） | C1 に依る | C1 のあと、`routines/triage.yaml` を `home` の kanban に写す（オーナーの go） | 小（オーナー） | **前**（C1 と一緒） |
-   | C3 | 振り返り（retro）とオーナーの手直しの記録（`corrections.json`） | **設計だけ**（reflect はトリアージへ統合。仮設の決定 P4） | **設計だけ**（design.md §1.4・§1.9 (b)・contract.md §1。`corrections.json` は P6a に入れていない。`retro` のルーチンも無い） | 学びは `remember[]`・`agents_md[]` をトリアージが振るだけ（仮設も同じ）。オーナーの手直し（問いの答えが推奨案と違った・指摘の覆し）は数えられない | 移ってから、まず `corrections.json` の 1（問いの答え）と 3（覆し）を `andon issue finish` で集める。`retro` のルーチンはそのあと（最初の題を Chief Engineer で流す。D2） | 中 | 後 |
+   | C3 | 振り返り（retro）とオーナーの手直しの記録（`corrections.json`） | **設計だけ**（reflect はトリアージへ統合。仮設の決定 P4） | **設計だけ**（design.md §1.4・§1.9 (b)・contract.md §1。`corrections.json` は P6a に入れていない。`retro` のルーチンも無い） | 学びは `remember[]`・`agents_md[]` をトリアージが振るだけ（仮設も同じ）。オーナーの手直し（問いの答えが推奨案と違った・指摘の覆し）は数えられない | 移ってから、まず `corrections.json` の 1（問いの答え）と 3（覆し）を `andon issue finish` で集める。`retro` のルーチンはそのあと（最初のタイトルを Chief Engineer で流す。D2） | 中 | 後 |
    | C4 | `agents_md` を製品 repo の `AGENTS.md` に入れる手順（Y-161 の A4） | **仕組み**。トリアージの `agents` → `fix`（担当の PR） | **ある**（triage skill に同じ判定） | — | 済み | — | 済 |
-   | C5 | memory と wiki | `memory/`（index だけ・空）。書くのは Chief of Staff（規約 9） | **一部**。置き場は `init/wiki/index.md`、書き手は Chief of Staff（規約 9）、ハーネスの auto memory は managed で OFF（ADR-0004 決めたこと 2・Y-165）。1 件 1 ファイルの形と lint は無い。**Codex 系の memory 相当は未確認** | 置き場はあり、学びは溜まっていない（仮設でも空）。Codex に自動の記憶があれば、建屋の外から見えない記憶が育つ | wiki の形と lint は、wiki を書く題が出てから。Codex の記憶は `~/.codex` の設定（`config.toml`・`memories`）を確かめ、あれば boot で切る | 小 | 後 |
+   | C5 | memory と wiki | `memory/`（index だけ・空）。書くのは Chief of Staff（規約 9） | **一部**。置き場は `init/wiki/index.md`、書き手は Chief of Staff（規約 9）、ハーネスの auto memory は managed で OFF（ADR-0004 決めたこと 2・Y-165）。1 件 1 ファイルの形と lint は無い。**Codex 系の memory 相当は未確認** | 置き場はあり、学びは溜まっていない（仮設でも空）。Codex に自動の記憶があれば、建屋の外から見えない記憶が育つ | wiki の形と lint は、wiki を書くテーマが出てから。Codex の記憶は `~/.codex` の設定（`config.toml`・`memories`）を確かめ、あれば boot で切る | 小 | 後 |
    | C6 | プロジェクトの設定（Chief of Staff への指示・並行の上限） | `coordinator.md`（kanban の中） | **ある**（`projects/<slug>/AGENTS.md` の Chief of Staff の節と `project.json` の `chief_of_staff`。Y-141・Y-166）。行数の lint は Y-169（todo） | — | Y-169 | 小 | 後 |
 
    **D. 役・起動・オーナーとの対話**
@@ -82,9 +82,9 @@ P7（建屋 `home` を立てて Andon の PR を 1 本流す。[operate.md](../o
    | # | 項目 | 仮設の工場では | Andon では | 無いと何が起きるか（P7 で） | 塞ぎ方の案 | 大きさ | 順 |
    |---|---|---|---|---|---|---|---|
    | D1 | Chief of Staff が wiki に書ける（design.md §2.3 の `--add-dir`） | （コーディネーターの cwd は建屋のルートなので `memory/` は cwd の中） | **無い**。design.md §2.3 は「Chief of Staff の template に `--add-dir`（wiki・projects）」と書くが、`package/templates/chief-of-staff.md` の command に無い。cwd は `projects/<slug>/` なので `projects` は見えるが、`wiki/` は cwd の外（ADR-0004 で見つけた継ぎ目） | Chief of Staff が wiki に書こうとすると、cwd の外への書き込みで許可を求めて止まるか拒まれる。規約 9 の出口が塞がる。P7 では wiki を書く場面が無く未発生 | template の command に `--add-dir <建屋の repo>/wiki`（boot が `/opt/andon` と同じく `ANDON_WORKSPACE` に置き換える）。`projects` は cwd なので足さない。`tests/package.sh` で template が `--add-dir` を持つことを見る | 小 | **前** |
-   | D2 | Chief Engineer（オーナーと設計を対話する役） | **無い**（Chief of Staff が兼ねるか、最上位のプロファイルの担当課題。この ADR もその形） | **ある**（command・skill・template・kanban の課題）。**P7 では実測していない**（A-1〜A-7 は担当だけ） | オーナーと設計を詰める話が Chief of Staff に流れ、コンテキストが太る（§1.8 の反省そのもの） | 移ってから、Andon の題を 1 つ `andon chief-engineer` で流す（最初の題は C3 の retro でよい）。落ちたら課題 | 小（オーナー） | 後 |
+   | D2 | Chief Engineer（オーナーと設計を対話する役） | **無い**（Chief of Staff が兼ねるか、最上位のプロファイルの担当課題。この ADR もその形） | **ある**（command・skill・template・kanban の課題）。**P7 では実測していない**（A-1〜A-7 は担当だけ） | オーナーと設計を詰める話が Chief of Staff に流れ、コンテキストが太る（§1.8 の反省そのもの） | 移ってから、Andon のテーマを 1 つ `andon chief-engineer` で流す（最初のテーマは C3 の retro でよい）。落ちたら課題 | 小（オーナー） | 後 |
    | D3 | オーナーへの質問の間引きと 1 問ずつ | **skill**（ask-one-by-one） | **ある**（skill＋問いの JSON＋`kanban ask`。`kind` に `line` も） | — | 済み | — | 済 |
-   | D4 | 担当の許可の確認に Chief of Staff が答える（`hc keys`） | **オーナーの手**（Chief of Staff が `hc keys`。信頼の画面は worktree のときだけ） | **ある**（skill §4）。ただし **P7 で Chief of Staff の auto mode が `hc keys` を拒んだ**（信頼の画面。Y-133 の 5）。信頼の画面は Y-128 で出なくなり、Codex は承認を求めない（Y-145）。Claude Code の担当の許可の確認は残る | Chief of Staff が答えられずオーナーへ回る（規約 3 どおり。灯りが増えるだけ） | 許可ルールは足さない（auto mode の判定はオーナーの安全のため）。オーナーへ回った回数をトリアージで数え、多ければ別の題 | — | やらない（数える） |
+   | D4 | 担当の許可の確認に Chief of Staff が答える（`hc keys`） | **オーナーの手**（Chief of Staff が `hc keys`。信頼の画面は worktree のときだけ） | **ある**（skill §4）。ただし **P7 で Chief of Staff の auto mode が `hc keys` を拒んだ**（信頼の画面。Y-133 の 5）。信頼の画面は Y-128 で出なくなり、Codex は承認を求めない（Y-145）。Claude Code の担当の許可の確認は残る | Chief of Staff が答えられずオーナーへ回る（規約 3 どおり。灯りが増えるだけ） | 許可ルールは足さない（auto mode の判定はオーナーの安全のため）。オーナーへ回った回数をトリアージで数え、多ければ別のテーマ | — | やらない（数える） |
    | D5 | herdr との連携（状態の報告・tab 名） | **仕組み**。herdr（TUI）の連携フック（`herdr-agent-state`・`herdr-auto-title`） | hc の状態はプログラムの OSC 7501 の報告（フックは要らない。Y-124）。tab・Space 名は Herdr App の mod（ADR-0002・0003）。担当の tab 名が付かない件（Y-181）はオーナーの App の側と見立てた | — | 済み。Y-181 はオーナーの App のバージョンの確認待ち | — | 済 |
    | D6 | Codex の Chief of Staff とフック | 無い | **無い**（最初のバージョンは Claude Code だけ。問い 12） | — | — | — | やらない |
 
@@ -109,7 +109,7 @@ P7（建屋 `home` を立てて Andon の PR を 1 本流す。[operate.md](../o
    | F2 | `done` と `idle` の違いは**見たかどうか**。緑の印は仕事が終わった証明ではない | クライアントごとの既読。`agent read` では既読にならない | hc の `done` は「ターンが終わった」、`idle` は待機。**既読の概念は無い**。既読はボードと App の側で、Andon が書くのは Chief of Staff の `<no-reply>` のターンの `news.replied` だけ | 担当の `done` は dispatcher が報告（kanban）と `finished` で拾うので「見た」は要らない。オーナーの既読はボード（外部の部品）→ やらない |
    | F3 | **続きの状態は会話ではなくファイルに**（`progress.md`）。会話の再開（`--resume`）は長い会話をそのまま戻す | integration の hook で session の id を保存し `claude --resume`（Codex は戻らない） | hc の `--keep` は中身を戻さない（素のシェルになる）。Andon は再開を使わず、戻った担当は `finished` として起動し直す（Y-155）。続きは kanban（brief・report・`log.jsonl`）と worktree。報告か問いを書くまで止まれない（`stop-check`）。memory は置かない（ADR-0004） | ある（書くだけ）。記事の `progress.md` に当たるのは `report.md`／`report.json` |
    | F4 | **作り手と確かめ役を分け**、確かめ役には要約でなく差分とテスト出力を渡す。別ベンダーだと片方の見落としを拾う | 同じ tab に並べ `agent prompt` で渡す | 別ブランドのレビュアー・detached worktree の差分・plan と報告を見せない（independent-review）・担当と同じ tab に横に並ぶ（ADR-0003） | ある。証拠の質（A4）が残る |
-   | F5 | **並列化は曖昧さも増やす**。目標・受け入れ基準・触ってよい範囲と担当を先に書く | `worktree create` で並べる前に書く | 依頼書の完了条件・守ること（触る場所）・ぶつかりの確認・並行の上限（chief-of-staff skill §2・§3）。Chief Engineer の受け入れ条件（テストできる形） | ある。「受け入れ基準はコマンドで判定できる形」は A4 と同じ題 |
+   | F5 | **並列化は曖昧さも増やす**。目標・受け入れ基準・触ってよい範囲と担当を先に書く | `worktree create` で並べる前に書く | 依頼書の完了条件・守ること（触る場所）・ぶつかりの確認・並行の上限（chief-of-staff skill §2・§3）。Chief Engineer の受け入れ条件（テストできる形） | ある。「受け入れ基準はコマンドで判定できる形」は A4 と同じテーマ |
    | F6 | 進まなかった理由を**情報不足・権限不足・モデルの力不足**の 3 つに分けて次の依頼に返す | オーナーが手で | 無い（報告の `next[]`・`remember[]` は自由形式） | C3 で `corrections.json` を入れるとき、種類の列を検討。今はやらない |
    | F7 | 取り決め（オーナーの確認なしにマージしない等）は記憶でなく `AGENTS.md`・フック・CI に | — | managed の deny（`gh pr merge`・オーナーのファイル）・`stop-check`・gate・`tests/public.sh`（ポカヨケ） | ある |
    | F8 | 同時に動かす数は責任を持てる数で決め、例外だけ見る | サイドバーの `blocked`・`done` だけ見る | 並行の上限（`project.json` の `chief_of_staff.parallel`。既定 2）。オーナーが見るのは灯り（問い・レベル C）とボードの「自分待ち」 | ある |
@@ -199,7 +199,7 @@ P7（建屋 `home` を立てて Andon の PR を 1 本流す。[operate.md](../o
 
 （2026-11-10 に書き直した。残るものだけ。最初の S1〜S5 との対応: S1〈この ADR の PR〉→ この PR。S2 → R1。S3 → D1 は済、B7 だけ R3。S4 → R2。S5 → R4。最後の行〈Y-129 の束〉→ 引っ越しが済んだので無し）
 
-| # | 題 | なぜ | 完了条件 | 大きさ・プロファイル・Settings | 依存 |
+| # | タイトル | なぜ | 完了条件 | 大きさ・プロファイル・Settings | 依存 |
 |---|---|---|---|---|---|
 | R1 | dispatcher の 1 巡で `kanban tick` を打つ（C1） | ルーチンが 1 つも撃たれず、週 1 のトリアージも始まらない。アウターループの入口が開かない。順は dispatcher.md §2.1.1 で固定済み | `andon dispatcher` が各プロジェクトの kanban で、Chief of Staff が生きているときだけ、1 巡の 3 と 4 の間に `kanban tick` を 1 回打つ。失敗はログ 1 行で巡を止めない。`tick` が足した課題が同じ巡の `ready` の差で拾われる（`go test ./internal/dispatcher/...`・`tests/andon-dispatcher.sh`）。dispatcher.md §2.1・§2.1.1・§7.2 #8・§7.3 G4 を直し、`decisions/` に 1 ファイル | 小・claude・Review on（dispatcher の変更）・Must fix major・Merge オーナー | この ADR のマージ |
 | R2 | オーナーのマージと dispatcher のマージが重なったときの誤報を無くす（A5・G3） | `merge: auto` の課題をオーナーが先にマージすると、dispatcher の `gh pr merge` が失敗して `irreversible` の問い（誤報）が出る。オーナーのマージを拾う口（dispatcher.md §2.7）は `merge: person`・`needs_human` の課題だけ | `gh pr merge` の失敗のあと `gh pr view --json state,mergeCommit` を読み、`MERGED` で head が gate の記録の `head` と同じなら、問いを出さず finish へ進む（§2.7 と同じ道。gate の記録の `merged` は書かない）。違えば今までどおり問い（`go test ./internal/dispatcher/...`）。dispatcher.md §7.3 の G3 を §7.2 の #5 へ移し、`decisions/` に 1 ファイル | 小・claude・Review on（マージの段）・Merge オーナー | この ADR のマージ。R1 と独立 |
@@ -208,10 +208,10 @@ P7（建屋 `home` を立てて Andon の PR を 1 本流す。[operate.md](../o
 | R5 | 受け入れ条件の証拠の質を書く（A4） | 「通した」が言葉だけになる。`acceptance[]` は使い始めたが、証拠に何を書けばよいかが無い | contract.md §4 の `acceptance[]` の行と CE skill の受け入れ条件の節に、証拠はテストの command と出力のパスで、staged な出力と mock は証拠でない、と 1 段（`tests/package.sh`）。バージョンは上げない | 小・claude・Review off・Merge オーナー | この ADR のマージ |
 | R6 | 入力欄に残った最初のメッセージを送り直しで重ねない（B5） | `hc send` で貼った文が入力欄に残ると、送り直しで同じ指示が 1 回の送信に 2 つ並ぶ | `sendFirst` が送る前に `hc read` で入力欄を読み、最初のメッセージの 1 行目が残っていれば Enter だけ押す（`go test ./internal/dispatcher/...`） | 小・claude・Review on・Merge オーナー | この ADR のマージ |
 | R7 | lock の守りを足す（A6・A7。G1・G2・G5・G6） | 手で 2 本打つと記録の上書き・PR のコメントの二重・Chief of Staff が 2 人になる。どれも実害は小さい | dispatcher.md §7.3 の「直すなら」のとおり `.dispatcher.lock`・gate の head ごとの lock・`andon chief-of-staff` の lock・`boot.lock`。直したものは §7.3 から §7.2 へ移す（`go test ./...`） | 小〜中・claude・Review on・Merge オーナー。1 つずつ切ってよい | この ADR のマージ |
-| R8 | 振り返りのルーチン `retro` の題（C3） | `corrections.json` は集まるようになったが、読んで環境を直す口が無い | CE の課題として題を立て、文書（ADR）にする。ルーチンの実装はその文書が切る | CE（`andon chief-engineer`） | この ADR のマージ |
+| R8 | 振り返りのルーチン `retro` のテーマ（C3） | `corrections.json` は集まるようになったが、読んで環境を直す口が無い | CE の課題としてテーマを立て、文書（ADR）にする。ルーチンの実装はその文書が切る | CE（`andon chief-engineer`） | この ADR のマージ |
 | R9 | Codex の記憶を確かめる（C5） | Codex に自動の記憶があれば、セルの外から見えない記憶が育つ（ADR-0004 で auto memory を止めたのと同じ理由） | Codex の今のバージョンで記憶の設定（`~/.codex/config.toml`）を調べ、あれば boot で切る（`go test ./internal/boot/...`）、無ければ報告に書いて閉じる | 小・codex・Review on（`claude-review`）・Merge オーナー | この ADR のマージ |
 
-E5（作業側を別のマシンに出す）は切らない。design.md §5.1 の「その先」で、題が立ってから CE で決める。C5 の wiki の形と lint も切らない。wiki を書く題が出てから（決めたこと 2 の C5 の行）。
+E5（作業側を別のマシンに出す）は切らない。design.md §5.1 の「その先」で、テーマが立ってから CE で決める。C5 の wiki の形と lint も切らない。wiki を書くテーマが出てから（決めたこと 2 の C5 の行）。
 
 ## 開いている問い（オーナーに聞く。1 問ずつ。推しつき）
 
