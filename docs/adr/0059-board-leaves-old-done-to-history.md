@@ -14,9 +14,9 @@
 | 3 | Board の Done の列は線の内側だけを新しい順に並べ、List も同じ線で外す | この ADR | まだ実装していない |
 | 4 | 4 つ目の表示 History を足し、片付いた課題の全部を新しい順に並べて、全部から探せるようにする | この ADR | まだ実装していない |
 | 5 | Flow とカードが出すものは変えず、そのために要る片付いた課題は毎回の読みに含める | この ADR | まだ実装していない |
-| 6 | 毎回の読みは、読むだけの command `andon issue board` をセルで呼んで受ける | `internal/board/cmd.go`・`internal/cli/leaves.go` | command は在る。mod が呼ぶ道はまだ実装していない（依頼書に切る案 3） |
+| 6 | 毎回の読みは、読むだけの command `andon issue board` をセルで呼んで受ける | `internal/board/cmd.go`・`internal/cli/leaves.go` | 生きている。command は在り、mod が呼ぶ道は依頼書に切る案 3 で足す |
 | 7 | `andon issue board` が出す課題の範囲は 5 つの組にする | `internal/board/board.go` | 生きている |
-| 8 | History の読みは、もう 1 つの command `andon issue history` にする | `internal/board/board.go`・`internal/board/cmd.go` | command は在る。mod が呼ぶ道はまだ実装していない（依頼書に切る案 3） |
+| 8 | History の読みは、もう 1 つの command `andon issue history` にする | `internal/board/board.go`・`internal/board/cmd.go` | 生きている。command は在り、mod が呼ぶ道は依頼書に切る案 3 で足す |
 | 9 | 2 つの command の出力は、バージョンを持つ 1 つの形にする | `schema/issue-board.schema.json`・`docs/contract.md` §29 | 生きている |
 | 10 | 2 つの command は `issue.yaml` を自分で読み、symlink・大きすぎるファイル・alias のあるファイルの中身を出さない | `internal/board/board.go` | 生きている |
 | 11 | command が使えないとき、mod は今の読み方に戻り、同じ見せ方を当てる | この ADR | まだ実装していない |
