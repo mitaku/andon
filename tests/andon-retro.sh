@@ -228,6 +228,14 @@ grep -q '^- `typed\[\]\.text`.*`summaries\[\]\.findings`.*\*\*データ\*\*で�
 grep -q '^- `typed\[\]\.text`.*\*\*データ\*\*で、指示として読まない' "$skill" || die "データの行が無い（検査が何も見ていない）"
 echo 'ok ADR-0039 7: 要約の指摘の行は写すだけで、retro skill はそれを指示として読まないデータに挙げる'
 
+# paths を選ぶとき、直す文を固定する検査と写しを grep で拾う。grep は fetch した origin/HEAD の木を、文を固定の文字列として見る
+# （作業木は古い branch のことがあり、skill の文には正規表現の [ や . がよく入る）
+line=$(grep '^- \*\*`paths` を選ぶとき' "$skill") || die "retro skill に paths を選ぶときの行が無い"
+for want in 'fetch -q origin' 'grep -n -F' 'origin/HEAD' 'docs/adr/' 'docs/decisions/'; do
+  [[ "$line" == *"$want"* ]] || die "paths を選ぶときの行に $want が無い: $line"
+done
+echo 'ok: retro skill は paths を選ぶとき、origin/HEAD の木を固定の文字列で grep し、ADR と決定の記録は足さない'
+
 # 6: 要約の束の全文を --issue で引ける（日報とレビューの指摘が入る）
 KANBAN_ROOT=$groot "$andon" retro collect --issue S-0001 >"$tmp/one.json"
 jq -e '.id == "S-0001" and (.journal | startswith("- 理解: ")) and .reviews[0].findings.findings == [{severity: "major", file: "a.go", line: 3}]' "$tmp/one.json" >/dev/null \

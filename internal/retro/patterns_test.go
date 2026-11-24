@@ -248,6 +248,21 @@ func TestPlan(t *testing.T) {
 	if strings.Contains(pl.Brief, "オーナーが打った本文") {
 		t.Errorf("依頼書にオーナーの文の本文が入った")
 	}
+	// 守ることの行が paths の範囲だけを言うと、paths の文を固定する検査と同じ文の写しを直してよいかで担当が迷う。
+	// 行は、paths の文を字面で確かめる検査と paths の文の写しを同じ PR で直してよいと書き、それより広くは許さない。
+	// 振る舞いを止めて落ちる検査と、書き換えない ADR・決定の記録は許す所に入らない
+	keep := ""
+	for _, line := range strings.Split(pl.Brief, "\n") {
+		if strings.HasPrefix(line, "守ること: ") {
+			keep = line
+		}
+	}
+	for _, want := range []string{"paths の範囲で直す", "paths の文を字面で確かめる検査", "paths の文をそのまま写した所", "同じ PR で直してよい",
+		"docs/adr/", "docs/decisions/", "それより外は直さず"} {
+		if !strings.Contains(keep, want) {
+			t.Errorf("守ることの行に %q が無い: %q", want, keep)
+		}
+	}
 
 	p.Target = Target{Kind: "andon", Repo: "github.com/example/andon", Paths: []string{"package/skills/worker/SKILL.md"}}
 	p.Level, p.NotUpstream = "skill", "手順の抜けで、機械が確かめる値が無い"
