@@ -16,6 +16,7 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -69,7 +70,7 @@ func directive(c string) bool {
 func cgo(src []byte) bool {
 	all, _ := lexes(src, false)
 	for i, l := range all {
-		if l.tok == token.STRING && (l.lit == `"C"` || l.lit == "`C`") {
+		if path, err := strconv.Unquote(l.lit); l.tok == token.STRING && err == nil && path == "C" { // "\x43" も import "C"
 			for j := i - 1; j >= 0; j-- {
 				if all[j].tok == token.IMPORT {
 					return true

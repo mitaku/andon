@@ -388,6 +388,10 @@ if [ "$self" = true ]; then
   g5=$(put internal/gate/c.go $'package gate\n\n// #include <a.h>\nimport "C"')
   g6=$(put internal/gate/c.go $'package gate\n\n// #include <b.h>\nimport "C"')
   [ "$(feat "$g5..$g6")" = gate ] || die "features.sh: cgo の前置き（import \"C\" の前のコメント）を変えた差分で gate を返さない: $(feat "$g5..$g6" | tr '\n' ' ')"
+  # Go は import "\x43" も import "C" として読む（パスは引用符を外して比べる）
+  g10=$(put internal/gate/e.go $'package gate\n\n// #define VALUE 1\nimport "\\x43"')
+  g11=$(put internal/gate/e.go $'package gate\n\n// #define VALUE 2\nimport "\\x43"')
+  [ "$(feat "$g10..$g11")" = gate ] || die "features.sh: エスケープで書いた import \"\\x43\" の cgo の前置きを変えた差分で gate を返さない: $(feat "$g10..$g11" | tr '\n' ' ')"
   # 3c の名指し: 見るファイル（internal/issue/resume.go）でコメントだけを変えた変更は名指し無しで通り、コードの字句を変えた変更は名指しを求める
   r0=$(put internal/issue/resume.go $'package issue\n\n// Resume は続ける\nfunc Resume() {}')
   r1=$(put internal/issue/resume.go $'package issue\n\n// Resume は端末で続きを始める。\nfunc Resume() {}')
