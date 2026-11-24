@@ -204,7 +204,7 @@ EOF
    画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（1枚 10 MB まで）。PR を出したあとなら `gh pr edit <n> --body-file <本文> --attach <画像>` で本文に足す。本文の「検証結果と確かめ方」に `![説明](./<画像の名前>)` と書いておくと、その参照が添付の URL に書き換わる（本文のファイルの中のパスはそのファイルのフォルダから読むので、本文のファイルと画像を同じフォルダに置く。旗だけで足すと、画像は本文の末尾のメモの行の後ろに付く）。コメントでは添付しない。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。gate と dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す。`hc wait` は終わりの前にも返るので、1回の `hc wait` を終わりと読まない。長いコマンド（checks・テスト）を hc の端末で待つときは、いつも次の順で待つ:
-   1. `hc run --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` で起動し、返った `address` を控える。2 からはその address で打つ（片付けていない同じ名前の終わった端末が残っていると、名前では古い端末に当たりうる）。`--rm` は付けない（終わった直後に端末が消え、3 で読めない）。
+   1. `hc run --json --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` で起動し、返った JSON の `address` を控える。hc の旗（`--json` も）は `--` の前に書く。`--` の後ろは gh の引数で、`--json` を後ろに書くと gh に渡り、待ちがすぐ終わる。2 からはその address で打つ（片付けていない同じ名前の終わった端末が残っていると、名前では古い端末に当たりうる）。`--rm` は付けない（終わった直後に端末が消え、3 で読めない）。
    2. `hc wait <address> --json` を打ち、返った `reason` を読む。`exit` なら終わり。`exit_code` がコマンドの終了コードで、`null` なら `signal` で止められた（結果ではない）。
       `timeout`（既定で 180 秒ごとの途中の返り）と `message` は終わりではなく、2 を打ち直す。`message` は新しい文が来た証拠にもしない（受け取り済みの文でも立つ）。新しい文が来たと言うのは、その文を入力で受け取ってから。
       `hc wait` が `reason` を返さず終了コード 0 以外で終わった（端末が無い `not_found` など）ら打ち直さず、`hc get <address> --json` で端末を確かめる。
