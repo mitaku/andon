@@ -49,6 +49,6 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 - `ot-records` は Codex の起動を数えない（Codex は `ot-codex` が読む）。Codex の送る中身はソースから決めたもので、動かして確かめていない。Codex の記録が無いことは、`ot-codex` の `note` として報告に書き、壊れには数えない。
 - `project.json` の `otel.enabled` が `false` のプロジェクトでは、記録が無いのが正しい。読む前に `project.json` を見る。
 - 受け口を止めると、止めている間の記録は欠ける。`ot-restart` を確かめたら、受け口が listen していることを最後にもう一度確かめる。
-- 受け口は止まっていたときだけ起動されるので、`image/apply-main.sh apply` で当てても起動し直さない。検証する commit を当てる前から動く受け口は、その commit の `internal/otel/` の変更（落とす属性など）を持たない。`ot-listen` の下に受け口の起動の時刻と実体が出て、当てる前から動いていれば `note ot-listen` が出る。そのときの `ot-codex`・`ot-records` の `FAIL` は、当てた commit のコードでなく前のコードが書いた記録の結果なので、報告にそう書き分け、受け口を起動し直す課題を `## Next` で Chief of Staff に頼む。
+- 受け口は止まっていたときだけ起動されるので、`image/apply-main.sh apply` で当てても起動し直さない。検証する commit を当てる前から動く受け口は、その commit の `internal/otel/` の変更（落とす属性など）を持たない。`ot-listen` の下に受け口の起動の時刻と実体が出て、当てる前から動いていれば `note ot-listen` が出る。そのときの `ot-codex`・`ot-records` の落とした・残ったの判定は、`ok` も `FAIL` も前のコードの受け口の結果で、検証する commit の受けて書く処理は未確認になる。受け口の実体の commit（当てた記録の `previous` で、受け口の起動より前に当てた一番新しい commit）と検証する commit の間で `git log <受け口の commit>..<検証する commit> -- internal/otel/` が空なら、受けて書く処理は同じなので、判定はそのまま検証する commit の結果として書く。空でなければ未確認と書き、`FAIL` は前のコードの結果と書き分けて、受け口を起動し直す課題を `## Next` で Chief of Staff に頼む。受け口が当てた時刻より後に起動していても、それより前の記録は別の受け口が書いたので、同じく書き分ける（`note ot-listen` が出る）。
 - Codex のログは `timeUnixNano` を `"0"` で送り、時刻は `observedTimeUnixNano` にだけある（v0.166.0）。`ot-codex` は両方を読んで起動より後の行を数える。
 - オーナーが自分で打った `claude` は送らない。自分の手で起動した Claude Code の記録が無いことは壊れではない。
