@@ -2314,6 +2314,11 @@ await check('inbox: call のある出力は call で数える。呼ぶ merge・d
     items: { 'sample-site': [called('task', 'S-0049', '2026-11-21T08:00:00Z', 'true'), called('decision', 'S-0050', '2026-11-21T08:00:00Z', 'false')] } });
   await odd.look();
   assert.deepEqual(lampOf(odd.store), { ...LAMP0, light: 'amber', decision: 1 }, '真偽でない call を真偽として読んだ');
+  // A kind the inbox doesn't know, even an inherited name, isn't counted.
+  const unknown = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }],
+    items: { 'sample-site': [called('toString', 'S-0051', '2026-11-21T08:00:00Z', true), called('constructor', 'S-0052', '2026-11-21T08:00:00Z', false)] } });
+  assert.equal((await unknown.look()).owed.length, 0, '知らない kind で件数の行が出た');
+  assert.deepEqual(lampOf(unknown.store), LAMP0, '知らない kind を数えた');
 });
 
 await check('inbox: 置いたものの数は、ほかのマシンへ絞っても、ほかのマシンで待っている数に足さない（ADR-0062 決めたこと 7）', async () => {

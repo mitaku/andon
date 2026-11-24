@@ -324,7 +324,7 @@ export default class Inbox extends View {
     // (ADR-0062 decision 7). Without `call` (an older cell), hand work doesn't call (ADR-0043 decision 4).
     const read = [...cosOf.values()].flatMap((p) => {
       const s = standing(p.machine, p.project);
-      return s.mode === "read" ? [{ p, items: s.items.filter((x) => x.kind in ASKS) }] : [];
+      return s.mode === "read" ? [{ p, items: s.items.filter((x) => Object.hasOwn(ASKS, x.kind)) }] : [];
     });
     const owed = read.flatMap(({ p, items }) => {
       const asks = items.filter(isCalling);
