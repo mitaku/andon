@@ -6,10 +6,16 @@ set -euo pipefail
 for c in jq git; do command -v "$c" >/dev/null || { echo "skip: $c が無い"; exit 0; }; done
 tmp=$(mktemp -d)
 trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
+# go の shim（mise）は道具を HOME の下から引く。HOME を一時に向ける前に go の実体を PATH の先に置き、一時の HOME に go を取り直させない
+if goroot=$(cd "$(dirname "$0")/.." && { go env GOROOT || mise exec -- go env GOROOT; } 2>/dev/null); then PATH="$goroot/bin:$PATH"; fi
 export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" GOCACHE="$tmp/gocache" GOMODCACHE="$tmp/gomodcache" GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
 mkdir -p "$HOME"
 . "$(dirname "$0")/lib/andon.sh"
 . "$(dirname "$0")/lib/kanban.sh"
+if [ -z "${ANDON_BIN:-}" ] && [ -z "${KANBAN_BIN:-}" ]; then
+  [ ! -e "$HOME/.local/share/mise" ] || { echo "FAIL 一時の HOME に mise が道具を入れた: $(ls "$HOME/.local/share/mise/installs" 2>&1)" >&2; exit 1; }
+  echo "ok   go の道具を一時の HOME に取り直さない"
+fi
 root=$(cd "$(dirname "$0")/.." && pwd)
 unset KANBAN_ROOT HC_TERMINAL_ID
 
