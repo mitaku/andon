@@ -464,10 +464,10 @@ fi
 if run status && grep -q "当てた commit: 当てていない" "$tmp/out"; then pass "6 戻したあとの状態は「当てていない」"; else fail "6 戻したあとの状態: $(cat "$tmp/out")"; fi
 
 # === 6b. andon と kanban を壊してから戻す ===
-# 13. 受け口が動いていなければ、止めも起動もせずに当てる
+# 13. 受け口が動いていなければ、当てる道具は受け口に触らずに当てる（受け口を起動するかは boot が決める。hc があれば起動する〈ADR-0060 決めたこと 4〉）
 : >"$CALLS"
 if run apply && ! grep -q '受け口' "$tmp/out" && [ "$(grep -c '^andon boot ' "$CALLS")" = 1 ] && ! grep -q '^otel ' "$CALLS"; then
-  pass "13 受け口が動いていなければ何もせず当てる（rc 0）"
+  pass "13 受け口が動いていなければ、当てる道具は受け口に触らずに当てる（rc 0）"
 else
   fail "13 受け口の無いときの当て直し: $(cat "$CALLS") / $(cat "$tmp/out")"
 fi
