@@ -7,7 +7,7 @@
 - `gt-record` 当てたあとの gate の記録（`library/gate/<head>.json`）が、判定・レベル・head・理由の形を持つ。見る道: 検証の担当だけ。
   - 見るファイル: `internal/gate/gate.go`、`internal/gate/decide.go`、`internal/gate/comment.go`、`internal/gate/mark.go`、`internal/gate/review.go`、`package/gate.json`
 - `gt-route` 判定ごとに課題が動いた（`approve` はマージかオーナーへ、`fix` は `doing`、`needs_human` は問い）。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/issue/merge.go`、`internal/issue/finish.go`、`internal/issue/writeback.go`、`internal/dispatcher/route.go`、`internal/contract/merge.go`、`internal/delegate/delegate.go`、`internal/delegate/cmd.go`、`process/states/gate.yaml`
+  - 見るファイル: `internal/issue/merge.go`、`internal/issue/finish.go`、`internal/issue/writeback.go`、`internal/dispatcher/route.go`、`internal/contract/merge.go`、`internal/delegate/delegate.go`、`process/states/gate.yaml`
 - `gt-answer` dispatcher が閉じた問いは gate の問い（`from: gate`）だけで、dispatcher が書いた答えは印が `machine`、「決め直した」の答えが名指す gate の記録が在る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/settle.go`、`internal/contract/settle.go`、`internal/dispatcher/humanmerge.go`、`process/states/human-merge.yaml`
 

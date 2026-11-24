@@ -64,7 +64,7 @@
 
 ## 地図が覆わないもの
 
-`internal/`・`cmd/`・`package/` の下のうち、次のものはどの機能のファイルにも載せない。変えても検証の課題は切られない（`scripts/features.sh` が機能を返さない）。1行に置き場と理由を書く。行の先頭に `` で囲んで「・」で並べたパスを `tests/verify-andon.sh` が読む。
+`internal/`・`cmd/`・`package/` の下のうち、次のものはどの機能の道も通らない。機能の「変えたら動かすパス」の下にあっても、変えたときに検証の課題は切られない（`scripts/features.sh` が機能を返さない）。細かい機能の見るファイルには書かない。機能のパスを丸ごと外す置き場も書かない。1行に置き場と理由を書く。行の先頭に `` で囲んで「・」で並べたパスを `tests/verify-andon.sh` が読む。
 
 - `package/lib/`（statusline と schema の検査器）。利用者が動かす道が無い。statusline は Claude Code が画面に出すだけで、検査器は `tests/schema.sh` と `go test ./internal/contract/` が CI で見ている。セルの本物で動かして増える証拠が無い。
 - `package/host/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
@@ -74,5 +74,8 @@
 - `internal/board/`・`internal/chiefofstaff/`・`internal/chiefengineer/`・`internal/open/`（ボードと、Chief of Staff・Chief Engineer を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。
 - `internal/plantinit/`（`andon init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
 - `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
+- `cmd/kanban/migrate.go`・`cmd/kanban/dispatcherstate.go`（`kanban migrate`）。前の形の kanban を移す口で、どの機能の道も打たない。`go test ./cmd/kanban/` と `tests/kanban.sh` が見ている。
+- `internal/delegate/cmd.go`（`andon delegate grant` など）。オーナーが委譲を変える口で、どの機能の道も打たない。gate が委譲を読むところは `gt-route` が見る。`go test ./internal/delegate/` と `tests/andon-gate.sh` が見ている。
+- `cmd/kanban/lock_windows.go`・`cmd/kanban/rename_windows.go`・`internal/spawn/tty_other.go`・`internal/signal/echo_other.go`。linux でない OS でだけ build されるファイルで、セルの andon と kanban には入らない。
 
 `package/gh-skills.txt` は覆う。`boot.md` の「変えたら動かすパス」に載せた。

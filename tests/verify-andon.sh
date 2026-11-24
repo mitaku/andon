@@ -82,6 +82,8 @@ ok "verify-andon: 機能のファイルは6つの節をこの順に持ち、変�
 #     置き場（<dir>/）で名指せるのは Go のファイルを持たない置き場だけ（Go のファイルは1つずつ書く。足した .go が名指しなしで通らない）
 #   - 「変えたら動かすパス」の下のテストでないファイルは、どれかの細かい機能の見るファイルに入る
 #   - internal/・cmd/・package/ の下のテストでないファイルは、どれかの機能の「変えたら動かすパス」か、目次の「地図が覆わないもの」に入る
+#   - 「地図が覆わないもの」はどの細かい機能の道も通らないもの。機能のパスの下にあっても先に効き（features.sh も機能を返さない）、
+#     見るファイルに名指さない。機能のパスを丸ごと外す置き場は書かない
 # パスとテストの読み方は scripts/features.sh と同じ（hits。テストでないファイルは *_test.go・testdata/・internal/ の下で親の package の名前に test を付けた package〈internal/ledger/ledgertest/〉を除いたもの）
 inpart() {
   case "$1" in
@@ -121,18 +123,30 @@ outside=$(sed -n '/^## 地図が覆わないもの$/,/^## /p' "$idx" | grep -oE 
 [ -n "$outside" ] || die "目次の「地図が覆わないもの」に置き場の行が読めない"
 for e in $outside; do
   [ -e "$root/$e" ] || die "目次の「地図が覆わないもの」の $e が repo に無い"
+  for p in "${allparts[@]}"; do
+    ! inpart "$e" "$p" || die "目次の「地図が覆わないもの」の $e が、機能の変えたら動かすパス $p を丸ごと外す"
+  done
 done
-nseen=0 nall=0
+# 「地図が覆わないもの」は機能のパスより先に効く（features.sh もその差分で機能を返さない）。どの細かい機能の道も通らないファイルを、名指しだけで覆ったことにしない
+nseen=0 nall=0 nout=0
 while IFS= read -r t; do
   [ -n "$t" ] || continue
+  out=false
+  for e in $outside; do
+    if inpart "$e" "$t"; then out=true; break; fi
+  done
+  if [ "$out" = true ]; then
+    for e in "${seeall[@]}"; do
+      ! inpart "$e" "$t" || die "$t が、目次の「地図が覆わないもの」に入るのに、細かい機能の見るファイル $e に名指されている（どちらかに決める）"
+    done
+    nout=$((nout + 1)) nall=$((nall + 1))
+    continue
+  fi
   mapped=false
   for p in "${allparts[@]}"; do
     if inpart "$p" "$t"; then mapped=true; break; fi
   done
   if [ "$mapped" = true ]; then
-    for e in $outside; do
-      ! inpart "$e" "$t" || die "$t が、目次の「地図が覆わないもの」の $e と、機能の変えたら動かすパスの両方に入る"
-    done
     named=false
     for e in "${seeall[@]}"; do
       if inpart "$e" "$t"; then named=true; break; fi
@@ -141,16 +155,13 @@ while IFS= read -r t; do
     nseen=$((nseen + 1))
   else
     case "$t" in internal/* | cmd/* | package/*) ;; *) continue ;; esac
-    out=false
-    for e in $outside; do
-      if inpart "$e" "$t"; then out=true; break; fi
-    done
-    [ "$out" = true ] || die "$t が地図の外（どの機能の変えたら動かすパスにも、目次の「地図が覆わないもの」にも無い。機能のファイルの「変えたら動かすパス」と細かい機能の「見るファイル:」に足すか、覆わない理由を目次に書く）"
+    die "$t が地図の外（どの機能の変えたら動かすパスにも、目次の「地図が覆わないもの」にも無い。機能のファイルの「変えたら動かすパス」と細かい機能の「見るファイル:」に足すか、覆わない理由を目次に書く）"
   fi
   nall=$((nall + 1))
 done <<<"$tracked"
 [ "$nseen" -gt 100 ] || die "見るファイルの確かめが $nseen 件しか見ていない（読み方が壊れている）"
-ok "verify-andon: 変えたら動かすパスの下のファイル $nseen 件はどれも細かい機能の見るファイルに入り、internal/・cmd/・package/ の下は地図か「地図が覆わないもの」に入る（$nall 件）"
+[ "$nout" -gt 50 ] || die "「地図が覆わないもの」に入るファイルが $nout 件しか読めない（読み方が壊れている）"
+ok "verify-andon: 変えたら動かすパスの下のファイル $nseen 件はどれも細かい機能の見るファイルに入り、internal/・cmd/・package/ の下は地図か「地図が覆わないもの」（$nout 件）に入る（$nall 件）"
 
 # 手順が drive.sh を名指すときは、いつも検証する commit を添える（省いて打つと 2 で断られる。省ける書き方を写させない）
 uses=$(cat "$skill/SKILL.md" "$skill"/features/*.md | grep -oE 'scripts/drive\.sh [^`|]*' || true)
@@ -228,6 +239,12 @@ if [ "$self" = true ]; then
   # git は ASCII でないパスを既定で "…\346…" と引用符で包んで出す。包んだまま読むと、どの機能にも当たらず黙って抜ける
   c12=$(put internal/gate/新しい.go x)
   [ "$(feat "$c11..$c12")" = gate ] || die "features.sh: ASCII でない名前のファイル（internal/gate/新しい.go）の差分で gate を返さない: $(feat "$c11..$c12" | tr '\n' ' ')"
+  # 目次の「地図が覆わないもの」は機能のパス（cmd/kanban/）より先に効く。kanban migrate を通らない report-ready を選ばない
+  c13=$(put cmd/kanban/migrate.go x)
+  out=$(feat "$c12..$c13") || die "features.sh: 地図が覆わないものだけの範囲で 0 で終わらない"
+  [ -z "$out" ] || die "features.sh: 地図が覆わないもの（cmd/kanban/migrate.go）だけの差分で $out を出す"
+  c14=$(put cmd/kanban/main.go x)
+  [ "$(feat "$c13..$c14")" = report-ready ] || die "features.sh: cmd/kanban/main.go の差分で report-ready だけにならない: $(feat "$c13..$c14" | tr '\n' ' ')"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "features.sh: 範囲が無いのに終了コード $rc（2 でない）"
   rc=0; bash "$skill/scripts/drive.sh" no-such-feature 0123456789abcdef0123456789abcdef01234567 2>/dev/null || rc=$?
@@ -266,6 +283,12 @@ if [ "$self" = true ]; then
   cp -r "$skill" "$tmp/l" && sed -i '/^  - 見るファイル: /s/`package\/hooks\/`、`package\/settings\.json`/`package\/`、`package\/settings.json`/' "$tmp/l/features/hooks.md"
   grep -qF '見るファイル: `package/`、' "$tmp/l/features/hooks.md" || die "写し l の hk-wired を package/ に替えられない（自分の確かめが何も見ない）"
   broke '見るファイル package/ が、同じ機能の変えたら動かすパスの下に無い' "$tmp/l"
+  # 道が通らないファイル（kanban migrate）を見るファイルに名指して覆ったことにする・覆わないもので機能のパスを丸ごと外す
+  cp -r "$skill" "$tmp/m" && sed -i '/^  - 見るファイル: /s/`cmd\/kanban\/main\.go`/`cmd\/kanban\/main.go`、`cmd\/kanban\/migrate.go`/' "$tmp/m/features/report-ready.md"
+  grep -qF '`cmd/kanban/migrate.go`' "$tmp/m/features/report-ready.md" || die "写し m の rr-ready に migrate.go を名指せない（自分の確かめが何も見ない）"
+  broke 'cmd/kanban/migrate.go が、目次の「地図が覆わないもの」に入るのに、細かい機能の見るファイル cmd/kanban/migrate.go に名指されている' "$tmp/m"
+  cp -r "$skill" "$tmp/n" && sed -i 's/^- `internal\/schema\/`/- `internal\/gate\/`・`internal\/schema\/`/' "$tmp/n/features/README.md"
+  broke '目次の「地図が覆わないもの」の internal/gate/ が、機能の変えたら動かすパス internal/gate/ を丸ごと外す' "$tmp/n"
   ok "verify-andon: 地図のファイルを消す・無い command を名指す・無いパスを書く・設定を外す・drive.sh の commit を省ける書き方にする・足したファイルを見るファイルに名指さない・地図の外に package を置く・見るファイルの書き方を誤ると、この検査が落ちる"
 fi
 

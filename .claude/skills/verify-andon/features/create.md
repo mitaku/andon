@@ -11,7 +11,7 @@
 - `cr-exists-refuse` 在る slug は断り、`projects/<slug>` の中身を変えない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/create/create.go`
 - `cr-ask` 端末で引数を省くと、slug・repos・接頭字・タイトルを既定値つきで1つずつ聞く。見る道: オーナーが見る。
-  - 見るファイル: `internal/spawn/tty_linux.go`、`internal/spawn/tty_other.go`
+  - 見るファイル: `internal/spawn/tty_linux.go`
 
 ## 辿り着き方（利用者から）
 
