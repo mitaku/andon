@@ -43,6 +43,40 @@ jq -e --arg a "$a" --arg b "$b" '[.items[] | select(.kind == "decision" and .ans
 step "ow-waiting: andon waiting を打つ（人が読む出力）" "$andon" waiting \
   && grep -qF "$a" "$tmp/step.out" && ok "ow-waiting: 人が読む出力にも $a が出る" || fail "ow-waiting: 人が読む出力に $a が無い"
 
+# ow-later: Chief of Staff が印 later を書いたオーナーの課題は、呼ばずに置いてある行になる。日（later_until）が来るか、
+# 印を担当の端末が書き直すと、また呼ぶ
+row_of() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, call, later, later_until}' "$tmp/step.out" 2>/dev/null; }
+why="$run 急がない。次のリリースで決めればよい"
+step "ow-later: Chief of Staff（tc）が $a に印 later を書く" "$kanban" set "$a" later="$why"
+step "ow-later: 印のあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+echo "  waiting: $(row_of "$a") $(row_of "$b")"
+jq -e --arg a "$a" --arg b "$b" --arg w "$why" '[.items[] | select(.id == $a or .id == $b) | [.id, .call, (.later // "")]] == [[$b, true, ""], [$a, false, $w]]' "$tmp/step.out" >/dev/null \
+  && ok "ow-later: $a は call: false で印の理由を持ち、呼んでいる $b の後に並ぶ" \
+  || fail "ow-later: 印を書いた $a が置いてある行にならない・並びが違う"
+step "ow-later: 印のあとに andon waiting を打つ（人が読む出力）" "$andon" waiting
+grep -q '^置いてあるもの 1 件' "$tmp/step.out" && grep -qF "置いた理由: $why" "$tmp/step.out" \
+  && ok "ow-later: 人が読む出力に「置いてあるもの 1 件」と置いた理由が出る" \
+  || fail "ow-later: 人が読む出力に置いてあるものの見出しか理由が無い"
+step "ow-later: Chief of Staff が $a に先の日 later_until=2999-12-31 を書く" "$kanban" set "$a" later_until=2999-12-31
+step "ow-later: 先の日のあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+echo "  waiting: $(row_of "$a")"
+jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == false and .later_until == "2999-12-31"' "$tmp/step.out" >/dev/null \
+  && ok "ow-later: 日が先なら $a は置いたままで、呼ぶ日 2999-12-31 が出る" \
+  || fail "ow-later: 日が先なのに $a を呼んだか、呼ぶ日が出ない"
+step "ow-later: Chief of Staff が $a に来た日 later_until=2000-01-01 を書く" "$kanban" set "$a" later_until=2000-01-01
+step "ow-later: 日が来たあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+echo "  waiting: $(row_of "$a")"
+jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == true' "$tmp/step.out" >/dev/null \
+  && ok "ow-later: 日が来た $a はまた呼ぶ（call: true）" \
+  || fail "ow-later: 日が来たのに $a を呼ばない"
+step "ow-later: Chief of Staff が later_until を消す" "$kanban" set "$a" later_until=
+step "ow-later: 担当の端末 tw が $a の印 later を書き直す" env HC_TERMINAL_ID=tw "$kanban" set "$a" later="$why"
+step "ow-later: 担当が書いたあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+echo "  waiting: $(row_of "$a")"
+jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == true and (has("later") | not)' "$tmp/step.out" >/dev/null \
+  && ok "ow-later: 担当の端末が書いた印は信じず、$a をまた呼ぶ" \
+  || fail "ow-later: 担当の端末が書いた印で $a を置いたままにした"
+
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
 sed 's/^/  /' "$tmp/hc.calls" "$tmp/gh.calls"
