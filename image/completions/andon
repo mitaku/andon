@@ -3,7 +3,7 @@
 _andon() {
   local cur=${COMP_WORDS[COMP_CWORD]}
   if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=($(compgen -W "help open version boot chief-of-staff chief-engineer create waiting delegate measure signal digest init issue gate news publish triage retro dispatcher schema process" -- "$cur"))
+    COMPREPLY=($(compgen -W "help open version boot chief-of-staff chief-engineer create waiting delegate measure signal digest init issue gate news publish triage retro dispatcher otel schema process" -- "$cur"))
     return 0
   fi
   [ "$COMP_CWORD" -eq 2 ] || return 0
@@ -19,6 +19,7 @@ _andon() {
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
     retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;
     dispatcher) COMPREPLY=($(compgen -W "drain wait rewake" -- "$cur")) ;;
+    otel) COMPREPLY=($(compgen -W "serve" -- "$cur")) ;;
     schema) COMPREPLY=($(compgen -W "check batch" -- "$cur")) ;;
     process) COMPREPLY=($(compgen -W "render json" -- "$cur")) ;;
     open)

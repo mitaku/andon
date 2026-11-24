@@ -73,6 +73,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon signal collect` | 機械 | project.json の signals の出所を読み、信号の記録を書く |
 | `andon signal delivered` | 機械 | 通知 signal で届けた出来事を記録に書く |
 | `andon boot serve-files` | 機械 | files サーバ（boot が自分で起動する） |
+| `andon otel serve` | 機械 | ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く |
 | `andon version stamp` | 機械 | 焼くときに置き場の中身を数えて version.json を書く |
 | `andon schema check` | 機械・役 | JSON を約束の schema と照らす |
 | `andon schema batch` | 機械・役 | 1行1件の表を、検査器を1度読むだけでまとめて照らす |
