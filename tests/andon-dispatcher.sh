@@ -1452,6 +1452,10 @@ ok 'base が動き続けたら打ち直しは 3 回までで、checks を待っ�
 # Chief of Staff が原因を直し、担当が同じ head で ready し直した回でまた base が動き、待つ間に記録が消えた → 前の review 入りの問いで決め終えたと読まない
 HC_TERMINAL_ID=t5 kanban answer "$id#1" 'Chief of Staff が原因を直した。ready し直す' >/dev/null
 HC_TERMINAL_ID=t7 kanban received "$id#1" >/dev/null
+rm -f "$tmp/gh/mergefail"   # 同じ review 入りで問いを受け取ったあとに記録が消えても、問いを出した行で決め終えたと読み、打ち直さない
+lost_merge_record "$id"
+[ "$(tried)" = 4 ] && [ ! -e "$L/issues/$id/library/questions/2.json" ] || die "受け取った問いのあとに記録が消えたら、打ち直した・問いを出し直した: $(tried) $(cat "$tmp/merge.out")"
+printf '%s\n' "$basemod" > "$tmp/gh/mergefail"
 (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
 as_worker "$id" ready
 dispatcher
