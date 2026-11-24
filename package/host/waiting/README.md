@@ -27,6 +27,8 @@ The `andon` layout (`../layouts/andon.json`) has it as the third block of the ri
 
 The inbox's header has a button (`waiting.svg`) that shows the panel and selects this block (`layout.show` `panel`, then `layout.select` `panel-body` / `waiting`). The tab bar's Files and Changes buttons open their own blocks as before.
 
+To close it, press the close button at the right of its header, or Esc while the pane has the keyboard. That hides the whole right panel (`layout.hide` `panel`), Files and Changes with it, and the shown tab takes the width. What you opened or picked is kept while you stay in the same folder: show it again from the inbox and it is as you left it. Moving to another folder meanwhile starts over there, as it always does. The button and Esc are there only when the block sits in the layout's `panel`.
+
 ## What it runs
 
 | Call | When |
@@ -35,6 +37,7 @@ The inbox's header has a button (`waiting.svg`) that shows the panel and selects
 | `exec("andon", ["waiting", "answer", question, "--option", n], {cwd, on})` | **Answer** on an answerable decision row, once per press; `question` is the item's `question` from the output (`<id>#<n>`), `n` the picked option's number from 1, `cwd` and `on` where the row was read |
 | `exec("xdg-open" \| "open" \| "explorer.exe", [url])` | **Open PR** on a merge row, and a link under a task row's steps (only `http(s)` links) |
 | `run("agent.focus", {terminal})` | **Go to Chief of Staff** |
+| `run("pane.go", {direction: "left"})`, then `run("layout.hide", {id: "panel"})` | the close button, or Esc while the pane has the keyboard (`pane.go` only then) |
 
 The arguments are fixed: no path, slug or text from the screen goes into a command. The only write is `andon waiting answer`, and the command, not the pane, decides what may be answered. No `kanban`, no file reads, no `fetch`, no notifications.
 
