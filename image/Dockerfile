@@ -80,9 +80,13 @@ RUN curl -fsSL -o /tmp/aqua-installer "https://raw.githubusercontent.com/aquapro
 COPY --chown=andon:andon image/aqua/ /opt/andon-aqua/
 # mise は shims を PATH で最初に見つかる mise へ向ける。aqua の bin/mise は argv[0] で道具を選ぶ proxy なので、shims がそこを指すと
 # go を aqua の道具として探して落ちる。本物の mise へのリンクを aqua の bin より先の ~/.local/bin に置く（tests/image.sh が見る）
+# mise の既定の go（~/.config/mise/config.toml）を repo の mise.toml と同じバージョンにする。mise.toml の無い所（一時の置き場・
+# repo の外へ展開した検査）でも、非対話のシェルの shims が go を引ける。値は mise.toml の go に揃える（tests/image.sh が見る）
+ARG DEFAULT_GO_VERSION=1.27.3
 RUN aqua install --all \
- && mkdir -p "${HOME}/.local/bin" \
- && ln -s "$(aqua which mise)" "${HOME}/.local/bin/mise"
+ && mkdir -p "${HOME}/.local/bin" "${HOME}/.config/mise" \
+ && ln -s "$(aqua which mise)" "${HOME}/.local/bin/mise" \
+ && printf '[tools]\ngo = "%s"\n' "${DEFAULT_GO_VERSION}" >"${HOME}/.config/mise/config.toml"
 
 ARG PLAYWRIGHT_VERSION=1.62.1
 ARG PORTLESS_VERSION=0.15.5

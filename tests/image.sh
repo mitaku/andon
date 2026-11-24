@@ -16,6 +16,13 @@ if [ "$img_go" != "$mise_go" ]; then
   exit 1
 fi
 
+# image の mise の既定の go（mise.toml の無い所で引かれる go）も mise.toml の go に揃える
+def_go=$(sed -n 's/^ARG DEFAULT_GO_VERSION=\([0-9.]*\)$/\1/p' image/Dockerfile)
+if [ "$def_go" != "$mise_go" ]; then
+  echo "FAIL image: image/Dockerfile の DEFAULT_GO_VERSION（${def_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
+  exit 1
+fi
+
 if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
   if [ "${CI:-false}" = true ]; then
     echo 'FAIL image: CI requires Docker' >&2

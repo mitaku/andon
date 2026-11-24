@@ -5,7 +5,7 @@
 | 決まり | 守らせるもの |
 |---|---|
 | テストは `go test ./...` と `tests/run --changed`（変えたものに関係する `tests/*.sh` だけを並べて走らせる）。commit の前に通す。手元では関係する検査だけ、全部（`tests/run`）は CI に任せる。 | `.github/workflows/go.yml` と `.github/workflows/tests.yml`。main の ruleset が checks の `go`・`tests` の通過をマージの条件にしている。base の最新への追従は求めないが、PR の分かれ目より後に main で検査の置き場（`tests/`・`.github/workflows/`・検証の地図・Go の `*_test.go`）が変わっていれば、gate が古い base として fix で返す（`internal/gate/gate.go` の `CheckPlaces`。rebase して checks を回し直す）。commit の前に回したかは見ない。 |
-| Go のバージョンは `mise.toml`（`go.mod` と揃える）。 | `tests/image.sh`。`go.mod` の go と Dockerfile の golang のバージョンを `mise.toml` と突き合わせる。 |
+| Go のバージョンは `mise.toml`（`go.mod` と揃える）。 | `tests/image.sh`。`go.mod` の go と Dockerfile の golang・mise の既定の go（`DEFAULT_GO_VERSION`）のバージョンを `mise.toml` と突き合わせる。 |
 | `gofmt -l .` が空で、`golangci-lint run ./...` の指摘が 0 件であること（バージョンは `mise.toml`、設定は `.golangci.yml`。CI の go の job も回す）。 | `.github/workflows/go.yml` の gofmt と golangci-lint の step。設定は `.golangci.yml`。 |
 | errcheck はテストと出力への書き込み（`fmt.Fprint*`・`io.Writer` の `Write`）を見ない。ほかで戻り値の err を捨てるときは、その行に `//nolint:errcheck // <理由>` を書く。 | `.golangci.yml` の errcheck と nolintlint。linter の名前か理由の無い nolint の注釈で落ちる。 |
 | `tests/run` は同時に1本だけ走る（mise の置き場と CPU を取り合う）。2本目は理由を1行出して、前の回が終わるまで待つ。 | `tests/run`。鍵のファイルを flock で取る。`tests/ci.sh` が2本を同時に起動して、2本目が1本目の終わるまで走らないことを確かめる。 |
