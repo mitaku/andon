@@ -74,7 +74,6 @@ func (r *reader) claudeUsage(dir, session string) *TokenUsage {
 	return &l.Usage
 }
 
-// codexByCwd は Codex の記録を、先頭行（session_meta）の cwd ごとに分ける（sessionlog.CodexByCwd）。
 func (r *reader) codexByCwd(root string) map[string][]string {
 	return sessionlog.CodexByCwd(root, r.skipped1)
 }
@@ -84,12 +83,10 @@ func (r *reader) codexUsage(files []string) *TokenUsage {
 	return sessionlog.Codex(files, r.skipped1)
 }
 
-// skipped1 は sessionlog が読み飛ばした記録を、飛ばした記録に足す。
 func (r *reader) skipped1(src string, line int, reason string) {
 	r.skip(src, line, "%s", reason)
 }
 
-// active は期間に log.jsonl の行がある課題。
 func active(rows []logRow, in func(time.Time) bool) map[string]bool {
 	m := map[string]bool{}
 	for _, row := range rows {

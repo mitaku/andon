@@ -52,7 +52,6 @@ var unchecked = map[string]struct {
 	"internal/triage/triage.go":                {map[string]int{"json.NewEncoder": 1}, "トリアージの出力（schema の無い形）"},
 }
 
-// skipped は数えない置き場。
 var skipped = map[string]string{
 	"internal/contract": "照らす口そのもの",
 	"cmd/kanban":        "kanban の CLI（別の binary）。書くのは kanban の YAML と log.jsonl で、schema/ の直下の約束ではない",

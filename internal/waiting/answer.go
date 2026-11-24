@@ -16,7 +16,6 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// AnswerUsage は andon waiting answer の使い方。
 const AnswerUsage = "usage: andon waiting answer <id>#<n> --option <番号> [--project <slug>]\n" +
 	"オーナーのペインから、開いている判断の問いに、問いの JSON の選択肢の1つ（番号は 1 から）で答える。\n" +
 	"書くのは kanban answer の1つだけで、答えの文は選んだ選択肢の label。\n" +
@@ -27,7 +26,6 @@ const AnswerUsage = "usage: andon waiting answer <id>#<n> --option <番号> [--p
 // answerKinds はペインから答えられる問いの種類（灯りの種類から irreversible を除く。決めたこと 18）。
 var answerKinds = []string{"business", "users", "promise", "line"}
 
-// Answer は andon waiting answer。
 func Answer(args []string, stdout, stderr io.Writer) int {
 	ref, option, slug := "", "", ""
 	for len(args) > 0 {

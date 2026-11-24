@@ -53,7 +53,6 @@ func (f *fake) write(rel, body string) {
 	}
 }
 
-// issue は課題を置く（keys は issue.yaml に足す行）。
 func (f *fake) issue(id, status string, keys ...string) {
 	body := fmt.Sprintf("id: %s\ntitle: タイトル %s\nstatus: %s\ncreated: \"2026-11-21T01:00:00Z\"\n", id, id, status)
 	for _, k := range keys {
@@ -108,7 +107,6 @@ func (f *fake) read() Result {
 	return res
 }
 
-// kinds は id ごとの行の種類（問いのある行は <id>#<n>=<kind>）。
 func kinds(r Result) []string {
 	var out []string
 	for _, it := range r.Items {
@@ -173,7 +171,6 @@ func TestKinds(t *testing.T) {
 	}
 }
 
-// usersAsk は灯りの種類（users）の問いの JSON。
 const usersAsk = `{"kind": "users", "question": "CSV だけにするか", "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}], "from": "chief-of-staff"}`
 
 // unasked は問いの置かれていない判断の行の形を確かめる（ADR-0057 受け入れ条件 1）。

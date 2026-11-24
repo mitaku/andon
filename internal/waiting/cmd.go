@@ -13,7 +13,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// Usage は andon waiting の使い方。
 const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
 	"オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す。読むだけで、何も書かない。GitHub も git も読まない。\n" +
 	"判断の問いにペインから選択肢で答える口は andon waiting answer。\n" +
@@ -22,7 +21,6 @@ const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
 	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
 	"--json は docs/contract.md §25 の形。\n"
 
-// Main は andon waiting。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	asJSON, slug := false, ""
 	for len(args) > 0 {

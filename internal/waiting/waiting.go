@@ -35,7 +35,6 @@ const Version = 1
 // DefaultParallel は project.json に chief_of_staff.parallel が無いときの並行の上限（contract.md §11）。
 const DefaultParallel = 2
 
-// Result は andon waiting --json の出力。
 type Result struct {
 	Version int    `json:"version"`
 	At      string `json:"at"`
@@ -53,7 +52,6 @@ type Slots struct {
 	WaitingFull bool `json:"waiting_full"`
 }
 
-// Item はオーナー待ちの1行。
 type Item struct {
 	Kind       string             `json:"kind"` // merge・decision・task
 	ID         string             `json:"id"`
@@ -80,7 +78,6 @@ var lightKinds = []string{"business", "users", "promise", "irreversible", "line"
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
-// issue は数えるのに読む課題1件。
 type issue struct {
 	raw       ledger.Issue
 	dir       string // issues/<id>/ の置き場（依頼書を読む）
@@ -100,7 +97,6 @@ type issue struct {
 	questions []question
 }
 
-// question は questions.yaml の1件。
 type question struct {
 	N      int    `yaml:"n"`
 	Kind   string `yaml:"kind"`
@@ -217,7 +213,6 @@ func readIssues(dir string) ([]*issue, []string) {
 	return out, warn
 }
 
-// count は読んだ kanban から出力を作る。
 func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.Row, limit int, now time.Time) Result {
 	done := "done"
 	if len(cfg.Columns) > 0 {
@@ -521,7 +516,6 @@ func taskItem(t *issue, byID map[string]*issue, done string, now time.Time) (Ite
 // maxSteps は手作業の行に運ぶ依頼書の本文の上限（文字数）。超えた分は落として末尾に印を付ける（URL は全文から拾う）。
 const maxSteps = 6000
 
-// stepsCut は本文を上限で切ったときの末尾の印。
 const stepsCut = "\n…（続きは依頼書）"
 
 // urlPattern は依頼書の中の http(s) の URL。印字できる ASCII の続きで、空白・全角の文字（日本語の文にくっついた URL）で切れる。
@@ -599,7 +593,6 @@ func openRegular(path string) (*os.File, error) {
 	return fh, nil
 }
 
-// firstLine は値の 1 行目（前後の空白を除く）。
 func firstLine(s string) string {
 	s, _, _ = strings.Cut(s, "\n")
 	return strings.TrimSpace(s)
