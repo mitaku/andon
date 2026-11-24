@@ -128,7 +128,6 @@ func touchesGH(string) ([]byte, error) {
 	return []byte("[" + strings.Join(list, ",") + "]"), nil
 }
 
-// touchesJSON は efficiency のうち介在と答えの数を、--json のキーのまま返す。
 func touchesJSON(t *testing.T, res *Result) (touches, answers string) {
 	t.Helper()
 	b, err := json.Marshal(res.Efficiency)

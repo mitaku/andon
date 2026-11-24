@@ -20,7 +20,6 @@ import (
 // 約束の JSON は Write・Encode・EncodeLine で、書く前にこの schema と照らす（ADR-0034 決めたこと 6）。
 type Schema string
 
-// schema/ の直下の 22 本。
 const (
 	SchemaCandidates   Schema = "candidates"
 	SchemaCorrections  Schema = "corrections"

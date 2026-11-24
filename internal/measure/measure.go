@@ -33,7 +33,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// Usage は andon measure の使い方。
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
 	"kanban（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
 	"gate の差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
@@ -41,7 +40,6 @@ const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [-
 	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
 
-// Options は数える入力。
 type Options struct {
 	Root  string    // プロジェクトの根（kanban/ の親）
 	Since time.Time // 期間の始まり（UTC の 0 時）
@@ -94,7 +92,6 @@ type Value struct {
 	NoHypothesis  int      `json:"no_hypothesis"`   // (c) 期間に done になった Chief Engineer の課題のうち、観察の課題が無いもの
 }
 
-// Observed は仮説を確かめた数。
 type Observed struct {
 	Count   int `json:"count"`
 	Hit     int `json:"hit"`
@@ -117,13 +114,11 @@ type Flow struct {
 	WIPEnd       int             `json:"wip_end"`
 }
 
-// Closed は期間に閉じた課題の数と1日あたり。
 type Closed struct {
 	Count  int     `json:"count"`
 	PerDay float64 `json:"per_day"`
 }
 
-// Efficiency は効率。
 type Efficiency struct {
 	MergedPRs    int       `json:"merged_prs"`
 	HumanTouches Touches   `json:"human_touches"`
@@ -149,7 +144,6 @@ type Answers struct {
 	Unmarked     int `json:"unmarked"` // 印が無いか3つの値のどれでもない。介在回数に入れない
 }
 
-// decidedBy の値。
 const (
 	decidedOwner        = "owner"
 	decidedChiefOfStaff = "chief-of-staff"
@@ -164,7 +158,6 @@ type GateStats struct {
 	Rate       *float64 `json:"rate"`
 }
 
-// Counter は対抗の指標。
 type Counter struct {
 	Reverted  int      `json:"reverted"`
 	FollowUps int      `json:"follow_ups"`
@@ -172,7 +165,6 @@ type Counter struct {
 	Corrected Reopened `json:"corrected"` // オーナーの手直しがあった課題の数（revert を含めない。gate のレベルごと）
 }
 
-// Reopened はオーナーが開け直した数（gate のレベルごと）。
 type Reopened struct {
 	Corrections string         `json:"corrections"` // recorded: corrections.json が1つでもある。none: 1つも無い（記録なし）
 	ByTier      map[string]int `json:"by_tier"`
@@ -185,7 +177,6 @@ type News struct {
 	Candidates []string   `json:"candidates"` // 記録だけへ移す候補（移すかはオーナーが決める）
 }
 
-// NewsKind は kind 1つの数。
 type NewsKind struct {
 	Kind      string   `json:"kind"`
 	Delivered int      `json:"delivered"` // 届けて、渡したターンの終わりを見た数
@@ -194,10 +185,8 @@ type NewsKind struct {
 	Recorded  int      `json:"recorded"`  // 記録だけにして届けなかった数
 }
 
-// passThrough は記録だけへ移す候補の閾値（8割以上が素通り）。
 const passThrough = 0.8
 
-// PR は期間にマージされた kanban の PR 1本。
 type PR struct {
 	Issue        string   `json:"issue"`
 	PR           string   `json:"pr"`
@@ -228,7 +217,6 @@ type Issue struct {
 	Ratio                *float64 `json:"ratio"`                  // 実働 ÷ 見込み
 }
 
-// Skip は飛ばした記録1件。
 type Skip struct {
 	Source string `json:"source"`
 	Line   int    `json:"line,omitempty"`
@@ -261,8 +249,8 @@ type issue struct {
 	profile  string
 	parent   string
 	obs      string // report.json の observation.result（観察の報告が無ければ空）
-	session  string // issue.yaml の session（Claude Code のセッション）
-	worktree string // issue.yaml の worktree
+	session  string
+	worktree string
 	agentEst string // report.json の estimate.size（担当の見込み）
 	raw      ledger.Issue
 }
@@ -414,7 +402,6 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
-	// 期間にマージされた kanban の PR
 	var leads []float64
 	for _, id := range ids {
 		t := byID[id]
@@ -509,7 +496,6 @@ func Measure(o Options) (*Result, error) {
 	}
 	e.Gate.Rate = ratio(e.Gate.Fix+e.Gate.NeedsHuman, e.Gate.Records)
 
-	// 流れ
 	f := &res.Flow
 	f.LeadTime = Stat{Count: len(leads), Value: median(leads)}
 	waitSum := map[string]time.Duration{}
@@ -633,7 +619,6 @@ func Measure(o Options) (*Result, error) {
 		}
 	}
 
-	// 対抗の指標
 	c := &res.Counter
 	c.Reverted = len(revertedPR)
 	c.Reopened = Reopened{Corrections: "none", ByTier: map[string]int{"A": 0, "B": 0, "C": 0, "none": 0}}
@@ -960,7 +945,6 @@ func (r *reader) issues() []*issue {
 	return out
 }
 
-// report は report.json の pr と、担当の見込み estimate.size と、観察の報告の result（observation）。
 func (r *reader) report(lib string) (pr, est, obs string) {
 	path := filepath.Join(lib, "report.json")
 	b, ok := r.read(path)
@@ -1233,7 +1217,6 @@ func runGH(args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// Main は andon measure。
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	usage := func() int { fmt.Fprint(stderr, Usage); return 2 }
 	now := time.Now().UTC()

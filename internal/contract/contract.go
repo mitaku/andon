@@ -185,7 +185,6 @@ func (f Finding) check() error {
 	return nil
 }
 
-// ReadFindings は findings.json を読んで検査する。
 func ReadFindings(path string) (*Findings, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -256,7 +255,6 @@ func (c *Candidates) Check() error {
 	return nil
 }
 
-// ParseCandidates は候補の一覧の JSON を読んで検査する。
 func ParseCandidates(b []byte) (*Candidates, error) {
 	var c Candidates
 	if err := Decode(b, &c); err != nil {
@@ -268,7 +266,6 @@ func ParseCandidates(b []byte) (*Candidates, error) {
 	return &c, nil
 }
 
-// ReadCandidates は candidates.json を読んで検査する。
 func ReadCandidates(path string) (*Candidates, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -287,7 +284,6 @@ type ReviewRequest struct {
 	Extra    bool    `json:"extra"`
 }
 
-// Waived は見送った指摘。
 type Waived struct {
 	Severity string `json:"severity"`
 	File     string `json:"file"`
@@ -295,7 +291,6 @@ type Waived struct {
 	Reason   string `json:"reason"`
 }
 
-// Acceptance は受け入れ条件の結果。
 type Acceptance struct {
 	ID       string `json:"id"`
 	Result   string `json:"result"`
@@ -309,7 +304,6 @@ type Risk struct {
 	Impact []string `json:"impact,omitempty"`
 }
 
-// Next は宛先つきの次の一手。
 type Next struct {
 	To   string `json:"to"`
 	Text string `json:"text"`
@@ -446,7 +440,6 @@ func (r *Report) Check() error {
 	return nil
 }
 
-// ParseReport は report.json の中身を読んで検査する。
 func ParseReport(b []byte) (*Report, error) {
 	var r Report
 	if err := Decode(b, &r); err != nil {
@@ -480,7 +473,6 @@ func ParseReport(b []byte) (*Report, error) {
 	return &r, nil
 }
 
-// ReadReport は report.json を読む。
 func ReadReport(path string) (*Report, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -489,7 +481,6 @@ func ReadReport(path string) (*Report, error) {
 	return ParseReport(b)
 }
 
-// Option は問いの選択肢。
 type Option struct {
 	Label string `json:"label"`
 	Pick  *bool  `json:"pick,omitempty"`
@@ -506,7 +497,6 @@ type Question struct {
 	From      string   `json:"from,omitempty"`
 }
 
-// ParseQuestion は問いの JSON を読んで検査する。
 func ParseQuestion(b []byte) (*Question, error) {
 	var q Question
 	if err := Decode(b, &q); err != nil {
@@ -624,7 +614,6 @@ func (r *Run) Check() error {
 	return nil
 }
 
-// ReadRun は記録を読んで検査する。
 func ReadRun(path string) (*Run, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {

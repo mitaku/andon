@@ -21,7 +21,6 @@ func (f *fake) later(id, by, value string) string {
 	return "later: " + value
 }
 
-// config は kanban config set の行を足す。
 func (f *fake) config(at, cos string) {
 	f.log = append(f.log, `{"at":"`+at+`","by":"terminal:`+cos+`","config":{"chief_of_staff":"`+cos+`"}}`)
 }
@@ -38,7 +37,6 @@ func itemOf(t *testing.T, r Result, name string) Item {
 	return Item{}
 }
 
-// wantCall は行の call と later を確かめる。
 func wantCall(t *testing.T, r Result, name string, call bool, later string) {
 	t.Helper()
 	it := itemOf(t, r, name)
@@ -47,7 +45,6 @@ func wantCall(t *testing.T, r Result, name string, call bool, later string) {
 	}
 }
 
-// decision はオーナーの課題に判断の問いを置く。
 func (f *fake) decision(id string, keys ...string) {
 	f.issue(id, "todo", append([]string{"who: person"}, keys...)...)
 	f.questions(id, q(1, "users", "open", "2026-11-21T02:00:00Z"))
