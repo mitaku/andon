@@ -15,6 +15,7 @@
 #   6. 自分の確かめ: 地図のファイルを1つ消すか、無い command を名指した写しで、この検査が落ちる
 #   7. 記録を読む道（dispatcher-news・boot・worker-launch〈wl-resume を含む〉・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban・Claude Code のセッションの記録）で、証拠が足りないときに 0 で終わらない。
 #      drive.sh は検証する commit を省けず、省く・空・短い・16進数でないと 2 で断り、道を動かさない（検証の途中で次の commit が当たっても、新しい間を読まない）
+#      drive.sh は細かい機能ごとの結果を1行ずつ出し、3つ目の引数で名指した細かい機能（見る道が検証の担当だけのもの）だけで 0 と 3 を決める。FAIL は名指しによらず 1
 # 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。andon は tests/lib/andon.sh が用意し、写しの回にも渡す）
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -276,7 +277,7 @@ fi
 # 手順が drive.sh を名指すときは、いつも検証する commit を添える（省いて打つと 2 で断られる。省ける書き方を写させない）
 uses=$(cat "$skill/SKILL.md" "$skill"/features/*.md | grep -oE 'scripts/drive\.sh [^`|]*' || true)
 [ "$(grep -c . <<<"$uses")" -gt 10 ] || die "手順が drive.sh を名指す所が $(grep -c . <<<"$uses") 件しか読めない（読み方が壊れている）"
-bare=$(grep -vxE 'scripts/drive\.sh (<機能>|[a-z0-9-]+) <検証する commit>' <<<"$uses" | sed -n 1p || true)
+bare=$(grep -vxE 'scripts/drive\.sh (<機能>|[a-z0-9-]+) <検証する commit>( <名指した細かい機能>)?' <<<"$uses" | sed -n 1p || true)
 [ -z "$bare" ] || die "手順が drive.sh を検証する commit なしで名指す: $bare"
 ok "verify-andon: 手順が drive.sh を名指す $(grep -c . <<<"$uses") か所は、どれも検証する commit を添える"
 
@@ -657,4 +658,31 @@ if [ "$self" = true ]; then
   [ "$drc" = 0 ] && grep -qF "検証する commit $new・当てた時刻 2026-01-01T00:10:00Z・次に当てた時刻 無し" <<<"$dout" \
     && grep -qF '当てたあとの起動の記録 1 件' <<<"$dout" || die "drive.sh: 今当たっている $new を渡したのに、その間を読まない（$drc）: $dout"
   ok "verify-andon: drive.sh は検証する commit を省く・空・短い・16進数でない・余分な引数を 2 で断って道を動かさず、渡した commit が当たっていた間だけを読む"
+
+  # 当てた直後の検証で、変えた細かい機能は ok なのに、本物の出来事がまだ無い別の細かい機能（wl-resume）が未確認で、機能の終了コードが 3 になり、
+  # 記録の期待と受け入れ条件の書き方を担当ごとに考えていた。drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで終了コードを決める
+  launch 2026-01-01T00:12:00Z "$new" | jq -c '.launch = "start"' >"$lib/launches.jsonl" # resume の起動が無い: wl-resume は未確認、wl-record は ok
+  drive worker-launch "$new"
+  [ "$drc" = 3 ] || die "drive.sh: 名指しが無いのに、道の終了コード 3 のままでない（$drc）: $dout"
+  grep -qx '結果 wl-record ok（補い）' <<<"$dout" && grep -q '^結果 wl-resume 未確認（補い）: note wl-resume' <<<"$dout" && grep -q '^結果 wl-first-turn 外で見る（補い）: 見る道: Chief of Staff' <<<"$dout" \
+    || die "drive.sh: 細かい機能ごとの結果（ok・未確認と note）を1行ずつ出さない: $dout"
+  drive worker-launch "$new" wl-record
+  [ "$drc" = 0 ] && grep -qx '結果 wl-record ok（名指し）' <<<"$dout" && grep -q '^結果 wl-resume 未確認（補い）: note wl-resume' <<<"$dout" \
+    || die "drive.sh: 名指した wl-record が ok なのに 0 で終わらないか、名指さない wl-resume の未確認を補いとして出さない（$drc）: $dout"
+  drive worker-launch "$new" wl-record,wl-resume
+  [ "$drc" = 3 ] && grep -qF '名指したうち未確認: wl-resume' <<<"$dout" || die "drive.sh: 名指した wl-resume が未確認なのに 3 で終わらない（$drc）: $dout"
+  drive worker-launch "$new" "wl-record gt-route"
+  [ "$drc" = 0 ] && grep -qF '別の機能の gt-route は数えない' <<<"$dout" || die "drive.sh: 別の機能の細かい機能を名指しに数える（$drc）: $dout"
+  drive worker-launch "$new" gt-route
+  [ "$drc" = 3 ] && grep -qF 'drive.sh で確かめるものがこの機能に無い' <<<"$dout" || die "drive.sh: この機能の名指しが無いのに、道の終了コードのままでない（$drc）: $dout"
+  # 見る道が drive.sh の外（Chief of Staff の試し）の細かい機能は、名指しても終了コードに数えない（数えると、いつも 3 になる）
+  drive worker-launch "$new" wl-record,wl-first-turn
+  [ "$drc" = 0 ] && grep -q '^結果 wl-first-turn 外で見る（名指し）' <<<"$dout" || die "drive.sh: drive.sh の外で見る wl-first-turn を名指しの終了コードに数える（$drc）: $dout"
+  refused "のあとの細かい機能が地図に無い" worker-launch "$new" wl-nosuch
+  refused "のあとの細かい機能が空の" worker-launch "$new" ,
+  # 名指さない細かい機能の FAIL は、今までどおり 1（変えていない道の壊れを見落とさない）
+  launch 2026-01-01T00:12:00Z "$old" | jq -c --arg a 2026-01-01T00:12:00Z '.launch = "start" | .at = $a' >"$lib/launches.jsonl"
+  drive worker-launch "$new" wl-terminal
+  [ "$drc" = 1 ] && grep -qx '結果 wl-record FAIL（補い）' <<<"$dout" || die "drive.sh: 名指さない wl-record が FAIL なのに 1 で終わらない（$drc）: $dout"
+  ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
 fi
