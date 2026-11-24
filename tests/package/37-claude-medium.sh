@@ -37,6 +37,8 @@ choose_miss() {
   local m='' table hits
   table=$(sed -n '/^- プロファイルの選び方/,/^- 切るときに/p' "$1/playbooks/cut.md")
   grep -q '^  | `claude-medium` | .*見込みが小・中' <<<"$table" || m="$m [cut.md の表に claude-medium の見込みの小・中の行が無い]"
+  # 見込みが小・中でも依頼書が effort high を要すると書いた課題は claude。claude-medium の行がその課題を外さないと、2行が両方当てはまる
+  grep -q '^  | `claude-medium` | .*effort high を要すると書いていない' <<<"$table" || m="$m [cut.md の claude-medium の行が、依頼書が effort high を要すると書いた課題を外していない]"
   grep -q '^  | `claude` | .*見込みが大.*effort high' <<<"$table" || m="$m [cut.md の表に claude の見込みの大・effort high の行が無い]"
   hits=$(grep -rn 'claude-medium' "$1" | sed "s|^$1/||")
   grep -v -e '^playbooks/cut\.md:[0-9]*:  | `claude-medium` | ' -e '^playbooks/cut\.md:[0-9]*:  `claude`・`claude-medium`・`sonnet`・' <<<"$hits" | grep -q . \
@@ -66,5 +68,8 @@ printf '\n4. **切る。** プロファイルは `claude`。\n' >>"$tmp/cs/playb
 rm -rf "$tmp/cs" && mkdir -p "$tmp/cs" && cp -r "$cs/." "$tmp/cs/"
 sed -i '/^  | `claude-medium` | /d' "$tmp/cs/playbooks/cut.md"
 [ -n "$(choose_miss "$tmp/cs")" ] || miss="$miss [表の行を消した]"
+rm -rf "$tmp/cs" && mkdir -p "$tmp/cs" && cp -r "$cs/." "$tmp/cs/"
+sed -i '/^  | `claude-medium` | /s/、依頼書が effort high を要すると書いていない//' "$tmp/cs/playbooks/cut.md"
+[ -n "$(choose_miss "$tmp/cs")" ] || miss="$miss [claude-medium の行から effort high の課題の除外を抜いた]"
 rm -rf "$tmp/cs"
 [ -z "$miss" ] && pass "CoS の選び方の検査は、別の箇条・brief.md・行の割り・型の決め打ち・表の行の消しで落ちる（検査が見ている）" || fail "CoS の選び方の検査が落ちない:$miss"

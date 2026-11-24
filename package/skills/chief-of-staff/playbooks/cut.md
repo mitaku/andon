@@ -45,7 +45,7 @@ EOF
   | プロファイル | 使いどころ |
   |---|---|
   | `claude` | 既存への手術・コンテキストが重い仕事（既定）。見込みが大の課題と、依頼書が effort high を要すると書いた課題 |
-  | `claude-medium` | `claude` の使いどころで、見込みが小・中の課題（effort が medium で、ほかは `claude` と同じ） |
+  | `claude-medium` | `claude` の使いどころで、見込みが小・中、依頼書が effort high を要すると書いていない課題（effort が medium で、ほかは `claude` と同じ。見込みが小・中でも effort high を要する課題は `claude`） |
   | `sonnet` | 型が決まった小さい仕事（バージョンアップ・文書の小直し） |
   | `fable` | 深い設計。完了条件は設計文書の PR（オーナーと対話する設計は Chief Engineer） |
   | `codex` | 新しい独立した module（別ブランドの担い手） |
