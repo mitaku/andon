@@ -267,9 +267,16 @@ chl() { # chl <v0.0.15 の節の行> <v0.0.14 の節の行>。置き換えのあ
 chl '- 番号にタイトルを添えた' '- 番号（題）を添えた'; expect ok 'CHANGELOG の置き換えより前に切ったバージョンの節（v0.0.14 から下）の「題」は通る'
 chl '- 番号（題）を添えた' '- 番号にタイトルを添えた'; expect fail 'CHANGELOG の置き換えのあとに切ったバージョンの節（v0.0.15）の「題」で落ちる'
 setup; printf -- '- 番号（題）を添えた\n' >>"$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG に v0.0.14 の節が無ければ、バージョンの節の「題」も見て落ちる'
-c='- **セルの側の文の語を直す**: Andon の文は漢字 1 字の「題」をやめ、名前を指す所は「タイトル」と書く。'
-setup; sed -i "s/^## 未リリース\$/&\n$c/" "$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG の未リリースの、語を挙げた句「漢字 1 字の「題」」は通る'
-setup; sed -i "s/^## 未リリース\$/&\n${c}この題では決めない/" "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの、語を挙げた句のほかの「題」で落ちる'
+c='- **セルの側の文の語を直す**（[ADR-0052](docs/adr/0052-title-and-theme-not-dai.md) 決めたこと 11）: Andon の文は漢字 1 字の「題」をやめる。'
+o='- 依頼書を漢字 1 字の「題」で書かない'
+setup; printf '# CHANGELOG\n\n## 未リリース\n%s\n\n## v0.0.14 — 2026-11-23\n' "$c" >"$tmp/r/CHANGELOG.md"
+expect ok 'CHANGELOG の未リリースの、ADR-0052 を知らせる行の句「漢字 1 字の「題」」は通る'
+chl "$c" '- 番号にタイトルを添えた'; expect ok 'CHANGELOG の新しいバージョンの節へ移った、ADR-0052 を知らせる行の句は通る'
+setup; printf '# CHANGELOG\n\n## 未リリース\n%s\n\n## v0.0.14 — 2026-11-23\n' "${c}この題では決めない" >"$tmp/r/CHANGELOG.md"
+expect fail 'CHANGELOG の ADR-0052 を知らせる行の、句のほかの「題」で落ちる'
+setup; printf '# CHANGELOG\n\n## 未リリース\n%s\n\n## v0.0.14 — 2026-11-23\n' "$o" >"$tmp/r/CHANGELOG.md"
+expect fail 'CHANGELOG の未リリースの、ADR-0052 を知らせる行でない行の句「漢字 1 字の「題」」で落ちる'
+chl "$o" '- 番号にタイトルを添えた'; expect fail 'CHANGELOG の新しいバージョンの節の、ADR-0052 を知らせる行でない行の句「漢字 1 字の「題」」で落ちる'
 d='語の改め（2026-11-22 から）: 熟語でない漢字 1 字の「題」を「タイトル」に替える置き換えも、凍結した行に及ぶ。'
 dec() { # dec <冒頭の行> <表の行>。凍結した表（## 1. ）の前と後に1行ずつ置く
   setup; printf '# 決定の記録\n\n%s\n\n## 1. 設計書の答え\n\n%s\n' "$1" "$2" >"$tmp/r/docs/decisions.md"
