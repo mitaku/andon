@@ -48,6 +48,16 @@
       "description": "The Chief of Staff holds the issue's pull request until the answer of this issue (its id) is reflected (ADR-0056). Written by andon issue hold and removed by andon issue unhold. While it holds, the gate does not run (andon gate answers wait), the dispatcher does not merge and discards a gate decision made before the hold, the gate's commit status is yellow, and andon waiting keeps the pull request out of the merge requests. An empty value whose last change in log.jsonl was written by the issue's own worker terminal (or its reviewer's) still holds. The reason issue being done does not release it. Missing: not held.",
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "later": {
+      "description": "The Chief of Staff leaves the issue's owner waits (decisions and tasks) for later: why it does not hurry, one line (ADR-0062). Trusted only when the row in log.jsonl that last changed it was written by the Chief of Staff terminal of that time and has the current value. andon waiting reads it only on an owner issue or a todo or queued issue, and still calls when later_until has come or an issue behind it cannot wait. Missing: the waits call the owner.",
+      "type": "string",
+      "minLength": 1
+    },
+    "later_until": {
+      "description": "The day (YYYY-MM-DD, in the ledger's timezone) from which an issue with later calls the owner again. Read as come when it is malformed or was not last written by the Chief of Staff terminal of that time. Missing: no day.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
     }
   }
 }

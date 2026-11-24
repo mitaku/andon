@@ -67,6 +67,12 @@ type Item struct {
 	Steps      string             `json:"steps,omitempty"`      // 手作業の行だけ: 依頼書（brief.md）の本文
 	Links      []string           `json:"links,omitempty"`      // 手作業の行だけ: 依頼書に出てくる http(s) の URL
 	Holds      []string           `json:"holds"`
+	// Call は行燈を灯すか（呼んでいる）。どの行にも出す（ADR-0062 決めたこと 4・6）
+	Call bool `json:"call"`
+	// Later は信じる印 later の理由の 1 行。置いておける課題の行（マージの依頼を除く）にだけ出す
+	Later string `json:"later,omitempty"`
+	// LaterUntil は予約キー later_until の値（Later を出す行で、あれば）
+	LaterUntil string `json:"later_until,omitempty"`
 }
 
 // lightKinds は判断に数える問いの種類（灯りの決断の種類。scope は Chief of Staff が答えるので入れない）。
@@ -88,6 +94,8 @@ type issue struct {
 	created   string
 	updated   string
 	onlyOwner string // 手作業の印（予約キー only_owner の 1 行目。ADR-0057 決めたこと 3）
+	later     string // 置いておく印（予約キー later の 1 行目。ADR-0062 決めたこと 3）
+	until     string // 予約キー later_until（YYYY-MM-DD）
 	questions []question
 }
 
@@ -182,7 +190,7 @@ func readIssues(dir string) ([]*issue, []string) {
 		raw["id"] = id
 		t := &issue{raw: raw, dir: filepath.Join(dir, "issues", e.Name()), id: id, title: raw.Str("title"), status: raw.Str("status"), profile: raw.Str("profile"),
 			who: raw.Str("who"), notBefore: raw.Str("not_before"), created: raw.Str("created"), updated: raw.Str("updated"),
-			onlyOwner: firstLine(raw.Str("only_owner"))}
+			onlyOwner: firstLine(raw.Str("only_owner")), later: firstLine(raw.Str("later")), until: strings.TrimSpace(raw.Str("later_until"))}
 		if list, ok := raw["after"].([]any); ok {
 			for _, a := range list {
 				if s, ok := a.(string); ok && s != "" {
@@ -261,12 +269,27 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 		}
 	}
 	holds := holders(issues, heldOn, done)
+	placeable := map[string]bool{}
+	for _, t := range issues {
+		placeable[t.id] = t.status != done && t.placeable(rows, cfg.ChiefOfStaff)
+	}
+	today := now.In(loc).Format("2006-01-02")
 	for i := range items {
-		items[i].Holds = holds(items[i].ID)
+		it := &items[i]
+		it.Holds = holds(it.ID)
+		t := byID[it.ID]
+		it.Call = call(*it, t, placeable, rows, cfg.ChiefOfStaff, today)
+		if it.Kind != "merge" && placeable[it.ID] {
+			it.Later, it.LaterUntil = t.later, t.until
+		}
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		a, b := items[i], items[j]
-		if len(a.Holds) != len(b.Holds) {
+		// 呼んでいる行が先で、後ろで待つ課題の多い順、古い順。置いてある行は後で、古い順（ADR-0062 決めたこと 6）
+		if a.Call != b.Call {
+			return a.Call
+		}
+		if a.Call && len(a.Holds) != len(b.Holds) {
 			return len(a.Holds) > len(b.Holds)
 		}
 		if a.Since != b.Since {
@@ -293,6 +316,42 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 		s.Free = max(s.Limit-s.Working, 0)
 	}
 	return Result{Version: Version, At: now.UTC().Format(timeLayout), Project: l.Slug, Slots: s, Items: items}
+}
+
+// placeable は置いておける課題か（ADR-0062 決めたこと 3）: オーナーの課題か、状態が todo か queued の課題で、
+// 信じる印 later（その行の時点の Chief of Staff の端末が最後に書いた、空でない値）を持つ。状態が doing か review の、
+// オーナーの課題でない課題（担当と Chief Engineer が動かしている課題と、マージの依頼）は、印があっても置いておけない。
+func (t *issue) placeable(rows []ledger.Row, cos string) bool {
+	if t.who != "person" && t.status != "todo" && t.status != "queued" {
+		return false
+	}
+	return t.later != "" && ledger.TrustedThen(rows, t.raw, "later", cos)
+}
+
+// call は行が呼んでいるか（ADR-0062 決めたこと 4 の細部の 1〜6 を上から順に）。holds の相手は、相手の印と状態だけを読み、
+// 相手の行の call を読まない。today は config.yaml の timezone（無ければ UTC）の今日。
+func call(it Item, t *issue, placeable map[string]bool, rows []ledger.Row, cos, today string) bool {
+	switch {
+	case it.Kind == "merge":
+		return true
+	case it.Kind == "decision" && it.Question == "": // 問いも印 only_owner も無いオーナーの課題の行
+		return true
+	case t == nil || !placeable[it.ID]:
+		return true
+	}
+	if t.until != "" {
+		day, err := time.Parse("2006-01-02", t.until)
+		// 形の違う日付と、その時点の Chief of Staff が書いていない日付は、日が来たものとして読む
+		if err != nil || !ledger.TrustedThen(rows, t.raw, "later_until", cos) || day.Format("2006-01-02") <= today {
+			return true
+		}
+	}
+	for _, h := range it.Holds {
+		if !placeable[h] {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeItem はマージの依頼（決めたこと 8）。課題が review にいて、次のどれか: 今の head について gate が出した問いが開いている／

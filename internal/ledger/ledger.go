@@ -244,6 +244,52 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 	return ok && v == t.Str(key)
 }
 
+// TrustedThen は、課題 t の key を最後に変えた log.jsonl の行の by が、その行の時点の Chief of Staff の端末で、
+// その値がいまの課題の値と同じか（純粋関数。ADR-0062 決めたこと 3）。その行の時点の Chief of Staff は、履歴の
+// kanban config set の行（chief_of_staff・前の名前の coordinator）を順に辿って決める（TakenByChiefOfStaff と同じ辿り方）。
+// Chief of Staff の行が 1 つも無い kanban では、今の config.yaml の値 cos と比べる。
+// 印が何日も残る予約キー（later・later_until）のための照合で、Chief of Staff が起き直して端末が替わっても印を信じ続ける。
+// 起き直したら打ち直す決まりの予約キー（merge・deliverable など）は、今の端末と比べる Trusted で読む。
+func TrustedThen(rows []Row, t Issue, key, cos string) bool {
+	id := CanonID(t.Str("id"))
+	then, seen := "", false
+	var last *Row
+	lastCoS, lastSeen := "", false
+	for i, r := range rows {
+		if r.Config != nil {
+			for _, k := range []string{"chief_of_staff", "coordinator"} { // 2026-11-06 より前の行は coordinator（docs/ledger.md）
+				if v, ok := r.Config[k]; ok {
+					then, _ = v.(string) // null は消した（空）
+					seen = true
+				}
+			}
+			continue
+		}
+		if r.ID != id || r.Change == nil {
+			continue
+		}
+		if _, ok := r.Change[key]; ok {
+			last, lastCoS, lastSeen = &rows[i], then, seen
+		}
+	}
+	if last == nil {
+		return false
+	}
+	if !lastSeen {
+		// その行より前に Chief of Staff の行が無い。履歴のどこにも無ければ今の値と比べる。
+		// あとの行で初めて書かれたなら、行の時点の Chief of Staff は分からないので信じない
+		if seen {
+			return false
+		}
+		lastCoS = cos
+	}
+	if lastCoS == "" || last.By != "terminal:"+lastCoS {
+		return false
+	}
+	v, ok := last.Change[key].(string)
+	return ok && v != "" && v == t.Str(key)
+}
+
 // HoldOf は課題 t の止め（予約キー hold。Chief of Staff が PR を止めた理由の課題の id。ADR-0056 決めたこと 7・10）を読む
 // （純粋関数）。返すのは止めた理由の課題の id と、止めているか。
 // hold が空でなければ、誰が書いても止めている（足すほうは誰が書いても止まる）。

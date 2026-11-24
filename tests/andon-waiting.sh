@@ -62,6 +62,36 @@ grep -q '^手作業 S-0004（image を焼き直す）。.*理由: ホストで i
 grep -q '^判断 S-0005（公開の範囲を決める）。.*直す: 判断なら andon issue ask S-0005 -、手作業なら kanban set S-0005 only_owner="<理由>"$' "$tmp/text"
 echo 'ok 人が読む行: 枠の行と、行ごとの種類・問い・後ろで待つ数・PR'
 
+# 置いてあるもの（ADR-0062 受け入れ条件 8）: Chief of Staff（t1）が印 later を書いたオーナーの課題の判断は、
+# 置いてある行として呼んでいる行の後に分かれ、印の理由が出る
+lp=$tmp/later
+lk=$lp/kanban
+mkdir -p "$lk"
+printf 'version: 3\nprefix: S\nchief_of_staff: t1\n' | put "$lk/config.yaml"
+printf 'id: S-0001\ntitle: 公開の範囲を決める\nstatus: todo\nwho: person\nlater: 急がない。次のリリースで決めればよい\ncreated: "2026-11-21T01:00:00Z"\n' | put "$lk/issues/S-0001/issue.yaml"
+printf -- '- n: 1\n  text: 公開するか\n  kind: users\n  status: open\n  asked: "2026-11-21T02:00:00Z"\n' | put "$lk/issues/S-0001/questions.yaml"
+printf 'id: S-0002\ntitle: 書き出しの形を決める\nstatus: todo\nwho: person\ncreated: "2026-11-21T03:00:00Z"\n' | put "$lk/issues/S-0002/issue.yaml"
+printf -- '- n: 1\n  text: CSV だけにするか\n  kind: users\n  status: open\n  asked: "2026-11-21T04:00:00Z"\n' | put "$lk/issues/S-0002/questions.yaml"
+printf '{"at":"2026-11-21T05:00:00Z","by":"terminal:t1","id":"S-0001","change":{"later":"急がない。次のリリースで決めればよい"}}\n' | put "$lk/log.jsonl"
+KANBAN_ROOT=$lp "$andon" waiting --json >"$tmp/later.json"
+jq -e '[.items[] | [.question, .call, (.later // "")]] == [["S-0002#1", true, ""], ["S-0001#1", false, "急がない。次のリリースで決めればよい"]]' "$tmp/later.json" >/dev/null \
+  || die "置いてある行の call・later・並びが違う: $(cat "$tmp/later.json")"
+emit "$tmp/later.json" waiting-later.json
+KANBAN_ROOT=$lp "$andon" waiting >"$tmp/later.text"
+sed -n 2,5p "$tmp/later.text" >"$tmp/later.body"
+printf '%s\n' '呼んでいるもの 1 件（行燈を灯す）' '^判断 S-0002#1（書き出しの形を決める）' \
+  '^置いてあるもの 1 件（行燈を灯さない。いつでも答えられる）$' '^判断 S-0001#1（公開の範囲を決める）。.*。置いた理由: 急がない。次のリリースで決めればよい$' >"$tmp/later.want"
+paste -d '\t' "$tmp/later.want" "$tmp/later.body" | while IFS=$'\t' read -r re line; do
+  grep -q -- "$re" <<<"$line" || die "人が読む行が違う（$re）: $line"
+done
+[[ $(wc -l <"$tmp/later.body") == 4 ]] || die "人が読む行の数が違う: $(cat "$tmp/later.text")"
+# 当たる場合があること: 印を担当の端末（t7）が書き直すと、置いてある行は無くなる
+printf '{"at":"2026-11-21T06:00:00Z","by":"terminal:t7","id":"S-0001","change":{"later":"急がない。次のリリースで決めればよい"}}\n' >>"$lk/log.jsonl"
+KANBAN_ROOT=$lp "$andon" waiting >"$tmp/later2.text"
+if grep -q '置いてあるもの' "$tmp/later2.text"; then die "担当の端末が書いた印を読んだ: $(cat "$tmp/later2.text")"; fi
+grep -q '^呼んでいるもの 2 件' "$tmp/later2.text" || die "担当の端末が書いた印で呼ぶ行が 2 件にならない: $(cat "$tmp/later2.text")"
+echo 'ok 置いてあるもの: 呼んでいる行の後に分かれ、印の理由が出る。担当の端末が書いた印は読まない'
+
 after=$(cd "$p" && find . -type f -exec sha1sum {} + | sort)
 [[ "$before" == "$after" ]]
 [ ! -e "$tmp/called" ] || { echo "FAIL gh・git・kanban を呼んだ: $(cat "$tmp/called")"; exit 1; }

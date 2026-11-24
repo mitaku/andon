@@ -1,6 +1,6 @@
 # Andon の機械向けの約束
 
-- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足し、同じ日に [ADR-0049](adr/0049-owner-touches-by-kind.md) の介在回数の数え方で流れの数え〈§13〉をバージョン 2 にした、2026-11-24 [ADR-0059](adr/0059-board-leaves-old-done-to-history.md) のボードの課題〈§29〉を足し、同じ日にオーナー待ちの手作業の行に依頼書の手順とリンク〈§25〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
+- 状態: 設計の提案（2026-11-04 起草、2026-11-05 書き直し、2026-11-05 schema に合わせて直した、2026-11-07 [ADR-0006](adr/0006-survey-fix-decide.md) の候補・`deliverable`・問いの `scope` を足した、2026-11-09 オーナーの手直し `corrections.json`〈§14〉を足した、2026-11-10 [ADR-0011](adr/0011-signals-and-value-loop.md) の信号の記録〈§15〉・リリースの名前〈§16〉・`project.json` の `signals`〈§11〉・通知 `signal`〈§6〉を足した、2026-11-19 [ADR-0028](adr/0028-improvement-loop.md) の起動の記録〈§18〉と結果の記録〈§19〉と振り返りの入力〈§20〉を足し、同じ日にパターンの一覧〈§21〉を足した、2026-11-20 [ADR-0034](adr/0034-prevention-before-tests.md) の kanban の行〈§22〉と引き取れる課題〈§23〉を足し、同じ日に [ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) の走らせた記録〈§24〉を足した、2026-11-21 [ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) のオーナー待ち〈§25〉を足した、2026-11-22 [ADR-0044](adr/0044-owner-digest.md) のダイジェストの入力〈§26〉と中身〈§27〉と送った結果〈§28〉を足し、同じ日に [ADR-0049](adr/0049-owner-touches-by-kind.md) の介在回数の数え方で流れの数え〈§13〉をバージョン 2 にした、2026-11-24 [ADR-0059](adr/0059-board-leaves-old-done-to-history.md) のボードの課題〈§29〉を足し、同じ日にオーナー待ちの手作業の行に依頼書の手順とリンク〈§25〉を足し、同じ日に [ADR-0062](adr/0062-later-owner-waits.md) の置いておく印〈§2〉と、行が呼んでいるか〈§25〉を足した）。**正は `schema/`**（JSON Schema。draft 2020-12）で、この文書はそれを人が読めるように説明したもの。食い違えば schema が正。この文書の ```` ```json ```` の例は全部、`tests/schema.sh` がその節の schema に通す。
 
 | 節 | schema |
 |---|---|
@@ -103,6 +103,8 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 | `only_owner` | 空でない 1 行の文字列（オーナーにしかできない理由） | 手作業の印が無い（`who: person` の課題なら、灯りの種類の問いが無ければ判断として数える） | Chief of Staff（`kanban set <id> who=person only_owner="<理由>"`）・`andon triage apply`（手作業の `person`） | `andon waiting` | オーナーの課題（`who: person`）が手作業だという印。`andon waiting` は、この印を持つオーナーの課題を手作業（§25 の `task`）に数え、値の 1 行目を行の `reason` に出す。`who: person` が無い課題の印は読まない。履歴の照合はしない（[ADR-0057](adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 2・3） |
 | `acceptance` | 受け入れ条件の番号を、報告の `acceptance[].id` と同じ綴りでコンマで並べた文字列（`A4,A13`。空白を入れない） | 番号を持たない課題（何も確かめない） | Chief of Staff（Chief Engineer の文書から課題を切るとき。依頼書の完了条件が名指す番号の写し） | `andon issue ready`・担当 | 課題が満たす受け入れ条件。`andon issue ready` は、番号ごとに `report.json` の `acceptance[]` に同じ `id` の行（`pass`・`fail`・`manual` のどれでもよい）が無ければ断り、足りない番号を出す。形が違う値も断る（黙って通さない）。履歴の照合は見ない（担当が書き換えても、求める行が増えるか、キーを消して今までどおりになるだけ。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 3） |
 | `hold` | 理由の課題の id（`A-0015`。1つ） | 止めていない | Chief of Staff（`andon issue hold <id> <理由の課題>` が書き、`andon issue unhold <id>` が消す） | `andon gate`・dispatcher（`andon issue merge`・`settle`）・`andon waiting` | Chief of Staff が、理由の課題の答えが担当の直しに入るまで、この課題の PR を止めている（[ADR-0056](adr/0056-gate-required-before-merge.md) 決めたこと 7〜11）。止めている間、gate は回らず（`andon gate` は GitHub を読まずに `wait`。§7）、dispatcher はマージせず、判定のあとに止めたら判定を捨てて gate の問いを閉じ、PR の印は黄（`andon gate: メンテナーの確認を待っています`）。`andon waiting` はマージの依頼に出さず、理由の課題の行の `holds` に数える（§25）。理由の課題が done になっても外れない（dispatcher が通知 `hold` で1回知らせる。§6）。値が空でも、最後にこのキーを変えた行を書いたのがこの課題の担当かそのレビュアーの端末なら、止めているものとして読む（担当が自分で外せないように。理由は消す直前の値）。止め（`log.jsonl`・子の課題の一覧）を読めなければ止めているものとして扱う |
+| `later` | 空でない 1 行の文字列（急がない理由。改行があれば 1 行目だけを読む） | 置いておかない（オーナー待ちの行は呼ぶ） | Chief of Staff（`kanban set <id> later="<理由>"` で書き、`kanban set <id> later=` で消す） | `andon waiting` | オーナー待ち（判断と手作業）を、行燈を灯さずに置いておく印（[ADR-0062](adr/0062-later-owner-waits.md) 決めたこと 3）。読むのは、オーナーの課題（`who: person`）か、状態が `todo` か `queued` の課題だけで、そのような課題を「置いておける課題」と呼ぶ。`doing` か `review` の、オーナーの課題でない課題の印は読まない。照合は下の「履歴の照合」と違い、このキーを最後に変えた行の書き手を、**その行の時点の** Chief of Staff の端末と比べる（`log.jsonl` の `chief_of_staff` の config の行を順に辿る。config の行が 1 つも無い kanban では今の `chief_of_staff` と比べる）。Chief of Staff が起き直しても打ち直さない。照合が外れた印は無いものとして読む。印があっても呼ぶ条件は §25 の `call` |
+| `later_until` | `YYYY-MM-DD` | 日付で呼び戻さない | Chief of Staff（`kanban set <id> later_until=<日付>`） | `andon waiting` | 印 `later` のある課題を、この日（`config.yaml` の `timezone`。無ければ UTC）から呼ぶ（[ADR-0062](adr/0062-later-owner-waits.md) 決めたこと 3・4）。照合は `later` と同じで、外れたときと形の違う値は、日が来たものとして読む |
 
 `kanban show <id> --json` の `.issue`（Andon の予約キー以外は kanban の形式のキー）:
 
@@ -110,7 +112,8 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 {"id": "A-0012", "title": "andon issue ready を足す", "status": "doing",
  "review": "on", "must_fix": "major", "reviewer": "codex-review",
  "review_rounds": "2", "merge": "person", "machine": "vps", "deliverable": "pr",
- "estimate": "medium", "acceptance": "A4,A13", "hold": "A-0015"}
+ "estimate": "medium", "acceptance": "A4,A13", "hold": "A-0015",
+ "later": "急がない。次のリリースで決めればよい", "later_until": "2026-12-01"}
 ```
 
 `estimate` の段→分（値の意味。待ちを除いた実働の目安で、規則ではない。[ADR-0014](adr/0014-issue-estimate.md) 決めたこと 3・11 の 7）:
@@ -1116,7 +1119,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 `andon waiting [--json] [--project <slug>]` が、オーナーが動くまで先へ進まないもの（オーナー待ち）と並行の枠を数えて出す（[ADR-0042](adr/0042-owner-waits-do-not-stop-the-line.md) 決めたこと 8・9）。**読むだけで、何も書かない・保存しない**。置き場は無い（標準出力だけ）。数える式はこの command だけが持ち、Chief of Staff が枠を数えるときも、問いを出す順を決めるときも、オーナーのペインが一覧を描くときも、この出力を使う（決めたこと 14）。`--json` を付けない出力は同じ中身を人が読む行で出し、機械は読まない。
 
-読むもの: kanban の `config.yaml`（`columns`・`timezone`・`chief_of_staff`）・`issues/<id>/issue.yaml`・`questions.yaml`・手作業の行の課題の依頼書（`issues/<id>/brief.md`）・`log.jsonl`（課題が最後に `review` へ動いた行と、`merge` を最後に書いた行の `by`）と、課題の `library/` の `report.json`（`commit`・`pr`）・gate の記録（今の head の `library/gate/<head>.json`）・問いの JSON（`library/questions/<n>.json` の `from`・`facts`・`kind`）と、`project.json` の `chief_of_staff.parallel`（作者の照合は通さずファイルを読む。読めない・形が違えば上限 2 で数え、理由を標準エラーに1行出す）。GitHub は読まず、git も呼ばない。kanban の CLI は数えるのには使わず、`--project` も `KANBAN_ROOT` も無いときに kanban の根を聞く（`kanban root`）だけである。
+読むもの: kanban の `config.yaml`（`columns`・`timezone`・`chief_of_staff`）・`issues/<id>/issue.yaml`・`questions.yaml`・手作業の行の課題の依頼書（`issues/<id>/brief.md`）・`log.jsonl`（課題が最後に `review` へ動いた行と、`merge`・`later`・`later_until` を最後に書いた行の `by`、`chief_of_staff` の config の行）と、課題の `library/` の `report.json`（`commit`・`pr`）・gate の記録（今の head の `library/gate/<head>.json`）・問いの JSON（`library/questions/<n>.json` の `from`・`facts`・`kind`）と、`project.json` の `chief_of_staff.parallel`（作者の照合は通さずファイルを読む。読めない・形が違えば上限 2 で数え、理由を標準エラーに1行出す）。GitHub は読まず、git も呼ばない。kanban の CLI は数えるのには使わず、`--project` も `KANBAN_ROOT` も無いときに kanban の根を聞く（`kanban root`）だけである。
 
 ```json
 {"version": 1, "at": "2026-11-21T10:00:00Z", "project": "sample-site",
@@ -1124,14 +1127,18 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
  "items": [
    {"kind": "merge", "id": "S-0021", "title": "名指しの口を足す", "since": "2026-11-21T04:43:35Z",
     "question": "S-0021#1", "pr": "https://github.com/example/sample-site/pull/41",
-    "reason": "delegation: merge=B < tier C", "holds": ["S-0022", "S-0023"]},
+    "reason": "delegation: merge=B < tier C", "holds": ["S-0022", "S-0023"], "call": true},
    {"kind": "decision", "id": "S-0030", "title": "書き出しの形を決める", "since": "2026-11-21T02:12:13Z",
     "question": "S-0030#1", "ask": {"kind": "users", "question": "書き出しは CSV だけにするか", "facts": ["依頼書の「やること」"],
-     "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}]}, "answerable": true, "holds": []},
+     "options": [{"label": "CSV だけ", "pick": true}, {"label": "Excel も"}]}, "answerable": true, "holds": [], "call": true},
    {"kind": "task", "id": "S-0031", "title": "image を焼き直す", "since": "2026-11-21T08:55:43Z",
     "reason": "ホストで image を焼き直す",
     "steps": "手順: ホストで bin/bootstrap rebuild を打つ。手順の詳しい所は https://github.com/example/sample-site/blob/main/docs/operate.md にある。\n終わった見え方: セルの andon version が新しいバージョンを出す。",
-    "links": ["https://github.com/example/sample-site/blob/main/docs/operate.md"], "holds": []}]}
+    "links": ["https://github.com/example/sample-site/blob/main/docs/operate.md"], "holds": [], "call": true},
+   {"kind": "decision", "id": "S-0032", "title": "公開の範囲を決める", "since": "2026-11-20T09:00:00Z",
+    "question": "S-0032#1", "ask": {"kind": "business", "question": "公開を次のリリースに回すか",
+     "options": [{"label": "次のリリースに回す", "pick": true}, {"label": "今のリリースで出す"}]}, "answerable": true, "holds": [],
+    "call": false, "later": "急がない。次のリリースで決めればよい", "later_until": "2026-12-01"}]}
 ```
 
 オーナー待ちは 3 種で、今の head について決め終えたものだけを数える。`done`（`columns` の最後の列）の課題は数えない。
@@ -1143,6 +1150,15 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `task`（手作業） | 印 `only_owner` を持つオーナーの課題で、起動できる（`todo` か `queued` で、`after` の相手が全部 `done`、`not_before` の日を過ぎた）か `doing` にいて、`open` か `answered` の問いを持たない | 課題の `created` |
 
 - オーナーの課題は、問いを持つ判断か、印 `only_owner` を持つ手作業のどちらかの形で作る。どちらでもない課題は作り方の誤りで、判断の 2 つ目の行にして灯す。灯りの種類の問いが全部受け取られたオーナーの課題は、印が無ければどの行にも出さない（片付けるのは Chief of Staff）。人が読む出力は、判断の 2 つ目の行に、直す 1 手を 2 つ並べて出す（判断なら `andon issue ask <id> -`、手作業なら `kanban set <id> only_owner="<理由>"`。[ADR-0057](adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 2・4・5）。
+- **呼んでいるものと置いてあるもの**（[ADR-0062](adr/0062-later-owner-waits.md) 決めたこと 2〜6）: どの行にも `call` を出す。`call` が真の行は、オーナーを今呼んでいる（行燈を灯す）。偽の行は置いてあり、オーナーはいつでも読んで答えられるが、行燈を灯さない。`call` は行ごとに上から順に決める。
+  1. マージの依頼は `true`。
+  2. 判断の 2 つ目（問いも印 `only_owner` も無いオーナーの課題）は `true`。
+  3. 行の課題が置いておける課題（§2 の `later`。オーナーの課題か `todo`・`queued` の課題で、信じる印 `later` を持つ）でなければ `true`。
+  4. `later_until` があり、照合が外れたか、形が違うか、その日（`config.yaml` の `timezone`。無ければ UTC）が来ていれば `true`。
+  5. 行の `holds` に、置いておける課題でない課題があれば `true`。相手の印と状態だけを読み、相手の行の `call` は読まない。止め（§2 の `hold`）で入った課題も同じに見る。止められるのは `review` の担当の課題なので、PR を止めている判断は印があっても呼ぶ。
+  6. それ以外は `false`。
+
+  手作業も同じ規則で、印の無い手作業は `call` が真になる。並行の枠の数え方と、行を出すか出さないかの条件（`after` と `not_before`）は、印で変わらない。
 - `answered` の問い（答えが書かれて担当がまだ受け取っていない）と、`scope` の問い（Chief of Staff が答える）は数えない。`doing` の課題は、gate の問いが開いていてもマージの依頼に数えない。
 - **Chief of Staff が止めた課題**（§2 の `hold`。[ADR-0056](adr/0056-gate-required-before-merge.md) 決めたこと 11）: どの形（gate の問い・approve・Chief Engineer の文書の PR）でもマージの依頼に出さない。止めた理由の課題の行があれば、その `holds` に止めた課題（とその後ろで `after` で待つもの）を数える。枠では、担当の課題ならオーナー待ち（`slots.waiting`）に数える。値が空でも、最後に消したのがこの課題の担当かそのレビュアーの端末なら止めているものとして数える。止めの読み方は gate と同じ（`internal/ledger` の `HoldOf`）。オーナーが理由の課題の問いに答えたあと（答えを担当が受け取り、Chief of Staff が `andon issue unhold` で外すまで）は、止めた課題はどの行にも出ず、枠ではオーナー待ちのまま数える（[ADR-0057](adr/0057-owner-issue-decision-or-hand-work.md) 事実 19 の、答えから外すまでの間の出し方）。理由の課題が done になれば、dispatcher が通知 `hold`（§6）で Chief of Staff に外し忘れを知らせる。
 - 委譲は読み直さない。approve のあと dispatcher が自動でマージする途中の課題は数えない。委譲が gate のあとに変わっていれば、dispatcher がマージの直前に断って gate の問いを出すので、次の読みで 1 つ目として数えられる。オーナーがマージしてから dispatcher が片付けるまでの 1 分ほどは一覧に残る。
@@ -1157,7 +1173,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `slots.working` | 同じ課題のうち、残りの数 |
 | `slots.waiting_full` | `waiting` が `limit` 以上のとき `true`。新しい課題を起動しない |
 | `slots.free` | `waiting_full` なら 0。そうでなければ `limit` から `working` を引いた数で、0 より小さくしない |
-| `items[]` | オーナー待ちの行。`holds` の数の多い順、同じなら `since` の古い順。Chief Engineer の文書の PR とオーナーの課題は、行には出るが枠には数えない |
+| `items[]` | オーナー待ちの行。`call` が真の行が先で、`holds` の数の多い順、同じなら `since` の古い順。そのあとに `call` が偽の行を `since` の古い順に並べる。Chief Engineer の文書の PR とオーナーの課題は、行には出るが枠には数えない |
 | `items[].question` | `merge` の 1 つ目は gate の問い、`decision` の 1 つ目はその問い（`<id>#<n>`）。`decision` の 2 つ目は持たない |
 | `items[].pr` | `report.json` の `pr`（`merge` の行で、あれば） |
 | `items[].reason` | 人が読む理由。`merge` の 1 つ目は gate の記録の `reasons`（無ければ問いの文）、2 つ目と 3 つ目は待つわけの1文。`decision` の 2 つ目は問いが置かれていないことと直す 1 手。`task` は印 `only_owner` の値の 1 行目 |
@@ -1165,6 +1181,9 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `items[].steps` | `task` の行だけ。オーナーが手作業を終えるための手順として、課題の依頼書（`issues/<id>/brief.md`）の本文を運ぶ。前後の空白を除き、改行は LF にする。手順の部分を切り出さず本文を丸ごと運ぶ（依頼書の形は課題ごとに違う）。6000 文字を超えた分は落とし、末尾に `…（続きは依頼書）` を付ける。依頼書が無い・普通のファイルでない（FIFO や装置を指す symlink は、読むと止まるので読まない。見てから開くまでに差し替えられても止まらないよう、書き手を待たずに開いてから、開いたものを見る）・読めない・UTF-8 でない・空なら持たない。1 MiB を超えた分は読まない |
 | `items[].links` | `task` の行だけ。依頼書の本文全体（切る前）に出てくる `http://`・`https://` の URL を、出てくる順に重ねずに並べる。URL は印字できる ASCII の続きで、空白・日本語の文字・山括弧・引用符・バッククォートで切れ、末尾の句読点と括弧の閉じを落とす。無ければ持たない。オーナーのペインは押すとブラウザで開く |
 | `items[].answerable` | `decision` の行だけ。オーナーのペインから答えられるか（`ask` があり、種類が `irreversible` でない。2 つ目の行は `false`）。答える口は下の `andon waiting answer`（決めたこと 17） |
+| `items[].call` | 行燈を灯すか（上の決め方）。command はどの行にも必ず出す。schema では必須にしない（前のバージョンで集めたダイジェストの入力を組み立て直すため）。`call` の無い行は、読み手が前の規則で読む（`merge` と `decision` を呼んでいるものに、`task` を呼んでいないものに数える） |
+| `items[].later` | 信じる印 `later`（§2）の 1 行目。置いておける課題の行（マージの依頼を除く）にだけ出す。`call` が真でも出る（日が来た・後ろで止めている） |
+| `items[].later_until` | 課題の `later_until`（§2）。`later` を出す行で、課題にあれば出す |
 | `items[].holds` | その課題を `after` で待っている済んでいない課題と、その課題を理由に止めた課題（§2 の `hold`）の id（直接のものと、その後ろで待つもの全部。id の順） |
 
 - 書き手は `andon waiting` だけ（出力するだけ）。読み手は Chief of Staff とオーナーのペイン。gate も dispatcher も判定に使わない。

@@ -368,6 +368,9 @@ fail|issue-keys|.review_rounds = "0"|review_rounds が 0
 fail|issue-keys|.merge = "auto-merge"|merge が auto/person でない
 fail|issue-keys|.reviewer = "claude"|reviewer がレビュアーのプロファイルでない
 pass|issue-keys|.deliverable = "candidates"|deliverable が candidates（調べる課題）
+pass|issue-keys|. + {"later": "急がない", "later_until": "2026-12-01"}|置いておく印と戻す日（ADR-0062）
+fail|issue-keys|. + {"later": ""}|later が空
+fail|issue-keys|. + {"later_until": "12/01"}|later_until が YYYY-MM-DD でない
 fail|issue-keys|.deliverable = "survey"|deliverable が pr/candidates でない（型の名前は値でない）
 pass|issue-keys|.estimate = "large"|estimate が large（見込みの段）
 fail|issue-keys|.estimate = "中"|estimate が段の名（値は英字の small/medium/large）
@@ -954,6 +957,10 @@ fail|waiting|.items[1].ask.kind = "scope"|判断の行の問いの種類が scop
 fail|waiting|.items[1].ask.from = "gate"|判断の行の問いを gate が出した
 fail|waiting|.items[1].ask.options = [{"label": "一つ"}]|選択肢が 1 つ
 fail|waiting|.items[1].answerable = "yes"|answerable が真偽値でない
+pass|waiting|.items[1] += {"call": false, "later": "急がない", "later_until": "2026-12-01"}|置いてある判断の行（ADR-0062）
+pass|waiting|.items |= map(del(.call))|call の無い行（前のバージョンの出力。読み手は今の規則で読む）
+fail|waiting|.items[0].call = "true"|call が真偽値でない
+fail|waiting|.items[1].later = ""|later が空
 pass|digest-input|.previous = null|前に送ったダイジェストが無い
 pass|digest-input|.issues = [] | .concerns = [] | .skipped = []|期間に何も無い
 pass|digest-input|.issues[0].merged_by = null | .issues[0].merged_at = null|期間にマージされていない片付け
@@ -1252,6 +1259,7 @@ ledger-log.jsonl|ledger-log|kanban の CLI が書いた log.jsonl（andon dispat
 ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
 waiting.json|waiting|andon waiting --json の出力（問いの番号の無い判断の行を含む）
 waiting-empty.json|waiting|andon waiting --json の出力（オーナー待ちが無い kanban）
+waiting-later.json|waiting|andon waiting --json の出力（置いてある判断の行を含む）
 digest-input.json|digest-input|andon digest collect の input.json
 digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
 digest.json|digest|andon digest build の digest.json
