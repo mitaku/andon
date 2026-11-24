@@ -208,13 +208,14 @@ func (r *Receiver) store(sig signal, raw json.RawMessage) error {
 		return nil
 	}
 	strip(entry)
+	entry = redactStrings(entry) // 送り手の文字列を 1 つずつ伏せる（JSON に書き直すと改行や引用符が \n・\\\" に化け、形が当たらない）
 	var line bytes.Buffer
 	enc := json.NewEncoder(&line)
 	enc.SetEscapeHTML(false) // 伏せた印 <REDACTED> などを < に書き換えない
 	if err := enc.Encode(map[string]any{sig.key: []any{entry}}); err != nil {
 		return err
 	}
-	out, _ := redact.JSON(line.Bytes()) // 行の全体の秘密の形を伏せる（決めたこと 8。Encode の改行は残る）
+	out, _ := redact.JSON(line.Bytes()) // 書き直した行にも当てる（文字列をまたぐ形の念のため。決めたこと 8。Encode の改行は残る）
 	return r.append(rel, out)
 }
 
@@ -295,6 +296,27 @@ func strip(v any) {
 	}
 }
 
+// redactStrings は木の中の文字列の値を、書き直す前の生の文字列のまま internal/redact に通す。
+func redactStrings(v any) any {
+	switch x := v.(type) {
+	case string:
+		b, n := redact.JSON([]byte(x))
+		if n == 0 {
+			return x
+		}
+		return string(b)
+	case map[string]any:
+		for k, child := range x {
+			x[k] = redactStrings(child)
+		}
+	case []any:
+		for i, child := range x {
+			x[i] = redactStrings(child)
+		}
+	}
+	return v
+}
+
 func dropPersonal(list []any) []any {
 	out := list[:0:0]
 	for _, a := range list {
@@ -331,10 +353,9 @@ func (r *Receiver) append(rel string, line []byte) error {
 	defer root.Close() //nolint:errcheck // 根を開いただけ。書いたファイルは f.Close で確かめる
 	var f *os.File
 	for try := 0; ; try++ {
-		if err := root.MkdirAll(filepath.Dir(rel), 0o700); err != nil {
-			return err
+		if err = root.MkdirAll(filepath.Dir(rel), 0o700); err == nil {
+			f, err = root.OpenFile(rel, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 		}
-		f, err = root.OpenFile(rel, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 		if err == nil {
 			break
 		}

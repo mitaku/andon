@@ -268,6 +268,34 @@ func TestReceiveRedactsSecrets(t *testing.T) {
 	}
 }
 
+// 伏せるのは送り手の文字列そのもの。改行の直後のトークン（ヒアドキュメント）も、JSON の文字列の中の
+// 引用符つきの値（ツールの引数を JSON の文字列で運ぶ属性）も、行の JSON の書き直しで \n や \\\" に化ける前に伏せる。
+func TestReceiveRedactsInsideStrings(t *testing.T) {
+	c := newCell(t)
+	token := "gh" + "p_" + strings.Repeat("Ab1", 12)
+	secret := "hunter2xyz"
+	in := sample(t, "traces.json")
+	span := in["resourceSpans"].([]any)[0].(map[string]any)["scopeSpans"].([]any)[0].(map[string]any)["spans"].([]any)[0].(map[string]any)
+	params := string(encode(t, map[string]string{"bash_command": `export API_KEY="` + secret + `"`}))
+	span["attributes"] = append(span["attributes"].([]any),
+		map[string]any{"key": "full_command", "value": map[string]any{"stringValue": "gh auth login --with-token <<EOF\n" + token + "\nEOF"}},
+		map[string]any{"key": "tool_parameters", "value": map[string]any{"stringValue": params}},
+	)
+	if got := c.post(t, "/v1/traces", "application/json", encode(t, in)); got != http.StatusOK {
+		t.Fatalf("POST が %d", got)
+	}
+	b, err := os.ReadFile(filepath.Join(c.root, "sample-site", "issues", "S-0001", "traces.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(b, []byte(token)) {
+		t.Error("改行の直後のトークンが残っている")
+	}
+	if bytes.Contains(b, []byte(secret)) {
+		t.Error("JSON の文字列の中の引用符つきの値が残っている")
+	}
+}
+
 // 受け入れ条件 4: andon.issue が ../x のものと andon.project の無いものは、200 が返り、何も書かれず、捨てた数が 1 ずつ増える。
 // 置き場の外にファイルができない。
 func TestReceiveDropsBadAttributes(t *testing.T) {
