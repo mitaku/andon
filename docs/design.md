@@ -314,6 +314,7 @@ sequenceDiagram
 
 - Chief Engineer は**kanban の課題**として回る（`andon chief-engineer` が `kanban add` → 案件の repo に worktree を切る → `hc run` → `kanban start` する。repo は kanban の repos が1つならそれ、2つ以上なら `andon chief-engineer --repo <host/owner/repo> "<タイトル>"` で選ぶ。依頼書はタイトルの下に、Chief of Staff が経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を `--brief -` で渡す。端末のラベル `role=chief-engineer`）。だから worktree・報告・PR・finish・「太らせて寝かせない」が担当と同じ道具で済み、新しい約束が要らない（§6 問い20）。Chief of Staff は Chief Engineer の課題を**検収しない**（検収は、オーナーが出口の最後の確かめでした）。ただし文書を切るとき、オーナーに聞く線に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見て、見つけたら切らずにオーナーへ知らせる（[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 8）。Chief Engineer の課題の文書の PR は、どの案件でもいつもオーナーがマージする（dispatcher は Chief Engineer の課題に gate を回さず、自動でマージしない。[dispatcher.md](dispatcher.md) §2.7）。
 - 渡すものは**文書だけ**（コンテキストのポインタ。chief-of-staff の「context pointers」）。会話の記録は渡さない。例外として、検討で調べたモデルのファイルは資料として添えてよく、依頼書はそのパスを指してよい（[ADR-0038](adr/0038-statechart-in-chief-engineer-design.md) 決めたこと 15）。Chief of Staff が切った依頼書は文書の節を `links` で指す。
+- 検討の中で、知識（skill・手引き・repo の `AGENTS.md` と docs・セルの wiki のページ）が無かった、誤っていた、辿り着くのが遅れた、と名指せたら、渡すときの `report.json` の `gaps[]` と報告の `## Gaps` に1件ずつ書く（種類は `missing`・`wrong`・`hard_to_find`、先はどの知識かのパス。形は [contract.md](contract.md) §4）。担当と同じ欄で、名指せない学びは `## Remember` に書き、欠けが無ければ節を書かない。申告を書くのは担当と Chief Engineer だけで、レビュアーと Chief of Staff は書かない（[ADR-0061](adr/0061-knowledge-factory.md) 決めたこと 2〜5）。
 - Chief Engineer は同時に複数いてよい（1テーマ＝1課題。Andon 自身の docs はレベル C で、文書の PR のマージ待ちの間も別のテーマを止めないため。[ADR-0009](adr/0009-cos-default-entry.md) 決めたこと 3）。
 
 **プロファイルとオーナーの呼び出し方**（案。推奨つき）:
@@ -543,7 +544,7 @@ andon/
     skills/<name>/SKILL.md   AI 用: chief-of-staff・chief-engineer（§1.8 の骨格）・worker・independent-review・ask-one-by-one・triage・retro・digest・glossary
     environment.md           AI 用: セルの環境メモ（エージェントの設定ファイルが @ で読む）
     writing.md               AI 用: オーナーへの書き方（全役がオーナーに返す文の決まり。エージェントの設定ファイルが @ で読む）
-    templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・sonnet・fable・codex・codex-review・claude-review）
+    templates/<profile>.md   プロファイル（hcの template。chief-of-staff・chief-engineer・claude・claude-medium・sonnet・fable・codex・codex-review・claude-review）
     hooks/                   ハーネスのフック（Stop・StopFailure・UserPromptSubmit。dispatcher と command を呼ぶだけ）
     gate.json                gate の条件表の既定
     settings.json            managed settings の既定（deny・allow・hooks）

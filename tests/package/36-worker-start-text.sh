@@ -1,5 +1,5 @@
 # tests/package/36-worker-start-text.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・tmp は入口が置く）。
-#  36. 担当の起動の文と worker skill の線: 担当のプロファイル（claude・codex・sonnet・fable）の本文が、ほかの担当・レビュアー・プロファイルと
+#  36. 担当の起動の文と worker skill の線: 担当のプロファイル（claude・claude-medium・codex・sonnet・fable）の本文が、ほかの担当・レビュアー・プロファイルと
 #      claude・codex の command の起動を断り、見るだけでその turn のうちに結果を返して終わるサブエージェントを許す。
 #      worker skill の表と冒頭も同じ線で書き、§4 の反論の段が起動の文に断られない。
 # === 36. 担当の起動の文と worker skill の表（worker skill 冒頭・§4） ===
@@ -22,7 +22,7 @@ start_miss() {
   echo "$m"
 }
 w=package/skills/worker/SKILL.md
-for p in claude codex sonnet fable; do
+for p in claude claude-medium codex sonnet fable; do
   miss=$(start_miss "package/templates/$p.md" "$w")
   [ -z "$miss" ] && pass "プロファイル $p の起動の文が、ほかのエージェントと claude・codex の command を断り、見るだけでその turn のうちに返るサブエージェントを許し、worker skill の表と冒頭・§4 と同じ線で書く" \
     || fail "プロファイル $p の起動の文:$miss"

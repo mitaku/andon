@@ -216,7 +216,7 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 		r.PR = pr
 	}
 	prev, err := c.previous()
-	if err != nil && (r.PR == "" || r.Estimate == nil || r.Plan == nil) {
+	if err != nil && (r.PR == "" || r.Estimate == nil || r.Plan == nil || r.Gaps == nil) {
 		return err
 	}
 	if prev != nil {
@@ -228,6 +228,9 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 		}
 		if r.Plan == nil {
 			r.Plan = prev.Plan
+		}
+		if r.Gaps == nil { // 空の配列（取り下げ）は nil でないので引き継がない（ADR-0061 決めたこと 2）
+			r.Gaps = prev.Gaps
 		}
 		r.ReviewRequest = carriedReviewRequest(prev, head)
 	}

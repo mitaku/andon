@@ -192,7 +192,7 @@ dc exec -T dev bash -euc '
   andon help >/dev/null
   python3 -c "import json,sys; a,b=(json.load(open(p)) for p in sys.argv[1:]); sys.exit(a!=b)" \
     /opt/andon/settings.json /etc/claude-code/managed-settings.json
-  for t in claude sonnet fable codex codex-review claude-review chief-of-staff chief-engineer; do
+  for t in claude claude-medium sonnet fable codex codex-review claude-review chief-of-staff chief-engineer; do
     test -s "$HOME/.config/herdr-core/templates/$t.md"
   done
   test "$(cat "$CLAUDE_CONFIG_DIR/CLAUDE.md")" = "$(printf "@/opt/andon/environment.md\n@/opt/andon/writing.md\n@/workspace/AGENTS.local.md")"

@@ -563,11 +563,14 @@ const SAMPLE_WAITING = {
   ],
 };
 // `answer` is what `andon waiting answer` gives (a reply, or an Error it throws); by default it wrote.
-async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', terms = [], answer = { code: 0, stdout: 'answered\n', stderr: '' } } = {}) {
-  const calls = { exec: [], run: [] };
+// `tree` is what layout() gives (null: no layout read), `commands` what nextCommand() hands over in turn.
+// here.focused is whether the pane holds the keyboard.
+async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', terms = [], answer = { code: 0, stdout: 'answered\n', stderr: '' }, tree = null, commands = [] } = {}) {
+  const calls = { exec: [], run: [], focus: 0 };
   // The focused folder; a test moves it by setting here.cwd.
-  const here = { cwd };
+  const here = { cwd, focused: false, tree };
   const ns = await load(`${HOST}/waiting`, {
+    layout: () => here.tree, nextCommand: () => (commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {})),
     spaces: () => [{ id: 's1', active: true, machine: null, folder: here.cwd }], panes: () => [{ pane: 'p1', cwd: here.cwd }],
     focused: () => ({ pane: 'p1' }), terminals: () => terms, theme: () => THEME, window: () => ({ platform: 'linux' }),
     run: (cmd, a) => calls.run.push([cmd, fromMod(a)]),
@@ -581,8 +584,11 @@ async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', term
   }, recordingUi());
   const v = new ns.default();
   let pending = [];
-  const cx = { spawn: (fn) => pending.push(fn(cx)), settle: () => Promise.all(pending), notify: () => {}, timer: { every() {}, after() {} }, stop_propagation() {} };
+  const cx = { spawn: (fn) => pending.push(fn(cx)), settle: () => Promise.all(pending), notify: () => {}, timer: { every() {}, after() {} }, stop_propagation() {},
+    focus_handle: () => ({ focus() { calls.focus++; here.focused = true; }, is_focused: () => here.focused }) };
   v.init({}, cx);
+  // The nextCommand loop, spawned last in init, never ends (no command comes): wait only for the read.
+  pending.pop();
   await Promise.all(pending);
   return { v, calls, cx, ns, here, draw: () => v.render(cx) };
 }
@@ -829,6 +835,120 @@ await check('waiting: フォーカスが別のフォルダへ移った直後、�
   click(stale);
   await cx.settle();
   assert.deepEqual(calls.exec.filter((c) => c[1][1] === 'answer').map((c) => c[1]), [['waiting', 'answer', 'S-0030#1', '--option', '1']], '選んだ選択肢が移った間に変わったか、戻っても答えない');
+});
+
+// The andon layout as shipped: the waiting block sits in the right panel's stack.
+const ANDON_LAYOUT = JSON.parse(await readFile(`${HOST}/layouts/andon.json`, 'utf8'));
+const escape = (tree, cx, key = 'escape', modifiers = {}) => { const [fn] = args(byId(tree, 'waiting'), 'on_key_down').at(-1); fn({ key, modifiers }, cx); };
+
+await check('waiting: 見出しの閉じるボタンと Esc で右の panel を閉じる（layout.hide panel）。キーボードを持っていれば先に左へ渡す。ほかのキーや修飾つきの Esc では閉じない', async () => {
+  const { v, calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING), { tree: ANDON_LAYOUT });
+  const click = clickOn(cx);
+  let tree = draw();
+  const close = byId(tree, 'waiting-close');
+  assert.ok(close, '見出しに閉じるボタンが無い');
+  assert.ok(walk(close).some((n) => n.file === 'mods/workspace-chrome/x.svg'), '閉じるボタンが x の印でない');
+  assert.ok(!byId(tree, 'waiting-keys'), 'キーボードを持たないのにキーの案内がある');
+  click(close);
+  assert.deepEqual(calls.run, [['layout.hide', { id: 'panel' }]], `閉じるボタン: ${JSON.stringify(calls.run)}`);
+  // Esc while the pane holds the keyboard: the keyboard goes left first, then the panel hides.
+  calls.run.length = 0;
+  here.focused = true;
+  tree = draw();
+  assert.deepEqual(textOf(byId(tree, 'waiting-keys')), ['Esc close'], 'キーボードを持つ間のキーの案内');
+  let stopped = 0;
+  escape(tree, { ...cx, stop_propagation() { stopped++; } });
+  assert.deepEqual(calls.run, [['pane.go', { direction: 'left' }], ['layout.hide', { id: 'panel' }]], `Esc: ${JSON.stringify(calls.run)}`);
+  assert.equal(stopped, 1, 'Esc を自分で受けたのに止めていない');
+  calls.run.length = 0;
+  escape(tree, cx, 'j');
+  escape(tree, cx, 'escape', { control: true });
+  escape(tree, cx, 'escape', { alt: true });
+  escape(tree, cx, 'escape', { platform: true });
+  escape(tree, cx, 'enter');
+  assert.deepEqual(calls.run, [], `Esc でないキーで閉じた: ${JSON.stringify(calls.run)}`);
+  // Herdr calls a View's close(cx) as cleanup when the block goes or the app quits: that must not hide the panel.
+  await v.close?.(cx);
+  assert.deepEqual(calls.run, [], `後片付けの close(cx) で panel を閉じた: ${JSON.stringify(calls.run)}`);
+});
+
+await check('waiting: 画面がキーボードを持つ間は、フォーカスした pane の場所が変わって見えても読む場所を変えず、開いた行と選んだ選択肢を残して答えられる', async () => {
+  const { v, calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING), { tree: ANDON_LAYOUT });
+  const click = clickOn(cx);
+  click(byId(draw(), 'waiting-head-S-0030-1'));
+  click(byId(draw(), 'waiting-option-S-0030-1-1'));
+  // A click takes the keyboard; the focused pane is then reported elsewhere.
+  here.focused = true;
+  here.cwd = '/srv/cell';
+  v.refresh(cx);
+  await cx.settle();
+  let tree = draw();
+  assert.ok(byId(tree, 'waiting-detail-S-0030-1'), 'キーボードを取ったら開いた行が閉じた');
+  click(byId(tree, 'waiting-answer-S-0030-1'));
+  await cx.settle();
+  assert.deepEqual(calls.exec.filter((c) => c[1][0] === 'waiting').map((c) => c[2].cwd), Array(calls.exec.filter((c) => c[1][0] === 'waiting').length).fill('/srv/cell/projects/sample-site'), '読む場所か答える場所が移った');
+  assert.ok(byId(draw(), 'waiting-answered-S-0030-1'), 'キーボードを持つ間に答えられない');
+  // The keyboard back on a pane: the place follows the focus again.
+  here.focused = false;
+  draw();
+  await cx.settle();
+  assert.equal(calls.exec.at(-1)[2].cwd, '/srv/cell', 'キーボードを返したあとも前の場所を読む');
+  assert.ok(!byId(draw(), 'waiting-detail-S-0030-1'), '場所が変わったのに開いた行が残った');
+});
+
+await check('waiting: panel の中に置かれていないとき（layout が読めない・panel の外に置いた）は閉じるボタンを出さず、Esc でも何も打たない', async () => {
+  const outside = { id: 'root', type: 'row', children: [{ id: 'panel', type: 'column', children: [{ id: 'files', type: 'block', content: { mod: 'files-plus' } }] },
+    { id: 'waiting', type: 'block', content: { mod: 'waiting' } }] };
+  for (const tree of [null, outside]) {
+    const { calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING), { tree });
+    here.focused = true;
+    const drawn = draw();
+    assert.ok(!byId(drawn, 'waiting-close') && !byId(drawn, 'waiting-keys'), `panel の外で閉じる口がある: ${JSON.stringify(tree)?.slice(0, 60)}`);
+    escape(drawn, cx);
+    assert.deepEqual(calls.run, [], 'panel の外で Esc が何かを打った');
+  }
+  // The same check finds the panel where it is: the shipped layout has the block in it.
+  const shipped = (await waitingPane(json(SAMPLE_WAITING), { tree: ANDON_LAYOUT })).draw();
+  assert.ok(byId(shipped, 'waiting-close'), 'panel の中の block を拾う式が何も見ていない');
+});
+
+await check('waiting: pane.go が渡す focus でキーボードを取る', async () => {
+  const { calls, cx } = await waitingPane(json(SAMPLE_WAITING), { commands: ['focus'] });
+  await cx.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls.focus, 1, 'focus でキーボードを取らない');
+  const none = await waitingPane(json(SAMPLE_WAITING), { commands: ['waiting.other'] });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(none.calls.focus, 0, 'focus でない command でキーボードを取った');
+});
+
+await check('waiting: 閉じて開き直しても、開いた行・選んだ選択肢・答えている途中の操作が残り、読み直しのあとも壊れない', async () => {
+  let answered = false;
+  const { v, calls, draw, cx } = await waitingPane(() => json(answered ? { ...SAMPLE_WAITING, items: SAMPLE_WAITING.items.filter((i) => i.id !== 'S-0030') } : SAMPLE_WAITING), { tree: ANDON_LAYOUT });
+  const click = clickOn(cx);
+  click(byId(draw(), 'waiting-head-S-0021'));
+  click(byId(draw(), 'waiting-head-S-0030-1'));
+  click(byId(draw(), 'waiting-option-S-0030-1-1'));
+  click(byId(draw(), 'waiting-close'));
+  // Closed: the copy stays alive and reads on its timer; shown again, the same copy draws.
+  v.refresh(cx);
+  await cx.settle();
+  let tree = draw();
+  assert.ok(byId(tree, 'waiting-detail-S-0021') && byId(tree, 'waiting-detail-S-0030-1'), '閉じて読み直したら開いた行が閉じた');
+  assert.deepEqual(textOf(byId(tree, 'waiting-answer-S-0030-1')), ['Answer "Excel も"'], '閉じて読み直したら選んだ選択肢が消えた');
+  // An answer pressed just before closing finishes while closed.
+  click(byId(tree, 'waiting-answer-S-0030-1'));
+  click(byId(draw(), 'waiting-close'));
+  await cx.settle();
+  assert.deepEqual(textOf(byId(draw(), 'waiting-answered-S-0030-1')), ['· Answered: Excel も'], '閉じている間に終わった答えが出ない');
+  assert.equal(calls.exec.filter((c) => c[1][1] === 'answer').length, 1);
+  // The next read no longer lists it: the row leaves, the other open row stays.
+  answered = true;
+  v.refresh(cx);
+  await cx.settle();
+  tree = draw();
+  assert.ok(!byId(tree, 'waiting-row-S-0030-1') && byId(tree, 'waiting-detail-S-0021'), '答えた行が残ったか、ほかの開いた行が閉じた');
+  assert.deepEqual(calls.run.filter((r) => r[0] === 'layout.hide').length, 2);
 });
 
 // A task row carries the brief as steps and its web links (contract.md §25 items[].steps and items[].links).

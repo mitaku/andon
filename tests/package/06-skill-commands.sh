@@ -69,12 +69,12 @@ grep -q 'commit --only -m "wiki: <要点>" -- wiki' <<<"$cos11" || miss="$miss c
 grep -q '書く前に秘密.*`<伏せた: 種類>`' <<<"$cos11" || miss="$miss raw/ に書く前に秘密を伏せる"
 grep -qE '1ファイル1件|`log.md` は作らない' <<<"$cos11" && miss="$miss 前の形の行が残る"
 [ -z "$miss" ] && pass "Chief of Staff の skill の wiki の節が LLM Wiki の形（層・ingest・query・lint・元資料・移行。ADR-0016）" || fail "chief-of-staff の wiki の節:$miss"
-# ADR-0020 受け入れ条件 6: 規約9は memory を受け皿とし、トリアージが wiki 行きの memory を raw/memory/ に写し、wiki の raw/ は4種
+# ADR-0020 受け入れ条件 6: 規約9は memory を受け皿とし、トリアージが wiki 行きの memory を raw/memory/ に写し、wiki の raw/ は4種（ADR-0061 が 5 種目に申告の写しを足した）
 grep -q '^| 9\. 記憶の規律 | 11 | `wiki.md` |$' "$cos" && grep -q '^11\. \*\*学びは層で分けて残す\*\*。.*memory は蒸留までの受け皿' "$cos" \
   && grep -q '^記憶の規律（規約9）: memory（auto memory。`/workspace/memory/`）は蒸留までの受け皿。残すものはトリアージを通して wiki と repo へ' "$pb/wiki.md" \
   && ! grep -q 'ハーネス内蔵のメモリは使わない' <<<"$cosall" \
   && grep -q '`close`「wiki へ: <タイトル>」のものは、記録.*の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest' "$pb/triage.md" \
-  && grep -q '^  - `raw/` — 元資料。書いたら変えない。4種: .*(4) トリアージで wiki 行きになった memory の写し（`raw/memory/' <<<"$cos11" \
+  && grep -q '^  - `raw/` — 元資料。書いたら変えない。5種: .*(4) トリアージで wiki 行きになった memory の写し（`raw/memory/' <<<"$cos11" \
   && pass "Chief of Staff の skill: 原則11・規約9・トリアージ・wiki の手引きが memory を蒸留までの受け皿として扱う（ADR-0020）" || fail "chief-of-staff の原則11・規約9・triage.md・wiki.md が ADR-0020 の形でない"
 # ADR-0016 受け入れ条件 3: 読む側（Chief Engineer の「読む」と Chief of Staff の切る手引き）が index.md → ページの順で引く
 grep -q '^1\. \*\*読む.*セルの wiki（`index.md` → ページの順で引く。使う事実は' package/skills/chief-engineer/SKILL.md \

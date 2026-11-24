@@ -203,3 +203,37 @@ func TestMark(t *testing.T) {
 		}
 	}
 }
+
+// 目録の Entities か Topics の節にページの行があるときだけ、wiki の目録を引く1行を返す（ADR-0061 決めたこと 12）。
+// andon init の雛形（節だけ）と、Sources だけに行がある目録では返さない。
+func TestWiki(t *testing.T) {
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	p := filepath.Join(ws, WikiIndex)
+	want := "\nセルの wiki の目録 `" + p + "` の Entities と Topics の節を読み、課題に当たるページがあれば読む。"
+	if g := Wiki(); g != "" {
+		t.Errorf("目録が無いのに入った: %q", g)
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const head = "# wiki\n\n## Overview\n\n- [overview.md](overview.md) — まとめ\n\n"
+	for _, c := range []struct {
+		name, index, want string
+	}{
+		{"雛形のまま", head + "## Entities\n\n## Topics\n\n## Sources\n", ""},
+		{"Sources だけに行", head + "## Entities\n\n## Topics\n\n## Sources\n\n- [sources/a.md](sources/a.md) — a\n", ""},
+		{"Overview だけに行（Entities の前）", head + "## Entities\n## Topics\n", ""},
+		{"Topics に1行", head + "## Entities\n\n## Topics\n\n- [topics/a.md](topics/a.md) — a\n\n## Sources\n", want},
+		{"Entities に1行", head + "## Entities\n- [entities/a.md](entities/a.md) — a\n## Topics\n", want},
+		{"前の並び（Sources が先）で Topics に1行", head + "## Sources\n\n## Entities\n\n## Topics\n\n- [topics/a.md](topics/a.md) — a\n", want},
+		{"CRLF と見出しの後ろの空白", "## Topics \r\n- [topics/a.md](topics/a.md) — a\r\n", want},
+	} {
+		if err := os.WriteFile(p, []byte(c.index), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if g := Wiki(); g != c.want {
+			t.Errorf("%s: got %q want %q", c.name, g, c.want)
+		}
+	}
+}

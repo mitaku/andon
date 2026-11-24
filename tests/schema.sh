@@ -174,7 +174,7 @@ declare -A required=(
   [delivered]="at project acked news"
   [launch]="at role launch issue profile template command terminal session harness package workspace repo external drift drift_reasons memory_index"
   [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
-  [retro]="project at since until previous_retro boundary issues summaries cut typed fixes redacted skipped"
+  [retro]="project at since until previous_retro boundary issues summaries cut typed questions fixes redacted skipped"
   [patterns]="retro at since until days previous_retro patterns fixes"
   [run]="id command expect exit_code started_at finished_at output output_bytes truncated"
   [waiting]="version at project slots items"
@@ -237,6 +237,7 @@ report|.acceptance[0]|id result evidence
 report|.risk|one_way
 report|.estimate|size reason
 report|.plan[0]|id text done
+report|.gaps[0]|kind where text
 report|.observation|hypothesis result evidence
 report|.next[0]|to text
 question|.options[0]|label pick
@@ -302,7 +303,7 @@ outcome|.sessions[0]|harness session cost
 outcome|.sessions[0].cost|models efforts turns tokens
 outcome|.sessions[0].cost.tokens|input output cache_read cache_write
 retro|.previous_retro|issue done_at until
-retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome gates reviews waived corrections remember agents_md journal after_merge reapplied reapplied_reasons
+retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome gates reviews waived corrections remember agents_md gaps journal after_merge reapplied reapplied_reasons
 retro|.issues[0].launches[0]|at profile model commit
 retro|.issues[0].outcome|result worked_minutes cost
 retro|.issues[0].outcome.cost|sessions measured tokens
@@ -312,8 +313,11 @@ retro|.issues[0].reviews[0]|id profile reason findings outcome
 retro|.issues[0].after_merge|merge_commit merged_at checks reverted_by
 retro|.issues[0].after_merge.checks|state failed
 retro|.issues[0].after_merge.reverted_by[0]|pr merged_at
-retro|.summaries[0]|id title done_at pr findings gate_fixes corrections remember
+retro|.summaries[0]|id title done_at pr findings gate_fixes corrections remember gaps
+retro|.summaries[0].gaps[0]|kind where
 retro|.typed[0]|id session at role issue text truncated
+retro|.questions[0]|issue n from kind question options answer asked_at
+retro|.questions[0].options[0]|label pick
 retro|.fixes[0]|issue title retro pr merged_at issues_after recurred_before
 retro|.skipped[0]|source reason
 patterns|.previous_retro|issue done_at
@@ -412,6 +416,19 @@ pass|report|del(.plan)|plan の無い report.json
 fail|report|.plan[0].done = "yes"|plan の done が真偽でない
 fail|report|.plan[0].text = ""|plan の text が空
 fail|report|.plan[0].id = ""|plan の id が空
+pass|report|del(.gaps)|gaps の無い report.json（欠けが無ければ節を書かない）
+pass|report|.gaps = []|gaps が空の配列（申告を取り下げた）
+pass|report|.gaps = [{"kind": "missing", "where": "unknown", "text": "探した先が言えない"}]|gaps の missing で where が unknown・proposal 無し
+pass|report|.gaps[2].where = "brief"|gaps の where が依頼書
+fail|report|.gaps[0].kind = "stale"|gaps の kind が 3 つのどれでもない
+fail|report|del(.gaps[1].where)|gaps に where が無い
+fail|report|del(.gaps[1].kind)|gaps に kind が無い
+fail|report|del(.gaps[1].text)|gaps に text が無い
+fail|report|.gaps[0].where = ""|gaps の where が空
+fail|report|.gaps[0].text = ""|gaps の text が空
+fail|report|.gaps[0].proposal = ""|gaps の proposal が空
+fail|report|.gaps[0] += {"by": "t1"}|gaps に知らないキー
+fail|report|.gaps = {"kind": "missing", "where": "unknown", "text": "x"}|gaps が配列でない
 fail|report|.pr = "#12"|pr が URL でない
 fail|report|.commit = "9c4e1b0"|commit が40桁でない
 fail|report|.review_request.commit = "9c4e1b0"|review_request.commit が40桁でない
@@ -808,6 +825,16 @@ pass|retro|.fixes[0].recurred_before = null|前の振り返りが数えていな
 fail|retro|.fixes[0].recurred_before = -1|前の再発の数が負
 pass|retro|.issues[0].reviews[0].reason = null|回の理由を決められないレビュー
 fail|retro|.issues[0].reviews[0].reason = "ci"|回の理由が知らない値
+pass|retro|.issues[0].gaps = []|申告の無い束
+fail|retro|.issues[0].gaps = "x"|束の申告が配列でない
+pass|retro|.summaries[0].gaps = []|申告の無い要約
+fail|retro|.summaries[0].gaps[0].kind = "typo"|要約の申告の種類が知らない値
+fail|retro|.summaries[0].gaps[0].text = "本文"|要約に申告の本文がある
+pass|retro|.questions = []|期間に問いが無い
+pass|retro|.questions[0] += {"from": null, "answer": null}|聞いた役の無い問い・答えていない問い
+fail|retro|.questions[0].from = "gate"|gate の問いが入っている
+fail|retro|.questions[0].kind = "scope"|範囲の問いが入っている
+fail|retro|.questions[0].n = 0|問いの番号が 0
 pass|patterns|.previous_retro = null|前の振り返りが無い
 pass|patterns|. + {"patterns": [], "fixes": []}|パターンも前の直しも無い
 pass|patterns|.patterns[0].target = {"kind": "andon", "paths": ["package/skills/worker/SKILL.md"]}|Andon の直しで repo を持たない
@@ -1029,6 +1056,8 @@ project|."$defs".grant.required -= ["id"]|grant の必須から id を外す
 project|.required -= ["repos"]|project の必須から repos を外す
 project|."$defs".delegation.additionalProperties = true|delegation の知らないキーを許す
 report|.properties.review_request.required -= ["previous"]|review_request の必須から previous を外す
+report|.properties.gaps.items.properties.kind.enum += ["stale"]|gaps の kind を緩める
+report|.properties.gaps.items.required -= ["where"]|gaps の必須から where を外す
 findings|."$defs".finding.properties.file.pattern = "^[^\\x00-\\x1f\\x7f]+$"|file の .. の段の検査を外す
 candidates|del(.properties.candidates.uniqueKeys)|候補の id の一意を外す
 candidates|."$defs".candidate.required -= ["in_scope"]|候補の必須から in_scope を外す
@@ -1065,6 +1094,10 @@ retro|."$defs".after_merge.properties.checks.anyOf[0].properties.state.enum += [
 retro|."$defs".fix.additionalProperties = true|前の直しの知らないキーを許す
 retro|."$defs".summary.additionalProperties = true|要約の束の知らないキーを許す
 retro|."$defs".summary.required -= ["findings"]|要約の束の必須から findings を外す
+retro|.required -= ["questions"]|振り返りの入力の必須から questions を外す
+retro|."$defs".question.properties.from.anyOf[0].enum += ["gate"]|問いの from に gate を許す
+retro|."$defs".question.properties.kind.enum += ["scope"]|問いの kind に scope を許す
+retro|."$defs".bundle.required -= ["gaps"]|束の必須から gaps を外す
 retro|."$defs".launch.additionalProperties = true|起動の記録の写しの知らないキーを許す
 retro|."$defs".outcome.additionalProperties = true|結果の記録の写しの知らないキーを許す
 retro|.required -= ["boundary"]|振り返りの入力の必須から boundary を外す

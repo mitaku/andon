@@ -28,7 +28,7 @@ grep -q '"commit": "collect が返した commit"' "$tsk" || miss="$miss decision
 grep -q '`close` は `closing`.*が必須' "$tsk" || miss="$miss closing が必須"
 grep -q '`andon triage verdict` を打つ（どちらも Chief of Staff）' "$tsk" || miss="$miss 担当は verdict を打たない"
 # 判断の閉じの値は apply のコードと同じ（表に無い値・コードに無い値が無い）。
-code=$(grep -oE '"(wont-happen|one-off|not-applicable|read|done|gone|wiki|delegated)"' internal/triage/decisions.go | tr -d '"' | sort -u | tr '\n' ' ')
+code=$(grep -oE '"(wont-happen|one-off|not-applicable|read|first|done|gone|wiki|delegated)"' internal/triage/decisions.go | tr -d '"' | sort -u | tr '\n' ' ')
 table=$(grep -oE '^\| (根拠|判断)の閉じ \| `[a-z-]+`' "$tsk" | grep -oE '`[a-z-]+`' | tr -d '`' | sort -u | tr '\n' ' ')
 [ -n "$table" ] && [ "$code" = "$table" ] || miss="$miss 表の閉じ方（$table）がコード（$code）と違う"
 grep -q '^   \*\*判断の閉じと課題の閉じを1件ずつ読む\*\*: `--dry-run` の出力の `review`' "$pb/triage.md" \

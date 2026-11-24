@@ -96,7 +96,7 @@ func (l *ledger) records() ([]record, error) {
 }
 
 var (
-	keyRe   = regexp.MustCompile(`^[a-z0-9_-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable|memory|signal):[a-f0-9]{40}$`)
+	keyRe   = regexp.MustCompile(`^[a-z0-9_-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable|memory|signal|gap):[a-f0-9]{40}$`)
 	repoRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	tokenRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 	// commitRe は判定の commit（担当が見た commit。sha1 か sha256 の 16 進）。
@@ -271,6 +271,7 @@ var (
 		"one-off":        {"remember", "memory"}, // その場限り: ## Remember の行と auto memory だけ
 		"not-applicable": {"memory"},             // 当てはまらない: auto memory だけ
 		"read":           {"unreadable"},         // 読んだ: 拾うものなし: 読めない報告だけ
+		"first":          {"gap"},                // 1 件目: 根拠が 1 件の、skill とパッケージに足りないものの申告だけ（ADR-0061 決めたこと 8）
 	}
 )
 
