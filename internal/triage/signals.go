@@ -20,7 +20,6 @@ var (
 	signalFromRe  = regexp.MustCompile(`^sig-([0-9a-f]{12})-e([1-9][0-9]{0,8})$`)
 )
 
-// loadSignals は信号の記録のうち、このプロジェクトのもの。記録が無ければ空。
 func (l *ledger) loadSignals() ([]signal.Record, error) {
 	if l.signals == "" {
 		return nil, nil
@@ -50,7 +49,6 @@ func signalKey(slug string, r signal.Record) string {
 	return slug + ":" + signalFrom(r) + ":signal:" + r.Fingerprint
 }
 
-// signalItems は、いま見えている（active）信号のうち、課題に切られていない（どの課題の links にも url も key も無い）ものを1件1項目にする。
 // key でも照らすのは、github-ci の url が run ごとに変わり、課題に書いた url が古い run を指すことがあるから。
 // later の信号はトリアージで仕分けるためのもの。now の信号は通知で届き Chief of Staff が課題に切るが、切られていなければここで拾う。
 // タイトル（title）は外の人の文なので、項目に untrusted: true を付ける。

@@ -43,14 +43,12 @@ type Item struct {
 	path  string     // kind: memory の項目のファイル（apply が消す）
 }
 
-// PriorGap は種類 gap の項目に添える、別の課題の申告の1件（課題の id と種類と本文）。
 type PriorGap struct {
 	Issue string `json:"issue"`
 	Kind  string `json:"kind"`
 	Text  string `json:"text"`
 }
 
-// ledgerIssue は kanban の CLI の list --json の1件のうち、ここが読むキー。
 type ledgerIssue struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
@@ -70,7 +68,6 @@ const personSuffix = "（人の判断待ち）"
 // ownerSuffix は、skill が書くようになった新しい末尾（ADR-0036）。読む側は古い末尾と両方を受ける（決めたこと 6）。
 const ownerSuffix = "（オーナーの判断待ち）"
 
-// personTitle はタイトルの末尾が、オーナーの判断待ちの印（古い形か新しい形）か。
 func personTitle(title string) bool {
 	return strings.HasSuffix(title, personSuffix) || strings.HasSuffix(title, ownerSuffix)
 }
@@ -111,7 +108,6 @@ type Collected struct {
 	Items   []Item            `json:"items"`
 }
 
-// repos は kanban の課題の repo（空でないもの）を重ねずに並べる。
 func (l *ledger) repos() ([]string, error) {
 	out, err := l.kanban("", "list", "--all", "--json")
 	if err != nil {
@@ -131,7 +127,6 @@ func (l *ledger) repos() ([]string, error) {
 	return slices.Compact(got), nil
 }
 
-// latestMains は repo ごとに最新の main を取ってきて、その commit を返す。
 // 1つでも取れなければ止まる（古い木で仕分けさせない。ADR-0030 決めたこと 5 の 6）。
 // apply が中で集め直すときは打たない（取り直すと、担当が読んだ commit から動く）。
 func latestMains(repos []string) (map[string]string, error) {
@@ -146,10 +141,8 @@ func latestMains(repos []string) (map[string]string, error) {
 	return commits, nil
 }
 
-// carriesCommit は、その kind の項目が repo の commit を持つか。memory と外の信号は持たない。
 func carriesCommit(kind string) bool { return kind != "memory" && kind != "signal" }
 
-// latestMain は repo（host/owner/repo）の checkout で origin の既定の branch を取り直し、その commit を返す。
 // 作業ツリーと手元の branch は動かさない（取り直すのは refs/remotes/origin/<既定の branch> だけ）。
 func latestMain(repo string) (string, error) {
 	dir, err := spawn.RepoPath(repo)
@@ -179,7 +172,6 @@ func latestMain(repo string) (string, error) {
 	return gitIn(dir, "rev-parse", "--verify", "-q", ref+"^{commit}")
 }
 
-// gitIn は dir で git を打ち、stdout を返す（前後の空白を除く）。資格情報を尋ねて止まらないようにする。
 // SSH 鍵はセルに無いので、github.com の SSH の URL は HTTPS で読む（internal/issue の finish と同じ）。
 func gitIn(dir string, args ...string) (string, error) {
 	c := exec.Command("git", append([]string{"-C", dir, "-c", "url.https://github.com/.insteadOf=git@github.com:"}, args...)...)
@@ -197,7 +189,6 @@ func gitIn(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// collect は担当に出す項目を集める。前回までの記録で keep 以外に仕分けた key と、keep にして keepHold たたない key は出さない。
 // 読むだけで、kanban にもリポジトリにも書かない（main を取り直すのは runCollect の latestMains）。
 func (l *ledger) collect() ([]Item, error) {
 	records, err := l.records()
@@ -211,7 +202,6 @@ func (l *ledger) collect() ([]Item, error) {
 	return l.listFrom(records, signals)
 }
 
-// listFrom は読んだ記録と信号で、担当に出す項目を出す順に返す。
 // 並びと上限は出す項目の数で決めるので、伏せる分を先に除いてから並べる。
 func (l *ledger) listFrom(records []record, signals []signal.Record) ([]Item, error) {
 	items, err := l.collectFrom(records, signals)
@@ -239,7 +229,6 @@ func withoutHeld(items []Item, records []record, now time.Time) []Item {
 	return slices.DeleteFunc(items, func(it Item) bool { return held[it.Key] })
 }
 
-// collectFrom は読んだ記録（records）と信号（signals）で、未処理の項目の全部を古い順に返す。
 // 20 時間たたない keep も入る: apply はこれで key を照らすので、伏せた項目も key の名指しで見直して閉じられる。
 func (l *ledger) collectFrom(records []record, signals []signal.Record) ([]Item, error) {
 	out, err := l.kanban("", "list", "--all", "--json")
@@ -362,7 +351,6 @@ func prioritize(items []Item) []Item {
 // firstOverLimit は、項目が上限の既定を超える日に先頭に寄せる kind か。memory は仕分けるまで全部の役に載り続け、signal は外の不具合。
 func firstOverLimit(kind string) bool { return kind == "memory" || kind == "signal" }
 
-// ageDays は created（2006-01-02T15:04:05Z）から now までの日数（切り捨て・0 以上）。読めなければ 0。
 func ageDays(created string, now time.Time) int64 {
 	const layout = "2006-01-02T15:04:05Z"
 	t, err := time.Parse(layout, created)
@@ -379,7 +367,6 @@ func expandHome(p string) string {
 	return p
 }
 
-// terminalIssues は hc の端末のうち、このプロジェクトのものの issue ラベル。hc が無ければ空（起動しない）。
 func (l *ledger) terminalIssues() (map[string]bool, error) {
 	got := map[string]bool{}
 	if _, err := exec.LookPath("hc"); err != nil {
@@ -405,7 +392,6 @@ func (l *ledger) terminalIssues() (map[string]bool, error) {
 	return got, nil
 }
 
-// leftover は done の課題に worktree か端末が残っているか。
 func (l *ledger) leftover(t ledgerIssue, terms map[string]bool) bool {
 	wt := expandHome(t.Worktree)
 	if wt != "" {
@@ -458,7 +444,6 @@ var (
 	planDiffRe = regexp.MustCompile(`^\s*(?:[-*]\s*)?計画との差:`)
 )
 
-// reportGaps は kanban の全部の課題の report.json の申告（gaps）を、課題の id ごとに返す。
 // report.json が無い・読めない課題は申告が無いものとして読む（collect を止めない。報告の文の読めなさは unreadable が拾う）。
 func (l *ledger) reportGaps(issues []ledgerIssue) map[string][]contract.Gap {
 	got := map[string][]contract.Gap{}
@@ -489,7 +474,6 @@ func gapWhere(w string) string {
 	return path.Clean(strings.TrimPrefix(w, "./"))
 }
 
-// priorGaps は、id の課題でない課題の申告のうち、where と同じ先を名指したものを、課題の id の順で返す。課題の状態は問わない。
 func priorGaps(gaps map[string][]contract.Gap, id, where string) []PriorGap {
 	w := gapWhere(where)
 	if w == "" {
@@ -513,8 +497,6 @@ func priorGaps(gaps map[string][]contract.Gap, id, where string) []PriorGap {
 	return got
 }
 
-// reportLines は報告から項目になる行を拾う。見出し（## ）で節を切り、
-// For AGENTS.md の行・「見送」を含む行とその下の箇条書き・Next／Remember／オーナーに聞くこと の節の行。
 // Remember の節の「計画との差:」の行は拾わない（ADR-0030 決めたこと 5 の 2。振り返りと measure は別に読む）。
 func reportLines(body []byte) []reportLine {
 	var got []reportLine

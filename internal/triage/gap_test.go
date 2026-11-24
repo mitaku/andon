@@ -11,13 +11,11 @@ import (
 	"time"
 )
 
-// gapIssue は申告の検査の偽の kanban の課題の1件。report.md と report.json は空なら置かない。
 type gapIssue struct {
 	id, title, status, profile string
 	reportMD, reportJSON       string
 }
 
-// gapLedger は issues を持つ偽の kanban（list と show だけを受ける CLI）の ledger を返す。
 // CLI はシェルの組み込みだけで書く（PATH を空にして、hc と git をセルの本物から読まない）。
 func gapLedger(t *testing.T, issues []gapIssue) *ledger {
 	t.Helper()
@@ -68,7 +66,6 @@ while IFS= read -r ln; do printf '%s\n' "$ln"; done < "$f"
 
 const gapCommit = "0123456789abcdef0123456789abcdef01234567"
 
-// gapReport は申告 gaps を持つ report.json の本文。
 func gapReport(gaps string) string {
 	return `{"commit": "` + gapCommit + `", "gaps": [` + gaps + `]}`
 }
@@ -139,12 +136,10 @@ func TestCollectPicksGapsFromReportJSON(t *testing.T) {
 	if it := gaps[unknown]; it.Prior != nil {
 		t.Errorf("先の言えない申告どうしを同じ先と見た: %+v", it.Prior)
 	}
-	// 申告の項目の JSON に、添えた申告が prior で出る。
 	b, _ := json.Marshal(gaps[missing])
 	if !strings.Contains(string(b), `"prior":[{"issue":"T-0002","kind":"hard_to_find","text":"遅れて見つけた"}`) {
 		t.Errorf("項目の JSON に prior が無い: %s", b)
 	}
-	// 報告のほかの節は、今までどおり項目になる。
 	var others []string
 	for _, it := range items {
 		if it.Kind != "gap" && it.From == "T-0001" {

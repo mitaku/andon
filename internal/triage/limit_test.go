@@ -118,7 +118,6 @@ func TestProjectMaxIssues(t *testing.T) {
 	}
 	got := func() (int, error) { return projectMaxIssues(ws, "demo") }
 
-	// セルの repo が無い・project.json が無い → 既定の 3。
 	if n, err := got(); err != nil || n != 3 {
 		t.Fatalf("repo 無し: %d %v", n, err)
 	}

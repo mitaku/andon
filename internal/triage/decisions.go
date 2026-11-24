@@ -12,7 +12,7 @@ import (
 	"unicode"
 )
 
-// obj は decisions.json と記録の JSON の object。知らないキーもそのまま記録へ運ぶ。
+// obj は知らないキーもそのまま記録へ運ぶ。
 type obj = map[string]any
 
 func decode(b []byte) (any, error) {
@@ -28,7 +28,6 @@ func decode(b []byte) (any, error) {
 	return v, nil
 }
 
-// item は decisions.json・記録の items の1件。
 type item obj
 
 func (i item) str(k string) string { s, _ := i[k].(string); return s }
@@ -54,7 +53,6 @@ type record struct {
 	items     []item
 }
 
-// records は library/triage/*.json（前回までの記録）を名前の順に読む。
 func (l *ledger) records() ([]record, error) {
 	paths, _ := filepath.Glob(filepath.Join(l.dir, "library", "triage", "*.json"))
 	var got []record
@@ -96,10 +94,9 @@ func (l *ledger) records() ([]record, error) {
 }
 
 var (
-	keyRe   = regexp.MustCompile(`^[a-z0-9_-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable|memory|signal|gap):[a-f0-9]{40}$`)
-	repoRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	tokenRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
-	// commitRe は判定の commit（担当が見た commit。sha1 か sha256 の 16 進）。
+	keyRe    = regexp.MustCompile(`^[a-z0-9_-]+:[A-Za-z0-9][A-Za-z0-9_-]*:(issue|person|next|waived|remember|agents|question|leftover|unreadable|memory|signal|gap):[a-f0-9]{40}$`)
+	repoRe   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	tokenRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 	commitRe = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 )
 
@@ -109,13 +106,11 @@ var (
 	personKinds = []string{"business", "users", "promise", "irreversible", "line"}
 )
 
-// nonempty は空白でない文字を1つ以上持つ文字列か。
 func nonempty(v any) bool {
 	s, ok := v.(string)
 	return ok && strings.IndexFunc(s, func(r rune) bool { return !unicode.IsSpace(r) }) >= 0
 }
 
-// parseDecisions は decisions.json を読み、kanban に手を入れる前に全件を検査する。
 // key は kanban の slug で始まらなければならない（ほかの kanban を指させない）。
 func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 	v, err := decode(b)
@@ -186,10 +181,9 @@ func parseDecisions(b []byte, slug string) (obj, []item, bool) {
 	return data, items, true
 }
 
-// oneLine は空白でない 1 行の文字列か。
 func oneLine(v any) bool { return nonempty(v) && !strings.Contains(v.(string), "\n") }
 
-// options は判断の person の選択肢（1 行の文字列。先頭が推奨案）。形が違えば nil。
+// options の先頭が推奨案。形が違えば nil。
 func (i item) options() []string {
 	raw, ok := i["options"].([]any)
 	if !ok {
@@ -205,7 +199,7 @@ func (i item) options() []string {
 	return got
 }
 
-// handWork は手作業の person か（印 only_owner を持つ）。checkPersons を通ったあとに読む。
+// handWork は checkPersons を通ったあとに読む。
 func (i item) handWork() bool { return i["only_owner"] != nil }
 
 // unsure はトリアージが種類を決めきれなかった判断の person か（判定表の 10。ADR-0057 決めたこと 10）。
@@ -292,7 +286,6 @@ func (i item) judged() bool {
 // needsVerdict は Chief of Staff の判定が無ければ当てない close か（判断の閉じと、課題を閉じる判定。決めたこと 1・6）。
 func (i item) needsVerdict() bool { return i.judged() || i.closesIssue() }
 
-// checkClosings は close の閉じ方の欄と、項目の種類との組み合わせを確かめる。
 // 欄の無い close・知らない値・組み合わせに合わない close を断る。close でない判定の closing は値だけ確かめる。
 func checkClosings(items []item) error {
 	for _, it := range items {

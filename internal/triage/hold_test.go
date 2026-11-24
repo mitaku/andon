@@ -18,7 +18,6 @@ func TestCollectHoldsKeptItemsFor20Hours(t *testing.T) {
 	now := time.Date(2026, 11, 23, 0, 0, 0, 0, time.UTC)
 	ago := func(d time.Duration) string { return now.Add(-d).Format(time.RFC3339) }
 	key := itemKey("demo", "T-1", "issue", "課題 1")
-	// kept は項目を 1 件持つ記録。collected は JSON の値のまま渡す。
 	kept := func(collected any, decision string) map[string]any {
 		return map[string]any{"collected": collected, "items": []any{map[string]any{"key": key, "decision": decision}}}
 	}
@@ -70,8 +69,6 @@ func TestCollectHoldsKeptItemsFor20Hours(t *testing.T) {
 	}
 }
 
-// collectTitles は、担当の無い todo が n 件と records のある偽の kanban で andon triage collect の本体を回し、
-// 出た項目の本文を並びのまま返す。
 func collectTitles(t *testing.T, now time.Time, n, limit int, records ...map[string]any) ([]string, error) {
 	t.Helper()
 	dir := t.TempDir()

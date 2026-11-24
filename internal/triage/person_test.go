@@ -24,7 +24,6 @@ ask) cat >/dev/null; echo "$*" >>"$log"; echo "$2#1" ;;
 esac
 `
 
-// personLedger は偽の kanban の CLI を PATH に置いた ledger と、打った command の記録のパスを返す。
 func personLedger(t *testing.T) (*ledger, string) {
 	t.Helper()
 	dir := t.TempDir()
