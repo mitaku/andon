@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,6 +23,7 @@ import (
 const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>] < フックの入力の JSON\n" +
 	"Chief of Staff の Stop・UserPromptSubmit フックが打つ（package/hooks/。contract.md §9）。待ちの通知を全部取り出して <news> に描く。\n" +
 	"  既定（Stop）: 待ちがあれば {\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"<news>…</news>\"}}（続きのターンになる）。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
+	"    最後の返事（last_assistant_message）にオーナーへはふだんの言葉で言う語（用語集の表）があれば、同じ additionalContext に <owner-words> を添えて言い直させる（1つの turn に1回だけ）\n" +
 	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
 	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起動し直す（core が起き直したあと）。\n" +
@@ -121,8 +123,7 @@ func Drain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	out, err := drain(slug, context, in)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon dispatcher drain: %v（通す）\n", err)
-		return 0
+		fmt.Fprintf(stderr, "andon dispatcher drain: %v（通す）\n", err) // 落ちても <owner-words> だけは渡す（out が nil でなければ）
 	}
 	if out != nil {
 		enc := json.NewEncoder(stdout)
@@ -137,6 +138,8 @@ type hookInput struct {
 	SessionID      string `json:"session_id"`
 	PromptID       string `json:"prompt_id"`
 	StopHookActive bool   `json:"stop_hook_active"`
+	// LastAssistantMessage は Stop の入力の最後の返事。内輪の語を探すのにだけ読み（ownerWordsNote）、通知の確かめには使わない
+	LastAssistantMessage string `json:"last_assistant_message"`
 }
 
 // sameTurn は、Stop の入力 in が、フックで <news> を渡した turn（h）の終わりか。
@@ -183,8 +186,10 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	if !slugRe.MatchString(slug) {
 		return nil, fmt.Errorf("プロジェクトの名前が不正: %q", slug)
 	}
+	note := ""
 	if !context {
 		ResetRewake(slug) // ターンが通った: プロバイダに切られた回数を数え直す（rewake.go）
+		note = ownerWordsNote(slug, in)
 	}
 	EnsureFromHook("andon dispatcher drain") // core が起き直して dispatcher の中身がシェルに替わっていれば戻す（boot を通らない起き直しの分。terminal.go）
 	unlock, err := lockState(slug, lockWait)
@@ -192,12 +197,12 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		if !context {
 			noteStop(slug, addr, self, in) // 渡した turn の終わりは控えの外に残す（lock を待たない。次の drain が確かめ済みにする）
 		}
-		return nil, err
+		return stopOutput(note, ""), err
 	}
 	defer unlock()
 	st, _, err := LoadState(slug)
 	if err != nil {
-		return nil, err
+		return stopOutput(note, ""), err
 	}
 	changed := false
 	cleared := false // 確かめ済みの news.ack を消せた（次に渡すときの ack_before を空にする）
@@ -267,15 +272,11 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 	if changed {
 		// 書けてから渡す（書けなければ通す。待ちは控えに残り、次の口で届く）
 		if err := st.Save(slug); err != nil {
-			return nil, err
+			return stopOutput(note, ""), err
 		}
 	}
 	if !context {
-		if news == "" {
-			return nil, nil
-		}
-		// block でなく additionalContext で返す（続きのターンになるのは同じで、画面が「Stop hook error」にならない。ADR-0019 決めたこと 6）
-		return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": news}}, nil
+		return stopOutput(note, news), nil
 	}
 	ctx := news
 	var d, dc bytes.Buffer
@@ -289,6 +290,78 @@ func drain(slug string, context bool, in hookInput) (any, error) {
 		return nil, nil
 	}
 	return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, nil
+}
+
+// stopOutput は Stop フックの出力。<owner-words> と <news> を1つの additionalContext にまとめ、どちらも無ければ nil。
+// block でなく additionalContext で返す（続きのターンになるのは同じで、画面が「Stop hook error」にならない。ADR-0019 決めたこと 6）
+func stopOutput(note, news string) any {
+	ctx := note
+	if news != "" {
+		if ctx != "" {
+			ctx += "\n"
+		}
+		ctx += news
+	}
+	if ctx == "" {
+		return nil
+	}
+	return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": ctx}}
+}
+
+// ownerWords は、オーナーへの文ではふだんの言葉で言う語と、その言い方。
+// 正は用語集（package/skills/glossary/SKILL.md）の「オーナーへはふだんの言葉で言う語」の表で、ここはその写し。
+// 用語集の行がここにあるかは drain_words_test.go が、ここの行が用語集にあるかは tests/package/08-writing.sh が見る。
+// 語の中の半角の空白は、空白が無い・幾つかある書き方にも当てる。英字で終わる語は、英字が続けば当てない（レベル AA は別の語）。
+var ownerWords = []struct{ Word, Say string }{
+	{"灯り", "オーナーの判断待ち"},
+	{"レベル A", "テストが通れば自動でマージ"},
+	{"レベル B", "独立レビューを通せば自動でマージ"},
+	{"レベル C", "オーナーがマージ"},
+	{"地図", "当てたあとに確かめる機能の一覧"},
+}
+
+// codeSpan はコードの囲み（``` の段と ` の識別子）。識別子とコマンドの中の語では止めない。
+var codeSpan = regexp.MustCompile("(?s)```.*?```|`[^`\n]*`")
+
+// ownerWordsNote は Stop の入力の最後の返事から ownerWords の語を探し、あれば言い直させる <owner-words> の文を返す。
+// 文を読むのは contract.md §0 の原則 1 の例外（語を探して促すだけで、控えや通知の判定には使わない）。
+// 1つの turn（session_id と prompt_id）に1回だけ: 言い直した返事にまだ語が残っても、もう止めない。
+// prompt_id が無い入力では、続きの turn（stop_hook_active）で探さない。turn を控えに書けなければ探さない（止め続けないため）。
+func ownerWordsNote(slug string, in hookInput) string {
+	if in.LastAssistantMessage == "" {
+		return ""
+	}
+	if in.PromptID == "" && in.StopHookActive {
+		return ""
+	}
+	text := codeSpan.ReplaceAllString(in.LastAssistantMessage, " ")
+	var found []string
+	for _, w := range ownerWords {
+		pat := strings.ReplaceAll(regexp.QuoteMeta(w.Word), " ", `[ \t　]*`)
+		if c := w.Word[len(w.Word)-1]; c < 0x80 && (c|0x20) >= 'a' && (c|0x20) <= 'z' {
+			pat += `([^A-Za-z]|$)`
+		}
+		re := regexp.MustCompile(pat)
+		if re.MatchString(text) {
+			found = append(found, fmt.Sprintf("「%s」→「%s」", w.Word, w.Say))
+		}
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	if in.PromptID != "" {
+		key := in.SessionID + " " + in.PromptID
+		path := StatePath(slug) + ".words"
+		if b, err := os.ReadFile(path); err == nil && string(b) == key {
+			return "" // この turn ではもう言い直させた
+		}
+		if os.MkdirAll(filepath.Dir(path), 0o755) != nil || os.WriteFile(path+".tmp", []byte(key), 0o644) != nil || os.Rename(path+".tmp", path) != nil {
+			return ""
+		}
+	}
+	return "<owner-words>\n直前の返事に、オーナーへの文ではふだんの言葉で言う語があった: " + strings.Join(found, "、") + "。\n" +
+		"オーナーが読む部分を、この言い方で短く言い直す（/opt/andon/writing.md の内輪の語の決まり）。識別子・オーナーの言葉の引用・案件の語（地図アプリの地図など）として使っているだけなら、言い直さずに続ける。\n" +
+		"</owner-words>"
 }
 
 // stopNote は、控えの lock が取れなかった Stop が、フックで渡した <news>（Hook）の turn の終わりだったことの控え。

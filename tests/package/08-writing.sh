@@ -2,6 +2,7 @@
 #   8. 役の略称とオーナーへの書き方（ADR-0013 受け入れ条件 1・2・7・8 の用語集の分・10）: 用語集の CE・作った語、package/writing.md の書き方の11行・但し書き・語の決まり3つ・用語集のパス、
 #      用語集は書き方の節と語の決まりを持たず writing.md を指す、CE skill の問いの出し方、ask-one-by-one の読み手。
 #      ADR-0052 受け入れ条件 1: writing.md のタイトルとテーマの決まりの 1 行と例・括弧の決まり、用語集の 1人1テーマ、文書の形の 1 行目。
+#      オーナーへはふだんの言葉で言う語: drain.go の写しの行が用語集の表にあり、writing.md が表を指す。
 # === 8. 役の略称とオーナーへの書き方（ADR-0013 受け入れ条件 1・2） ===
 g=package/skills/glossary/SKILL.md
 grep -q '^\*\*Chief Engineer\*\*（chief-engineer。略して CE）:' "$g" && grep -q '^\*\*Chief of Staff\*\*（chief-of-staff。略して CoS）:' "$g" \
@@ -114,6 +115,32 @@ sed 's/^# <タイトル>（仕様・設計。日付）$/# <題>（仕様・設�
 sed 's/^# <タイトル>（仕様・設計。日付）$/# <題>（仕様・設計。日付）/' docs/design.md >"$tmp/design.md"  # 古い語を見る（ADR-0052 決めたこと 10）
 [ -n "$(title_terms "$wr" "$g" "$ce" "$tmp/design.md")" ] || miss="$miss [design.md の文書の形に古い語を戻した]"
 [ -z "$miss" ] && pass "ADR-0052 A1: 古い語を戻した写しと、決まりの 1 行を消した写しでは落ちる（検査が見ている）" || fail "ADR-0052 A1: 写しで落ちない:$miss"
+# オーナーへはふだんの言葉で言う語: drain.go の写しの行が全部、用語集の表にある（逆向きは internal/dispatcher/drain_words_test.go）。
+# writing.md の内輪の語の行が表を指す
+# owner_words <用語集> <drain.go> <writing.md>: 食い違いを1行で出す（空なら合っている）
+owner_words() {
+  local m='' table rows=0 word say
+  table=$(sed -n '/^## オーナーへはふだんの言葉で言う語$/,/^## /p' "$1")
+  while IFS=$'\t' read -r word say; do
+    rows=$((rows + 1))
+    grep -qxF "| $word | $say |" <<<"$table" || m="$m [用語集の表に「$word」→「$say」の行が無い]"
+  done < <(sed -n '/^var ownerWords = /,/^}/p' "$2" | sed -n 's/^[[:space:]]*{"\([^"]*\)", "\([^"]*\)"},$/\1\t\2/p')
+  [ "$rows" -gt 0 ] || m="$m [drain.go の ownerWords に行が無い]"
+  grep -q '^- 内輪の語は.*言い換えの一覧は用語集の「オーナーへはふだんの言葉で言う語」の表にあり' "$3" || m="$m [writing.md の内輪の語の行が表を指していない]"
+  echo "$m"
+}
+dw=internal/dispatcher/drain.go
+miss=$(owner_words "$g" "$dw" "$wr")
+[ -z "$miss" ] && pass "drain.go の ownerWords の行が全部、用語集の「オーナーへはふだんの言葉で言う語」の表にあり、writing.md が表を指す" || fail "オーナーへはふだんの言葉で言う語:$miss"
+# 検査が当たる場合があること: 用語集の行を消した写し・drain.go に行を足した写し・writing.md の指す文を消した写しでは落ちる
+miss=
+sed '/^| 地図 | /d' "$g" >"$tmp/glossary.md"
+[ -n "$(owner_words "$tmp/glossary.md" "$dw" "$wr")" ] || miss="$miss [用語集の行を消した]"
+sed 's/^\(\t{"灯り", "オーナーの判断待ち"},\)$/\1\n\t{"見張り", "確かめ"},/' "$dw" >"$tmp/drain.go"
+[ -n "$(owner_words "$g" "$tmp/drain.go" "$wr")" ] || miss="$miss [drain.go に用語集に無い行を足した]"
+sed 's/言い換えの一覧は用語集の.*$//' "$wr" >"$tmp/writing.md"
+[ -n "$(owner_words "$g" "$dw" "$tmp/writing.md")" ] || miss="$miss [writing.md の指す文を消した]"
+[ -z "$miss" ] && pass "オーナーへはふだんの言葉で言う語: 写しで落ちる（検査が見ている）" || fail "オーナーへはふだんの言葉で言う語: 写しで落ちない:$miss"
 ! grep -q '一度に出すのは互いに依らない問いの全部' "$ce" && grep -q 'ask-one-by-one skill §2 に従う（1回の返事で1問）' "$ce" \
   && pass "CE skill の問いの出し方は ask-one-by-one §2 を指す（束で出す行が無い）" || fail "CE skill の問いの出し方が ask-one-by-one §2 を指していない"
 fm package/skills/ask-one-by-one/SKILL.md description | grep -q 'Chief Engineer（CE）' \

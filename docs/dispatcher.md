@@ -339,7 +339,7 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 
 | # | 経路 | いつ | 打つもの | 書きかけに貼り付くか |
 |---|---|---|---|---|
-| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon dispatcher drain`（slug は端末のラベルから）→ 待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}` で続きのターンにする（`decision: block` は画面に「Stop hook error」と出るのでやめた。[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 6） | 貼り付かない（入力欄を通らない） |
+| ① | Chief of Staff の `Stop` フック | Chief of Staff のターンが終わるとき | `andon dispatcher drain`（slug は端末のラベルから）→ 待ちがあれば `{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "<news>…</news>"}}` で続きのターンにする（`decision: block` は画面に「Stop hook error」と出るのでやめた。[ADR-0019](adr/0019-cos-input-box.md) 決めたこと 6）。最後の返事にオーナーへはふだんの言葉で言う語があれば、`<owner-words>` を同じ口で添えて1つの turn に1回だけ言い直させる（contract.md §9） | 貼り付かない（入力欄を通らない） |
 | ② | Chief of Staff の `UserPromptSubmit` フック | オーナーが送ったとき | 同じ（`--context`）＋ 委譲の一覧。`additionalContext` に添える | 貼り付かない（オーナーの文の横にコンテキストとして入る） |
 | ③ | 待ち役（Chief of Staff の `Stop` フックが `asyncRewake` で起動する `andon dispatcher wait`。§4） | ①②が来ない間（Chief of Staff がターンを終えて入力を待っている。オーナーが離れている） | 届ける待ちがあり Chief of Staff が `idle`・`done` なら、合図の1行を stderr に書いて終了コード 2。Claude Code が新しいターンを始め、その終わりの①が `<news>` を渡す | 貼り付かない（入力欄を通らない。実測で書きかけは残った） |
 
