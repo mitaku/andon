@@ -25,7 +25,7 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 
 - `scripts/doctor.sh` が終了コード 0。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hold` を打つ。切り離した kanban に、担当の端末 `tw` が `kanban start` で受け持って `andon issue report --pr` で報告した課題と、理由の課題・片付いた課題を作り、Chief of Staff の端末 `tc` として止めて外す。偽の `gh` は、PR を読む `gh pr view <n> --repo <owner>/<repo> --json state,mergeCommit,headRefOid,statusCheckRollup`（印 `andon/gate` が緑の PR を返す）と、印を書く `gh api -X POST …/statuses/<sha>` だけを知る。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh hold <検証する commit>` を打つ（切り離して動かす道なので、commit は手順の記録に残るだけで、動かすのは今当たっている本物）。切り離した kanban に、担当の端末 `tw` が `kanban start` で受け持って `andon issue report --pr` で報告した課題と、理由の課題・片付いた課題を作り、Chief of Staff の端末 `tc` として止めて外す。偽の `gh` は、PR を読む `gh pr view <n> --repo <owner>/<repo> --json state,mergeCommit,headRefOid,statusCheckRollup`（印 `andon/gate` が緑の PR を返す）と、印を書く `gh api -X POST …/statuses/<sha>` だけを知る。
 - **断られる。** `hd-refuse` の行が2つ出る。自分自身と片付いた課題を理由に渡した `andon issue hold` が終了コード 1 で理由1行を返し、`hold` が空のままで、`ok   hd-refuse` が2行見えれば動いた。
 - **止める。** `hd-hold` の行に `andon issue hold` の出力（「PR の印を黄にした」）、`kanban show` の `hold`、偽の `gh` への2つの呼び出し（`state=pending` と説明文「メンテナーの確認を待っています」）が出る。`ok   hd-hold` が見えれば動いた。
 - **gate が待つ。** `hd-gate-wait` の行に `andon gate` の終了コード 5 と、理由の課題を名指す `{"decision":"wait",…}` が出る。`ok   hd-gate-wait` が見えれば、GitHub を読まず記録も書いていない。
