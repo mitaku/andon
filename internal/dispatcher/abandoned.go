@@ -16,16 +16,12 @@ import (
 // マージされずに done になったものを ready の知らせに添える。kanban done は、待つ相手がマージで片付いたか・やめになったかを
 // 見分けずに queued の課題を todo へ移す（移す動きは変えない）。Chief of Staff が前の課題の成果を前提に起動しないための事実。
 
-// 見分けの答え。
 const (
-	mergedYes    = "yes" // マージされた
-	mergedNo     = "no"  // マージされずに done になった（やめ）
-	mergedUnsure = ""    // 確かめられない（gh が落ちた・上限で止めている・記録が読めない）
+	mergedYes    = "yes"
+	mergedNo     = "no"
+	mergedUnsure = ""
 )
 
-// waitedGone は課題 t の待つ相手のうち、やめになったもの（gone）と、マージされたかを確かめられなかったもの（unsure）を返す。
-// ready の差で新しく見えた課題についてだけ打つ（同じ課題に gh を何度も打たない）。待つ相手の status は見ない:
-// kanban ready に出た課題の待つ相手は、どれも done になっている。
 func (p *project) waitedGone(t ledger.Issue) (gone, unsure []string) {
 	for _, id := range afterOf(t) {
 		a, err := p.issue(id)
@@ -42,7 +38,6 @@ func (p *project) waitedGone(t ledger.Issue) (gone, unsure []string) {
 	return gone, unsure
 }
 
-// afterOf は issue.yaml の after（並び）。kanban の CLI は並びで書くが、1つだけの文字列も受ける。
 func afterOf(t ledger.Issue) []string {
 	var out []string
 	switch v := t["after"].(type) {
@@ -68,8 +63,6 @@ func afterOf(t ledger.Issue) []string {
 	return out
 }
 
-// yieldsPR は課題の成果が PR か（repo があり、調べる課題でもレビュアーでもオーナーの課題でもない）。
-// それ以外の課題（repo の無い課題・調べる課題）は done が成果の出来上がりで、マージとやめを見分けない。
 func yieldsPR(t ledger.Issue) bool {
 	return t.Str("repo") != "" && !isReviewer(t) && t.Str("who") != "person" && ledger.SettingsOf(t).Deliverable != "candidates"
 }
@@ -131,7 +124,6 @@ func (p *project) mergedState(id string) string {
 	return mergedUnsure
 }
 
-// idList は通知の detail の id の並び（積んだ巡のうちは []string、控えから読み直したときは []any）。
 func idList(v any) []string {
 	var out []string
 	switch x := v.(type) {

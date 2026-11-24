@@ -11,7 +11,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// gluedProject は kanban（config.yaml の chief_of_staff は t5）を一時の置き場に持つ project。kanban の CLI と gh は偽の道具。
 func gluedProject(t *testing.T, log *strings.Builder) *project {
 	t.Helper()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -32,9 +31,6 @@ func writeLib(t *testing.T, p *project, id, name, body string) string {
 	return path
 }
 
-// 手直しの段のつなぎ: done の行で控えた課題ごとに、kanban の問いと gh の PR を集めて corrections.json を1回書く
-// （書く前の照合を通る形・時刻つき）。手直しが無ければ空の配列。担当の最後の報告より後の commit は、gh で読んだファイルつきの pr。
-// gate のコメントは数えない。レビュアーの課題には書かない。書いた課題は控えから外し、もう書いた課題は書き直さない。
 func TestCorrectionsWritesOncePerDone(t *testing.T) {
 	a, f := strings.Repeat("a", 40), strings.Repeat("f", 40)
 	tools := newScripted(t, "kanban", "gh")
@@ -82,7 +78,6 @@ func TestCorrectionsWritesOncePerDone(t *testing.T) {
 	if !strings.Contains(log.String(), "D-0001 のオーナーの手直しを 0 件 corrections.json に書いた") {
 		t.Errorf("書いたことがログに無い: %s", log.String())
 	}
-	// 同じ done をもう一度拾っても、在る corrections.json は書き直さず、gh にも聞かない
 	before, _ := os.ReadFile(filepath.Join(p.l.Library("D-0002"), "corrections.json"))
 	tools.calls()
 	p.st.Corrections.Add("D-0002")

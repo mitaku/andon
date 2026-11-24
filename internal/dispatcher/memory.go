@@ -19,12 +19,10 @@ type Memory struct {
 	Over bool `json:"over"`
 }
 
-// MemoryPath は memory の量の線の記録の置き場（控えの横。kanban の名前と重ならないよう . で始める）。
 func MemoryPath() string {
 	return filepath.Join(filepath.Dir(StatePath("x")), ".memory.json")
 }
 
-// LoadMemory は memory の量の線の記録を読む。無ければ線の中。
 func LoadMemory() (Memory, error) {
 	var m Memory
 	b, err := os.ReadFile(MemoryPath())
@@ -40,7 +38,6 @@ func LoadMemory() (Memory, error) {
 	return m, nil
 }
 
-// Save は memory の量の線の記録を書く（書いてから置き換える）。
 func (m Memory) Save() error {
 	path := MemoryPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -95,9 +92,6 @@ func (p *project) memory() {
 	}
 }
 
-// saveMemory は memory の段が変えた記録を、プロセスの中の値とファイルに書く（pass が控えを保存したあとに呼ぶ）。
-// 控えの保存の前に落ちたら記録は前のままで、ほかの kanban か次の巡でもう一度積む（届くのは1度か2度で、落ちることは無い）。
-// ファイルに書けなければログに1行で、プロセスの中の値で積み直しを止め、次の巡で書き直す。
 func (p *project) saveMemory() {
 	if p.memoryOver == nil {
 		return

@@ -13,16 +13,13 @@ import (
 // （ledger.Worked。待ちを除いた時間）が見込み（予約キー estimate の分）の 1・2・4 倍を超えたら、段ごとに1回だけ
 // estimate を積む。届けるのは Chief of Staff だけで、担当には何も送らない（止めない・打たない）。
 
-// estimateStages は知らせる段（見込みの何倍を超えたか）。
 var estimateStages = []int{1, 2, 4}
 
-// GoneAt は担当の端末が Gone だと見た時刻（Unix ミリ秒）。実働から「死んでいた区間」を引くのに使う。
 type GoneAt struct {
 	Agent string `json:"agent"`
 	At    int64  `json:"at"`
 }
 
-// sawGone は課題 id の端末 agent が Gone だと見た最初の時刻を控える（同じ端末の死は1回だけ）。
 func (p *project) sawGone(id, agent string, now time.Time) {
 	for _, g := range p.st.Gone[id] {
 		if g.Agent == agent {
@@ -32,19 +29,13 @@ func (p *project) sawGone(id, agent string, now time.Time) {
 	p.st.Gone[id] = append(p.st.Gone[id], GoneAt{Agent: agent, At: now.UnixMilli()})
 }
 
-// estimated は、課題がズレを数える担当の課題か（レビュアー・Chief Engineer・オーナー・Chief of Staff 自身の課題は数えない）。
-// Chief of Staff 自身の課題は、前の Chief of Staff が受けた課題も含む（起き直してアドレスが変わっても。watch と同じ見分け）。
 func estimated(rows []ledger.Row, t ledger.Issue, cos string) bool {
 	return !isReviewer(t) && !isEngineer(t) && t.Str("who") != "person" && t.Str("agent") != cos &&
 		!ledger.TakenByChiefOfStaff(rows, t.Str("id"), t.Str("agent"))
 }
 
-// estimate は doing の担当の課題ごとに実働を数え、超えた段のうちまだ知らせていないものがあれば、一番上の段を1件積む
-// （下の段も知らせたことにする）。控えのキーは <issue>|estimate|<見込みの値>|<段> で、最初の列に戻る
-// （todo・queued・done・kanban から消えた）まで持ち越す。見込みの値が替われば古い値のキーは捨てて数え直す。
-// 初めて見る kanban では今の段を控えるだけで積まない。
 func (p *project) estimate(now time.Time, cos string) {
-	keep := map[string]string{} // 控えを残す課題 → 今の見込みの値
+	keep := map[string]string{}
 	for _, t := range p.tasks {
 		id := t.Str("id")
 		switch t.Str("status") {
@@ -94,7 +85,6 @@ func (p *project) estimate(now time.Time, cos string) {
 			delete(p.st.Estimate, k)
 		}
 	}
-	// Gone は done のあとも残す（andon measure が閉じた課題の実働から死んでいた区間を引く）。最初の列に戻るか kanban から消えたら捨てる。
 	live := map[string]bool{}
 	for _, t := range p.tasks {
 		if s := t.Str("status"); s != "todo" && s != "queued" && s != "" {
@@ -140,8 +130,6 @@ func signs(wt string, est int, now time.Time) []string {
 	return s
 }
 
-// changedLines は git diff --numstat の足した行と消した行の和。テスト（tests という名のディレクトリの下と、
-// 名前が *_test.* のファイル）と、行で数えないファイル（バイナリ）は数えない。
 func changedLines(numstat string) int {
 	n := 0
 	for _, ln := range strings.Split(numstat, "\n") {

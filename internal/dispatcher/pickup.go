@@ -29,15 +29,14 @@ import (
 // 初めて見る元（控えに位置や前回の ready が無い）は、今を控えるだけで積まない。
 
 const (
-	idleAfter    = 15 * time.Minute // idle／done のまま、これ以上で stalled
-	workingAfter = 20 * time.Minute // working のまま、これ以上で stalled
+	idleAfter    = 15 * time.Minute
+	workingAfter = 20 * time.Minute
 )
 
 // retryAfter はプロバイダに切られた端末に「続けて」を打つまでの間。i 回目に切られたら retryAfter[i-1] あとに打つ。
 // 個数（4）を打ち切ると、5 回目に切られたところで打つのをやめて知らせる（dispatcher.md §2.4。shepherdr〈MIT〉と同じ間隔）。
 var retryAfter = []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute}
 
-// RetryText はプロバイダに切られた端末に打つ文。やり直しに承認が要らないことと、送り手を書く。
 const RetryText = "一時のエラーで止まった。やり直しに承認は要らない。止まる前の作業を続けて（dispatcher から）"
 
 var (
@@ -53,12 +52,10 @@ func ProviderError(text string) bool {
 	return !authErrRe.MatchString(text) && !allowanceErrRe.MatchString(text) && providerErrRe.MatchString(text)
 }
 
-// AllowanceError は文が使用量の上限（usage limit・quota・billing など。待っても直らない）で止まったものか（認証の失敗は含めない）。
 func AllowanceError(text string) bool {
 	return !authErrRe.MatchString(text) && allowanceErrRe.MatchString(text)
 }
 
-// collect は通知の元を拾う（pass が控えの lock を持って呼ぶ）。
 func (p *project) collect(cos string) {
 	p.readReady()
 	p.readLog(cos)
@@ -70,9 +67,6 @@ func (p *project) collect(cos string) {
 	p.memory()     // auto memory の量の線（dispatcher.md §2.11）
 }
 
-// ---------------------------------------------------------------- log.jsonl の続き
-
-// readLog は log.jsonl を前回の続き（バイト位置）から、最後の改行まで読む。Chief of Staff 自身の行は知らせない。
 func (p *project) readLog(cos string) {
 	path := filepath.Join(p.l.Dir, "log.jsonl")
 	f, err := os.Open(path)
@@ -87,7 +81,7 @@ func (p *project) readLog(cos string) {
 		return
 	}
 	head := logHead(f)
-	if p.st.LogPos == nil { // 初めて: 位置を控えるだけ
+	if p.st.LogPos == nil {
 		p.st.LogPos, p.st.LogHead = &size, head
 		return
 	}
@@ -97,7 +91,6 @@ func (p *project) readLog(cos string) {
 		p.logf("log.jsonl が短くなった。新しいファイルとして先頭から読む")
 		pos, p.st.LogHold = 0, nil
 	case pos > 0 && p.st.LogHead != "" && head != p.st.LogHead:
-		// kanban の log は追記だけ。先頭の行が替わったのは手で書き直したときなので、新しいファイルとして読む
 		p.logf("log.jsonl の先頭の行が替わった。新しいファイルとして先頭から読む")
 		pos, p.st.LogHold = 0, nil
 	}
@@ -114,14 +107,14 @@ func (p *project) readLog(cos string) {
 	if i := bytes.LastIndexByte(buf, '\n'); i >= 0 {
 		buf = buf[:i+1]
 	} else {
-		buf = nil // 書きかけの行だけ
+		buf = nil
 	}
 	by := "terminal:" + cos
 	for len(buf) > 0 {
 		i := bytes.IndexByte(buf, '\n')
 		line := buf[:i]
 		if !p.logRow(line, by, pos) {
-			break // 問いの JSON をまだ待つ: この行から次の見回りで読み直す
+			break
 		}
 		pos += int64(i + 1)
 		buf = buf[i+1:]
@@ -129,7 +122,6 @@ func (p *project) readLog(cos string) {
 	p.st.LogPos = &pos
 }
 
-// logHead は log.jsonl の最初の行（改行まで）の sha256。まだ1行も無ければ空。
 func logHead(f *os.File) string {
 	if f == nil {
 		return ""
@@ -144,20 +136,16 @@ func logHead(f *os.File) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// logRow は log.jsonl の1行（pos はその行の頭）から通知を積む。false はこの行で止まって次の見回りで読み直すとき。
 func (p *project) logRow(line []byte, by string, pos int64) bool {
 	var r ledger.Row
 	if json.Unmarshal(line, &r) != nil || r.Change == nil || !idRe.MatchString(r.ID) {
 		return true
 	}
-	r.ID = ledger.CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
+	r.ID = ledger.CanonID(r.ID)
 	c, id := r.Change, r.ID
-	// done は Chief of Staff が打った finish（オーナーがマージしたあと）も拾う: 影響（andon issue impact）は Chief of Staff もまだ見ていない事実
 	if c["status"] == "done" {
 		p.st.Impact.Add(id)
-		// オーナーの手直しも同じ done の行から1回だけ集める（corrections.go）
 		p.st.Corrections.Add(id)
-		// 結果の記録も同じ done の行から1回だけ書く（outcome.go）
 		p.st.Outcomes.Add(id)
 		// 止めた理由の課題が済んでも止めは外れない。残っていれば Chief of Staff に1回知らせる（done の行は1回だけ読む。ADR-0056 決めたこと 7）
 		p.heldOn(id)
@@ -171,9 +159,6 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 		p.notify(id, "report", map[string]any{"report": p.reportPath(id)})
 	case c["question"] != nil && c["status"] == "open":
 		if r.By == ledger.DispatcherBy {
-			// dispatcher 自身が出した問い（andon issue merge の gate の問い・ask）は、出した巡で asked を積んで印を付けている。
-			// この行からもう一度積むと、間に drain が渡していれば Chief of Staff に2度届く。印が無いのは、積んだあと控えを
-			// 保存する前に落ちたとき（読んだ位置も戻っている）なので、この行から積み直す
 			if k := askedKey(id, c["question"]); p.st.Asked[k] {
 				delete(p.st.Asked, k)
 				return true
@@ -187,7 +172,6 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 			return p.answered(id, c["question"], pos)
 		}
 	case c["status"] == "review":
-		// detail の pr は report.json から。PR の無い報告（レビュアー・repo の無い課題）は report として知らせる
 		rep, err := contract.ReadReport(filepath.Join(p.l.Library(id), "report.json"))
 		if err == nil && rep.PR != "" {
 			p.notify(id, "review", map[string]any{"report": p.reportPath(id), "pr": rep.PR})
@@ -198,7 +182,6 @@ func (p *project) logRow(line []byte, by string, pos int64) bool {
 	return true
 }
 
-// markAsked は dispatcher 自身が出して積んだ問いに印を付ける（logRow がその問いの行を読んだら消す）。
 func (p *project) markAsked(id string, n any) {
 	k := askedKey(id, n)
 	if k == "" {
@@ -210,7 +193,6 @@ func (p *project) markAsked(id string, n any) {
 	p.st.Asked[k] = true
 }
 
-// askedKey は問いの印の鍵（<issue>#<n>）。n は問いの行・merge の JSON の数（float64）か、ask が読んだ番号（int）。読めなければ空。
 func askedKey(id string, n any) string {
 	var i int
 	switch v := n.(type) {
@@ -230,8 +212,6 @@ func askedKey(id string, n any) string {
 	return id + "#" + strconv.Itoa(i)
 }
 
-// asked は問いの行を通知 asked にする（中身は library/questions/<n>.json）。andon issue ask は kanban に書いてから JSON を置くので、
-// JSON がまだ無ければ1回だけ次の見回りまで待つ。それでも無い・読めなければ飛ばしてログに残す。
 func (p *project) asked(id string, v any, pos int64) bool {
 	f, ok := v.(float64)
 	n := int(f)
@@ -257,10 +237,6 @@ func (p *project) asked(id string, v any, pos int64) bool {
 	return true
 }
 
-// answered は端末の外から書かれた答えの行（pos はその行の頭）を通知 answered にする（中身は questions.yaml の答えと、問いの JSON の種類）。
-// 問いがもう answered でなければ（担当が受け取った・log.jsonl を先頭から読み直した）積まない。同じ問いの通知は n ごとに1件
-// （eventKey）。questions.yaml が読めなければ asked と同じく1回だけ次の見回りまで待ち（false。この行から読み直す）、
-// それでも読めなければ飛ばしてログに残す。
 func (p *project) answered(id string, v any, pos int64) bool {
 	f, ok := v.(float64)
 	n := int(f)
@@ -300,7 +276,6 @@ func (p *project) answered(id string, v any, pos int64) bool {
 	return true
 }
 
-// answerRow は answered が読む questions.yaml の1件。
 type answerRow struct {
 	N      int    `yaml:"n"`
 	Kind   string `yaml:"kind"`
@@ -311,10 +286,6 @@ type answerRow struct {
 // questionKinds は問いの種類（schema/question.schema.json の kind）。
 var questionKinds = []string{"business", "users", "promise", "irreversible", "line", "scope"}
 
-// ---------------------------------------------------------------- ready の差
-
-// readReady は kanban ready --json のオーナーの課題とレビュアーの子課題を除いた id の集まりを前回と比べ、増えたものを積む。
-// レビュアーの子課題を起動するのは dispatcher だけ（起動しそこねて todo に残っても、Chief of Staff に引き取らせない）。
 func (p *project) readReady() {
 	out, err := p.l.Run("", "ready", "--json")
 	var tasks []ledger.Issue
@@ -339,7 +310,6 @@ func (p *project) readReady() {
 		if r := t.Str("routine"); r != "" {
 			d["routine"] = r
 		}
-		// 待つ相手がマージされずに done になった（やめ）なら添える（abandoned.go）。マージで片付いたならタイトルだけ
 		gone, unsure := p.waitedGone(t)
 		if len(gone) > 0 {
 			d["abandoned"] = gone
@@ -352,20 +322,17 @@ func (p *project) readReady() {
 	p.st.Ready = &ids
 }
 
-// ---------------------------------------------------------------- 止まった担当
-
 // Resend はプロバイダに切られて「続けて」を打った回数と時刻（dispatcher.md §2.4）。打てなかった試行も数える。
 // 時刻はどれも dispatcher の時計（Unix ミリ秒）。端末の status_ms は hc の時計なので、時刻としては比べず、
 // 切断の見分け（同じ error か・新しく切られたか）にだけ使う。
 type Resend struct {
 	N     int   `json:"n"`
-	At    int64 `json:"at"`              // 最後に打った（打とうとした）時刻
-	Cut   int64 `json:"cut,omitempty"`   // いま見ている error の status_ms（切断の見分け）
-	Since int64 `json:"since,omitempty"` // その error を dispatcher が初めて見た時刻
-	Sent  int64 `json:"sent,omitempty"`  // 最後に打ったときの Cut（これと違う error なら、打ったあとにまた切られた）
+	At    int64 `json:"at"`
+	Cut   int64 `json:"cut,omitempty"`
+	Since int64 `json:"since,omitempty"`
+	Sent  int64 `json:"sent,omitempty"`
 }
 
-// Saw は error の様子 s を控えに映す: 新しい status_ms の error なら、それを dispatcher が初めて見た時刻を nowMs で持つ。
 func (r Resend) Saw(s Seen, nowMs int64) Resend {
 	if s.Status == "error" && s.StatusMs != r.Cut {
 		r.Cut, r.Since = s.StatusMs, nowMs
@@ -373,28 +340,25 @@ func (r Resend) Saw(s Seen, nowMs int64) Resend {
 	return r
 }
 
-// kept は控えに残すものがあるか。
 func (r Resend) kept() bool { return r.N > 0 || r.At > 0 || r.Cut != 0 }
 
-// Seen は担当の端末の1回の様子。
 type Seen struct {
-	Gone      bool   // 端末が無い・終わった
-	Status    string // status.state
+	Gone      bool
+	Status    string
 	Msg       string // status.msg（program が状態に添えた文。Claude Code は error のとき API のエラーの文を入れる。Codex は入れない）
 	StatusMs  int64
-	Reviewing bool  // 子のレビュアーの課題が todo／doing
-	Asking    bool  // 担当の課題に受け取られていない問い（open・answered）がある。問いは asked で Chief of Staff に届いている
-	Moved     int64 // working の間に status.msg か画面が最後に動いた時刻（dispatcher の時計の Unix ミリ秒）。0 は見ていない
-	Unsent    bool  // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
-	Turn      int   // hc の turn（終えたターンの数。resume した端末が働き始めたかの見分け）
+	Reviewing bool
+	Asking    bool
+	Moved     int64
+	Unsent    bool // 最初のメッセージがまだ届いていない（ラベル first_message.sent=false で、控えの first にも無い。dispatcher.md §5）
+	Turn      int
 }
 
-// Verdict は Judge の答え。Kind が空なら知らせない。Retry なら続きを打つ。
 type Verdict struct {
 	Kind      string
-	Key       string // 同じ状態につき1回だけ知らせるための鍵
+	Key       string
 	Retry     bool
-	Allowance bool // error が使用量の上限（待っても直らない）。レビュアーなら fallback で起動し直せるか見る
+	Allowance bool
 }
 
 // ScreenCut は画面から、Codex がターンを止めたときに出すエラーの行（行頭が ■ の最後の行。実測 Codex 0.166.0）だけを返す。
@@ -424,42 +388,33 @@ func Judge(s Seen, screen func() string, r Resend, nowMs int64) Verdict {
 		if text == "" {
 			text = ScreenCut(screen())
 		}
-		// 最初のメッセージが届いていない端末に「続けて」は意味が無い（続ける仕事を受け取っていない）。知らせる
 		if s.Unsent || !ProviderError(text) {
 			return Verdict{Kind: "error", Key: key, Allowance: !s.Unsent && AllowanceError(text)}
 		}
-		r = r.Saw(s, nowMs) // 呼び手が映していなくても同じ答えにする
+		r = r.Saw(s, nowMs)
 		if r.N >= len(retryAfter) {
-			// 打ち切るのは、最後に打ったあとにまた切られた（5 回目の切断。status_ms が打ったときと違う）か、
-			// 打っても最後の間だけ待って同じ error のままのとき。打った直後の見回りで、まだ前の切断の error を見ているだけなら待つ
 			if r.Cut != r.Sent || time.Duration(nowMs-r.At)*time.Millisecond >= retryAfter[len(retryAfter)-1] {
 				return Verdict{Kind: "error", Key: "retry-out"}
 			}
 			return Verdict{}
 		}
-		// その error を初めて見た時刻と前に打った時刻の遅いほうから測る（どちらも dispatcher の時計。
-		// 打っても同じ error のまま status_ms が変わらないことがある）
 		if time.Duration(nowMs-max(r.Since, r.At))*time.Millisecond >= retryAfter[r.N] {
 			return Verdict{Retry: true}
 		}
 	case (s.Status == "idle" || s.Status == "done") && age >= idleAfter && !s.Reviewing && !s.Asking:
 		return Verdict{Kind: "stalled", Key: key}
 	case s.Status == "working" && age >= workingAfter && (s.Moved == 0 || time.Duration(nowMs-s.Moved)*time.Millisecond >= workingAfter):
-		// 1つのターンで長く働いているだけ（status.msg か画面が動いている）なら知らせない
 		return Verdict{Kind: "stalled", Key: key}
 	}
 	return Verdict{}
 }
 
-// Moved は working の担当の進みの控え: status.msg と画面の要約（別々に持つ。画面が読めない回も msg は比べる）と、
-// どちらかが最後に替わった時刻（dispatcher の時計）。
 type Moved struct {
 	Msg    string `json:"msg"`
-	Screen string `json:"screen,omitempty"` // 空は画面をまだ読めていない
+	Screen string `json:"screen,omitempty"`
 	At     int64  `json:"at"`
 }
 
-// Progress は画面の要約。字だけを見る（数字・記号・空白を除く。経過の時計・トークン数・回る印は進みに数えない）。
 func Progress(screen string) string {
 	var b strings.Builder
 	for _, r := range screen {
@@ -475,8 +430,6 @@ func digest(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// moved は working の担当の進みを控えに映す（prev が前の控え）。status.msg か画面が替われば今を、替わらなければ前の時刻を持つ。
-// 画面が読めない回は画面を比べず、前の画面の要約を持ち越す（msg は比べる）。初めて見たら今を起点にする。
 func moved(prev Moved, had bool, msg string, screen func() (string, error), nowMs int64) Moved {
 	next := Moved{Msg: digest(msg), Screen: prev.Screen, At: prev.At}
 	if text, err := screen(); err == nil {
@@ -488,8 +441,6 @@ func moved(prev Moved, had bool, msg string, screen func() (string, error), nowM
 	return next
 }
 
-// Asking は kanban の log.jsonl の行から、受け取られていない問い（最後の状態が open・answered）を持つ課題を返す。
-// 問いの状態の行（{"question": n, "status": …}）だけを見る。読めない行は数えない（知らせる側に倒れる）。
 func Asking(rows []ledger.Row) map[string]bool {
 	last := map[string]string{}
 	for _, r := range rows {
@@ -509,7 +460,6 @@ func Asking(rows []ledger.Row) map[string]bool {
 	return asking
 }
 
-// watch は doing の課題の担当を hc で見る（見回りで hc get）。
 func (p *project) watch(now time.Time, cos string) {
 	nowMs := now.UnixMilli()
 	// 子のレビュアーの課題が todo／doing の親は止まって見えても待っている。オーナーの課題（who: person。
@@ -531,7 +481,7 @@ func (p *project) watch(now time.Time, cos string) {
 			continue // Chief of Staff の端末はオーナーが打つので、担当として見ない（打たない。chiefCut が見る。ADR-0019 決めたこと 4）
 		}
 		if ledger.TakenByChiefOfStaff(p.rows, id, agent) {
-			continue // 前の Chief of Staff が自分で受けた課題。起き直してアドレスが変わっても担当の死として resume・finished にしない
+			continue
 		}
 		if !idRe.MatchString(id) || !agentRe.MatchString(agent) {
 			continue
@@ -539,7 +489,7 @@ func (p *project) watch(now time.Time, cos string) {
 		rk := id + "|" + agent
 		r := p.st.Retry[rk]
 		s, ok := p.seen(agent)
-		if !ok { // 取れない間は前の状態（知らせた状態・続きを打った回数）を保つ
+		if !ok {
 			for k := range p.st.Sent {
 				if strings.HasPrefix(k, rk+"|") {
 					sent[k] = true
@@ -557,17 +507,16 @@ func (p *project) watch(now time.Time, cos string) {
 			continue
 		}
 		if s.Gone {
-			p.sawGone(id, agent, now) // 実働から死んでいた区間を引く（estimate.go）
+			p.sawGone(id, agent, now)
 		}
 		if s.Unsent && !p.first && p.sendFirst(t, agent, s.Status, p.st.First[rk]) {
 			first[rk] = true
 		}
-		// 控えに「送った」があればラベルが残っていても届いたとみる（続きを打ってよい）
 		s.Unsent = s.Unsent && !p.st.First[rk] && !first[rk]
 		s.Reviewing = reviewing[id]
 		s.Asking = asking[id]
 		if rs, had := p.st.Resumed[id]; had && !s.Gone && rs.Agent == agent && s.Turn >= 1 {
-			p.worked(id) // 起動した端末が働き始めた。控えを消してその場で保存する
+			p.worked(id)
 		}
 		if s.Status == "working" && !s.Gone {
 			prev, had := p.st.Moved[rk]
@@ -588,7 +537,6 @@ func (p *project) watch(now time.Time, cos string) {
 				p.logf("%s の担当 %s に続きを打たない（控えを書けない。次の見回りで）", id, agent)
 			}
 		}
-		// 回数は error・working の間だけ持ち越し（「続けて」を数える）、ほかの状態（idle・done・blocked など）に戻ったら区切る
 		if (s.Status == "error" || s.Status == "working") && !s.Gone && r.kept() {
 			retry[rk] = r
 		}
@@ -596,7 +544,7 @@ func (p *project) watch(now time.Time, cos string) {
 			continue
 		}
 		if s.Gone && p.resumeGone(t, agent) {
-			continue // resume で起動した（次の見回りからは新しい端末を見る）。起動できなければ今どおり finished
+			continue
 		}
 		if s.Gone && p.first {
 			// 初めて見た死は Resumed に「見た」とだけ持ち、Sent には書かない（次の見回りで打たずに finished を知らせる。
@@ -605,14 +553,13 @@ func (p *project) watch(now time.Time, cos string) {
 		}
 		k := rk + "|" + v.Key
 		if v.Allowance && isReviewer(t) && !p.first && !p.st.Sent[k] && p.fallback(t, agent) {
-			continue // 起動し直した（次の見回りからは新しい端末を見る）
+			continue
 		}
 		if !p.st.Sent[k] && !p.first {
 			p.notify(id, v.Kind, map[string]any{"agent": agent, "status_ms": s.StatusMs})
 		}
 		sent[k] = true
 	}
-	// Chief of Staff の分（chiefCut が持つ。キーは cosKey で始まり、課題の id とは重ならない）は持ち越す
 	for k := range p.st.Sent {
 		if strings.HasPrefix(k, cosKey) {
 			sent[k] = true
@@ -622,9 +569,6 @@ func (p *project) watch(now time.Time, cos string) {
 	p.keepResumed()
 }
 
-// countResend は打つ前に、回数と時刻を1つ進めた控えを保存する（打ってから pass の最後の保存の前に dispatcher が落ちても、
-// 再開後に同じ切断へ打ち直さず、上限も超えない。送れなかった・届いたか分からない試行も1回に数える）。
-// 保存できなければ控えを戻して false（打たない）。
 func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) {
 	prev, had := p.st.Retry[key]
 	next := r
@@ -641,7 +585,6 @@ func (p *project) countResend(key string, r Resend, nowMs int64) (Resend, bool) 
 	return next, true
 }
 
-// cosKey は控えの Sent で Chief of Staff の端末を指すキーの頭（":cos|<address>"。: は課題の id に使えない）。
 const cosKey = ":cos|"
 
 // chiefCut は Chief of Staff の端末がプロバイダに切られて error で止まったとき、ログに1行だけ残す（dispatcher.md §2.4）。
@@ -650,7 +593,7 @@ const cosKey = ":cos|"
 // （error・working の間は持ち越し、ほかに戻ったら区切る。Claude Code 自身のやり直しで working を挟んでも1回）。
 func (p *project) chiefCut(cos string) {
 	key := cosKey + cos
-	for k := range p.st.Sent { // 替わった前の Chief of Staff の分は捨てる
+	for k := range p.st.Sent {
 		if strings.HasPrefix(k, cosKey) && !strings.HasPrefix(k, key+"|") {
 			delete(p.st.Sent, k)
 		}
@@ -660,7 +603,7 @@ func (p *project) chiefCut(cos string) {
 	}
 	c, err := hcGet(cos)
 	if err != nil || c.State != "live" {
-		return // 取れない間は前の控えを保つ
+		return
 	}
 	if c.Status.State != "error" && c.Status.State != "working" {
 		delete(p.st.Sent, key+"|cut")
@@ -700,7 +643,7 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 			msg += spawn.Wiki() // wiki の目録の行は担当だけ。Chief Engineer には足さない（ADR-0061 決めたこと 12）
 		}
 		if isReviewer(t) {
-			msg = p.reviewerFirst(id) // dispatcher が起動したレビュアー（startReviewer と同じ文）
+			msg = p.reviewerFirst(id)
 		}
 		// hc run なら template の本文が前に付く。hc send は付けないので、起動のときに届くはずだった文に揃える
 		msg = spawn.WithBody(t.Str("profile"), msg)
@@ -712,8 +655,6 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 			return false
 		}
 		left := LeftInInput(screen, strings.SplitN(msg, "\n", 2)[0])
-		// 送る前に控えへ「送りかけ」を書いて保存する（送ってからラベルを外す前に dispatcher が落ちても、再開後に二度送らない。
-		// 送っている間に落ちたときは届いたか分からないまま送らない側に倒れる。担当は idle のままなので stalled で Chief of Staff に届く）
 		rk := id + "|" + agent
 		p.st.First[rk] = true
 		if err := p.st.Save(p.l.Slug); err != nil {
@@ -732,7 +673,6 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 		cmd := exec.CommandContext(ctx, "hc", args...)
 		cmd.Env = withoutTerminal()
 		if err := cmd.Run(); err != nil {
-			// 送る前の保存と対: 送りかけをその場で消して保存する（pass の最後の保存より前に落ちても、次の見回りで送り直す）
 			delete(p.st.First, rk)
 			if serr := p.st.Save(p.l.Slug); serr != nil {
 				p.logf("%s の担当 %s の送りかけを控えから消せない: %v", id, agent, serr)
@@ -746,7 +686,7 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 			p.logf("%s の担当 %s に最初のメッセージを送った（起動したときに届かなかった分）", id, agent)
 		}
 	default:
-		return false // blocked・error: 画面が入力を受けられるようになるまで待つ
+		return false
 	}
 	cmd := exec.Command("hc", "label", agent, spawn.FirstLabel+"=")
 	cmd.Env = withoutTerminal()
@@ -775,7 +715,6 @@ func LeftInInput(screen, first string) bool {
 	return false
 }
 
-// seen は担当の端末の様子。hc get が not_found を返せば端末が無い。ほかの失敗・形が読めないときは ok=false（この回は見ない）。
 func (p *project) seen(agent string) (Seen, bool) {
 	cmd := exec.Command("hc", "get", agent, "--json")
 	cmd.Env = withoutTerminal()
@@ -809,7 +748,6 @@ func (p *project) seen(agent string) (Seen, bool) {
 	return Seen{Status: t.Status.State, Msg: t.Status.Msg, StatusMs: t.StatusMs, Unsent: t.Labels[spawn.FirstLabel] == "false", Turn: t.Turn}, true
 }
 
-// retry は担当・レビュアーの端末に続きを打つ（オーナーが打つ端末ではない）。Chief of Staff には打たない（chiefCut）。
 func (p *project) retry(agent string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -818,7 +756,6 @@ func (p *project) retry(agent string) bool {
 	return cmd.Run() == nil
 }
 
-// ensure は控えの map を作る（古い控えにも無い）。
 func (s *State) ensure() {
 	if s.Sent == nil {
 		s.Sent = map[string]bool{}

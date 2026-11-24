@@ -13,7 +13,7 @@ import (
 // 次の UserPromptSubmit で同じ <news> をもう一度渡さない（ADR-0019 決めたこと 7 の手がかり R8）。
 func TestDrainStopUnderLockConfirms(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("PATH", t.TempDir()) // hc も andon も無い（フックの外の確かめは落ちて通す）
+	t.Setenv("PATH", t.TempDir())
 	t.Setenv("HC_TERMINAL_ID", "")
 	defer func(w time.Duration) { lockWait = w }(lockWait)
 	lockWait = 50 * time.Millisecond
@@ -26,12 +26,10 @@ func TestDrainStopUnderLockConfirms(t *testing.T) {
 	if err := st.Save(slug); err != nil {
 		t.Fatal(err)
 	}
-	// 1. Stop で渡す
 	out, err := drain(slug, false, hookInput{SessionID: "s1", PromptID: "p1"})
 	if err != nil || out == nil {
 		t.Fatalf("Stop で渡さない: %v %v", out, err)
 	}
-	// 2. 見回りが lock を持っている間に、続きのターンの Stop が来る
 	unlock, err := lockState(slug, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +38,6 @@ func TestDrainStopUnderLockConfirms(t *testing.T) {
 		t.Fatalf("lock が取れないのに通さない: %v %v", out, err)
 	}
 	unlock()
-	// 3. 次のオーナーの送信で、渡した <news> をもう一度添えない
 	out, err = drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"})
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +50,6 @@ func TestDrainStopUnderLockConfirms(t *testing.T) {
 	}
 }
 
-// 確かめの印が残っても、渡した turn と違う turn の Stop だったなら、終わりを見ていないので1回だけ届け直す（12b と同じ）。
 func TestDrainStopUnderLockOtherTurnRetries(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("PATH", t.TempDir())
@@ -68,7 +64,7 @@ func TestDrainStopUnderLockOtherTurnRetries(t *testing.T) {
 		t.Fatalf("送信で渡さない: %v %v", out, err)
 	}
 	unlock, _ := lockState(slug, 0)
-	drain(slug, false, hookInput{SessionID: "s1", PromptID: "p0"}) // 別の turn の Stop
+	drain(slug, false, hookInput{SessionID: "s1", PromptID: "p0"})
 	unlock()
 	out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"})
 	if err != nil || out == nil || !strings.Contains(asContext(out), "A-0001 report") {
@@ -76,7 +72,6 @@ func TestDrainStopUnderLockOtherTurnRetries(t *testing.T) {
 	}
 }
 
-// 届け直した <news>（Again）も終わりを見ないまま次の別の turn が来たら、もう届け直さずに捨てる（届け直しは1回だけ）。
 func TestDrainRetriesOnlyOnce(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("PATH", t.TempDir())
@@ -87,18 +82,15 @@ func TestDrainRetriesOnlyOnce(t *testing.T) {
 	if err := st.Save(slug); err != nil {
 		t.Fatal(err)
 	}
-	// 1. 送信で渡す（1回目）
 	if out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p1"}); err != nil || !strings.Contains(asContext(out), "A-0001 report") {
 		t.Fatalf("送信で渡さない: %v %v", out, err)
 	}
-	// 2. 終わりを見ないまま別の turn: 1回だけ届け直す
 	if out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"}); err != nil || !strings.Contains(asContext(out), "A-0001 report") {
 		t.Fatalf("終わりを見ていない <news> を届け直さない: %v %v", out, err)
 	}
 	if st, _, _ := LoadState(slug); st.Hook == nil || len(st.Hook.Again) != 1 || len(st.Hook.News) != 0 {
 		t.Fatalf("届け直した通知が Again の印になっていない: %+v", st.Hook)
 	}
-	// 3. 届け直した turn の終わりも見ないまま、また別の turn: もう届け直さない
 	out, err := drain(slug, true, hookInput{SessionID: "s1", PromptID: "p3"})
 	if err != nil {
 		t.Fatal(err)
@@ -118,8 +110,6 @@ func asContext(out any) string {
 	return s
 }
 
-// 渡した turn の終わりを見たら、届けた通知の記録（<slug>.delivered.jsonl）に1行足す。lock の外で見た終わり（takeStop）も同じ。
-// ack が無ければ acked は false（hc が無いのでラベルを読めない）。終わりを見ていない turn は書かない。
 func TestDrainLogsDelivered(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("PATH", t.TempDir())
@@ -142,14 +132,12 @@ func TestDrainLogsDelivered(t *testing.T) {
 		}
 		return nil
 	}
-	// 1. 送信で渡し、別の turn が来た（終わりを見ていない）: 書かない
 	pend()
 	drain(slug, true, hookInput{SessionID: "s1", PromptID: "p1"})
 	drain(slug, true, hookInput{SessionID: "s1", PromptID: "p2"})
 	if l := lines(); len(l) != 0 {
 		t.Fatalf("終わりを見ていない turn を書いた: %q", l)
 	}
-	// 2. Stop で渡し、続きの turn の Stop を lock の外で見て、次の drain で確かめ済みにする: 1行
 	os.Remove(DeliveredPath(slug))
 	st, _, _ := LoadState(slug)
 	st.Hook = nil
@@ -173,13 +161,12 @@ func TestDrainLogsDelivered(t *testing.T) {
 	}
 }
 
-// ack のあったターンは acked が true。同じ秒に同じ通知を渡した別のターンも、それぞれ1行（内容が同じでも飛ばさない）。
 func TestLogDeliveredAcked(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	h := &HookNews{News: []Notification{{Issue: "A-0002", Kind: "ready"}}}
 	logDelivered("demo", h, true)
 	logDelivered("demo", h, true)
-	logDelivered("demo", &HookNews{}, true) // 渡したものが無ければ書かない
+	logDelivered("demo", &HookNews{}, true)
 	b, _ := os.ReadFile(DeliveredPath("demo"))
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
 	if len(lines) != 2 {
@@ -191,8 +178,6 @@ func TestLogDeliveredAcked(t *testing.T) {
 	}
 }
 
-// news.ack が渡したときの turn と同じなら、news.replied のラベルを書けなくても（hc label が失敗）acked は true。
-// Stop の中で見た終わりと、lock の外で見た終わり（noteStop → takeStop）の両方。news.replied の数（控えの replied）は数えない。
 func TestDrainAckedEvenIfLabelFails(t *testing.T) {
 	bin := t.TempDir()
 	hc := "#!/bin/sh\n" +
@@ -220,7 +205,7 @@ func TestDrainAckedEvenIfLabelFails(t *testing.T) {
 		if out, err := drain(slug, false, hookInput{SessionID: "s1", PromptID: "p1"}); err != nil || out == nil {
 			t.Fatalf("Stop で渡さない: %v %v", out, err)
 		}
-		os.WriteFile(filepath.Join(bin, "acked"), nil, 0o644) // そのターンで andon news ack を打った
+		os.WriteFile(filepath.Join(bin, "acked"), nil, 0o644)
 		end := hookInput{SessionID: "s1", PromptID: "p1", StopHookActive: true}
 		if underLock {
 			unlock, _ := lockState(slug, 0)
@@ -252,7 +237,6 @@ func TestSameTurnClaudeCodeInputs(t *testing.T) {
 		}
 		return in
 	}
-	// 渡した turn の印は、drain がそのときの入力から作るものと同じ
 	from := func(via string, in hookInput) *HookNews {
 		return &HookNews{Terminal: "t1", Via: via, SessionID: in.SessionID, PromptID: in.PromptID}
 	}
@@ -282,7 +266,6 @@ func TestSameTurnClaudeCodeInputs(t *testing.T) {
 			t.Errorf("%s: sameTurn = %v、want %v", c.name, got, c.want)
 		}
 	}
-	// 片方にしか prompt_id が無ければ別の turn と見る。両方に無ければ端末と経路だけで照らす（sameTurn の注釈）
 	noID := read(`{"session_id":"s1","hook_event_name":"Stop"}`)
 	if sameTurn(from("prompt", read(promptA)), "t1", noID) {
 		t.Error("prompt_id の無い Stop を、prompt_id のある turn の終わりと見た")
@@ -295,8 +278,6 @@ func TestSameTurnClaudeCodeInputs(t *testing.T) {
 	}
 }
 
-// 渡した turn に prompt_id があり、Stop の入力に無ければ、Drain は確かめ済みにせず1回だけ届け直す。
-// 届け直した続きの turn の Stop（これも prompt_id が無い）で確かめ済みになり、3度目は届かない。
 func TestDrainStopWithoutPromptIDRetriesOnce(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("PATH", t.TempDir())
@@ -319,15 +300,12 @@ func TestDrainStopWithoutPromptIDRetriesOnce(t *testing.T) {
 		}
 		return out.String()
 	}
-	// 1. 送信で渡す（prompt_id のある UserPromptSubmit）
 	if out := run(true, `{"session_id":"s1","prompt_id":"pa","hook_event_name":"UserPromptSubmit"}`); !strings.Contains(out, "A-0001 report") {
 		t.Fatalf("送信で渡さない: %s", out)
 	}
-	// 2. prompt_id の無い Stop: 渡した turn の終わりと見ず、1回だけ届け直す
 	if out := run(false, `{"session_id":"s1","hook_event_name":"Stop","stop_hook_active":false}`); !strings.Contains(out, "A-0001 report") {
 		t.Fatalf("prompt_id の無い Stop で、渡した <news> を確かめ済みにした: %q", out)
 	}
-	// 3. 届け直した続きの turn の Stop: 確かめ済みにし、もう渡さない
 	if out := run(false, `{"session_id":"s1","hook_event_name":"Stop","stop_hook_active":true}`); strings.Contains(out, "A-0001 report") {
 		t.Fatalf("届け直した <news> をもう一度渡した: %s", out)
 	}
@@ -336,9 +314,6 @@ func TestDrainStopWithoutPromptIDRetriesOnce(t *testing.T) {
 	}
 }
 
-// 同じ hc の turn の続き（Stop の block）に <news> を2回渡したとき、2回目の ack も数える（A-0305）。
-// 1回目の ack を数えたあとに news.ack を消すので、2回目の渡し時の ack_before は空になる。
-// ack していない2回目は acked: false のまま。
 func TestDrainSecondAckInSameTurn(t *testing.T) {
 	for _, ack2 := range []bool{true, false} {
 		bin := t.TempDir()
@@ -354,7 +329,7 @@ func TestDrainSecondAckInSameTurn(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(bin, "hc"), []byte(hc), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("PATH", bin+":/usr/bin:/bin") // 偽の hc が rm を使う
+		t.Setenv("PATH", bin+":/usr/bin:/bin")
 		t.Setenv("FAKE_DIR", bin)
 		t.Setenv("HC_TERMINAL_ID", "t1")
 		t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -371,7 +346,7 @@ func TestDrainSecondAckInSameTurn(t *testing.T) {
 			t.Fatalf("1回目を渡さない: %v %v", out, err)
 		}
 		ack()
-		push("A-0002") // 1回目の ack のあと、同じ turn の続きで2回目を渡す
+		push("A-0002")
 		if out, err := drain(slug, false, in); err != nil || out == nil {
 			t.Fatalf("2回目を渡さない: %v %v", out, err)
 		}

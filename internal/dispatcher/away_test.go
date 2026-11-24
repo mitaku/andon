@@ -10,7 +10,7 @@ func TestPushAwayCountsAndAskedPerN(t *testing.T) {
 	st := &State{Pending: []Notification{}, Away: &Away{Since: "2026-11-12T00:00:00Z"}}
 	st.Push(Notification{Issue: "A-0001", Kind: "asked", Detail: map[string]any{"n": 1}})
 	st.Push(Notification{Issue: "A-0001", Kind: "asked", Detail: map[string]any{"n": 2}})
-	st.Push(Notification{Issue: "A-0001", Kind: "asked", Detail: map[string]any{"n": float64(2)}}) // 控えを読み直した n（JSON の数）も同じ問い
+	st.Push(Notification{Issue: "A-0001", Kind: "asked", Detail: map[string]any{"n": float64(2)}})
 	st.Push(Notification{Issue: "A-0001", Kind: "report", Detail: map[string]any{}})
 	if len(st.Pending) != 3 {
 		t.Errorf("待ちが %d 件（asked n=1・n=2・report の 3 件のはず）: %+v", len(st.Pending), st.Pending)
@@ -25,8 +25,6 @@ func TestPushAwayCountsAndAskedPerN(t *testing.T) {
 	}
 }
 
-// 控えの留守の記録は、留守に入った巡で始まり、戻った巡で終わる。何も積まなかった留守は戻ったときに消し、
-// 終わりのあと drain の前にまた留守になったら続きとして終わりを消す。
 func TestMarkAway(t *testing.T) {
 	p := &project{st: &State{}}
 	p.away = true
@@ -58,7 +56,6 @@ func TestMarkAway(t *testing.T) {
 	}
 }
 
-// 戻った最初の <news> の先頭（<news> の次の行）に留守の1行が付く。積まなかった留守では付けない。
 func TestRenderAway(t *testing.T) {
 	ns := []Notification{{Issue: "A-0001", Kind: "report", Detail: map[string]any{"report": "r.md"}}}
 	got := RenderAway("demo", awayLine(&Away{Since: "2026-11-12T00:00:00Z", Until: "2026-11-12T00:10:00Z", Count: 3}), ns)
@@ -73,10 +70,9 @@ func TestRenderAway(t *testing.T) {
 	}
 }
 
-// 戻った最初の <news>（drain）が留守の1行を先頭に付けたら、控えの留守の記録を消し、次の <news> には付けない（2度付けない）。
 func TestDrainAwayLineOnce(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	t.Setenv("PATH", t.TempDir()) // hc も andon も無い（フックの外の確かめは落ちて通す）
+	t.Setenv("PATH", t.TempDir())
 	t.Setenv("HC_TERMINAL_ID", "")
 	const slug = "demo"
 	put := func(issue string, away *Away) {

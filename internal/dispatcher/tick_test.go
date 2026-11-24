@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// 偽の kanban の CLI: 打たれたものを $FAKE_KANBAN/log に1行ずつ。tick は $FAKE_KANBAN/tick-rc があればその終了コードで落ちる。
-// 一覧と ready は空。偽の hc: get は $FAKE_KANBAN/cos があれば生きている。
 const tickKanban = `#!/bin/sh
 d=$FAKE_KANBAN
 echo "$*" >>"$d/log"
@@ -76,16 +74,15 @@ func TestPassTicks(t *testing.T) {
 	}
 	for _, round := range []string{"初めて見る kanban", "2巡目"} {
 		if round == "2巡目" {
-			// 飛ばした 1 行・留守の 1 行は skip_test.go で見る。ここで留守から戻る
 			logb.Reset()
 			if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}
-		c.Pass("") // 初めて見る kanban は留守のまま（留守でも tick を打つ）
+		c.Pass("")
 		want := "list tick ready"
 		if round == "初めて見る kanban" {
-			want = "list ready tick ready" // tick の前の ready を基準に控える
+			want = "list ready tick ready"
 		}
 		if got := strings.Join(calls(), " "); got != want {
 			t.Errorf("%s: 打った順 %q（%s のはず）", round, got, want)
@@ -108,7 +105,6 @@ func TestPassTicks(t *testing.T) {
 	}
 }
 
-// 偽の kanban の CLI（ルーチン）: tick で $FAKE_KANBAN/due があればルーチンの課題を足し（due を消す）、ready に出す。前からある課題 P-0001 も ready に出る。
 const routineKanban = `#!/bin/sh
 d=$FAKE_KANBAN
 case $1 in
@@ -122,8 +118,6 @@ case $1 in
 esac
 `
 
-// 巡のつなぎ: 巡の中で打った kanban tick が足したルーチンの課題を、同じ巡の ready の差で routine つきで拾う。
-// 初めて見る kanban（控えが無い）でも tick が足した課題だけを拾い（前からある ready は流さない）、二度は拾わない。
 func TestPassPicksTickedRoutine(t *testing.T) {
 	d := t.TempDir()
 	bin := filepath.Join(d, "bin")

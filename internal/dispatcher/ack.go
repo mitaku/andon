@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-// NewsUsage は andon news ack の使い方。
 const NewsUsage = "usage: andon news ack\n" +
 	"Chief of Staff が、届いた <news> にオーナーへ言うことが無いときに打つ（ADR-0010 決めたこと 4）。\n" +
 	"自分の端末（HC_TERMINAL_ID）にラベル news.ack=<turn>（いまの hc の turn）を書く。dispatcher（drain と見回り）は、\n" +
@@ -19,7 +18,6 @@ const NewsUsage = "usage: andon news ack\n" +
 // AckLabel は Chief of Staff の「オーナーに言うことが無い」の申告（contract.md §8）。
 const AckLabel = "news.ack"
 
-// NewsAck は andon news ack。
 func NewsAck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 0 {
 		fmt.Fprint(stderr, NewsUsage)

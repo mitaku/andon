@@ -38,8 +38,6 @@ func TestRetroOn(t *testing.T) {
 	}
 }
 
-// retro_every が読めない → 読める → また読めない、の順なら、読めない理由はログに2回出る。読めたときに覚えを消すので、
-// 2回目の読めなさを同じ理由の続きと取り違えない。片付いた担当の課題は1件で、設定の件数に届かないので kanban の CLI は撃たない。
 func TestRetroDueLogsUnreadableAgainAfterReadable(t *testing.T) {
 	ws := t.TempDir()
 	git := func(args ...string) {
@@ -67,24 +65,22 @@ func TestRetroDueLogsUnreadableAgainAfterReadable(t *testing.T) {
 	p.rows = []ledger.Row{{At: time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), ID: "S-0001", Change: map[string]any{"status": "done"}}}
 
 	unreadable := func() int { return strings.Count(log.String(), "retro_every を読めない") }
-	p.retroDue() // andon.toml が無い → owner が無くて読めない
+	p.retroDue()
 	if n := unreadable(); n != 1 {
 		t.Fatalf("1回目の読めなさのログが %d 行:\n%s", n, log.String())
 	}
 	os.WriteFile(toml, []byte("owner = \"owner@example.com\"\n"), 0o644)
-	p.retroDue() // 読める
+	p.retroDue()
 	if n := unreadable(); n != 1 {
 		t.Fatalf("読めたのに読めないとログした（%d 行）:\n%s", n, log.String())
 	}
 	os.Remove(toml)
-	p.retroDue() // また読めない
+	p.retroDue()
 	if n := unreadable(); n != 2 {
 		t.Fatalf("また読めなくなったのにログが %d 行（2 行のはず）:\n%s", n, log.String())
 	}
 }
 
-// レビュアーの依頼書の「再レビュー:」の段は、振り返りの collect が回の理由に読む（ledger.BriefReReview）。dispatcher が書く段の
-// どの形からも前の回の commit が読め、rebase をまたいだと読むのは祖先でないと書いた形だけ。
 func TestReReviewRangeReadsBack(t *testing.T) {
 	prev, cur, mb := strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40)
 	for _, c := range []struct {

@@ -14,7 +14,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc: get は $D/<addr>.json（無ければ not_found）。
 const resumeHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -24,7 +23,6 @@ case $1 in
 esac
 `
 
-// 偽の kanban の CLI: show は $D/show.json。
 const resumeKanban = `#!/usr/bin/env bash
 case $1 in
   show) cat "$FAKE_HC/show.json" ;;
@@ -32,8 +30,6 @@ case $1 in
 esac
 `
 
-// 偽の andon: 打たれた引数を $D/andon に1行。$D/resume-rc があればその終了コードで落ち、
-// 通れば $D/next の address を kanban の agent にする（show.json を書き直す）。
 const resumeAndon = `#!/usr/bin/env bash
 d=$FAKE_HC
 echo "$*" >>"$d/andon"
@@ -73,7 +69,6 @@ func newResume(t *testing.T) *resumeFixture {
 	return f
 }
 
-// agent は kanban の S-7（doing）の agent を addr にする（この回に読んだ一覧と、`kanban show` の両方）。
 func (f *resumeFixture) agent(addr string) {
 	f.t.Helper()
 	f.p.tasks = []ledger.Issue{{"id": "S-7", "status": "doing", "agent": addr, "profile": "claude"}}
@@ -87,12 +82,10 @@ func (f *resumeFixture) put(name, body string) {
 	}
 }
 
-// live は端末 addr を live（turn）にする。
 func (f *resumeFixture) live(addr string, turn int) {
 	f.put(addr+".json", `{"state":"live","status":{"state":"working"},"status_ms":1,"turn":`+strconv.Itoa(turn)+`,"labels":{},"argv":["claude"]}`)
 }
 
-// round は見回りを1回して、その回に打たれた andon の行を返す。
 func (f *resumeFixture) round() []string {
 	f.t.Helper()
 	os.Remove(filepath.Join(f.d, "andon"))
@@ -112,7 +105,6 @@ func (f *resumeFixture) pending() []string {
 	return k
 }
 
-// recorded は記録だけの置き場の resumed の行。
 func (f *resumeFixture) recorded() []Notification {
 	f.t.Helper()
 	fh, err := os.Open(RecordedPath(f.p.l.Slug))
@@ -152,8 +144,6 @@ func TestResumeGoneRule(t *testing.T) {
 	}
 }
 
-// Gone を見たら resume を1回打ち、記録だけの resumed を書き、finished は知らせない。起動した端末が働かないまま
-// また Gone なら打たずに finished を知らせる。
 func TestResumeOnceThenFinished(t *testing.T) {
 	f := newResume(t)
 	f.put("next", "t43")
@@ -172,14 +162,12 @@ func TestResumeOnceThenFinished(t *testing.T) {
 	if saved, _, err := LoadState(f.p.l.Slug); err != nil || saved.Resumed["S-7"] != (Resumed{From: "t42", Agent: "t43"}) {
 		t.Fatalf("起動した端末をその場で保存していない: %+v %v", saved, err)
 	}
-	// 起動した端末が live で turn 0（まだ働いていない）: 控えは残る
 	f.agent("t43")
 	f.live("t43", 0)
 	f.round()
 	if _, ok := f.p.st.Resumed["S-7"]; !ok {
 		t.Fatal("働く前に控えを消した")
 	}
-	// 働かないまま死んだ: 打たずに finished
 	os.Remove(filepath.Join(f.d, "t43.json"))
 	if got := f.round(); got != nil {
 		t.Fatalf("働かずに死んだ端末にまた打った: %q", got)
@@ -187,14 +175,12 @@ func TestResumeOnceThenFinished(t *testing.T) {
 	if p := f.pending(); len(p) != 1 || p[0] != "S-7:finished:t43" {
 		t.Fatalf("finished を知らせない: %q", p)
 	}
-	// 次の見回りでも打たない・二度知らせない
 	f.p.st.Pending = []Notification{}
 	if got := f.round(); got != nil || len(f.p.st.Pending) != 0 {
 		t.Fatalf("同じ死にまた打った・知らせた: %q %q", got, f.pending())
 	}
 }
 
-// 働いたあと（turn ≥ 1）に死んだら、また1回打つ。
 func TestResumeAgainAfterWork(t *testing.T) {
 	f := newResume(t)
 	f.put("next", "t43")
@@ -205,7 +191,6 @@ func TestResumeAgainAfterWork(t *testing.T) {
 	if _, ok := f.p.st.Resumed["S-7"]; ok {
 		t.Fatal("働き始めたのに控えを消さない")
 	}
-	// 消したことはその場で保存してある（巡の最後の保存の前に落ちても、次に死んだらまた打てる）
 	saved, _, err := LoadState(f.p.l.Slug)
 	if err != nil {
 		t.Fatal(err)
@@ -226,8 +211,6 @@ func TestResumeAgainAfterWork(t *testing.T) {
 	}
 }
 
-// 初めて見る kanban では打たず、知らせもしない。次の見回りでもその死には打たず、finished を1回だけ知らせる
-// （初めて見た巡で Sent に書くと、死んだ担当が誰にも知らされないまま残る）。
 func TestResumeNotOnFirst(t *testing.T) {
 	f := newResume(t)
 	f.put("next", "t43")
@@ -258,7 +241,6 @@ func TestResumeNotOnFirst(t *testing.T) {
 	}
 }
 
-// resume が起動できなければ今どおり finished を知らせ、同じ死にはもう打たない。doing でなくなったら控えを捨てる。
 func TestResumeFails(t *testing.T) {
 	f := newResume(t)
 	f.put("resume-rc", "1")
@@ -281,15 +263,12 @@ func TestResumeFails(t *testing.T) {
 	}
 }
 
-// resumed は記録だけ。
 func TestRouteResumed(t *testing.T) {
 	if RouteOf(Notification{Kind: "resumed"}, Facts{}) != Record {
 		t.Fatal("resumed を届ける")
 	}
 }
 
-// 前の Chief of Staff が自分で kanban start した課題は、Chief of Staff が起き直して chief_of_staff が替わっても担当の課題として見ない:
-// 端末が Gone でも resume を打たず、finished も知らせない。同じアドレスが後で担当に使われたら、今までどおり resume する。
 func TestPastChiefOfStaffIssueNotWatched(t *testing.T) {
 	cosRow := func(addr string) ledger.Row {
 		return ledger.Row{At: "2026-11-01T00:00:00Z", By: "andon", Config: map[string]any{"chief_of_staff": addr}}
@@ -309,7 +288,7 @@ func TestPastChiefOfStaffIssueNotWatched(t *testing.T) {
 	f := newResume(t)
 	f.put("next", "t43")
 	f.p.rows = []ledger.Row{cosRow("t42"), agentRow, cosRow("t50")}
-	for i := 0; i < 2; i++ { // 1回目は resume の道、2回目は finished の道
+	for i := 0; i < 2; i++ {
 		if got := round(f); got != nil {
 			t.Fatalf("%d 回目: 前の Chief of Staff の課題に打った: %q（%s）", i+1, got, f.log.String())
 		}
@@ -321,7 +300,6 @@ func TestPastChiefOfStaffIssueNotWatched(t *testing.T) {
 		t.Fatalf("前の Chief of Staff の死を控えた: %+v", f.p.st.Resumed)
 	}
 
-	// 2026-11-06 より前の kanban は、移り変わりの行が coordinator の名前で残る
 	f = newResume(t)
 	f.put("next", "t43")
 	f.p.rows = []ledger.Row{{At: "2026-11-01T00:00:00Z", By: "andon", Config: map[string]any{"coordinator": "t42"}}, agentRow, cosRow("t50")}

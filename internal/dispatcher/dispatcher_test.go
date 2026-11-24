@@ -46,8 +46,6 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-// 控えに無い review_request（初めて見た kanban）は、kanban にその commit のレビュアーの子課題が無ければ起動しに行き、
-// あれば引き継ぐ（todo でなければもう受けている。todo なら端末を照らし、live なら address を引き継ぐ）。
 func TestAdopt(t *testing.T) {
 	const c1, c2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
 	briefs := map[string]string{
@@ -59,10 +57,10 @@ func TestAdopt(t *testing.T) {
 		{"id": "D-1", "status": "doing", "profile": "claude"},
 		{"id": "D-2", "status": "done", "profile": "codex-review", "parent": "D-1", "agent": "t9"},
 		{"id": "D-3", "status": "todo", "profile": "codex-review", "parent": "D-1"},
-		{"id": "D-4", "status": "doing", "profile": "claude", "parent": "D-1"}, // レビュアーでない子
+		{"id": "D-4", "status": "doing", "profile": "claude", "parent": "D-1"},
 	}
 	none := func(string) (string, int, bool) { return "", 0, false }
-	kept := func(string) bool { return false } // どの子課題もその commit の結果を残している
+	kept := func(string) bool { return false }
 	if _, ok := Adopt(tasks, "D-1", "3333333333333333333333333333333333333333", 1, brief, none, kept); ok {
 		t.Error("子課題の無い commit を引き継いだ（起動しに行かない）")
 	}
@@ -72,7 +70,6 @@ func TestAdopt(t *testing.T) {
 	if r, ok := Adopt(tasks, "D-1", c2, 1, brief, none, kept); !ok || r.Started || r.ReviewerIssue != "D-3" || r.Address != "" {
 		t.Errorf("todo で端末も無い子課題: %+v %v（起動するところから続けるはず）", r, ok)
 	}
-	// todo だが端末が live（hc run は通ったが kanban start の前に落ちた）: address を引き継ぎ、hc run し直さない
 	asked := ""
 	fresh := func(rev string) (string, int, bool) { asked = rev; return "t12", 0, true }
 	if r, ok := Adopt(tasks, "D-1", c2, 1, brief, fresh, kept); !ok || r.Started || r.Address != "t12" || asked != "D-3" {
@@ -87,8 +84,6 @@ func TestAdopt(t *testing.T) {
 	}
 }
 
-// 結果（その commit の findings.json）を残さずに返ったレビュアーの子課題は、担当が頼み直した回（round がそれより後）では
-// 引き継がない（起動し直す）。同じ回の review_request や、まだ見ている子課題は今までどおり引き継ぐ。
 func TestAdoptSkipsReturnedEmpty(t *testing.T) {
 	const c1 = "1111111111111111111111111111111111111111"
 	brief := func(string) string { return "対象: worktree `x`（detached）。commit " + c1 + "。差分は" }
@@ -175,7 +170,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, span{}, "example/app", "7")
 	for _, want := range []string{
 		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
-		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`", // kanban の中のレビュアー自身の課題（A-0216）
+		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`",
 		// 正しさは worker skill §2 の3つの観点を名指しする
 		"2. 正しさ: 並行性・失敗の波及・境界・前のバージョンの形・落ちたあとの起き直し\n",
 		"screen_paths", "画像の添付が無い", "commit " + strings.Repeat("b", 40), "git diff " + prev + ".." + strings.Repeat("b", 40), "/w/demo-D-1-r2",
@@ -189,9 +184,6 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	}
 }
 
-// 1回目の依頼書は、手元の git で読む差分の起点を merge-base にさせ、指摘の file を PR の差分と照らさせる。
-// 根拠の出来事: レビュアーが gh pr diff のあと baseRefOid（main の先頭）からの2点の差分を読み、
-// main に後から入った変更を「PR が削除した」と読んで major を付けた。レビュアー向けの2つの skill も同じことを言う。
 func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
 	pr, head := "https://github.com/example/app/pull/7", strings.Repeat("b", 40)
 	rep := &contract.Report{PR: pr, ReviewRequest: &contract.ReviewRequest{Round: 1, Limit: 2, Commit: head, Reviewer: "codex-review"}}
@@ -235,7 +227,6 @@ func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
 		has("skill "+s.skill, section, "<commit>", "<PR>")
 	}
 
-	// 再レビューが見る範囲は reReviewRange だけが決める
 	prev := strings.Repeat("a", 40)
 	rep.ReviewRequest.Round, rep.ReviewRequest.Previous = 2, &prev
 	if b := brief(); strings.Contains(b, "<baseRefOid>") {
@@ -243,9 +234,6 @@ func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
 	}
 }
 
-// rebase をまたいだ再レビューは、前後の commit の素の差分（base に入ったほかの変更まで含む）でなく、PR 自身の差分どうしの違いを見せる。
-// 根拠の出来事: 前の回のあと main が進み、担当が rebase して直した。`git diff 前..今` は PR の外の main の変更まで見せていた
-// （PR の 36 ファイルに対し 140 ファイル）。
 func TestReviewSpanAcrossRebase(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "app")
@@ -274,9 +262,9 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 	git("switch", "-q", "-c", "work")
 	write("pr.txt", "one\ntwo\n")
 	git("commit", "-q", "-am", "pr")
-	prev := git("rev-parse", "HEAD") // 前の回に見た commit
+	prev := git("rev-parse", "HEAD")
 	git("switch", "-q", "main")
-	for i := range 5 { // 前の回のあと main に入ったほかの変更
+	for i := range 5 {
 		write(fmt.Sprintf("main%d.txt", i), "m\n")
 	}
 	git("add", ".")
@@ -284,7 +272,7 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 	newBase := git("rev-parse", "HEAD")
 	git("switch", "-q", "work")
 	git("rebase", "-q", "main")
-	write("pr.txt", "one\ntwo!\n") // 前の回の指摘の直し
+	write("pr.txt", "one\ntwo!\n")
 	git("commit", "-q", "-am", "fix")
 	head := git("rev-parse", "HEAD")
 	if files := git("diff", "--name-only", prev+".."+head); !strings.Contains(files, "main0.txt") {
@@ -306,7 +294,6 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, sp, "example/app", "7")
 	}
 
-	// rebase をまたいだ: それぞれの merge-base から数えた PR の commit を突き合わせる
 	sp := reviewSpan(dir, url, pr, prev, head)
 	if sp != (span{Rebased: true, Old: oldBase, New: newBase}) {
 		t.Fatalf("rebase をまたいだ範囲 = %+v（want Old %s New %s）", sp, oldBase, newBase)
@@ -329,7 +316,6 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 		t.Errorf("足した commit が直しを見せない:\n%s", fix)
 	}
 
-	// rebase をまたがない（前の回の commit が祖先）: 今までどおり素の差分。gh には聞かない
 	write("pr.txt", "one\ntwo!\nthree\n")
 	git("commit", "-q", "-am", "fix2")
 	next := git("rev-parse", "HEAD")
@@ -344,7 +330,6 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 		t.Errorf("祖先の再レビューの依頼書:\n%s", b)
 	}
 
-	// PR の base が読めない: 素の差分は使わせず、PR 自身の差分を見せる
 	if err := os.WriteFile(filepath.Join(bin, "ghfail"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +341,6 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 		t.Errorf("base が読めないときの依頼書:\n%s", b)
 	}
 
-	// 前の回の commit が手元に無く fetch もできない: 祖先かをレビュアーに確かめさせる
 	gone := strings.Repeat("c", 40)
 	sp = reviewSpan(dir, url, pr, gone, head)
 	if sp != (span{Unknown: true}) {
@@ -383,11 +367,11 @@ func TestWorkerPlace(t *testing.T) {
 		agent string
 		want  []string
 	}{
-		{"t7", []string{"herdr.space=andon-demo-D-1", "herdr.tab=andon-demo-D-1"}}, // where は写さない
-		{"t8", nil},  // ラベルが無い
-		{"t9", nil},  // 返事が読めない
-		{"t10", nil}, // 端末が無い
-		{"", nil},    // agent が無い
+		{"t7", []string{"herdr.space=andon-demo-D-1", "herdr.tab=andon-demo-D-1"}},
+		{"t8", nil},
+		{"t9", nil},
+		{"t10", nil},
+		{"", nil},
 	} {
 		if got := workerPlace(c.agent); !slices.Equal(got, c.want) {
 			t.Errorf("%q: got %q want %q", c.agent, got, c.want)
@@ -395,7 +379,6 @@ func TestWorkerPlace(t *testing.T) {
 	}
 }
 
-// 引き継ぐ detached worktree は、その repo の worktree list に detached で載り HEAD が commit のものだけ（置き場にあるだけでは信じない）。
 func TestDetachedAt(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("GHQ_ROOT", root)

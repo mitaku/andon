@@ -24,7 +24,7 @@ func TestMemoryOncePerCell(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil { // Chief of Staff の端末は生きている
+	if err := os.WriteFile(filepath.Join(d, "cos"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -58,12 +58,11 @@ func TestMemoryOncePerCell(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(mem, "MEMORY.md"), []byte("- [m1](m1.md)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(mem, "note.txt"), []byte("x\n"), 0o644); err != nil { // .md でないものは数えない
+	if err := os.WriteFile(filepath.Join(mem, "note.txt"), []byte("x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var logb bytes.Buffer
 	c := &Dispatcher{WS: ws, Log: &logb}
-	// memories は kanban ごとの待ちの memory の数を返し、待ちを空にする（Chief of Staff が受け取った）。
 	memories := func() map[string]int {
 		t.Helper()
 		got := map[string]int{}
@@ -131,14 +130,13 @@ func TestMemoryOncePerCell(t *testing.T) {
 		t.Errorf("線の下に戻ってまた超えた巡の memory が 1 通でない: %v", got)
 	}
 
-	// sample-a の控えを保存できない巡: sample-a が積んだ memory は残らないので、記録は書かず、sample-b が積む
 	if err := os.Remove(filepath.Join(mem, fmt.Sprintf("m%d.md", memoryLine+3))); err != nil {
 		t.Fatal(err)
 	}
 	c.Pass("")
 	put(memoryLine + 4)
 	tmp := StatePath("sample-a") + ".tmp"
-	if err := os.MkdirAll(tmp, 0o755); err != nil { // 書いてから置き換える一時のファイルを作れない
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	logb.Reset()
@@ -154,7 +152,6 @@ func TestMemoryOncePerCell(t *testing.T) {
 		t.Errorf("sample-b が積んだあとで memory をもう一度積んだ: %v", got)
 	}
 
-	// セルの記録だけを書けない巡: 積むのは1通で、書けない間もこのプロセスでは積み直さない。書けるようになった巡で書き直す
 	if err := os.Remove(filepath.Join(mem, fmt.Sprintf("m%d.md", memoryLine+4))); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +178,7 @@ func TestMemoryOncePerCell(t *testing.T) {
 	if m, err := LoadMemory(); err != nil || !m.Over {
 		t.Errorf("書けるようになった巡で記録を書き直していない: %+v %v", m, err)
 	}
-	(&Dispatcher{WS: ws, Log: &logb}).Pass("") // dispatcher を起動し直しても、記録から積んだことが分かる
+	(&Dispatcher{WS: ws, Log: &logb}).Pass("")
 	if got := memories(); total(got) != 0 {
 		t.Errorf("記録を書き直したあとで memory をもう一度積んだ: %v", got)
 	}

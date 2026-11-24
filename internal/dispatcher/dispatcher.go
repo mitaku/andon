@@ -45,7 +45,6 @@ import (
 	"andon/internal/otel"
 )
 
-// Usage は andon dispatcher --help の中身。
 const Usage = "usage: andon dispatcher [--once] [--project <slug>]\n" +
 	"回り続ける（hc の端末 dispatcher の中で動く）。--once は1回だけ回して終わる。\n" +
 	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起動する・gate を回す・\n" +
@@ -57,7 +56,6 @@ const Usage = "usage: andon dispatcher [--once] [--project <slug>]\n" +
 	"たまっていれば、その前に kanban routine run retro を打つ（ルーチン retro が無い・paused・振り返りが残っていれば数えない）。\n" +
 	"控えは ~/.local/state/andon/dispatcher/<slug>.json（XDG_STATE_HOME があればその下）。届けない通知は横の <slug>.recorded.jsonl に1行ずつ。\n"
 
-// Name は dispatcher の端末の名前で、kanban の CLI を打つときの HC_TERMINAL_ID（by は terminal:dispatcher）。
 const Name = "dispatcher"
 
 const (
@@ -65,7 +63,6 @@ const (
 	exitUsage = 2
 )
 
-// Main は andon dispatcher。
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	once, only := false, ""
 	for i := 0; i < len(args); i++ {
@@ -108,7 +105,6 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	defer unlock()
 	c := &Dispatcher{WS: delegate.Workspace(), Andon: self, Log: stderr, Once: once}
 	for {
-		// 見回りの間は PassLock を持つ（Ensure が置き直すのは合間だけ）
 		unpass, err := flock.Lock(PassLock())
 		if err != nil {
 			fmt.Fprintf(stderr, "andon dispatcher: %v\n", err)
@@ -128,7 +124,6 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 }
 
-// SingletonLock は andon dispatcher（巡を回す本体）が動いている間持つ lock のパス（控えの置き場の .dispatcher.lock）。
 func SingletonLock() string {
 	return filepath.Join(filepath.Dir(StatePath("x")), ".dispatcher.lock")
 }
@@ -138,36 +133,24 @@ func PassLock() string {
 	return filepath.Join(filepath.Dir(StatePath("x")), ".pass.lock")
 }
 
-// Dispatcher は1つのセルの dispatcher。
 type Dispatcher struct {
-	WS    string           // セルの repo
-	Andon string           // andon のバイナリ（gate・issue を打つ）
-	Log   io.Writer        // ログ（1行ずつ。頭に時刻）
-	Now   func() time.Time // ログの時刻（無ければ time.Now。検査用）
+	WS    string
+	Andon string
+	Log   io.Writer
+	Now   func() time.Time
 
-	unwaited map[string]string // 待ち役がいないとログに書いた待ち（kanban ごと。同じ待ちを二度書かない）
-	skip     map[string]string // kanban を飛ばしている・留守だとログに書いた理由（kanban ごと。同じ理由を二度書かない）
-	// memory の量の線の記録の、このプロセスでの値（無ければまだ読んでいない）。ファイルに書けなくても、
-	// このプロセスの間は同じ超え方を積み直さない（memory.go）
-	memory *Memory
-	// memory の記録をファイルに書けなかった（次の巡の memory の段で書き直す）
+	unwaited      map[string]string
+	skip          map[string]string
+	memory        *Memory
 	memoryUnsaved bool
-	// 件数のきっかけの失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。retro.go）
-	retroLogged map[string]string
-	// Once は1回だけ回して終わる（andon dispatcher --once）。空きの段は、起動し直した最初の回に数えない（idle.go）
-	Once bool
-	// 空きの段で、このプロセスが一度でも見た kanban（無ければ起動し直した最初の回。idle.go）
-	idleSeen map[string]bool
-	// 空きの段の失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。idle.go）
-	idleLogged map[string]string
-	// OtelPrune はハーネスの生の記録の寿命の片付け（無ければ otel.PruneDue。検査が失敗を返す片付けに替える。otel.go）
-	OtelPrune func(project string, now time.Time, limits func() otel.Limits) (ran bool, removed int, err error)
-	// 生の記録の片付けの失敗をログに書いた理由（kanban ごと。同じ理由を二度書かない。otel.go）
-	pruneLogged map[string]string
+	retroLogged   map[string]string
+	Once          bool
+	idleSeen      map[string]bool
+	idleLogged    map[string]string
+	OtelPrune     func(project string, now time.Time, limits func() otel.Limits) (ran bool, removed int, err error)
+	pruneLogged   map[string]string
 }
 
-// cosDown は Chief of Staff の端末が無い（留守）理由。hc が端末を無い（not_found）・live でないと答えたときだけ返す。
-// hc get が一時に落ちた（ほかのエラー・形が読めない）ときは unsure に理由を返し、留守にしない（取り違えて留守の記録を作らない）。
 func cosDown(cos string) (reason, unsure string) {
 	cmd := exec.Command("hc", "get", cos, "--json")
 	cmd.Env = withoutTerminal()
@@ -197,8 +180,6 @@ func cosDown(cos string) (reason, unsure string) {
 	return "", ""
 }
 
-// skipped は kanban を丸ごと飛ばし始めたとき（chief_of_staff が設定に無い）ログに1行と、オーナーに気づける通知を1つ出す。
-// 同じ理由が続く間は出さない。
 func (p *project) skipped(reason string) {
 	if p.c.skip[p.l.Slug] == reason {
 		return
@@ -207,7 +188,7 @@ func (p *project) skipped(reason string) {
 	p.logf("kanban を飛ばす（%s。レビュアーもオーナーのマージも拾わない）", reason)
 	cmd := exec.Command("herdr", "notification", "show", "andon dispatcher: "+p.l.Slug+" を飛ばしている", "--body", reason)
 	cmd.Env = withoutTerminal()
-	_ = cmd.Run() // herdr が無い・失敗でも巡は続ける（ログの1行は出ている）
+	_ = cmd.Run()
 }
 
 // absent は Chief of Staff の留守に入ったとき（理由が変わったときも）ログに1行だけ出す（ADR-0017 決めたこと 8）。
@@ -228,7 +209,6 @@ func (c *Dispatcher) mark(slug, reason string) {
 
 func (c *Dispatcher) logf(format string, a ...any) { c.logIn(time.UTC, format, a...) }
 
-// logIn は行の頭に秒までの時刻（RFC 3339。loc の時刻）を付けて書く。機械が読む記録（控え・log.jsonl）は変えない。
 func (c *Dispatcher) logIn(loc *time.Location, format string, a ...any) {
 	now := time.Now
 	if c.Now != nil {
@@ -237,7 +217,6 @@ func (c *Dispatcher) logIn(loc *time.Location, format string, a ...any) {
 	fmt.Fprintf(c.Log, now().In(loc).Format(time.RFC3339)+" andon dispatcher: "+format+"\n", a...)
 }
 
-// location は kanban の config.yaml の timezone（無い・読めなければ UTC）。
 func (l *project) location() *time.Location {
 	if tz := l.l.Timezone(); tz != "" && tz != "Local" {
 		if loc, err := time.LoadLocation(tz); err == nil {
@@ -247,7 +226,6 @@ func (l *project) location() *time.Location {
 	return time.UTC
 }
 
-// Pass はセルの kanban を1回ずつ回す。動いている課題（doing・review）があれば busy。
 func (c *Dispatcher) Pass(only string) bool {
 	cfgs, _ := filepath.Glob(filepath.Join(c.WS, "projects", "*", "kanban", "config.yaml"))
 	sort.Strings(cfgs)
@@ -268,14 +246,12 @@ func (c *Dispatcher) Pass(only string) bool {
 	return busy
 }
 
-// project は1つの kanban を1回回す間のもの。
 type project struct {
-	c     *Dispatcher
-	l     *ledger.Ledger
-	st    *State
-	first bool
-	away  bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
-	// memory の段が変えた memory の量の線の記録（無ければ変えていない）。控えの保存のあとに書く（memory.go）
+	c          *Dispatcher
+	l          *ledger.Ledger
+	st         *State
+	first      bool
+	away       bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
 	memoryOver *bool
 	rows       []ledger.Row
 	tasks      []ledger.Issue
@@ -297,7 +273,6 @@ func (p *project) pass() (bool, error) {
 		p.away = true
 		p.absent(cos, reason) // 配る段だけ飛ばす（dispatcher.md §2.1）
 	case unsure != "":
-		// 留守かを確かめられない（hc get の一時の失敗）: 留守と取り違えないよう、この巡はこの kanban を回さない（次の巡で確かめ直す）。ログは同じ理由に1回
 		if p.c.skip[p.l.Slug] != unsure {
 			p.c.mark(p.l.Slug, unsure)
 			p.logf("Chief of Staff の端末を確かめられない（%s）。この巡はこの kanban を回さない", unsure)
@@ -306,7 +281,7 @@ func (p *project) pass() (bool, error) {
 	default:
 		delete(p.c.skip, p.l.Slug)
 	}
-	unlock, err := lockState(p.l.Slug, 0) // drain（フック）と控えを取り合わない
+	unlock, err := lockState(p.l.Slug, 0)
 	if err != nil {
 		return false, err
 	}
@@ -410,7 +385,6 @@ func (p *project) gated(t ledger.Issue) bool {
 	return !isReviewer(t) && !isEngineer(t) && t.Str("repo") != "" && ledger.SettingsOf(t).Deliverable != "candidates"
 }
 
-// isEngineer は Chief Engineer の課題（profile chief-engineer）か。
 func isEngineer(t ledger.Issue) bool {
 	return t.Str("profile") == "chief-engineer"
 }
@@ -424,7 +398,6 @@ func (p *project) trusted(t ledger.Issue, key string) bool {
 	return t.Str(key) == "" || p.l.Trusted(p.rows, t, key)
 }
 
-// notify は通知を扱いの表（route.go）のとおりに、控えに積む（同じ課題の同じ出来事は新しい1件に置き換える）か記録だけにする。
 func (p *project) notify(task, kind string, detail map[string]any) {
 	p.put(Notification{At: now(), Project: p.l.Slug, Issue: task, Kind: kind, Detail: detail}, p.facts(task))
 }
@@ -435,7 +408,6 @@ func (p *project) reportPath(id string) string {
 
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05Z") }
 
-// run はコマンドを打ち、stdout と終了コードを返す。err は打てなかったときと 0 以外のとき（stderr の1行目つき）。
 func run(dir string, env []string, stdin string, name string, args ...string) (string, int, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
@@ -459,7 +431,6 @@ func run(dir string, env []string, stdin string, name string, args ...string) (s
 	return string(out), 0, nil
 }
 
-// runError は run の err。Error は stderr の1行目まで、Stderr は stderr の全部。
 type runError struct {
 	msg    string
 	Stderr string
@@ -467,12 +438,10 @@ type runError struct {
 
 func (e *runError) Error() string { return e.msg }
 
-// andon は自分（andon）をこの kanban の根で打つ（by は terminal:dispatcher）。
 func (p *project) andon(stdin string, args ...string) (string, int, error) {
 	return run(p.l.Root, []string{"KANBAN_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
 }
 
-// prHead は PR の head（gh pr view）。
 func prHead(pr string) (string, error) {
 	out, _, err := run("", nil, "", "gh", "pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid")
 	sha := strings.TrimSpace(out)
@@ -482,7 +451,6 @@ func prHead(pr string) (string, error) {
 	return sha, nil
 }
 
-// repoDir は $GHQ_ROOT（無ければ ghq root）/<repo>。
 func repoDir(repo string) (string, error) {
 	root := os.Getenv("GHQ_ROOT")
 	if root == "" {

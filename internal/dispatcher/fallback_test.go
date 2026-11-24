@@ -13,7 +13,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 偽の hc に kill・rm・run を足し、偽の kanban の CLI を置く。どちらも $FAKE_HC/log に1行ずつ書く。
 const fallbackHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -58,12 +57,12 @@ func TestFallbackRule(t *testing.T) {
 		impl, reviewer, want string
 		ok                   bool
 	}{
-		{"claude", "codex-review", "", false}, // claude-review は担当と同じブランド
+		{"claude", "codex-review", "", false},
 		{"sonnet", "codex-review", "", false},
 		{"codex", "codex-review", "claude-review", true},
 		{"codex", "claude-review", "", false},
 		{"claude", "claude-review", "codex-review", true},
-		{"codex", "reviewer", "", false}, // 知らないプロファイルは起動し直さない
+		{"codex", "reviewer", "", false},
 	} {
 		if got, ok := Fallback(c.impl, c.reviewer); got != c.want || ok != c.ok {
 			t.Errorf("Fallback(%q, %q) = %q, %v; want %q, %v", c.impl, c.reviewer, got, ok, c.want, c.ok)
@@ -77,7 +76,6 @@ func TestFallbackRule(t *testing.T) {
 	}
 }
 
-// 担当が claude 系で codex-review が上限: claude-review へは逃げず、今どおり Chief of Staff へ error を知らせる。
 func TestFallbackKeepsBrand(t *testing.T) {
 	f := newFallback(t, "claude")
 	if got := f.at(0, ""); got != nil {
@@ -91,7 +89,6 @@ func TestFallbackKeepsBrand(t *testing.T) {
 	}
 }
 
-// 担当が codex 系で codex-review が上限: 端末を片付け、profile と逃げた理由を kanban に書き、claude-review で起動し直す。知らせない。
 func TestFallbackRestarts(t *testing.T) {
 	f := newFallback(t, "codex")
 	got := f.at(0, "")
@@ -108,7 +105,7 @@ func TestFallbackRestarts(t *testing.T) {
 	if m == nil {
 		t.Fatalf("hc run に session のラベルが無い: %q", got[3])
 	}
-	if last := got[len(got)-1]; last != "kanban set S-7-r1 agent=t60 session="+m[1] { // 最初のメッセージは複数行なので run の行は割れる
+	if last := got[len(got)-1]; last != "kanban set S-7-r1 agent=t60 session="+m[1] {
 		t.Fatalf("agent と session を替えていない: %q", last)
 	}
 	if len(f.p.st.Pending) != 0 {
@@ -129,7 +126,6 @@ func TestFallbackRestarts(t *testing.T) {
 	}
 }
 
-// 起動し直したあと kanban の agent を書けなければ、起動した端末を片付けて起動し直さなかったことにする（今の見回りは error を知らせる）。
 func TestFallbackAgentNotRecorded(t *testing.T) {
 	f := newFallback(t, "codex")
 	if err := os.WriteFile(filepath.Join(f.d, "set-agent-fails"), nil, 0o644); err != nil {

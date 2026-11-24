@@ -52,7 +52,6 @@ func (p *project) signals(at time.Time) {
 	}
 }
 
-// hasSignals は project.json に空でない signals があるか（形は確かめない。読めなければ無い）。
 func hasSignals(path string) bool {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -74,5 +73,4 @@ func signalNotification(slug string, r signal.Record, at time.Time) Notification
 	return Notification{At: at.UTC().Format("2006-01-02T15:04:05Z"), Project: slug, Kind: "signal", Detail: d}
 }
 
-// oneLine は出力を1行にまとめる（ログ用）。
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

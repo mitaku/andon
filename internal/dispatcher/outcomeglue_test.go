@@ -10,10 +10,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// 結果の記録の段のつなぎ: done の行で控えた課題ごとに、report.json の PR を gh で読み、gate の記録・レビュアーの子課題の数・
-// 実働・起動の記録とセッションログ（HOME の下）を集めて outcome.json を1回書く（書く前の照合を通る形）。結果は PR の状態で
-// merged・closed・open・none の4通り。オーナーの課題には書かない。書いた課題は控えから外し、2巡目でも書き直さない。
-// gh が落ちたら書かずに次の見回りで1回だけ打ち直し、それも落ちたらログに1行で諦める（書かない・控えから外す）。
 func TestOutcomeWritesOncePerDone(t *testing.T) {
 	head, merge := strings.Repeat("a", 40), strings.Repeat("c", 40)
 	tools := newScripted(t, "gh")
@@ -84,7 +80,6 @@ func TestOutcomeWritesOncePerDone(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(p.l.Library("D-0006"), outcomeFile)); err == nil || asJSON(t, p.st.Outcomes) != `{"D-0006":1}` {
 		t.Errorf("gh が落ちたのに書いた・回数を控えていない: %v", p.st.Outcomes)
 	}
-	// 2巡目: 書いた課題を控えに戻しても書き直さない。gh が続けて落ちた課題は諦めてログに1行（書かない・控えから外す）
 	before, _ := os.ReadFile(filepath.Join(p.l.Library("D-0003"), outcomeFile))
 	p.st.Outcomes.Add("D-0003")
 	p.outcomes()
@@ -97,7 +92,6 @@ func TestOutcomeWritesOncePerDone(t *testing.T) {
 	if !strings.Contains(log.String(), "D-0006 の結果を集められない（2 回打って失敗") {
 		t.Errorf("諦めたことがログに無い: %s", log.String())
 	}
-	// 1回目が落ちても、次の見回りで gh が戻れば書く
 	p.st.Outcomes.Add("D-0006")
 	p.st.Outcomes.Fail("D-0006", outcomeTries)
 	tools.reply("gh pr view 6 --repo example/app --json state,mergeCommit,mergedAt", `{"state":"OPEN","mergeCommit":null,"mergedAt":null}`)

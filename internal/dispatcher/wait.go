@@ -15,7 +15,6 @@ import (
 	"andon/internal/flock"
 )
 
-// WaitUsage は andon dispatcher wait の使い方。
 const WaitUsage = "usage: andon dispatcher wait [--timeout <秒>] [--project <slug>]\n" +
 	"Chief of Staff の Stop フックが asyncRewake で起動する待ち役（package/hooks/stop-wait。contract.md §9。ADR-0019 決めたこと 1・8・9）。\n" +
 	"届ける通知が待ちにあり、Chief of Staff の端末が idle か done で、控えの lock をほかに持たれていなければ（見回りの巡の間は待つ）、合図の1行を stderr に書いて終了コード 2 で終わる\n" +
@@ -31,13 +30,11 @@ const (
 	WaitRearm  = "andon: 待ち役の張り直し。これは合図で、オーナーの依頼ではない。何も書かずにターンを終える。"
 )
 
-// waitPoll は待ち役が控えと端末を読み直す間。waitUnit は --timeout の1単位（テストで縮める）。
 var (
 	waitPoll = time.Second
 	waitUnit = time.Second
 )
 
-// waiter は待ち役の届け（<slug>.json.wait）。後から起きた待ち役が書き替え、前の待ち役は自分の印でなくなったら終わる。
 type waiter struct {
 	Terminal string `json:"terminal"`
 	PID      int    `json:"pid"`
@@ -58,7 +55,6 @@ func readWaiter(slug string) (*waiter, error) {
 	return &w, nil
 }
 
-// liveWaiter は、端末 addr の待ち役が生きているか（届けがあり、その pid のプロセスがある）。dispatcher のログのためだけに読む。
 func liveWaiter(slug, addr string) bool {
 	w, err := readWaiter(slug)
 	if err != nil || w.Terminal != addr || w.PID <= 0 {
@@ -114,8 +110,6 @@ func WaitMain(args []string, stdin io.Reader, stderr io.Writer) int {
 	return wait(slug, addr, deadline, last, stderr)
 }
 
-// stateLocked は、控えの lock をほかの誰か（見回りの巡・drain）が持っているか。取れたらすぐ放す（待たない）。
-// lock のファイルが開けないなどで分からなければ false（合図を止めない）。
 func stateLocked(slug string) bool {
 	unlock, err := flock.TryLock(StatePath(slug) + ".lock")
 	if err == nil {
@@ -124,7 +118,6 @@ func stateLocked(slug string) bool {
 	return errors.Is(err, flock.ErrBusy)
 }
 
-// wait の deadline は張り直しの時刻、last は端末が読めないまま諦める時刻（フックの timeout より前）。
 func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 	me := waiter{Terminal: addr, PID: os.Getpid(), Token: fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())}
 	b, _ := json.Marshal(me)
@@ -151,12 +144,12 @@ func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 	defer tick.Stop()
 	for {
 		if !mine() {
-			return 0 // 後から起きた待ち役に替わった
+			return 0
 		}
 		st, _, err := LoadState(slug)
 		if err != nil {
 			leave()
-			return 0 // 控えが読めない: 通す（待ちは控えに残り、①②で届く）
+			return 0
 		}
 		now := time.Now()
 		late := !deadline.IsZero() && !now.Before(deadline)
@@ -169,10 +162,7 @@ func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 				leave()
 				return 0
 			case err != nil:
-				// 読めなければ次の回に読み直す（一時の失敗で待ち役をなくさない。張り直しの時刻を過ぎていても last までは）
 			case waiting && len(st.Pending) > 0 && stateLocked(slug):
-				// 見回りが控えの lock を持つ間は合図しない（起動したターンの Stop の drain が lock を待ちきれず、中身の無いターンが続く）。
-				// lock が空いた次の回に合図する。持たれたまま張り直しの時刻が来たら、張り直しの合図にする（待ち役を失わない）
 				if late {
 					leave()
 					fmt.Fprintln(stderr, WaitRearm)
@@ -187,7 +177,6 @@ func wait(slug, addr string, deadline, last time.Time, stderr io.Writer) int {
 				fmt.Fprintln(stderr, WaitRearm)
 				return 2
 			case late:
-				// 働いている・止まっている間は張り直さない（そのターンの終わりの Stop で次の待ち役が起きる）
 				leave()
 				return 0
 			}

@@ -10,7 +10,6 @@ import (
 	"andon/internal/ledger"
 )
 
-// reviewProject は担当の課題 D-0001（予約キーは Chief of Staff t5 が書いた）と、そのレビュアーの子課題を持つ kanban。
 func reviewProject(t *testing.T, log *strings.Builder, children ...ledger.Issue) *project {
 	t.Helper()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -36,8 +35,6 @@ func writeBrief(t *testing.T, p *project, id, body string) {
 	}
 }
 
-// 控えを無くしても（初めて見た kanban と同じ）、kanban にその commit のレビュアーの子課題がもういれば、巡は子課題を引き継いで
-// 控えに書き、ログに1行残し、hc run を打たない（二重に起動しない）。Adopt の判定だけでなく、巡がそれを使うつなぎを見る。
 func TestReviewRequestAdoptsWithoutState(t *testing.T) {
 	const c = "1111111111111111111111111111111111111111"
 	tools := newScripted(t, "hc", "gh")
@@ -61,9 +58,6 @@ func TestReviewRequestAdoptsWithoutState(t *testing.T) {
 	}
 }
 
-// レビュアーが結果（その commit の findings.json）を残さずに返ったあと、担当が同じ commit で頼み直す（報告の行が増える）と、
-// 巡は前の子課題を引き継がず、頼み直した回の新しいレビュアーとして起動しに行く（控えの子課題と端末を捨て、回を持ち替える）。
-// ここでは PR の head を読めずに起動の途中で止まり、次の見回りで続きから起動する形で控える。頼み直す前は起動しない（TestRetry）。
 func TestReviewRequestRestartsAfterEmptyReturn(t *testing.T) {
 	const c = "1111111111111111111111111111111111111111"
 	tools := newScripted(t, "hc", "gh")
@@ -72,7 +66,7 @@ func TestReviewRequestRestartsAfterEmptyReturn(t *testing.T) {
 	writeBrief(t, p, "D-0001-r1", "対象: worktree `x`（detached）。commit "+c+"。差分は")
 	key := "D-0001@" + c
 	p.st.Reviewers[key] = Reviewer{Issue: "D-0001", Commit: c, Round: 1, ReviewerIssue: "D-0001-r1", Address: "t9", Started: true, Row: 1}
-	p.rows = append(p.rows, ledger.Row{ID: "D-0001", By: "terminal:t7", Change: map[string]any{"report": "write"}}) // 頼み直した（行が増えた）
+	p.rows = append(p.rows, ledger.Row{ID: "D-0001", By: "terminal:t7", Change: map[string]any{"report": "write"}})
 	rep := &contract.Report{PR: "https://github.com/example/app/pull/7", ReviewRequest: &contract.ReviewRequest{Round: 2, Limit: 2, Commit: c, Reviewer: "codex-review"}}
 	p.reviewRequest(p.tasks[0], rep)
 	r := p.st.Reviewers[key]

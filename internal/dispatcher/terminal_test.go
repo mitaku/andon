@@ -11,9 +11,6 @@ import (
 	"andon/internal/flock"
 )
 
-// 偽の hc: get dispatcher は $D/term（無ければ not_found）を返す。run・send・keep・kill・rm は打たれたものを $D/log に1行ずつ。
-// rm は $D/term を消す（片付けた端末は無くなる）。
-// get が n 回目のとき $D/term.<n> があれば、それを $D/term にしてから返す（あとで前に出ているものが取れる・替わる）。
 const ensureHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -30,7 +27,6 @@ func newEnsure(t *testing.T) (d string, round func() (string, []string, error)) 
 	return newEnsureWait(t, 0)
 }
 
-// newEnsureWait は round の Ensure に wait を渡す（前に出ているものを読み直す上限）。
 func newEnsureWait(t *testing.T, wait time.Duration) (d string, round func() (string, []string, error)) {
 	t.Helper()
 	d = t.TempDir()
@@ -61,7 +57,6 @@ func newEnsureWait(t *testing.T, wait time.Duration) (d string, round func() (st
 	}
 }
 
-// putTerm は置き場のラベルが /srv/plant の Place（kanban なし: セルの名前の Space）に合う端末を置く。
 func putTerm(t *testing.T, path, fg string) {
 	t.Helper()
 	putTermAt(t, path, fg, "andon-testplant-plant", "andon-testplant-dispatcher")
@@ -84,19 +79,16 @@ func TestEnsureDispatcher(t *testing.T) {
 	d, round := newEnsure(t)
 	term := filepath.Join(d, "term")
 
-	// 端末が無い: 起動する
 	did, calls, err := round()
 	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher" {
 		t.Fatalf("端末が無いとき: %q %q %v", did, calls, err)
 	}
 
-	// 中身が andon dispatcher: 何もしない
 	putTerm(t, term, fgDispatcher)
 	if did, calls, err := round(); err != nil || did != "" || calls != nil {
 		t.Fatalf("動いているとき: %q %q %v", did, calls, err)
 	}
 
-	// 端末はあるが中身がシェル（core が起き直して hc keep が替えた）: シェルには打ち込まず、片付けて同じ名前・ラベルで起動し直す
 	putTerm(t, term, fgShell)
 	did, calls, err = round()
 	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher"}
@@ -109,18 +101,15 @@ func TestEnsureDispatcher(t *testing.T) {
 		}
 	}
 
-	// 前に何も出ていない（替わる途中）: 触らないが、動いているとも言わない（ErrUnsure）
 	putTerm(t, term, "null")
 	if did, calls, err := round(); !errors.Is(err, ErrUnsure) || did != "" || calls != nil {
 		t.Fatalf("前に何も出ていないとき: %q %q %v", did, calls, err)
 	}
-	// 別のものが出ている: 触らない
 	putTerm(t, term, `{"name":"vim","argv":["vim"]}`)
 	if did, calls, err := round(); err == nil || did != "" || calls != nil {
 		t.Fatalf("別のものが出ているとき: %q %q %v", did, calls, err)
 	}
 
-	// 終わった端末（keep が外れて中身が抜けた）: 起動し直す
 	if err := os.WriteFile(term, []byte(`{"state":"finished","foreground":null}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +118,6 @@ func TestEnsureDispatcher(t *testing.T) {
 	}
 }
 
-// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。動いているとはみなさず、片付けて起動し直す。
 func TestEnsureSettlesThenRestarts(t *testing.T) {
 	d, round := newEnsureWait(t, time.Second)
 	putTerm(t, filepath.Join(d, "term"), "null")
@@ -140,7 +128,6 @@ func TestEnsureSettlesThenRestarts(t *testing.T) {
 	}
 }
 
-// 待っても前に出ているものが取れない: 何も打たず ErrUnsure（「すでに動いている」にしない）。
 func TestEnsureUnsureAfterWait(t *testing.T) {
 	d, round := newEnsureWait(t, 50*time.Millisecond)
 	putTerm(t, filepath.Join(d, "term"), "null")
@@ -153,7 +140,6 @@ func TestEnsureUnsureAfterWait(t *testing.T) {
 	}
 }
 
-// ほかが確かめている間（lock を持っている間）は何もしない（boot と複数の Chief of Staff のフックが重なっても二重に打たない）。
 func TestEnsureLocked(t *testing.T) {
 	_, round := newEnsure(t)
 	unlock, err := ensureLock()
@@ -181,21 +167,19 @@ func TestIsDispatcher(t *testing.T) {
 	}
 }
 
-// lock の置き場が作れない・開けないとき（ほかが確かめている、ではない）は、何もしなかったことにせずエラーを返す。
 func TestEnsureLockError(t *testing.T) {
 	d, round := newEnsure(t)
 	notDir := filepath.Join(d, "state-is-a-file")
 	if err := os.WriteFile(notDir, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_STATE_HOME", notDir) // この下に andon/dispatcher を作れない
+	t.Setenv("XDG_STATE_HOME", notDir)
 	did, calls, err := round()
 	if err == nil || did != "" || calls != nil {
 		t.Fatalf("lock の置き場が作れないのに黙った: %q %q %v", did, calls, err)
 	}
 }
 
-// 偽の hc: ls はラベルで絞らずに3つ返す（別のプロジェクトの同じ id が先）。get は address ごとのラベルを返す。
 const liveHc = `#!/usr/bin/env bash
 case $1 in
   ls) echo "$*" >>"$FAKE_HC/log"
@@ -209,7 +193,6 @@ case $1 in
 esac
 `
 
-// 端末は project と task の両方で照らす（task の id はプロジェクトをまたいで同じことがある）。
 func TestLiveTask(t *testing.T) {
 	d := t.TempDir()
 	bin := filepath.Join(d, "bin")
@@ -236,9 +219,6 @@ func TestLiveTask(t *testing.T) {
 	}
 }
 
-// kanban の数が変わって Place が変わった（kanban なしで起きたあと andon create した）: 動いている dispatcher でも、
-// 見回りの合間なら片付けて今の Place で起動し直す。見回りの途中（PassLock を持っている）と、
-// PassLock を作らない前のバージョンの dispatcher（ファイルが無い）なら触らない。
 func TestEnsureMovesToPlace(t *testing.T) {
 	d, _ := newEnsure(t)
 	ws := t.TempDir()
@@ -257,7 +237,6 @@ func TestEnsureMovesToPlace(t *testing.T) {
 		return did, strings.TrimSpace(string(b)), err
 	}
 
-	// PassLock のファイルが無い: 動いているのは見回りの間 lock を持たない前のバージョン。止めず、理由を返す
 	if did, calls, err := round(); !errors.Is(err, ErrOldDispatcher) || did != "" || calls != "" {
 		t.Fatalf("前のバージョンの dispatcher を止めた・黙った: %q %q %v", did, calls, err)
 	}
@@ -282,14 +261,12 @@ func TestEnsureMovesToPlace(t *testing.T) {
 		u()
 	}
 
-	// 置き場が合っていれば何もしない
 	putTermAt(t, filepath.Join(d, "term"), fgDispatcher, "andon-sample-site", "andon-sample-site-dispatcher")
 	if did, calls, err := round(); err != nil || did != "" || calls != "" {
 		t.Fatalf("合っているのに打った: %q %q %v", did, calls, err)
 	}
 }
 
-// 置き場: kanban が1つなら指揮側の Space に、2つ以上（無いときも）ならセルの名前の Space に出す。
 func TestPlace(t *testing.T) {
 	hostName = func() (string, error) { return "Sample_Plant.local", nil }
 	t.Cleanup(func() { hostName = os.Hostname })

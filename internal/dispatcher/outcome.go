@@ -26,18 +26,15 @@ import (
 // 読めないもの（gh・kanban・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で諦める
 // （ファイルが無いのが「集めていない」。読み手の振り返りは無い欄を null として読む）。オーナーの課題（who: person）には書かない。
 
-// outcomeFile は結果の記録のファイルの名前。
 const outcomeFile = "outcome.json"
 
-// outcomeTries は結果の記録を集めようとする回数の上限（初めの1回 ＋ 次の見回りの1回）。
 const outcomeTries = 2
 
-// 結果（result）の値。
 const (
-	ResultMerged = "merged" // PR がマージされた
-	ResultClosed = "closed" // PR がマージされずに閉じられた
-	ResultOpen   = "open"   // PR が開いたまま片付いた
-	ResultNone   = "none"   // PR 無しで片付いた（report.json に pr が無い）
+	ResultMerged = "merged"
+	ResultClosed = "closed"
+	ResultOpen   = "open"
+	ResultNone   = "none"
 )
 
 // Outcome は結果の記録（schema/outcome.schema.json）。
@@ -54,7 +51,6 @@ type Outcome struct {
 	Sessions      *[]OutcomeSession `json:"sessions"`
 }
 
-// OutcomeGate は head ごとの gate の最後の判定（library/gate/<head>.json の写し）。
 type OutcomeGate struct {
 	Head     string   `json:"head"`
 	At       string   `json:"at"`
@@ -64,14 +60,12 @@ type OutcomeGate struct {
 	Merged   bool     `json:"merged"`
 }
 
-// OutcomeSession は起動の記録にあるセッション1つと、そのコスト（セッションログが無ければ null）。
 type OutcomeSession struct {
 	Harness string       `json:"harness"`
 	Session *string      `json:"session"`
 	Cost    *OutcomeCost `json:"cost"`
 }
 
-// OutcomeCost はセッションログから読んだコスト（数え方は andon measure と同じ。sessionlog）。
 type OutcomeCost struct {
 	Models  []string         `json:"models"`
 	Efforts []string         `json:"efforts"`
@@ -79,7 +73,6 @@ type OutcomeCost struct {
 	Tokens  sessionlog.Usage `json:"tokens"`
 }
 
-// prState は gh pr view --json state,mergeCommit,mergedAt の読む所。
 type prState struct {
 	State       string `json:"state"`
 	MergeCommit *struct {
@@ -88,7 +81,6 @@ type prState struct {
 	MergedAt string `json:"mergedAt"`
 }
 
-// Result は PR の状態から結果の値を決める（純粋関数）。pr が無ければ none。知らない状態は空（書かない）。
 func Result(hasPR bool, state string) string {
 	if !hasPR {
 		return ResultNone
@@ -104,7 +96,6 @@ func Result(hasPR bool, state string) string {
 	return ""
 }
 
-// outcomes は done になった課題（控えの Outcomes）ごとに outcome.json を書く。gh の上限で止めている間は打たない（数えない）。
 func (p *project) outcomes() {
 	if len(p.st.Outcomes) == 0 {
 		return
@@ -115,15 +106,14 @@ func (p *project) outcomes() {
 	p.st.Outcomes.Each(p.outcome)
 }
 
-// outcome は1つの課題について集めて書く。true は済んだ（控えから外す）とき。
 func (p *project) outcome(id string) bool {
 	path := filepath.Join(p.l.Library(id), outcomeFile)
 	if _, err := os.Stat(path); err == nil {
-		return true // もう書いた（同じ finish を2度拾っても書き直さない）
+		return true
 	}
 	t, err := p.issue(id)
 	if err == nil && t.Str("who") == "person" {
-		return true // オーナーの課題（エージェントが動いていない）
+		return true
 	}
 	var o *Outcome
 	if err == nil {
@@ -146,7 +136,6 @@ func (p *project) outcome(id string) bool {
 	return false
 }
 
-// issue は巡の写しから課題を引く（写しに無ければ kanban から読む）。
 func (p *project) issue(id string) (ledger.Issue, error) {
 	for _, t := range p.tasks {
 		if t.Str("id") == id {
@@ -156,7 +145,6 @@ func (p *project) issue(id string) (ledger.Issue, error) {
 	return p.l.Show(id)
 }
 
-// collectOutcome は kanban・gh・セッションログから1つの課題の結果の記録を集める。読めないものがあれば err（書かない）。
 func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 	lib := p.l.Library(id)
 	o := &Outcome{At: now(), Issue: id, Gates: []OutcomeGate{}}
@@ -220,8 +208,6 @@ func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 	return o, nil
 }
 
-// gates は library/gate/*.json を、判定の時刻の順に写す。置き場が無ければ空。置き場か記録が読めなければ err
-// （0 件の判定と、一覧できなかったことを分ける）。
 func gates(dir string) ([]OutcomeGate, error) {
 	out := []OutcomeGate{}
 	entries, err := os.ReadDir(dir)
@@ -259,10 +245,6 @@ func gates(dir string) ([]OutcomeGate, error) {
 	return out, nil
 }
 
-// workedMinutes は課題の実働（分。待ちを除く。ledger.Worked）を、最後の done の行まで数える（andon measure と同じ）。
-// 行は log.jsonl を読み直す: 巡の写しは、同じ巡で拾った done の行（写しを読んだあとに書かれたもの）を持たず、前の回の done で
-// 止まっていることがある。集計は done の行の位置で打ち切る（同じ秒にあとから書かれた行を混ぜない）。
-// 結果の記録は done の行を拾った課題にだけ書くので、log.jsonl が読めない・done の行が無いときは err（書かずに打ち直す）。
 func (p *project) workedMinutes(id string) (int, error) {
 	rows, err := p.l.ReadLog()
 	if err != nil {
@@ -290,7 +272,6 @@ type launchRow struct {
 	} `json:"repo"`
 }
 
-// readLaunches は起動の記録を読む。ファイルが無ければ nil（この仕組みの前の課題）。読めない行があれば err。
 func readLaunches(path string) ([]launchRow, error) {
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -319,7 +300,6 @@ func readLaunches(path string) ([]launchRow, error) {
 	return out, nil
 }
 
-// cwds は Codex の記録を引く cwd: kanban の issues/<id>/・issue.yaml の worktree・起動の記録の repo.path（レビュアーの detached worktree）。
 func (p *project) cwds(id string, t ledger.Issue, launches []launchRow) []string {
 	dir := filepath.Dir(p.l.Library(id))
 	if a, err := filepath.Abs(dir); err == nil {
@@ -395,7 +375,6 @@ func sessions(launches []launchRow, cwds []string, claudeDir, codexDir string) [
 	return out
 }
 
-// cost はセッションログから数えたコスト。ログが無いか読み切れなければ nil（未計測。0 トークンと分ける）。
 func cost(l *sessionlog.Log) *OutcomeCost {
 	if l == nil || l.Unread {
 		return nil

@@ -163,9 +163,6 @@ func TestCorrectionsLine(t *testing.T) {
 	}
 }
 
-// TestMachineGateAnswersMatchWriters は、機械が gate の問いを閉じる答えの書き方（internal/issue の settle と merge）を
-// ソースから読み、machineGateAnswer がそれを機械の答えと見分けることを確かめる。書き方を変えて見分けがずれるか、
-// gate の問いを閉じる書き手が増えると、機械が閉じた問いがまたオーナーの手直しに数えられるので、ここで落とす。
 func TestMachineGateAnswersMatchWriters(t *testing.T) {
 	read := func(name string) string {
 		b, err := os.ReadFile(filepath.Join("..", "issue", name))
@@ -174,8 +171,6 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 		}
 		return string(b)
 	}
-	// 書き手の数: gate の問いに答えを書くのは closeQuestion だけで、その呼び手は settle の closeAndFinish・merge の
-	// closeGateQuestions（呼び手は headMoved と holdDecision の2つ）・closeStaleGateQuestions。増えたら、その答えの形を machineGateAnswers と下に足す。
 	files, err := filepath.Glob(filepath.Join("..", "issue", "*.go"))
 	if err != nil {
 		t.Fatal(err)
@@ -196,25 +191,21 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 		t.Errorf("gate の問いを閉じる書き手の数か印が変わった: %v（前は %v）。足した書き手の答えを machineGateAnswers に足し、印は machine で書く", calls, want)
 	}
 	sha := strings.Repeat("1", 40)
-	// settle.go: c.closeQuestion(name, q.Status, "オーナーがマージした（"+pr+"）")
 	m := regexp.MustCompile(`closeQuestion\(name, q\.Status, "([^"]*)"\+pr\+"([^"]*)"\)`).FindStringSubmatch(read("settle.go"))
 	if m == nil {
 		t.Fatal("settle.go に gate の問いをマージで閉じる答えが見つからない")
 	}
 	merged := m[1] + "https://github.com/example/sample-site/pull/7" + m[2]
-	// merge.go の closeStaleGateQuestions（頭の語が変わると見つからずに落ちる）: why := fmt.Sprintf("PR の head が動いた（%s → %s）。gate が今の head で決め直した（記録 %s）", …)
 	f := regexp.MustCompile(`why := fmt\.Sprintf\("(PR の head が動いた[^"]*)",`).FindStringSubmatch(read("merge.go"))
 	if f == nil {
 		t.Fatal("merge.go に前の head の gate の問いを閉じる答えが見つからない")
 	}
 	regated := fmt.Sprintf(f[1], sha[:12], strings.Repeat("2", 12), "/k/issues/S-0001/library/gate/"+sha+".json")
-	// merge.go の headMoved: c.closeGateQuestions(fmt.Sprintf("PR の head が gate のあとに動いた（%s → %s）。gate が今の head で回し直す", …), res)
 	g := regexp.MustCompile(`c\.closeGateQuestions\(fmt\.Sprintf\("([^"]*)",`).FindStringSubmatch(read("merge.go"))
 	if g == nil {
 		t.Fatal("merge.go に head が動いて gate の問いを閉じる答えが見つからない")
 	}
 	moved := fmt.Sprintf(g[1], sha[:12], strings.Repeat("2", 12))
-	// merge.go の holdDecision: why := fmt.Sprintf("Chief of Staff が PR を止めた（理由の課題 %s）。…", reason)
 	h := regexp.MustCompile(`why := fmt\.Sprintf\("(Chief of Staff が PR を止めた[^"]*)",`).FindStringSubmatch(read("merge.go"))
 	if h == nil {
 		t.Fatal("merge.go に止めたときに gate の問いを閉じる答えが見つからない")
@@ -225,7 +216,6 @@ func TestMachineGateAnswersMatchWriters(t *testing.T) {
 			t.Errorf("機械が閉じた答えを見分けない: %q", a)
 		}
 	}
-	// 見分けが広すぎないこと: オーナーが書いた答え（推奨案・ほかの案・文の頭だけ同じもの）は機械の答えでない
 	for _, a := range []string{"オーナーが PR を読んでマージする", "担当に直させる（理由を Chief of Staff が返す）", merged + "。でも次からは直させる", "PR の head が動いた（前のはだめ）", "Chief of Staff が PR を止めた（理由の課題 S-0002）"} {
 		if machineGateAnswer(a) {
 			t.Errorf("オーナーの答えを機械の答えと見分けた: %q", a)

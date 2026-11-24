@@ -16,17 +16,16 @@ import (
 type Route int
 
 const (
-	Deliver Route = iota // 控えに積み、<news> で Chief of Staff に届ける
-	Record               // 記録だけ（<slug>.recorded.jsonl に1行。届けない）
-	Wait                 // 記録だけにして、approveWait たっても merged も asked も無ければ届ける
+	Deliver Route = iota
+	Record
+	Wait
 )
 
-// Facts は扱いを決めるのに使う、kind のほかの事実（今あるキーから。新しいキーは足さない）。
 type Facts struct {
-	Gated     bool // dispatcher が gate を回す課題（gated。Chief Engineer・レビュアー・repo の無い課題・調べる課題でない）
-	Reviewer  bool // レビュアーの課題（isReviewer）
-	AutoMerge bool // gate の approve のあと dispatcher がマージに進む（merge: auto を Chief of Staff が書いた・委譲の範囲内）
-	Engineer  bool // Chief Engineer の課題（profile chief-engineer）
+	Gated     bool
+	Reviewer  bool
+	AutoMerge bool
+	Engineer  bool
 }
 
 // RouteOf は通知の扱いの表（ADR-0010 決めたこと 1・7）。表に無い kind は届ける（安全側）。
@@ -43,10 +42,10 @@ func RouteOf(n Notification, f Facts) Route {
 		switch n.Detail["decision"] {
 		case "fix":
 			if u, ok := n.Detail["unsent"]; ok && u != nil && u != "" {
-				return Deliver // 担当に送れなかった（担当の端末が無い）。誰にも届かず review のまま止まらないように
+				return Deliver
 			}
 			if n.Detail["no_agent"] == true {
-				return Deliver // 担当（agent）がいない。unsent と同じく、誰にも届かず止まらないように
+				return Deliver
 			}
 			return Record
 		case "needs_human":
@@ -62,7 +61,7 @@ func RouteOf(n Notification, f Facts) Route {
 			return Deliver // 片付けていない（ADR-0010 決めたこと 7）
 		}
 		if f.Engineer {
-			return Deliver // Chief Engineer の文書の PR をオーナーがマージした。impact は回らないので、片付いたことはこれだけで届く
+			return Deliver
 		}
 		return Record
 	case "report":
@@ -87,7 +86,6 @@ func RecordedPath(slug string) string {
 	return strings.TrimSuffix(StatePath(slug), ".json") + ".recorded.jsonl"
 }
 
-// facts は課題 id の Facts（gate の AutoMerge は呼び手が足す）。
 func (p *project) facts(id string) Facts {
 	for _, t := range p.tasks {
 		if t.Str("id") == id {
@@ -97,24 +95,20 @@ func (p *project) facts(id string) Facts {
 	return Facts{}
 }
 
-// put は通知を表のとおりに積む・記録する。
 func (p *project) put(n Notification, f Facts) {
 	switch RouteOf(n, f) {
 	case Deliver:
 		p.st.Push(n)
-	case Record, Wait: // Wait の 10 分は stuck が andon issue merge の記録の approved で測る
+	case Record, Wait:
 		p.record(n)
 	}
 }
 
-// record は通知を記録だけの置き場に1行足す（追記だけ。書き手は dispatcher だけ）。書けなければ控えの Unrecorded に残し、
-// 次に書くとき（record・見回りの flush）に先に書く（記録から落とさない。順も保つ）。
 func (p *project) record(n Notification) {
 	p.st.Unrecorded = append(p.st.Unrecorded, n)
 	p.flush()
 }
 
-// flush は控えの Unrecorded を記録だけの置き場にまとめて追記する。書けたら空にする。
 func (p *project) flush() {
 	if len(p.st.Unrecorded) == 0 {
 		return
@@ -123,7 +117,6 @@ func (p *project) flush() {
 	for i, n := range p.st.Unrecorded {
 		b, err := contract.EncodeLine(contract.SchemaNotification, n)
 		if err != nil {
-			// 控えの保存（State.Save）も同じ通知で落ちるので、巡は誤りで終わる（書かずに止まる）
 			p.logf("記録だけの通知が schema に合わない（%d 件を書かずに控えに残す）: %v", len(p.st.Unrecorded), err)
 			return
 		}
@@ -136,13 +129,8 @@ func (p *project) flush() {
 	p.st.Unrecorded = nil
 }
 
-// write はファイルへの書き込み（テストが一部だけ書いて失敗する書き手に替える）。
 var write = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
 
-// appendLines は lines を1行ずつ path に追記する。
-//   - 前に書けていた分は書かない: ファイルの末尾が lines の先頭の何行かと同じなら、その行を飛ばす
-//     （追記のあと控えを保存する前に落ちた・前の回が書けたのに失敗を返した、を二重に書かない）。
-//   - 一部だけ書いて失敗したら、書く前の大きさに切り詰める（半端な行を残さない）。
 func appendLines(path string, lines [][]byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -166,7 +154,7 @@ func appendLines(path string, lines [][]byte) error {
 		return err
 	}
 	done := 0
-	for k, n := len(lines), len(all); k > 0; k-- { // 書けていた先頭の k 行（長い順に照らす）
+	for k, n := len(lines), len(all); k > 0; k-- {
 		if bytes.HasSuffix(tail, all[:n]) && lineStart(f, size-int64(n)) {
 			done = n
 			break
@@ -186,7 +174,6 @@ func appendLines(path string, lines [][]byte) error {
 	return f.Sync()
 }
 
-// lineStart は path の off の1つ前が改行か（off が行の頭か）。
 func lineStart(f *os.File, off int64) bool {
 	if off == 0 {
 		return true
@@ -200,7 +187,7 @@ func lineStart(f *os.File, off int64) bool {
 // 決まらない（マージ・問い・別の答えのどれも無い）課題を、通知 `gate` として1回だけ届ける（配る側が merge の記録を読む。ADR-0017 決めたこと 6）。
 // 同じ approved では二度届けない（控えの Stuck）。review にいない課題は見ない。
 func (p *project) stuck(now time.Time) {
-	p.flush() // 前に書けなかった記録
+	p.flush()
 	rec := map[string]contract.Merging{}
 	if b, err := os.ReadFile(MergePath(p.l.Slug)); err == nil {
 		if err := json.Unmarshal(b, &rec); err != nil {
