@@ -1,0 +1,73 @@
+tests/adr-index.sh	d41=$(ls docs/decisions/*-adr-0041-*.md 2>/dev/null | head -1)
+tests/andon-create.sh	[ "$(git -C "$ws" rev-parse HEAD)" = "$head0" ] && [ -z "$(git -C "$ws" diff --cached --name-only)" ] && git -C "$ws" status --porcelain --untracked-files=all | grep -qx '' && ! git -C "$ws" status --porcelain --untracked-files=all | grep -q kanban/ && pass "commit しない（project.json は未追跡、kanban/ は git の外）" || fail "git: $(git -C "$ws" status --porcelain --untracked-files=all)"
+tests/andon-create.sh	"$andon" delegate show --project sample-site 2>&1 | grep -q '' && pass "commit 前の andon delegate show は無委譲" || fail "delegate show"
+tests/andon-dispatcher.sh	[ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die ''
+tests/andon-dispatcher.sh	grep "^run " "$tmp/hc/log" | grep -q -- "--label issue=$rev " && ! grep "^run " "$tmp/hc/log" | grep -q -- '' ||
+tests/andon-dispatcher.sh	grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --label herdr.tab=andon-demo-$id --cwd " && ! grep "^run " "$tmp/hc/log" | grep -q '' ||
+tests/andon-dispatcher.sh	kanban questions --json 2>/dev/null | jq -e --arg t "$id" '' >/dev/null || kanban questions | grep -q "$id" || die ''
+tests/andon-dispatcher.sh	lastmark "$head" | grep -q '' ||
+tests/andon-dispatcher.sh	[ "$(marks "$head")" = $((n + 1)) ] && lastmark "$head" | grep -q '' ||
+tests/andon-dispatcher.sh	[ "$(marks "$head")" = $((n + 1)) ] && lastmark "$head" | grep -q '' ||
+tests/andon-dispatcher.sh	[ "$(marks "$head")" = 1 ] && lastmark "$head" | grep -q '' ||
+tests/andon-dispatcher.sh	[ "$(marks "$head")" = 2 ] && lastmark "$head" | grep -q '' && kanban show "$ce2" --json | jq -e '' >/dev/null ||
+tests/andon-dispatcher.sh	kanban show "$hd" --json | jq -e '' >/dev/null && lastmark "$head" | grep -q '' || die ''
+tests/andon-dispatcher.sh	[ "$(marks "$head")" = $((n + 1)) ] && lastmark "$head" | grep -q '' ||
+tests/andon-dispatcher.sh	lastmark "$head" | grep -q '' || die "外したあと gate が印を書かない: $(lastmark "$head")"
+tests/andon-dispatcher.sh	lastmark "$head" | grep -q '' || die ''
+tests/andon-dispatcher.sh	lastmark "$head" | grep -q '' || die "止める口が黄を書かない: $(lastmark "$head")"
+tests/andon-dispatcher.sh	grep -A2 "^$addr \[dispatcher\] 課題" "$tmp/hc/sent" | grep -q "^先に \`.*/skills/worker/SKILL.md\` を読む。" || die "送り直した文がレビュアーの最初のメッセージでない（$first）"
+tests/andon-dispatcher.sh	! grep '' "$tmp/hc/log" | tail -n 1 | grep -q '' || die "担当の端末のラベルが読めないのに herdr.space・herdr.tab を付けた: $(grep ^run "$tmp/hc/log" | tail -n 1)"
+tests/andon-dispatcher.sh	! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '' || die ''
+tests/andon-dispatcher.sh	ups p1 | grep -q "$id report:" || die ''
+tests/andon-dispatcher.sh	ups p2 | grep -q "$id report:" || die ''
+tests/andon-dispatcher.sh	ups p3 | grep -q "$id report:" && die ''
+tests/andon-dispatcher.sh	out=$(HC_TERMINAL_ID=t5 "$andon" news ack) && tail -1 "$tmp/hc/labels" | grep -qx '' || die "Chief of Staff の端末に news.ack=<turn> を書かない: $out"
+tests/andon-dispatcher.sh	tail -1 "$tmp/hc/labels" | grep -qx '' || die ''
+tests/andon-dispatcher.sh	! tail -n +"$((logs + 1))" "$tmp/dispatcher.log" | grep -q '' || die ''
+tests/andon-gate.sh	grep '' "$tmp/gh/posted" | grep -q '' ||
+tests/andon-gate.sh	jq -r '' "$rec" | grep -qE "$inside" || die ''
+tests/andon-gate.sh	head -n 1 "$tmp/gh/bodies" | grep -q '' || die "コメントの見出しが違う: $(cat "$tmp/gh/bodies")"
+tests/andon-gate.sh	grep '' "$tmp/gh/posted" | grep -q '' || die "status の説明文が違う: $(cat "$tmp/gh/posted")"
+tests/andon-gate.sh	git -C "$tmp/plant" log -1 --format=%B | grep -q ''
+tests/andon-gate.sh	"$andon" delegate show | grep -q "名指し $grant merge C: $id" || die "show に名指しが出ない: $("$andon" delegate show)"
+tests/andon-issue.sh	head -2 "kanban/issues/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
+tests/andon-issue.sh	head -2 "kanban/issues/$id3/report.md" | grep -q ''
+tests/andon-issue.sh	"$andon" issue ask "$id" - <<<"$q" | grep -q "$id#1"
+tests/andon-issue.sh	"$andon" issue candidates "$fx" - <<<"$cands" | grep -q ''
+tests/andon-issue.sh	"$andon" issue ask "$fx" - <<<"$sq" | grep -q "$fx#1"
+tests/andon-issue.sh	[ "$(cat "$ANDON_WORKSPACE/.worktrees/.gitignore")" = '' ] && ! git -C "$ANDON_WORKSPACE" status --short | grep -q worktrees || die "置き場の .gitignore が * でないか、セルの repo の git status に出る: $(git -C "$ANDON_WORKSPACE" status --short)"
+tests/andon-issue.sh	! grep "issue=$s4 " "$tmp/hc/log" | grep -q '' || die ''
+tests/andon-issue.sh	[[ $sess =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] && grep "issue=$r1 " "$tmp/hc/log" | grep -q -- "--label session=$sess --cwd $rwt claude " || die "start が Claude 系にセッションの id を渡して kanban に書いていない: session=$sess $(grep "issue=$r1 " "$tmp/hc/log")"
+tests/andon-issue.sh	! tail -n +"$((hcn + 1))" "$tmp/hc/log" | grep -qv '' && [ "$(wc -l < kanban/log.jsonl)" = "$before" ] && [ ! -e "$rwt" ] || die "resume --dry-run が読むほかに hc を打ったか何かを作った: $(tail -n +"$((hcn + 1))" "$tmp/hc/log")"
+tests/andon-measure.sh	head -1 "$tmp/table" | grep -q ''
+tests/andon-measure.sh	grep '' "$tmp/table" | grep -q ''
+tests/andon-measure.sh	grep '' "$tmp/empty.table" | grep -q ''
+tests/andon-triage.sh	verdict "$triage" "$todo_key" ok | grep -q ''
+tests/andon-triage.sh	tail -1 "kanban/issues/$todo/report.md" | grep -q ''
+tests/andon-triage.sh	awk '' "$tmp/judge-md" | grep -q ''
+tests/andon-triage.sh	awk '' "$tmp/judge-md" | grep -q ''
+tests/andon-triage.sh	verdict "$again" "$(jq -r .key <<<"$r2")" overturn | grep -q ''
+tests/andon-triage.sh	tail -1 "kanban/issues/$o_open/report.md" | grep -q ''
+tests/andon-waiting.sh	KANBAN_ROOT=$tmp/empty "$andon" waiting | grep -q ''
+tests/apply-main.sh	if [ "$(jq -r .commit "$rec")" = "$c1" ] && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ] && jq -r .applied_at "$rec" | grep -Eq ''; then
+tests/apply-main.sh	if [ "$(jq -c '[.previous[].commit]' "$rec")" = "[\"$c3\",\"$c1\"]" ] && [ "$(jq -r '.previous[1].applied_at' "$rec")" = "$at1" ] && [ "$(jq -r .commit "$rec")" = "$c3" ] && [ "$(jq -r '[., .previous[]] | all(.switched_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$"))' "$rec")" = true ] && [ "$(jq -r '.switched_at >= .applied_at' "$rec")" = true ] && [ "$(sed -n 's/.*"commit": *"\([0-9a-f]*\)".*/\1/p' "$rec" | head -1)" = "$c3" ]; then
+tests/ci.sh	"$gobin" list -deps ./internal/dispatcher | grep -qx "$mod/internal/triage" || die "go list -deps が import を出さない"
+tests/ci.sh	grep -A3 "^== $tmp/a.sh" <<<"$out" | tail -3 | tr '' '' | grep -qx '' || die "a.sh の出力がまとまっていない: $out"
+tests/ci.sh	grep -A3 "^== $tmp/b.sh" <<<"$out" | tail -3 | tr '' '' | grep -qx '' || die "b.sh の出力がまとまっていない: $out"
+tests/ci.sh	outside() { grep -v '' "$iso/seen" | head -c 3000; }
+tests/ci.sh	[ "$(inside | grep -cE '^> .*/installs/go/9\.9\.9/src/[0-9]+\.go( |$)')" -ge 4000 ] && inside | grep -qxF '' || die "isolation: CI（GITHUB_ACTIONS=true）で、全部の差分と読んだファイルを畳んだ group でログに出さない: $(outside)"
+tests/kanban.sh	echo "$out" | tail -1 | grep -qE '' || { echo "$out"; die "test-deck.mjs の結果の行"; }
+tests/kanban.sh	head -n 1 <<<"$help_out" | grep -q '' || die "kanban --help の1行目"
+tests/kanban.sh	"$kanban" --version | grep -qE '' || die "kanban --version: $("$kanban" --version)"
+tests/kanban.sh	"$kanban" show "$id" --json | grep -q ''
+tests/kanban.sh	head -n 1 kanban/config.yaml | grep -qx ''
+tests/kanban.sh	"$kanban" show "$id" --json | grep -q ''
+tests/kanban.sh	KANBAN_ROOT= "$kanban" list --all | grep -q ''
+tests/kanban.sh	KANBAN_ROOT= "$kanban" show A-0002 --json | grep -q ''
+tests/kanban.sh	head -n 1 kanban/config.yaml | grep -qx ''
+tests/process.sh	n=$(printf '' "$on" | grep -oE '' | head -1 | sed '') || true
+tests/process.sh	printf '' '' | grep -q '' && ok "古い数え方の検査が当たる場合がある（検査が見ている）" || ng "古い数え方の検査が何も見ていない"
+tests/shell-and.sh	*) [ -f "$f" ] && head -1 "$f" | grep -qE '' && files+=("$f") || true ;;
+tests/smoke.sh	head -1 "$f" | grep -q '' || { echo " 1行目が見出しでない: $f" >&2; return 1; }
+tests/verify-andon.sh	head -1 "$f" | grep -q '' || die "$f が H1 で始まらない"
+tests/verify-andon.sh	sed -n '' "$f" | grep '' | grep -vqE '' && die "$f の細かい機能に、見る道（3つのどれか）の無い行がある"

@@ -140,6 +140,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `smoke.sh` | `README.md`・`LICENSE`・`docs/decisions.md`・`docs/decisions/` があるか・形 | いつも |
 | `ci.sh` | 文書は読まない（判定の道具の検査。安いので回す） | いつも |
 | `shell-and.sh` | 文書は読まない（`tests/` の下のシェルで、set -e で止まらない `A && B` の判定を探す。安いので回す） | いつも |
+| `shell-sigpipe.sh` | 文書は読まない（`tests/` の下のシェルで、pipefail の下の pipe の後ろの途中で抜ける読み手を探す。前からある行は控え `tests/shell-sigpipe.allow`。安いので回す） | いつも |
 | `readme.sh` | root の `README.md` と `README.ja.md` の見出しの並び・相対リンクの先（在るか）・command・図・表示名・注記（[ADR-0046](adr/0046-readme-for-first-time-readers.md) 決めたこと 10）。README が指す文書を消す・動かす PR でも走るよう、いつもの分に置く | いつも |
 | `words.sh`・`words-selftest.sh` | repo の全部の文書とコード（ADR-0013 で置き換えた「今」の語）。selftest は ADR-0013 の写しを読む | いつも |
 | `agents-md.sh` | root の `AGENTS.md` の「決まり｜守らせるもの」の表と、守らせるものが名指したファイル（[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 6） | いつも |
@@ -159,7 +160,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 
 | 変えたもの | 走らせる `tests/*.sh` |
 |---|---|
-| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`・`words.sh`・`words-selftest.sh`・`agents-md.sh`・`verify-andon.sh`・`shell-and.sh`・`readme.sh`（安く全体を見るもの） |
+| どれでも | `public.sh`・`public-selftest.sh`・`smoke.sh`・`ci.sh`・`words.sh`・`words-selftest.sh`・`agents-md.sh`・`verify-andon.sh`・`shell-and.sh`・`shell-sigpipe.sh`・`readme.sh`（安く全体を見るもの） |
 | `docs/contract.md` | `schema.sh`・`package.sh` を足す（例を schema と、§4 の行を skill と突き合わせる） |
 | `docs/ledger.md`・`tests/kanban/`・消した（動かした）`docs/` の文書 | `kanban.sh` を足す |
 | `tests/host/` | `host.sh` を足す |
