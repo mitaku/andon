@@ -24,10 +24,8 @@ import (
 //     gh skill install（latest）で入れ、置き場ごとに gh skill update --all --dir <置き場> <名前…> で上げる
 //     （installGhSkills。起動の一部。ネットワークが要る。上げるのは出所が一覧の repo と同じ skill だけ）。
 
-// DefaultTools はイメージの備品（npm のグローバル）の置き場。
 const DefaultTools = "/opt/andon-tools"
 
-// bundledSkills は同梱の skill の名前と、備品の置き場からの相対パス。
 var bundledSkills = map[string]string{
 	"playwright-cli": "lib/node_modules/playwright/node_modules/playwright-core/lib/tools/skills/playwright-cli",
 }
@@ -39,8 +37,6 @@ func (e Env) tools() string {
 	return DefaultTools
 }
 
-// genBundledSkills は同梱の skill の symlink を dir に張る。備品に無い skill のリンクと、
-// 一覧から消えた名前の boot のリンク（備品の置き場の下を指す symlink）は外す。
 func (e Env) genBundledSkills(dir string) error {
 	want := map[string]string{}
 	for name, rel := range bundledSkills {
@@ -76,7 +72,6 @@ func (e Env) genBundledSkills(dir string) error {
 	return errors.Join(errs...)
 }
 
-// ownedToolLink は link が備品の置き場（今の ANDON_TOOLS と既定の /opt/andon-tools）の下を指す symlink か。
 func (e Env) ownedToolLink(link string) bool {
 	to, err := os.Readlink(link)
 	if err != nil {
@@ -94,7 +89,6 @@ func (e Env) ownedToolLink(link string) bool {
 	return false
 }
 
-// ghSkill は外の skill の一覧の1行（<owner>/<repo> <skill>）。
 type ghSkill struct{ repo, skill string }
 
 // dirName は gh skill install が置くディレクトリの名前（skill の名前・author/skill・パスの最後の要素）。
@@ -103,11 +97,8 @@ func (s ghSkill) dirName() string {
 	return path.Base(strings.TrimSuffix(n, "/SKILL.md"))
 }
 
-// GhSkillsFile は外の skill の一覧のファイルの名前（パッケージの直下とセルの local/）。
 const GhSkillsFile = "gh-skills.txt"
 
-// ghSkillList はパッケージとセルの一覧を合わせて読む（同じ行は1つに）。1行は「<owner>/<repo> <skill>」。
-// 空行と # からの行は飛ばす。形の違う行はログに1行出して飛ばす。
 func (e Env) ghSkillList() ([]ghSkill, error) {
 	var list []ghSkill
 	seen := map[ghSkill]bool{}
@@ -139,15 +130,9 @@ func (e Env) ghSkillList() ([]ghSkill, error) {
 	return list, nil
 }
 
-// ghTimeout は外の skill の手全体（auth status・install・update）の上限。ネットワークが詰まっても
-// 打ち込みごとに待ち直さず、期限が来たら残りを打たずに戻る（起動の最後の手なので、ほかの起動は待たせない）。
 var ghTimeout = 2 * time.Minute
 
-// installGhSkills は外の skill の一覧を gh skill install で入れ、出所が一覧の repo と同じものを置き場ごとに gh skill update で上げる。
-// 一覧が空なら何も打たない。gh が無い・ログインしていなければ飛ばして1行残す（gh auth setup-git と同じ扱い）。
-// 入れるのは置き場（Claude Code は <claude>/skills、Codex は ~/.agents/skills）に同じ名前が無いときだけ
-// （利用者の skill を上書きしない。入っているものは update が上げる）。gh skill install の --agent は1つしか効かないので
-// エージェントごとに打つ。gh の出力はログに出さない（失敗のときだけ最後の1行）。全体で ghTimeout まで。
+// gh skill install の --agent は1つしか効かないので、エージェントごとに打つ。
 func installGhSkills(e Env) error {
 	list, err := e.ghSkillList()
 	if err != nil || len(list) == 0 {
@@ -228,8 +213,6 @@ func installGhSkills(e Env) error {
 	return errors.Join(errs...)
 }
 
-// fromRepo は SKILL.md の frontmatter の metadata.github-repo が https://github.com/<repo> か（大文字と小文字・末尾の .git は見ない）。
-// ファイルが無い・frontmatter が無い・github-repo が無いものは false。
 func fromRepo(skillMD, repo string) bool {
 	b, err := os.ReadFile(skillMD)
 	if err != nil {

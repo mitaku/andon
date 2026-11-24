@@ -13,7 +13,6 @@ import (
 	"andon/internal/dispatcher"
 )
 
-// authorized_keys が無いときと、あるが読めないときを別の行で出す（どちらも sshd は起動しない）。
 func TestStartSSHDNoKeysAndUnreadableKeys(t *testing.T) {
 	f := newFixture(t)
 	if err := startSSHD(f.env()); err != nil {
@@ -42,7 +41,6 @@ func TestStartSSHDNoKeysAndUnreadableKeys(t *testing.T) {
 	}
 }
 
-// fakeGH は呼ばれた引数を calls に1行ずつ足す gh。status が 0 以外を返すと未ログイン。
 func fakeGH(t *testing.T, f *fixture, statusRC int) (e Env, calls string) {
 	t.Helper()
 	calls = filepath.Join(f.root, "gh-calls")
@@ -64,7 +62,7 @@ func fakeGH(t *testing.T, f *fixture, statusRC int) (e Env, calls string) {
 func TestSetupGitCredentialsLoggedIn(t *testing.T) {
 	f := newFixture(t)
 	e, calls := fakeGH(t, f, 0)
-	for range 2 { // 毎起動打っても同じ
+	for range 2 {
 		if err := setupGitCredentials(e); err != nil {
 			t.Fatal(err)
 		}
@@ -97,14 +95,13 @@ func TestSetupGitCredentialsNoGH(t *testing.T) {
 	}
 }
 
-// dispatcher の端末を確かめられない（控えの置き場が作れない）ときは、警告の行に出す（「すでに動いている」と言わない）。
 func TestStartDispatcherReportsLockError(t *testing.T) {
 	f := newFixture(t)
 	notDir := filepath.Join(f.root, "state-is-a-file")
 	put(t, notDir, "")
 	t.Setenv("XDG_STATE_HOME", notDir)
 	e := f.env()
-	e.LookPath = func(tool string) (string, error) { // hc だけある（ほかの起動は飛ばす）。hc は打つ前に止まる（無いパスなので本物の hc を打たない）
+	e.LookPath = func(tool string) (string, error) {
 		if tool == "hc" {
 			return filepath.Join(f.root, "no-hc"), nil
 		}
@@ -117,7 +114,6 @@ func TestStartDispatcherReportsLockError(t *testing.T) {
 	}
 }
 
-// 偽の hc（dispatcher の端末）: get が n 回目のとき $D/term.<n> があれば $D/term にしてから返す。打ったものは $D/log へ。
 const dispatcherHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -157,7 +153,6 @@ func term(fg string) string {
 	return `{"address":"t1","state":"live","argv":["/bin/bash"],"foreground":` + fg + `}`
 }
 
-// 作り直しの直後: 戻った端末の前に出ているものが最初は取れず、読み直すと /bin/bash。「すでに動いている」と書かずに起動し直す。
 func TestStartDispatcherRestoredShell(t *testing.T) {
 	f, e, d := dispatcherFixture(t)
 	old := dispatcherWait
@@ -175,7 +170,6 @@ func TestStartDispatcherRestoredShell(t *testing.T) {
 	}
 }
 
-// 待っても前に出ているものが取れない: 「確かめられなかった」と書き、「すでに動いている」とは書かない。何も打たない。
 func TestStartDispatcherUnsure(t *testing.T) {
 	f, e, d := dispatcherFixture(t)
 	old := dispatcherWait
@@ -194,7 +188,6 @@ func TestStartDispatcherUnsure(t *testing.T) {
 	}
 }
 
-// 前に andon dispatcher が出ていれば「すでに動いている」。
 func TestStartDispatcherRunning(t *testing.T) {
 	f, e, d := dispatcherFixture(t)
 	space, tab := dispatcher.Place(e.Workspace)
@@ -207,7 +200,6 @@ func TestStartDispatcherRunning(t *testing.T) {
 	}
 }
 
-// ほかが確かめている（lock を持っている）: 「ほかが確かめている」と書き、「すでに動いている」とは書かない。
 func TestStartDispatcherBusy(t *testing.T) {
 	f, e, d := dispatcherFixture(t)
 	put(t, filepath.Join(d, "term"), term("null"))
@@ -229,7 +221,6 @@ func TestStartDispatcherBusy(t *testing.T) {
 	}
 }
 
-// 偽の hc: get <name> は $D/<name>.json（無ければ not_found）。keep・kill・rm は $D/log へ。
 const staleHc = `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in
@@ -240,8 +231,6 @@ case $1 in
 esac
 `
 
-// 前のバージョンの係（名前もラベルも courier）だけを、前に出ているものが前の係かシェルのときに片付ける。
-// ほかの役・知らない役・オーナーが中で何か動かしている端末・前に出ているものが取れない端末には触らない。
 func TestDropStaleRoles(t *testing.T) {
 	old := func(fg string) string {
 		return `{"address":"t1","name":"courier","state":"live","argv":["/bin/bash"],"labels":{"role":"courier"},"foreground":` + fg + `}`
@@ -277,8 +266,6 @@ func TestDropStaleRoles(t *testing.T) {
 	}
 }
 
-// 前のバージョンの係の端末を片付けられなければ（片付けに失敗した・触らずに残した）、その起動では dispatcher を起動しない。
-// 片付けられれば起動する。
 func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 	oldWait, oldPoll := dispatcherWait, stalePoll
 	dispatcherWait, stalePoll = 100*time.Millisecond, 10*time.Millisecond
@@ -324,13 +311,11 @@ func TestStartSkipsDispatcherWhileOldRemains(t *testing.T) {
 	}
 }
 
-// 作り直しの直後は前に出ているものが最初は取れない。取れるまで読み直し、シェルだと分かったら片付ける。
 func TestDropStaleRolesRereadsForeground(t *testing.T) {
 	oldWait, oldPoll := dispatcherWait, stalePoll
 	dispatcherWait, stalePoll = 2*time.Second, 10*time.Millisecond
 	t.Cleanup(func() { dispatcherWait, stalePoll = oldWait, oldPoll })
 	f, e, d := dispatcherFixture(t)
-	// 最初の2回は foreground が null、3回目から /bin/bash を返す偽の hc。
 	put(t, filepath.Join(d, "bin", "hc"), `#!/usr/bin/env bash
 d=$FAKE_HC
 case $1 in

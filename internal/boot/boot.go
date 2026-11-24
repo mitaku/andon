@@ -39,7 +39,6 @@ import (
 	"andon/internal/flock"
 )
 
-// Usage は andon boot --help の中身。
 const Usage = "usage: andon boot\n" +
 	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
@@ -51,24 +50,21 @@ const Usage = "usage: andon boot\n" +
 // DefaultPackage はパッケージの既定の置き場。プロファイルの本文はこのパスで書く。
 const DefaultPackage = "/opt/andon"
 
-// Env は boot が読み書きする場所。テストで差し替える。
 type Env struct {
-	Package         string // パッケージ（ANDON_HOME。既定 /opt/andon）
-	Tools           string // イメージの備品の置き場（ANDON_TOOLS。既定 /opt/andon-tools）。同梱の skill の実体がある
-	Workspace       string // セルの repo（ANDON_WORKSPACE。既定 /workspace）
+	Package         string
+	Tools           string
+	Workspace       string
 	GhqRoot         string // 案件の repo の置き場（GHQ_ROOT）。空なら信頼の根に案件の repo を足さない
-	Home            string // HOME
-	ClaudeDir       string // CLAUDE_CONFIG_DIR。空なら <Home>/.claude
-	ManagedSettings string // ANDON_MANAGED_SETTINGS。既定 /etc/claude-code/managed-settings.json
+	Home            string
+	ClaudeDir       string
+	ManagedSettings string
 	Hostname        string
-	// LookPath は道具を探す。見つからなければ、その起動は飛ばす。
-	LookPath func(string) (string, error)
-	Self     string // andon の実行ファイル（files サーバとして自分を起動する）
-	Log      io.Writer
-	Uid, Gid int // boot を打つ利用者。HOME の volume のオーナーをこれに揃える（fixOwners）
+	LookPath        func(string) (string, error)
+	Self            string
+	Log             io.Writer
+	Uid, Gid        int
 }
 
-// EnvFromOS は環境変数から Env を作る。
 func EnvFromOS(log io.Writer) Env {
 	host, _ := os.Hostname()
 	home, _ := os.UserHomeDir()
@@ -97,12 +93,9 @@ func getenv(k, def string) string {
 	return def
 }
 
-// Main は andon boot。
-// ServeFilesUsage は andon boot serve-files の使い方。
 const ServeFilesUsage = "usage: andon boot serve-files <dir> <port>\n" +
 	"files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）。\n"
 
-// ServeFilesMain は andon boot serve-files。
 func ServeFilesMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 2 {
 		fmt.Fprint(stderr, ServeFilesUsage)
@@ -176,7 +169,7 @@ func Generate(e Env) error {
 		{"Claude Code の起動リンク", linkClaude},
 		{"herdr-core の起動リンク", linkHerdrCore},
 		{".claude.json", rescueClaudeJSON},
-		{"信頼（Claude Code）", trustClaude}, // .claude.json を戻してから足す
+		{"信頼（Claude Code）", trustClaude},
 		{"信頼（Codex）", trustCodex},
 	} {
 		if err := step.run(e); err != nil {
@@ -186,10 +179,6 @@ func Generate(e Env) error {
 	return errors.Join(errs...)
 }
 
-// --- 生成 ---
-
-// writeFile は path を data にする。中身が同じなら書かない。path が symlink なら外して実ファイルにする
-// （仮設の symlink の網から移るとき、リンク先の repo に書き込まない）。
 func (e Env) writeFile(path string, data []byte, mode fs.FileMode) error {
 	if st, err := os.Lstat(path); err == nil {
 		if st.Mode().IsRegular() {
@@ -225,9 +214,6 @@ func (e Env) writeFile(path string, data []byte, mode fs.FileMode) error {
 	return nil
 }
 
-// generate は boot が持つ配布物を書く。今ある実ファイルが、boot が前に書いたもの（控えの sha256）でも
-// これから書くものでもなければ、オーナーが書いたものとして <path>.bak に退避してから書く（黙って消さない）。
-// 控えは ~/.local/state/andon/boot.json。読めなければ空として扱う（退避が増えるだけで、消えはしない）。
 func (e Env) generate(path string, data []byte, mode fs.FileMode) error {
 	state := e.loadState()
 	if st, err := os.Lstat(path); err == nil && st.Mode().IsRegular() {
@@ -264,7 +250,6 @@ func (e Env) statePath() string {
 	return filepath.Join(e.Home, ".local", "state", "andon", "boot.json")
 }
 
-// lockPath は andon boot が生成と起動の段の間持つ lock（boot.json と同じ置き場の boot.lock）。
 func (e Env) lockPath() string {
 	return filepath.Join(filepath.Dir(e.statePath()), "boot.lock")
 }
@@ -284,8 +269,6 @@ func sum(b []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-// genManagedSettings は <pkg>/settings.json を managed settings に置く。無ければ {}。
-// JSON でなければ書かない（今あるものを残す）。置き場に書けなければ sudo で置く（root の場所）。
 func genManagedSettings(e Env) error {
 	src := filepath.Join(e.Package, "settings.json")
 	settings := map[string]any{}
@@ -335,12 +318,10 @@ func (e Env) sudoInstall(dst string, data []byte) error {
 	return nil
 }
 
-// genTemplates はプロファイルを生成する。同じ名前ならセルの templates.local が勝つ。
-// 本文の /opt/andon はパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起動できるように。ADR-0001 決定 5）。
-// 置き場にある、どちらにも無い名前のファイルには触らない（オーナーが hc に入れたもの）。
+// genTemplates はプロファイルの本文の /opt/andon をパッケージの置き場（ANDON_HOME）に置き換える（checkout の plugin と skill で起動できるように。ADR-0001 決定 5）。
 func genTemplates(e Env) error {
 	if _, err := Template(nil, e.Package); err != nil {
-		return err // 1枚も書かない（今あるプロファイルを残す）
+		return err
 	}
 	files, err := e.templateFiles()
 	if err != nil {
@@ -359,7 +340,6 @@ func genTemplates(e Env) error {
 		}
 		base, resume := SplitResume(b)
 		errs = append(errs, e.generate(filepath.Join(dst, name), base, 0o644))
-		// 同じ名前のファイル（<name>-resume.md）が置いてあれば、そちらが勝つ
 		if rn := strings.TrimSuffix(name, ".md") + "-resume.md"; resume != nil && files[rn] == "" {
 			errs = append(errs, e.generate(filepath.Join(dst, rn), resume, 0o644))
 		}
@@ -367,7 +347,6 @@ func genTemplates(e Env) error {
 	return errors.Join(errs...)
 }
 
-// templateFiles はプロファイルの元のファイル（名前 → パス）。同じ名前ならセルの templates.local が勝つ。
 func (e Env) templateFiles() (map[string]string, error) {
 	files := map[string]string{}
 	for _, dir := range []string{
@@ -431,7 +410,6 @@ func SplitResume(b []byte) (base, resume []byte) {
 	return []byte(bs.String()), []byte(rs.String())
 }
 
-// safePath は command の引数に quote なしで置いても1つの引数のままでいられるパス。
 var safePath = regexp.MustCompile(`^/[A-Za-z0-9._/@+:,=-]*$`)
 
 // Template はプロファイルの本文の /opt/andon を pkg に置き換える。pkg が既定なら何もしない。
@@ -466,12 +444,10 @@ func Template(b []byte, pkg string) ([]byte, error) {
 	}
 }
 
-// isPathByte はパスの要素の中に現れうる文字（「/」を除く）。「=」「:」「,」は区切りとして扱う（--plugin-dir=/opt/andon・a:/opt/andon）。
 func isPathByte(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("._@+-", c) >= 0 || c >= 0x80
 }
 
-// ClaudeMD は <claude>/CLAUDE.md の中身（3行）。
 func ClaudeMD(pkg, ws string) string {
 	return "@" + filepath.Join(pkg, "environment.md") + "\n@" + filepath.Join(pkg, "writing.md") + "\n@" + filepath.Join(ws, "AGENTS.local.md") + "\n"
 }
@@ -507,9 +483,6 @@ func genCodexAgents(e Env) error {
 
 // genSkills は ~/.agents/skills/andon-<name> → <pkg>/skills/<name> を張る（Codex など .agents/skills を読むハーネス向け。
 // Claude Code は plugin として --plugin-dir で読む。ADR-0001 決定 2）。
-// 外す・張り替えるのは boot が張ったリンク（andon-* で、パッケージの skills の直下を指す symlink）だけ。
-// それ以外の andon-*（利用者が置いたもの・実ディレクトリ）には触らず、ログに1行出す。
-// パッケージから消えた skill のリンクは外す。前の置き場 <claude>/skills の boot のリンクも外す（二重に読まれるのを避ける）。
 // 同梱の skill（備品の置き場の下を指す symlink）は両方の置き場に張る（genBundledSkills。ADR-0018 決めたこと 5）。
 func genSkills(e Env) error {
 	dir := filepath.Join(e.Home, ".agents", "skills")
@@ -544,8 +517,6 @@ func genSkills(e Env) error {
 	return errors.Join(errs...)
 }
 
-// ownedLink は link が boot の張ったリンク（パッケージの skills の直下を指す symlink）か。
-// パッケージは今の ANDON_HOME と既定の /opt/andon の両方を見る（ANDON_HOME を替えて打ち直したとき張り替えられるように）。
 func (e Env) ownedLink(link string) bool {
 	to, err := os.Readlink(link)
 	if err != nil {
@@ -563,7 +534,6 @@ func (e Env) ownedLink(link string) bool {
 	return false
 }
 
-// unlinkAndon は dir の中の、boot が張った andon-* のリンクのうち keep に無いものを外す。dir が無ければ何もしない。
 func (e Env) unlinkAndon(dir string, keep map[string]string) error {
 	have, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -595,7 +565,6 @@ func isSymlink(p string) bool {
 	return err == nil && st.Mode()&fs.ModeSymlink != 0
 }
 
-// symlink は link → target にする。すでにそうなら何もしない。実ディレクトリがあれば触らない。
 func (e Env) symlink(target, link string) error {
 	if cur, err := os.Readlink(link); err == nil {
 		if cur == target {
@@ -622,8 +591,6 @@ func (e Env) symlink(target, link string) error {
 	e.logf("リンク: %s → %s", link, target)
 	return nil
 }
-
-// --- Claude Code の起動リンクと設定の救出 ---
 
 var versionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)+$`)
 

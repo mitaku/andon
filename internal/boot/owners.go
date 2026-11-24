@@ -12,14 +12,11 @@ import (
 )
 
 // HomeVolumes は package/compose.yaml が HOME（/opt/andon-home）の下に重ねる volume の置き場（HOME からの相対）。
-// compose.yaml と揃える（TestHomeVolumesMatchCompose が確かめる）。
 var HomeVolumes = []string{
 	".claude", ".local/share/claude", ".codex", ".agents", ".config/gh", ".config/andon/signals", ".config/andon/digest", ".config/herdr",
 	".config/herdr-core", ".ssh", ".portless", ".local/state",
 }
 
-// fixOwners は HOME の volume の置き場のオーナーが boot を打つ利用者でなければ、sudo で中身ごと渡す
-// （andon の uid が変わる前の image で作った volume を、作り直さずに使うため）。無い置き場は飛ばす。
 func fixOwners(e Env) error {
 	var errs []error
 	for _, rel := range HomeVolumes {

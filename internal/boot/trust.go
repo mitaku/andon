@@ -35,7 +35,6 @@ import (
 // プロファイルが --add-dir で渡すフォルダは Claude Code だけで信頼済みにする（addDirs。Codex のプロファイルは --add-dir を
 // 使わない）。足すのはそのフォルダだけで、親は足さない。
 
-// Trust は信頼の根を Claude Code と Codex の両方で信頼済みにする（足りない所だけ足す。boot の生成の2つと同じ手）。
 func Trust(e Env) error {
 	return errors.Join(trustClaude(e), trustCodex(e))
 }
@@ -50,7 +49,6 @@ func TrustFromOS(log io.Writer) error {
 	return Trust(e)
 }
 
-// trustRoots は信頼を置く根（実在するものを、symlink を解いた絶対パスで）。順はセルの repo、kanban の名前順と repos の順。
 func (e Env) trustRoots() []string {
 	cands := []string{e.Workspace}
 	ghq, err := filepath.EvalSymlinks(e.GhqRoot)
@@ -62,7 +60,6 @@ func (e Env) trustRoots() []string {
 				if !spawn.RepoRe.MatchString(repo) {
 					continue
 				}
-				// 実体のパスで、実体の GHQ_ROOT の内側にある clone だけ（symlink で外へ逃げる repo は信頼しない）
 				dir, err := filepath.EvalSymlinks(filepath.Join(ghq, repo))
 				if err != nil || !strings.HasPrefix(dir, ghq+string(filepath.Separator)) {
 					if err == nil {
@@ -115,7 +112,6 @@ func (e Env) addDirs() []string {
 	return realDirs(cands)
 }
 
-// frontmatter は --- で囲んだ frontmatter の行（改行を除く）。無ければ nil。
 func frontmatter(b []byte) []string {
 	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
 	if len(lines) == 0 || lines[0] != "---" {
@@ -129,7 +125,6 @@ func frontmatter(b []byte) []string {
 	return nil
 }
 
-// realDirs は cands のうち実在する dir を、symlink を解いた絶対パスで、重ねずに順のまま返す。
 func realDirs(cands []string) []string {
 	var roots []string
 	seen := map[string]bool{}
@@ -150,7 +145,6 @@ func realDirs(cands []string) []string {
 	return roots
 }
 
-// claudeJSON は Claude Code の .claude.json（CLAUDE_CONFIG_DIR があればその下、無ければ ~/.claude.json）。
 func (e Env) claudeJSON() string {
 	if e.ClaudeDir != "" {
 		return filepath.Join(e.ClaudeDir, ".claude.json")
@@ -186,28 +180,24 @@ func trustClaude(e Env) error {
 			return err
 		}
 		if !bytes.Equal(now, b) {
-			continue // 読んだあとに書き換わった: 新しい中身からやり直す
+			continue
 		}
 		if err := e.writeFile(path, out, modeOr(path, 0o600)); err != nil {
 			return err
 		}
 		e.logf("信頼を足した（Claude Code）: %s", strings.Join(added, " "))
 		if len(b) == 0 && e.ClaudeDir != "" {
-			return e.symlink(path, filepath.Join(e.Home, ".claude.json")) // 作ったときは rescueClaudeJSON と同じリンクを張る
+			return e.symlink(path, filepath.Join(e.Home, ".claude.json"))
 		}
 		return nil
 	}
 	return e.skipTrust("%s が読むたびに書き換わる（%d 回。次の起動か andon issue start で足す）", path, claudeTries)
 }
 
-// claudeTries は .claude.json が読むたびに書き換わるとき、やり直す回数。
 const claudeTries = 5
 
-// claudeRace は書く直前の読み直しの前に呼ぶ（テストが並行の書き手を差し込む）。
 var claudeRace = func(string) {}
 
-// addClaudeTrust は .claude.json の中身 b に roots の信頼を足した中身を返す。足すものが無ければ added が空。
-// 形が読めなければ skip に理由。
 func addClaudeTrust(b []byte, roots []string) (out []byte, added []string, skip string) {
 	top := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(b)) > 0 {
@@ -253,13 +243,11 @@ func addClaudeTrust(b []byte, roots []string) (out []byte, added []string, skip 
 	return append(out, '\n'), added, ""
 }
 
-// skipTrust は設定の形が読めないとき: 書かずにログに1行出して続ける（オーナーの設定を壊さない。boot は止めない）。
 func (e Env) skipTrust(format string, a ...any) error {
 	e.logf("信頼を足さない: "+format, a...)
 	return nil
 }
 
-// marshal は HTML の escape をせずに JSON にする（読んだ値の文字をそのまま残す）。indent が空なら1行。
 func marshal(v any, indent string) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -273,7 +261,6 @@ func marshal(v any, indent string) ([]byte, error) {
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
-// modeOr は path の今の権限。無ければ def。
 func modeOr(path string, def fs.FileMode) fs.FileMode {
 	if st, err := os.Stat(path); err == nil {
 		return st.Mode().Perm()
@@ -282,19 +269,11 @@ func modeOr(path string, def fs.FileMode) fs.FileMode {
 }
 
 var (
-	// codexProjectRe は [projects."<path>"] か [projects.'<path>'] の表の見出し。
 	codexProjectRe = regexp.MustCompile(`^\s*\[\s*projects\s*\.\s*("((?:[^"\\]|\\.)*)"|'([^']*)')\s*\]\s*(#.*)?$`)
 	codexTableRe   = regexp.MustCompile(`^\s*\[`)
-	// codexOtherRe は projects をこの関数が読まない形で書いたもの（[projects] の表・top-level の projects = {…}・
-	// projects."<path>".… の dotted key）。
-	codexOtherRe = regexp.MustCompile(`^\s*(\[\s*projects\s*\]|projects\s*(=|\.))`)
+	codexOtherRe   = regexp.MustCompile(`^\s*(\[\s*projects\s*\]|projects\s*(=|\.))`)
 )
 
-// trustCodex は ~/.codex/config.toml に [projects."<根>"] trust_level = "trusted" を足す。
-// 今ある表には触らない（trust_level があれば値が何でもそのまま。オーナーが untrusted にしたものを覆さない）。
-// 表があって trust_level だけが無ければ、見出しの直後に1行足す。projects を別の形で書いていれば書かない。
-// trust_level の有無は TOML のパーサで読む（読めない TOML には書かない）。見出しの行を探すときは複数行の文字列の中を
-// 飛ばす。書く前に出力を読み直し、足した根の trust_level がパーサから見えなければ書かない。
 func trustCodex(e Env) error {
 	path := filepath.Join(e.Home, ".codex", "config.toml")
 	b, err := os.ReadFile(path)
@@ -312,14 +291,14 @@ func trustCodex(e Env) error {
 	}
 	inString := multilineStringLines(lines)
 	type table struct {
-		at    int // 見出しの行
+		at    int
 		trust bool
 	}
 	tables := map[string]*table{}
-	top := true // まだ表の見出しの前（top-level の key）
+	top := true
 	for i, ln := range lines {
 		if inString[i] {
-			continue // 複数行の文字列の中（見出しでもキーでもない）
+			continue
 		}
 		if m := codexProjectRe.FindStringSubmatch(ln); m != nil {
 			key, ok := m[3], true
@@ -375,7 +354,7 @@ func trustCodex(e Env) error {
 		out = out[:len(out)-1]
 	}
 	if len(out) == 0 && len(tail) > 0 {
-		tail = tail[1:] // 新しいファイルは空行で始めない
+		tail = tail[1:]
 	}
 	out = append(out, tail...)
 	data := strings.Join(out, "\n") + "\n"
@@ -392,7 +371,6 @@ func trustCodex(e Env) error {
 	return nil
 }
 
-// quoteTOML は TOML の basic string（"…"）にする。
 func quoteTOML(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
@@ -411,8 +389,6 @@ func quoteTOML(s string) string {
 	return b.String()
 }
 
-// unescapeTOML は basic string の中身の \" と \\ を戻す。ほかの escape があれば ok=false（同じパスの表を
-// 二つにすると TOML として壊れるので、読めないものは書かない側に倒す）。
 func unescapeTOML(s string) (string, bool) {
 	if strings.Contains(strings.NewReplacer(`\"`, "", `\\`, "").Replace(s), `\`) {
 		return "", false
@@ -420,7 +396,6 @@ func unescapeTOML(s string) (string, bool) {
 	return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(s), true
 }
 
-// codexTrusted は config.toml の中身から、trust_level を持つ projects の根を返す（値は問わない）。
 func codexTrusted(text string) (map[string]bool, error) {
 	var cfg struct {
 		Projects map[string]map[string]any `toml:"projects"`
@@ -437,8 +412,6 @@ func codexTrusted(text string) (map[string]bool, error) {
 	return got, nil
 }
 
-// multilineStringLines は、行ごとに「行の頭が複数行の文字列（"""…""" か ”'…”'）の中にあるか」を返す。
-// 1行の中の文字列・コメントの中の引用符は見分けない（取り違えたときは、書く前の読み直しで止まる）。
 func multilineStringLines(lines []string) []bool {
 	in := make([]bool, len(lines))
 	delim := ""

@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// bundled は備品の置き場に同梱の skill（playwright-cli）の実体を置き、その場所を返す。
 func bundled(t *testing.T, e Env) string {
 	t.Helper()
 	d := filepath.Join(e.Tools, bundledSkills["playwright-cli"])
@@ -25,8 +24,6 @@ func symlinkT(t *testing.T, to, link string) {
 	}
 }
 
-// 同梱の skill を <claude>/skills と ~/.agents/skills に張る。備品の置き場の下を指す古いリンクは外し、
-// 利用者の skill（実ディレクトリ・別の先を指す symlink）には触らない。2回打って同じ。andon-* はそのまま。
 func TestBundledSkillLinks(t *testing.T) {
 	f := newFixture(t)
 	e := f.env()
@@ -34,8 +31,8 @@ func TestBundledSkillLinks(t *testing.T) {
 	target := bundled(t, e)
 	agents := filepath.Join(f.home, ".agents", "skills")
 	claude := filepath.Join(f.claude, "skills")
-	symlinkT(t, filepath.Join(e.Tools, "lib", "gone"), filepath.Join(agents, "gone-tool")) // boot の古いリンク（外れる）
-	symlinkT(t, filepath.Join(f.root, "mine"), filepath.Join(agents, "mine"))              // 利用者の skill（残る）
+	symlinkT(t, filepath.Join(e.Tools, "lib", "gone"), filepath.Join(agents, "gone-tool"))
+	symlinkT(t, filepath.Join(f.root, "mine"), filepath.Join(agents, "mine"))
 	symlinkT(t, filepath.Join(f.root, "mine"), filepath.Join(claude, "mine"))
 
 	for range 2 {
@@ -68,7 +65,6 @@ func TestBundledSkillLinks(t *testing.T) {
 	}
 }
 
-// 同じ名前の利用者の skill（実ディレクトリ・別の先を指す symlink）は張り替えない。ログに1行。
 func TestBundledSkillSameNameUserSkillIsKept(t *testing.T) {
 	f := newFixture(t)
 	e := f.env()
@@ -93,7 +89,6 @@ func TestBundledSkillSameNameUserSkillIsKept(t *testing.T) {
 	}
 }
 
-// 備品の置き場を替えたら張り替え（既定の /opt/andon-tools を指すリンクも boot のもの）、備品に無くなったら外す。
 func TestBundledSkillFollowsTools(t *testing.T) {
 	f := newFixture(t)
 	e := f.env()
@@ -119,7 +114,6 @@ func TestBundledSkillFollowsTools(t *testing.T) {
 	}
 }
 
-// ghSkillFake は呼ばれた引数を calls に足し、skill install で置き場にディレクトリと、出所を書いた SKILL.md を作る gh（本物と同じ形）。
 func ghSkillFake(t *testing.T, f *fixture, loggedIn bool) (Env, string) {
 	t.Helper()
 	calls := filepath.Join(f.root, "gh-calls")
@@ -164,16 +158,14 @@ func ghCalls(t *testing.T, calls string) string {
 	return string(b)
 }
 
-// パッケージとセルの一覧を合わせ、置き場に無いものだけエージェントごとに入れ、置き場ごとに --dir で絞って update --all を打つ。
-// 渡すのは出所が一覧の repo と同じ skill の名前だけ（一覧の外の skill と、別の出所から入れた同じ名前の skill は上げない）。2回打って同じ。
 func TestInstallGhSkills(t *testing.T) {
 	f := newFixture(t)
 	e, calls := ghSkillFake(t, f, true)
 	put(t, filepath.Join(f.pkg, GhSkillsFile), "# 既定\nexample/skills alpha\n")
 	put(t, filepath.Join(f.ws, "local", GhSkillsFile), "\nexample/skills alpha\nexample/more author/beta\nbad-line\n")
 	user := "---\nmetadata:\n    github-repo: https://github.com/someone/beta\n---\n利用者の\n"
-	put(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md"), user)     // 同じ名前があれば入れない。別の出所なので上げない
-	put(t, filepath.Join(f.home, ".claude", "skills", "mine", "SKILL.md"), "一覧の外\n") // 一覧の外の skill は上げない
+	put(t, filepath.Join(f.home, ".agents", "skills", "beta", "SKILL.md"), user)
+	put(t, filepath.Join(f.home, ".claude", "skills", "mine", "SKILL.md"), "一覧の外\n")
 
 	for range 2 {
 		if err := installGhSkills(e); err != nil {
@@ -199,7 +191,6 @@ func TestInstallGhSkills(t *testing.T) {
 	}
 }
 
-// SKILL.md の frontmatter の metadata.github-repo で出所を見る。
 func TestFromRepo(t *testing.T) {
 	dir := t.TempDir()
 	for _, c := range []struct {
@@ -225,7 +216,6 @@ func TestFromRepo(t *testing.T) {
 	}
 }
 
-// 一覧の skill がどの置き場にも無い（install が失敗した）なら update を打たない（名前を渡さない update --all は一覧の外も上げる）。
 func TestInstallGhSkillsNoUpdateWhenNothingInstalled(t *testing.T) {
 	f := newFixture(t)
 	calls := filepath.Join(f.root, "gh-calls")
@@ -250,7 +240,6 @@ func TestInstallGhSkillsNoUpdateWhenNothingInstalled(t *testing.T) {
 	}
 }
 
-// 一覧が空（注だけ・ファイルが無い）なら gh を打たない。
 func TestInstallGhSkillsEmptyList(t *testing.T) {
 	f := newFixture(t)
 	e, calls := ghSkillFake(t, f, true)
@@ -266,7 +255,6 @@ func TestInstallGhSkillsEmptyList(t *testing.T) {
 	}
 }
 
-// gh がログインしていなければ install も update も打たず、ログに1行。gh が無くても1行。
 func TestInstallGhSkillsNotLoggedIn(t *testing.T) {
 	f := newFixture(t)
 	e, calls := ghSkillFake(t, f, false)
@@ -286,7 +274,6 @@ func TestInstallGhSkillsNotLoggedIn(t *testing.T) {
 	}
 }
 
-// GitHub が応答しないとき、打ち込みごとに待ち直さず、全体の期限で残り（2つ目の install・update --all）を打たずに戻る。
 func TestInstallGhSkillsSharedDeadline(t *testing.T) {
 	f := newFixture(t)
 	calls := filepath.Join(f.root, "gh-calls")

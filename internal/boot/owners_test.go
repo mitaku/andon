@@ -10,7 +10,6 @@ import (
 	"testing"
 )
 
-// compose.yaml の HOME の下の volume と HomeVolumes が揃っている。
 func TestHomeVolumesMatchCompose(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "package", "compose.yaml"))
 	if err != nil {
@@ -28,7 +27,6 @@ func TestHomeVolumesMatchCompose(t *testing.T) {
 	}
 }
 
-// ファイルのオーナーが違う置き場だけを sudo chown -R で渡し、無い置き場は飛ばす。
 func TestFixOwnersChownsOtherOwner(t *testing.T) {
 	f := newFixture(t)
 	for _, d := range []string{".ssh", ".config/gh"} {
@@ -42,7 +40,7 @@ func TestFixOwnersChownsOtherOwner(t *testing.T) {
 	}
 	e := f.env()
 	e.LookPath = func(string) (string, error) { return sudo, nil }
-	e.Uid, e.Gid = os.Getuid()+1, os.Getgid()+1 // 置き場は今の利用者の持ち物なので「違う」
+	e.Uid, e.Gid = os.Getuid()+1, os.Getgid()+1
 	if err := fixOwners(e); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +54,6 @@ func TestFixOwnersChownsOtherOwner(t *testing.T) {
 		t.Errorf("ログ: %s", f.log.String())
 	}
 
-	// 置き場のオーナーが同じなら何もしない
 	os.Remove(calls)
 	e.Uid, e.Gid = os.Getuid(), os.Getgid()
 	if err := fixOwners(e); err != nil {

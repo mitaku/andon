@@ -11,7 +11,6 @@ import (
 
 const testOwner = "12345+sample-owner@users.noreply.github.com"
 
-// gitFixture は git を使える Env と、セルの repo・案件の repo・その worktree を作る。
 func gitFixture(t *testing.T, owner string) (*fixture, Env, map[string]string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -38,7 +37,6 @@ func gitFixture(t *testing.T, owner string) (*fixture, Env, map[string]string) {
 	return f, e, map[string]string{"cell": f.ws, "product": product, "worktree": wt}
 }
 
-// gitIn はセルの中と同じく、作者を環境変数で渡さずに git を打つ（HOME は偽の HOME。system の設定は読まない）。
 func gitIn(t *testing.T, f *fixture, dir string, args ...string) string {
 	t.Helper()
 	if dir != "" {
@@ -65,7 +63,6 @@ func gitEnv(f *fixture) []string {
 	return append(env, "HOME="+f.home, "GIT_CONFIG_NOSYSTEM=1")
 }
 
-// 作者の無いセルで boot のあと、作者を指定せずに commit が通り、案件の repo（と worktree）は owner、セルの repo は owner でない。
 func TestGitAuthorCommit(t *testing.T) {
 	f, e, repos := gitFixture(t, testOwner)
 	if err := genGitAuthor(e); err != nil {
@@ -84,7 +81,6 @@ func TestGitAuthorCommit(t *testing.T) {
 	}
 }
 
-// boot を2回打っても ~/.gitconfig と include のファイルは同じ。gh の credential helper など、ほかの節は残る。
 func TestGitAuthorIdempotent(t *testing.T) {
 	f, e, _ := gitFixture(t, testOwner)
 	gc := filepath.Join(f.home, ".gitconfig")
@@ -108,7 +104,6 @@ func TestGitAuthorIdempotent(t *testing.T) {
 	}
 }
 
-// 並びが違う（案件の repo の include が先）なら、セル→案件の順に直す。
 func TestGitAuthorReorders(t *testing.T) {
 	f, e, repos := gitFixture(t, testOwner)
 	gc := filepath.Join(f.home, ".gitconfig")
@@ -125,14 +120,12 @@ func TestGitAuthorReorders(t *testing.T) {
 	}
 }
 
-// 同じ条件（gitdir:<ws>/・gitdir:<GHQ_ROOT>/）にオーナーが置いた include は、並べ直すときも消さない。
 func TestGitAuthorKeepsOtherIncludes(t *testing.T) {
 	f, e, repos := gitFixture(t, testOwner)
 	gc := filepath.Join(f.home, ".gitconfig")
 	product := filepath.Join(f.home, ".config", "andon", "git", "product.gitconfig")
 	human := filepath.Join(f.home, "human.gitconfig")
 	put(t, human, "[alias]\n\tst = status\n")
-	// オーナーの include（両方の条件）と、逆の並びの boot の include
 	put(t, gc, "[includeIf \"gitdir:"+f.ws+"/\"]\n\tpath = "+human+"\n"+
 		"[includeIf \"gitdir:"+e.GhqRoot+"/\"]\n\tpath = "+human+"\n"+
 		"[includeIf \"gitdir:"+e.GhqRoot+"/\"]\n\tpath = "+product+"\n")
@@ -161,7 +154,6 @@ func TestGitAuthorKeepsOtherIncludes(t *testing.T) {
 	}
 }
 
-// オーナーが ~/.gitconfig に書いた user.* は上書きしない（2回打っても）。
 func TestGitAuthorKeepsHuman(t *testing.T) {
 	f, e, repos := gitFixture(t, testOwner)
 	gc := filepath.Join(f.home, ".gitconfig")
@@ -183,7 +175,6 @@ func TestGitAuthorKeepsHuman(t *testing.T) {
 	}
 }
 
-// owner が空（andon.toml が無い・owner の行が無い）なら、案件の repo もセルの作者で commit が通る（owner を名乗らない）。
 func TestGitAuthorNoOwner(t *testing.T) {
 	for name, toml := range map[string]string{"andon.toml が無い": "", "owner が無い": "slug = \"sample\"\n", "owner が空": "owner = \"\"\n"} {
 		t.Run(name, func(t *testing.T) {

@@ -30,8 +30,6 @@ var noreply = regexp.MustCompile(`^(?:[0-9]+\+)?([^@+]+)@users\.noreply\.github\
 //	includeIf "gitdir:<GHQ_ROOT>/" → ~/.config/andon/git/product.gitconfig （owner。案件の repo と、その worktree）
 //
 // 後ろの include が勝つので、/workspace/.ghq の下は product になる。worktree は元の repo の gitdir で当たる。
-// owner が空なら product もセルの作者にする（commit は通し、owner の作者は名乗らない）。
-// ~/.gitconfig に user.name か user.email が直に書いてあれば、オーナーの設定として何もしない。git が無ければ何もしない。
 func genGitAuthor(e Env) error {
 	git, ok := e.has("git")
 	if !ok {
@@ -85,9 +83,6 @@ func genGitAuthor(e Env) error {
 		want = append(want, [2]string{"gitdir:" + strings.TrimSuffix(e.GhqRoot, "/") + "/", product})
 	}
 
-	// 今の includeIf が want と同じ並び・同じ値なら書かない。違えば boot の分を外して、この順に足し直す。
-	// boot の include（値が boot のファイル）だけを見る。want と同じ並び・同じ値なら書かない。
-	// 違えば boot の行だけを外して、この順に足し直す（同じ条件の、オーナーが置いた include には触らない）。
 	have, err := cfg("--get-regexp", `^includeif\.gitdir:.*\.path$`)
 	if err != nil {
 		return err
@@ -123,7 +118,6 @@ func genGitAuthor(e Env) error {
 	return nil
 }
 
-// ownerName は owner の email から作者の名前を作る（noreply なら login、ほかは @ の前）。
 func ownerName(email string) string {
 	if m := noreply.FindStringSubmatch(email); m != nil {
 		return m[1]
