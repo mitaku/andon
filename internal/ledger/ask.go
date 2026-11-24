@@ -68,13 +68,16 @@ type Mark struct {
 	Until string
 }
 
-func (m Mark) keys() []string {
-	if m.Later == "" {
-		return nil
-	}
-	kv := []string{"later=" + m.Later}
-	if m.Until != "" {
-		kv = append(kv, "later_until="+m.Until)
+// keys は kanban set に渡す印。left は続きを置く課題（打ち直し）が今持つキーで、m が書かないキーを持っていれば消す
+// （前の回と旗が違う打ち直しで、前の回の印を残さない。持たないキーは触らず、履歴に行を足さない）。
+func (m Mark) keys(left Issue) []string {
+	var kv []string
+	for _, k := range []struct{ key, val string }{{"later", m.Later}, {"later_until", m.Until}} {
+		if k.val != "" {
+			kv = append(kv, k.key+"="+k.val)
+		} else if _, ok := left[k.key]; ok {
+			kv = append(kv, k.key+"=")
+		}
 	}
 	return kv
 }
@@ -98,7 +101,7 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 	if q.Kind == "scope" {
 		return "", "", fmt.Errorf("scope の問いはオーナーの課題に置かない（Chief of Staff が答える問い。kind は business/users/promise/irreversible/line）")
 	}
-	id, asked, err := l.unfinished(title, parent)
+	id, left, asked, err := l.unfinished(title, parent)
 	if err != nil {
 		return "", "", err
 	}
@@ -129,7 +132,7 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 			return "", "", fmt.Errorf("kanban の CLI の返事から課題の id が読めない: %q", id)
 		}
 	}
-	if _, err := l.Run("", append([]string{"set", id, "who=person"}, m.keys()...)...); err != nil {
+	if _, err := l.Run("", append([]string{"set", id, "who=person"}, m.keys(left)...)...); err != nil {
 		return id, "", fmt.Errorf("課題 %s を足したが who: person と印を書けなかった（%v）。同じ command を打ち直すと続きから置く", id, err)
 	}
 	out, err := l.Ask(id, q)
@@ -139,10 +142,10 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 	return id, out, nil
 }
 
-func (l *Ledger) unfinished(title, parent string) (string, int, error) {
+func (l *Ledger) unfinished(title, parent string) (string, Issue, int, error) {
 	tasks, err := l.List()
 	if err != nil {
-		return "", 0, err
+		return "", nil, 0, err
 	}
 	for _, t := range tasks {
 		if t.Str("title") != title || t.Str("status") == "done" || CanonID(t.Str("parent")) != CanonID(parent) {
@@ -151,11 +154,11 @@ func (l *Ledger) unfinished(title, parent string) (string, int, error) {
 		id := t.Str("id")
 		n, err := l.Questions(id)
 		if err != nil {
-			return "", 0, err
+			return "", nil, 0, err
 		}
-		return id, n, nil
+		return id, t, n, nil
 	}
-	return "", 0, nil
+	return "", nil, 0, nil
 }
 
 // RestoreQuestion は、課題 id の 1 つ目の問いの控え（library/questions/1.json）が無く、kanban の 1 つ目の問いの文が q の文

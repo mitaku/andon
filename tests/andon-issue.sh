@@ -400,9 +400,25 @@ refuse '呼ぶか置いておくかを言い切る' as t5 "$andon" issue ask --n
 refuse '--until は --later と一緒のときだけ' as t5 "$andon" issue ask --new --until 2099-12-31 - <<<"$rq"
 refuse '--until の日付は YYYY-MM-DD' as t5 "$andon" issue ask --new --later '急がない' --until 2099-13-01 - <<<"$rq"
 refuse '--later で印を書くのは Chief of Staff の端末だけ' as t7 "$andon" issue ask --new --later '急がない' - <<<"$rq"
+refuse '--later の値が無い（--now が続いた）' as t5 "$andon" issue ask --new --later --now - <<<"$rq"
 [ "$(count)" = "$n2" ] || die "ask --new: 断った打ち方で課題が増えた（$n2 → $(count)）"
 kanban list --all --json | jq -e '[.[] | select(.title | startswith("断られる判断"))] | length == 0' >/dev/null || die 'ask --new: 断った問いの課題がある'
-ok 'ask --new: 旗が無い・両方ある・--until だけ・日付の形が違う・Chief of Staff でない端末の --later は、0 でない終了コードで課題を足さない（ADR-0062 受け入れ条件 9）'
+ok 'ask --new: 旗が無い・両方ある・--until だけ・日付の形が違う・Chief of Staff でない端末の --later・値の無い --later は、0 でない終了コードで課題を足さない（ADR-0062 受け入れ条件 9）'
+# 打ち直しで旗が前の回と違えば、前の回の印を残さない（問いを置く前に落ちた --later --until の回を、--now か --later だけで打ち直す）
+for again in '--now|' '--later|今は急がない'; do
+    flag=${again%|*} val=${again#*|}
+    tq=$(jq -c --arg f "$flag" '.question = ("旗を変えて打ち直す判断 " + $f)' <<<"$nq")
+    th=$(as t5 kanban add "$(jq -r .question <<<"$tq")（オーナーの判断待ち）")
+    as t5 kanban set "$th" later='前の回の理由' later_until=2099-12-31 >/dev/null
+    if [ -n "$val" ]; then out=$(as t5 "$andon" issue ask --new "$flag" "$val" - <<<"$tq"); else out=$(as t5 "$andon" issue ask --new "$flag" - <<<"$tq"); fi
+    [[ "$out" == "$th#1" ]] || die "ask --new $flag: 途中で止まった課題 $th に続きから置いていない: $out"
+    want=$(jq -nc --arg v "$val" 'if $v == "" then {} else {later: $v} end')
+    kanban show "$th" --json | jq -e --argjson w "$want" '.issue | {later, later_until} | with_entries(select(.value != null)) == $w' >/dev/null \
+      || die "ask --new $flag: 打ち直しで前の回の印が残る: $(kanban show "$th" --json | jq -c '.issue')"
+done
+"$andon" waiting --json | jq -e '[.items[] | select(.title | startswith("旗を変えて打ち直す判断 --now")) | .call] == [true]' >/dev/null \
+  || die "ask --new --now の打ち直し: 呼ぶ行にならない: $("$andon" waiting --json)"
+ok 'ask --new: 前の回と旗の違う打ち直しは、前の回の later・later_until を消し、--now なら呼ぶ行になる'
 pre2=$(as t5 kanban add '前の課題 2' --profile claude)
 wq=$(as t5 kanban add '前を待つ担当の課題' --profile claude --after "$pre2")
 [ "$(kanban show "$wq" --json | jq -r .issue.status)" = queued ] || die '担当の課題が queued で作られていない'

@@ -181,6 +181,13 @@ func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var mark ledger.Mark
 	for len(args) > 1 && strings.HasPrefix(args[0], "--") {
 		switch args[0] {
+		case "--parent", "--after", "--later", "--until":
+			// 値を取る旗の値が旗の形なら、値を書き忘れた打ち方として断る（--later --now - を、理由「--now」の印として通さない）
+			if strings.HasPrefix(args[1], "--") {
+				return askNewRefuse(stderr, fmt.Sprintf("%s の値が無い（%s が続いた）", args[0], args[1]))
+			}
+		}
+		switch args[0] {
 		case "--parent":
 			parent = ledger.CanonID(args[1])
 		case "--after":
