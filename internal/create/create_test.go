@@ -305,7 +305,7 @@ func terminal(t *testing.T, answers string) *os.File {
 
 func TestInteractiveAsksWhatIsMissingWithDefaults(t *testing.T) {
 	ws, _ := setup(t)
-	// slug（悪い形を1度）→ repos（悪い形を1度・空行で終わり）→ prefix（既定）→ 題 → 確かめ
+	// slug（悪い形を1度）→ repos（悪い形を1度・空行で終わり）→ prefix（既定）→ タイトル → 確かめ
 	in := terminal(t, "Bad\nsample-site\nnot-a-repo\nexample.com/o/new\n\n\nSample site\ny\n")
 	rc, out, errs := run(in)
 	if rc != 0 {

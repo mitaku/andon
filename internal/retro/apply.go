@@ -230,7 +230,7 @@ func applyPlans(l *ledger.Ledger, id string, plans []plan, dropped []Dropped, re
 }
 
 // addPlans は fix のパターンごとに課題を足し、足すたびに記録を書き直す。記録に無いパターンでも、kanban にこの振り返りを parent に持つ
-// 同じ題の課題があれば足さずに記録へ写す（前の回が kanban add のあと記録の保存で落ちたとき、打ち直しで同じ課題を重ねて足さない）。
+// 同じタイトルの課題があれば足さずに記録へ写す（前の回が kanban add のあと記録の保存で落ちたとき、打ち直しで同じ課題を重ねて足さない）。
 func addPlans(l *ledger.Ledger, id string, plans []plan, rec *Applied, save func() error) error {
 	var left []plan
 	for _, pl := range plans {

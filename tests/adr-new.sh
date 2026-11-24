@@ -127,9 +127,9 @@ check '1 行目は「# ADR-0003: 番号を取る」' test "$(sed -n 1p "$f")" = 
 check '状態行は「- 状態: **提案**」' grep -qx -- '- 状態: \*\*提案\*\*' "$f"
 before=$(adrs)
 for bad in Upper 'has space' 'under_score' '' ../escape; do
-  check "名前「$bad」を断る" bash -c '! (cd "$1" && "$2" "$3" "題") 2>/dev/null' _ "$s/w1" "$new" "$bad"
+  check "名前「$bad」を断る" bash -c '! (cd "$1" && "$2" "$3" "タイトル") 2>/dev/null' _ "$s/w1" "$new" "$bad"
 done
-check '同じ名前の ADR が在れば断る' bash -c '! (cd "$1" && "$2" shape "題") 2>/dev/null' _ "$s/w1" "$new"
+check '同じ名前の ADR が在れば断る' bash -c '! (cd "$1" && "$2" shape "タイトル") 2>/dev/null' _ "$s/w1" "$new"
 check '断ったときファイルを作らない' test "$(adrs)" = "$before"
 
 # 5 置いたファイルに本文を書き足すと、tests/adr-index.sh を通る（受け入れ条件 6）

@@ -356,7 +356,7 @@ func (c *collector) doneAt(rows []ledger.Row, in func(time.Time) bool) map[strin
 	return out
 }
 
-// title は課題の題（kanban に無ければ id）。
+// title は課題のタイトル（kanban に無ければ id）。
 func (c *collector) title(id string) string {
 	if t := c.byID[id]; t != nil {
 		return t.title

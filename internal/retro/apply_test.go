@@ -15,7 +15,7 @@ import (
 )
 
 // fakeKanbanApply は list・add・set・ask・show だけを受ける偽の kanban の CLI を PATH に置く。課題は FAKE_STATE に1行1件
-// （id・題・parent・who・review・問いの数を | で区切る。空の欄を潰さないため）で持つ。add は行を足して新しい id を出し、set は who と
+// （id・タイトル・parent・who・review・問いの数を | で区切る。空の欄を潰さないため）で持つ。add は行を足して新しい id を出し、set は who と
 // review を覚え、ask は問いの数を1つ増やして <id>#<n> を出す（FAKE_ASK_FAIL があれば落ちる。1 つ目の問いの文は覚え、show が n と text で出す）。打った add・set・ask は FAKE_LOG に1行ずつ。
 const fakeKanbanApply = `#!/usr/bin/env bash
 st=$FAKE_STATE
@@ -94,11 +94,11 @@ func checkOwnerQuestion(t *testing.T, l *ledger.Ledger, id string) {
 	}
 }
 
-// kanban add のあと記録の保存で落ちると、記録には足した課題が無い。打ち直しは、kanban にこの振り返りを parent に持つ同じ題の
-// 課題を見つけて記録へ写し、同じ課題を重ねて足さない。題が同じでも parent が別の課題は写さない（問いを持つオーナーの課題でも断らない）。
+// kanban add のあと記録の保存で落ちると、記録には足した課題が無い。打ち直しは、kanban にこの振り返りを parent に持つ同じタイトルの
+// 課題を見つけて記録へ写し、同じ課題を重ねて足さない。タイトルが同じでも parent が別の課題は写さない（問いを持つオーナーの課題でも断らない）。
 // Andon の repo を持たないプロジェクトのオーナーの課題は、種類 promise・選択肢 2 つ・from が retro の問いと一緒に足す（ADR-0057 受け入れ条件 14）。
 func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
-	// 別の振り返りが足した同じ題の課題（担当の課題と、問いを持つオーナーの課題）。parent が違うので、取り違えも断りもしない
+	// 別の振り返りが足した同じタイトルの課題（担当の課題と、問いを持つオーナーの課題）。parent が違うので、取り違えも断りもしない
 	l, logged := applyFixture(t, "S-0010|直す A|S-0001|||0\nS-0011|Andon へ伝えるか: B|S-0001|person||1\n")
 	plans := andonPlans()
 	if plans[0].Who != "worker" || plans[0].Question != nil || plans[1].Who != "person" || plans[1].Title != "Andon へ伝えるか: B" || plans[1].Question == nil {
@@ -132,7 +132,7 @@ func TestApplyRerunAfterSaveFailureDoesNotAddTwice(t *testing.T) {
 	checkOwnerQuestion(t, l, "S-0023")
 }
 
-// オーナーの課題を足したあと問いを置く所で落ちた回は、課題を足して記録に残さずに終わる。打ち直すと、その課題を親と題で
+// オーナーの課題を足したあと問いを置く所で落ちた回は、課題を足して記録に残さずに終わる。打ち直すと、その課題を親とタイトルで
 // 見つけ、課題を足さずに問いを 1 つだけ置く（ADR-0057 決めたこと 11・受け入れ条件 14）。
 func TestApplyRerunAfterAskFailurePutsOnlyTheQuestion(t *testing.T) {
 	l, logged := applyFixture(t, "S-0010|ほかの課題||||0\n")

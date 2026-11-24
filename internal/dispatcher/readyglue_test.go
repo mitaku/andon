@@ -9,7 +9,7 @@ import (
 
 // ready の差のつなぎ: 待つ相手が done になって todo へ戻った課題（kanban ready に新しく出た課題）の通知 ready に、
 // マージされずに done になった待つ相手を abandoned で添える。マージで片付いた待つ相手と、PR を成果にしない待つ相手（repo の無い課題）
-// だけを待つ課題は題だけ。初めて見る kanban は控えるだけで、同じ課題を二度知らせない。
+// だけを待つ課題はタイトルだけ。初めて見る kanban は控えるだけで、同じ課題を二度知らせない。
 // （kanban done が queued の課題を todo へ移すことは cmd/kanban の TestDoneFreeingQueuedFires が見る。）
 func TestReadyDiffAddsAbandoned(t *testing.T) {
 	sha := "9c4e1b0d7a3f5e2c8b6d4a1f0e9c7b5a3d2e1f08"

@@ -514,7 +514,7 @@ func (p *startPlan) print(w io.Writer) {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
 		}
 	}
-	row("題", p.Title)
+	row("タイトル", p.Title)
 	row("プロファイル", p.Profile)
 	row("端末の名前", p.Terminal)
 	row("cwd", p.Cwd)
@@ -539,9 +539,9 @@ func (p *startPlan) print(w io.Writer) {
 	}
 }
 
-// workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、オーナーに見せる題はラベル title に載せる。
+// workLabels は担当の端末のラベル。名前は a-z 0-9 - _ の32字までなので、オーナーに見せるタイトルはラベル title に載せる。
 // herdr.space・herdr.tab でオーナーの Herdr App に課題ごとの Space（tab は担当の1つ）として出す（ADR-0003。id の作り方は ADR-0002 決めたこと 6）。
-// 値は slug・id・題だけで決まり、どのマシンで起動するかに依らない（別のマシンならその machine の Space に出る。前提 7）。
+// 値は slug・id・タイトルだけで決まり、どのマシンで起動するかに依らない（別のマシンならその machine の Space に出る。前提 7）。
 func workLabels(slug, id, title string) []string {
 	return []string{"project=" + slug, "issue=" + id, "title=" + title,
 		"herdr.space=andon-" + slug + "-" + id, "herdr.tab=andon-" + slug + "-" + id}

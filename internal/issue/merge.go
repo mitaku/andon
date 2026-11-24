@@ -774,7 +774,7 @@ func short12(s string) string {
 	return s
 }
 
-// short は題を問いの1行に入れる形に切る（改行を除き40字まで）。
+// short はタイトルを問いの1行に入れる形に切る（改行を除き40字まで）。
 func short(s string) string {
 	s = strings.Join(strings.Fields(s), " ")
 	if r := []rune(s); len(r) > 40 {

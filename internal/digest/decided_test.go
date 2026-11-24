@@ -170,10 +170,10 @@ func TestDecisionsHistory(t *testing.T) {
 		return fmt.Sprintf("%d. **%s（Chief Engineer が決めた）。** %s\n", n, text, body)
 	}
 	const sec = "## 決めたこと\n\n"
-	old := "docs/adr/古い 題.md"
+	old := "docs/adr/古い タイトル.md"
 	g := newGitRepo(t, map[string]string{"docs/a.md": sec + line(1, "前からある", "理由"), old: sec + line(1, "名前だけ変わる", "長い本文")})
 	g.commit("2026-11-20T09:59:59Z", map[string]string{"docs/before.md": sec + line(1, "期間の前", "")})
-	g.commit("2026-11-21T01:00:00Z", map[string]string{"docs/a.md": sec + line(2, "前からある", "直した理由"), old: "", "docs/adr/新しい 題.md": sec + line(1, "名前だけ変わる", "長い本文")})
+	g.commit("2026-11-21T01:00:00Z", map[string]string{"docs/a.md": sec + line(2, "前からある", "直した理由"), old: "", "docs/adr/新しい タイトル.md": sec + line(1, "名前だけ変わる", "長い本文")})
 	g.commit("2026-11-21T02:00:00Z", map[string]string{"README.md": sec + line(1, "docs の外", ""), "docs/memo.txt": sec + line(1, "文書でない", "")})
 	// branch の commit は期間の前、main に入ったのは期間の中
 	g.git(g.origin, "checkout", "-q", "-b", "topic")
@@ -307,11 +307,11 @@ func TestDecidedRecords(t *testing.T) {
 	want := contract.Marshal(&Decided{
 		Decisions: []Decision{},
 		Mains:     []MainRead{},
-		Triage:    []Triaged{{Issue: "S-0020", Title: "題 S-0020", At: "2026-11-21T06:00:00Z", Closed: 2, Cut: 2, Path: "kanban/library/triage/2026-11-21-S-0020.json"}},
-		Retro:     []Retroed{{Issue: "S-0030", Title: "題 S-0030", At: "2026-11-21T07:00:00Z", Fix: 2, Dropped: 1, Path: "kanban/issues/S-0030/library/retro-applied.json"}},
+		Triage:    []Triaged{{Issue: "S-0020", Title: "タイトル S-0020", At: "2026-11-21T06:00:00Z", Closed: 2, Cut: 2, Path: "kanban/library/triage/2026-11-21-S-0020.json"}},
+		Retro:     []Retroed{{Issue: "S-0030", Title: "タイトル S-0030", At: "2026-11-21T07:00:00Z", Fix: 2, Dropped: 1, Path: "kanban/issues/S-0030/library/retro-applied.json"}},
 		Answers: []ScopeReply{
-			{Issue: "S-0040", Title: "題 S-0040", N: 1, Question: "どれを直すか", Answer: "答え 1", At: "2026-11-21T08:00:00Z", Path: "kanban/issues/S-0040/questions.yaml"},
-			{Issue: "S-0040", Title: "題 S-0040", N: 2, Question: "問い 2（scope）", Answer: "答え 2", At: "2026-11-21T08:10:00Z", Path: "kanban/issues/S-0040/questions.yaml"},
+			{Issue: "S-0040", Title: "タイトル S-0040", N: 1, Question: "どれを直すか", Answer: "答え 1", At: "2026-11-21T08:00:00Z", Path: "kanban/issues/S-0040/questions.yaml"},
+			{Issue: "S-0040", Title: "タイトル S-0040", N: 2, Question: "問い 2（scope）", Answer: "答え 2", At: "2026-11-21T08:10:00Z", Path: "kanban/issues/S-0040/questions.yaml"},
 		},
 	})
 	if string(got) != string(want) {

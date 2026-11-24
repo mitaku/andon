@@ -79,7 +79,7 @@ func newStart(t *testing.T) *startFixture {
 	os.WriteFile(filepath.Join(bin, "hc"), []byte(startHc), 0o755)
 	os.WriteFile(filepath.Join(bin, "claude"), []byte(startHarness), 0o755)
 	os.WriteFile(filepath.Join(bin, "codex"), []byte(startHarness), 0o755)
-	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# 題\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# タイトル\n"), 0o644)
 	os.WriteFile(filepath.Join(f.root, "kanban", "config.yaml"), []byte("version: 3\nrepos:\n  - github.com/example/sample-site\nchief_of_staff: t5\n"), 0o644)
 	origin := filepath.Join(dir, "origin.git")
 	gitT(t, "", "init", "-q", "--bare", "-b", "main", origin)
@@ -625,8 +625,8 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			}
 		})
 	}
-	// apply が kanban add のあと記録の前で止まった課題: 記録には足す前の印（adding）と題だけが残る。
-	// 題が同じで、足したのが Chief of Staff の端末なら埋める。足した端末が違う・題が違うなら今までどおり断る。
+	// apply が kanban add のあと記録の前で止まった課題: 記録には足す前の印（adding）とタイトルだけが残る。
+	// タイトルが同じで、足したのが Chief of Staff の端末なら埋める。足した端末が違う・タイトルが違うなら今までどおり断る。
 	adding := func(f *startFixture, title, by string) {
 		dir := filepath.Join(f.root, "kanban", "library", "triage")
 		os.MkdirAll(dir, 0o755)
@@ -649,8 +649,8 @@ func TestStartFillsTriageSettings(t *testing.T) {
 			t.Errorf("rc=%d out=%q err=%q calls=%q", rc, out, errs, f.calls())
 		}
 	})
-	// kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まった課題は、足した行が無い。印と題が合い、印（09:00）より後に
-	// 作られた課題なら埋める。印より前に作られた同じ題の課題（前に別の端末が足す途中で止めたもの）と、log.jsonl が空なら
+	// kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まった課題は、足した行が無い。印とタイトルが合い、印（09:00）より後に
+	// 作られた課題なら埋める。印より前に作られた同じタイトルの課題（前に別の端末が足す途中で止めたもの）と、log.jsonl が空なら
 	// （読めないのと分けられないので）今までどおり断る
 	cfgRow := `{"at":"2026-11-23T00:00:00Z","by":"terminal:t5","config":{"chief_of_staff":"t5"}}` + "\n"
 	for _, c := range []struct {
@@ -782,7 +782,7 @@ func TestStartFirstMessageNoLabel(t *testing.T) {
 	}
 }
 
-// 担当の置き場のラベルは slug・id・題だけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7、ADR-0003）。
+// 担当の置き場のラベルは slug・id・タイトルだけで決まる（machine を引数に取らない。ADR-0002 決めたこと 6・前提 7、ADR-0003）。
 func TestWorkLabels(t *testing.T) {
 	want := []string{"project=sample-site", "issue=S-0007", "title=Add the button",
 		"herdr.space=andon-sample-site-S-0007", "herdr.tab=andon-sample-site-S-0007"}
@@ -869,7 +869,7 @@ func TestStartDryRunCallsNoHc(t *testing.T) {
 func TestStartDryRunHuman(t *testing.T) {
 	f := newStart(t)
 	f.noHc()
-	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# 題\n完了条件: 押せる\n"), 0o644)
+	os.WriteFile(filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md"), []byte("# タイトル\n完了条件: 押せる\n"), 0o644)
 	rc, out, _ := f.run("--dry-run")
 	brief := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
 	for _, want := range []string{
@@ -877,7 +877,7 @@ func TestStartDryRunHuman(t *testing.T) {
 		"herdr.space=andon-sample-site-S-0007",
 		"ok      delegation", "skipped template",
 		"最初のメッセージ（hc run に渡す文）:\n課題 `sample-site/S-0007`。\n依頼書は `" + brief + "`。\n",
-		"依頼書（" + brief + "）:\n# 題\n完了条件: 押せる\n",
+		"依頼書（" + brief + "）:\n# タイトル\n完了条件: 押せる\n",
 	} {
 		if rc != 0 || !strings.Contains(out, want) {
 			t.Errorf("rc=%d %q が無い:\n%s", rc, want, out)
@@ -977,8 +977,8 @@ func TestStartFirstMessageGuide(t *testing.T) {
 // --dry-run は書き直したものを出すだけで、brief.md を書かない。
 func TestStartRewritesSettingsCopy(t *testing.T) {
 	const tail = "\n## 根拠\n- 前の課題の記録\n\n## 追記（Chief of Staff）\n- 完了条件に画面の確かめを足す\n"
-	const old = "# 題\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail
-	const want = "# 題\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail
+	const old = "# タイトル\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail
+	const want = "# タイトル\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail
 	setup := func(t *testing.T) (*startFixture, string) {
 		f := newStart(t)
 		path := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")

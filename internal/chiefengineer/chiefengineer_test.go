@@ -211,7 +211,7 @@ func TestStartsChiefEngineer(t *testing.T) {
 func TestUsage(t *testing.T) {
 	newFake(t)
 	r := "--repo=github.com/example/sample-site"
-	for _, args := range [][]string{nil, {""}, {r}, {r, ""}, {r, "  "}, {r, "a", "b"}, {r, "二行\nの題"}, {r, "--no-attach", "題"}, {"--repo"}} {
+	for _, args := range [][]string{nil, {""}, {r}, {r, ""}, {r, "  "}, {r, "a", "b"}, {r, "二行\nのタイトル"}, {r, "--no-attach", "タイトル"}, {"--repo"}} {
 		rc, out, errs := runMain(args...)
 		if rc != exitUsage || out != "" || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
 			t.Errorf("%q: rc=%d out=%q err=%q", args, rc, out, errs)
@@ -222,7 +222,7 @@ func TestUsage(t *testing.T) {
 func TestNoLedger(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_ROOT", "")
-	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
 	if rc != exitFail || !strings.Contains(errs, "kanban が見つからない") || f.has("hc") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
@@ -241,9 +241,9 @@ func TestDocumentedInvocations(t *testing.T) {
 		}
 		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
 			found++
-			args := []string{"題"}
+			args := []string{"タイトル"}
 			if strings.Contains(m[1], "--repo") && !strings.Contains(m[1], "[") {
-				args = []string{"--repo", "github.com/example/sample-site", "題"}
+				args = []string{"--repo", "github.com/example/sample-site", "タイトル"}
 			}
 			in := ""
 			if m[2] != "" {
@@ -288,7 +288,7 @@ func TestLedgerRepos(t *testing.T) {
 	} {
 		f := newFake(t)
 		f.config(c.repos)
-		rc, _, errs := runMain("題")
+		rc, _, errs := runMain("タイトル")
 		if rc != c.rc || !strings.Contains(errs, c.err) || f.has("kanban add") {
 			t.Errorf("%q: rc=%d err=%q", c.repos, rc, errs)
 		}
@@ -296,29 +296,29 @@ func TestLedgerRepos(t *testing.T) {
 	// 1つなら --repo 無しで通り、--repo があれば repos より --repo
 	f := newFake(t)
 	f.config("repos:\n  - \"github.com/example/sample-site\"\n")
-	if rc, _, errs := runMain("題"); rc != 0 || !f.has("kanban add 題 --repo github.com/example/sample-site ") {
+	if rc, _, errs := runMain("タイトル"); rc != 0 || !f.has("kanban add タイトル --repo github.com/example/sample-site ") {
 		t.Errorf("1つ: rc=%d err=%q", rc, errs)
 	}
 	// flow の並び（repos: [x]）も読む
 	f = newFake(t)
 	f.config("repos: [github.com/example/sample-site]\n")
-	if rc, _, errs := runMain("題"); rc != 0 || !f.has("kanban add 題 --repo github.com/example/sample-site ") {
+	if rc, _, errs := runMain("タイトル"); rc != 0 || !f.has("kanban add タイトル --repo github.com/example/sample-site ") {
 		t.Errorf("flow の並び: rc=%d err=%q", rc, errs)
 	}
 	f = newFake(t)
 	f.config("repos:\n  - github.com/example/a\n  - github.com/example/b\n")
-	if rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題"); rc != 0 {
+	if rc, _, errs := runMain("--repo", "github.com/example/sample-site", "タイトル"); rc != 0 {
 		t.Errorf("--repo があれば repos が2つでも通る: rc=%d err=%q", rc, errs)
 	}
 }
 
 func TestBadRepo(t *testing.T) {
 	f := newFake(t)
-	rc, _, errs := runMain("--repo", "example/sample-site", "題")
+	rc, _, errs := runMain("--repo", "example/sample-site", "タイトル")
 	if rc != exitUsage || !strings.Contains(errs, "repo が不正") || f.has("kanban") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
-	rc, _, errs = runMain("--repo", "github.com/example/none", "題")
+	rc, _, errs = runMain("--repo", "github.com/example/none", "タイトル")
 	if rc != exitFail || !strings.Contains(errs, "リポジトリが無い") || f.has("kanban add") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
@@ -328,7 +328,7 @@ func TestBadRepo(t *testing.T) {
 func TestUnderscoreSlug(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_ROOT", filepath.Join(t.TempDir(), "projects", "sample_site"))
-	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
 	if rc != 0 || !strings.Contains(out, "sample_site-s-7") || !strings.Contains(f.branches(), "sample_site/S-7") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}
@@ -337,7 +337,7 @@ func TestUnderscoreSlug(t *testing.T) {
 func TestBadSlug(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_ROOT", filepath.Join(t.TempDir(), "Bad_Slug"))
-	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
 	if rc != exitFail || !strings.Contains(errs, "slug が不正") || f.has("kanban add") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
@@ -347,8 +347,8 @@ func TestBadSlug(t *testing.T) {
 func TestStartsWhileAnotherRunning(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
-	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != 0 || errs != "" || !strings.Contains(out, "S-7（題）を t42") {
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
+	if rc != 0 || errs != "" || !strings.Contains(out, "S-7（タイトル）を t42") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	if !f.has("kanban add") || !f.has("hc run") || f.has("hc keep") || f.has("hc kill") || f.has("hc rm") {
@@ -362,8 +362,8 @@ func TestShellChiefEngineerIsLeft(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_LS", `{"terminals":[{"address":"t9","labels":{"role":"chief-engineer","project":"sample-site","issue":"S-3","title":"Billing の設計"}}]}`)
 	t.Setenv("FAKE_GET", `{"address":"t9","argv":["/bin/bash"],"status":null,"foreground":{"name":"bash","argv":["/bin/bash"]}}`)
-	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != 0 || errs != "" || !strings.Contains(out, "S-7（題）を t42") {
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
+	if rc != 0 || errs != "" || !strings.Contains(out, "S-7（タイトル）を t42") {
 		t.Fatalf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 	for _, c := range []string{"hc ls", "hc get", "hc keep", "hc kill", "hc rm"} {
@@ -375,9 +375,9 @@ func TestShellChiefEngineerIsLeft(t *testing.T) {
 
 // --brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。省けば既定の行だけ。
 func TestBriefFromStdin(t *testing.T) {
-	head := "# 題\n\nChief Engineer の課題。オーナーと直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
-		"題はオーナーの1行。手順は skill chief-engineer。\n"
-	for _, args := range [][]string{{"--brief", "-", "題"}, {"題", "--brief=-"}} {
+	head := "# タイトル\n\nChief Engineer の課題。オーナーと直接話して仕様・設計を詰め、文書にして Chief of Staff へ渡す。\n" +
+		"タイトルはオーナーの1行。手順は skill chief-engineer。\n"
+	for _, args := range [][]string{{"--brief", "-", "タイトル"}, {"タイトル", "--brief=-"}} {
 		f := newFake(t)
 		var out, errb bytes.Buffer
 		in := "## 経緯\r\nオーナー: 「請求を月ごとにしたい」\n出典: docs/billing.md\n\n"
@@ -393,7 +393,7 @@ func TestBriefFromStdin(t *testing.T) {
 	}
 	f := newFake(t)
 	var out, errb bytes.Buffer
-	if rc := Main([]string{"--repo", "github.com/example/sample-site", "題"}, strings.NewReader("読まない"), &out, &errb); rc != 0 {
+	if rc := Main([]string{"--repo", "github.com/example/sample-site", "タイトル"}, strings.NewReader("読まない"), &out, &errb); rc != 0 {
 		t.Fatalf("rc=%d err=%q", rc, errb.String())
 	}
 	if brief, _ := os.ReadFile(f.log + ".brief"); string(brief) != head {
@@ -405,12 +405,12 @@ func TestBriefFromStdin(t *testing.T) {
 func TestBriefBad(t *testing.T) {
 	f := newFake(t)
 	var out, errb bytes.Buffer
-	rc := Main([]string{"--repo", "github.com/example/sample-site", "--brief", "-", "題"}, strings.NewReader(" \n"), &out, &errb)
+	rc := Main([]string{"--repo", "github.com/example/sample-site", "--brief", "-", "タイトル"}, strings.NewReader(" \n"), &out, &errb)
 	if rc != exitUsage || !strings.Contains(errb.String(), "--brief - の stdin が空") || f.has("hc") || f.has("kanban") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errb.String(), f.calls())
 	}
 	r := "--repo=github.com/example/sample-site"
-	for _, args := range [][]string{{r, "--brief", "題"}, {r, "--brief", "x.md", "題"}, {r, "--brief=x", "題"}, {r, "--brief", "-", "--brief", "-", "題"}} {
+	for _, args := range [][]string{{r, "--brief", "タイトル"}, {r, "--brief", "x.md", "タイトル"}, {r, "--brief=x", "タイトル"}, {r, "--brief", "-", "--brief", "-", "タイトル"}} {
 		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
 			t.Errorf("%q: rc=%d err=%q", args, rc, errs)
 		}
@@ -420,7 +420,7 @@ func TestBriefBad(t *testing.T) {
 func TestNoTemplate(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"}]}`)
-	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
 	if rc != exitFail || !strings.Contains(errs, "プロファイル chief-engineer の template が無い") || f.has("kanban add") {
 		t.Errorf("rc=%d err=%q", rc, errs)
 	}
@@ -429,7 +429,7 @@ func TestNoTemplate(t *testing.T) {
 func TestHcRunFails(t *testing.T) {
 	f := newFake(t)
 	t.Setenv("FAKE_RUN_RC", "1")
-	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "題")
+	rc, _, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
 	if rc != exitFail || !strings.Contains(errs, "hc run に失敗") || !strings.Contains(errs, "S-7 は todo のまま残る") || f.has("kanban start") {
 		t.Errorf("rc=%d err=%q calls=%q", rc, errs, f.calls())
 	}
@@ -450,10 +450,10 @@ func TestFirstMessageNotSent(t *testing.T) {
 	if err := os.WriteFile(tpl, []byte("---\nname: chief-engineer\ndescription: d\ncommand: claude\n---\n役目の1文目。\n役目の2文目。\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "題")
-	if rc != exitFirst || out != "andon chief-engineer: 出た場所 sample-site / CE S-7 題（t42）\n" ||
-		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt（App では sample-site / CE S-7 題）。dispatcher が見回りで送り直す") ||
-		!strings.Contains(errs, "急ぐときだけ手で: hc send t42 '役目の1文目。\n役目の2文目。\n\n課題 `sample-site/S-7`。") || !strings.Contains(errs, "（App では sample-site / CE S-7 題）") ||
+	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
+	if rc != exitFirst || out != "andon chief-engineer: 出た場所 sample-site / CE S-7 タイトル（t42）\n" ||
+		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt（App では sample-site / CE S-7 タイトル）。dispatcher が見回りで送り直す") ||
+		!strings.Contains(errs, "急ぐときだけ手で: hc send t42 '役目の1文目。\n役目の2文目。\n\n課題 `sample-site/S-7`。") || !strings.Contains(errs, "（App では sample-site / CE S-7 タイトル）") ||
 		!strings.HasSuffix(errs, "`。'\n") || // 手で送る行は案内の最後（貼ったときに後ろの文を拾わない）
 		!f.has("hc label t42 first_message.sent=false") ||
 		!f.has("kanban start S-7 | HC_TERMINAL_ID=t42") || f.has("hc attach") {

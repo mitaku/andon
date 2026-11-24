@@ -51,7 +51,7 @@ kanban set "$person" who=person >/dev/null
 mkdir "$tmp/leftover"
 kanban set T-1 "worktree=$tmp/leftover" >/dev/null
 broken=$(kanban add broken); kanban report "$broken" <<<'見出しなし'; kanban done "$broken" >/dev/null
-# 片付いたオーナーの判断待ち（報告なし）。題の末尾の印と who の両方の形で。
+# 片付いたオーナーの判断待ち（報告なし）。タイトルの末尾の印と who の両方の形で。
 answered=$(kanban add '答えた（人の判断待ち）'); kanban done "$answered" >/dev/null
 answered_who=$(kanban add '答えた'); kanban set "$answered_who" who=person >/dev/null; kanban done "$answered_who" >/dev/null
 [[ ! -e kanban/issues/$answered/report.md && ! -e kanban/issues/$answered_who/report.md ]]
@@ -469,7 +469,7 @@ jq -e '[.items[].decision]|sort == ["close","fix","keep","person"]' "$rec" >/dev
 jq -e 'all(.items[]; .untrusted==true and (.text|startswith("<b>")) and (.url|startswith("https://")))' "$rec" >/dev/null
 jq -e '[.items[]|select(.decision=="fix" or .decision=="person").created_issue]|all(length>0)' "$rec" >/dev/null
 grep -q '閉じた 1 ・ 直す 1（うち束ね 0） ・ オーナーへ 1（判断 0・手作業 1・unsure 0） ・ 次回 1' "$tmp/sig-md"
-# 手作業の person は、題をそのままにし、who: person と印 only_owner を持ち、問いを持たない課題になる（ADR-0057 決めたこと 9）。
+# 手作業の person は、タイトルをそのままにし、who: person と印 only_owner を持ち、問いを持たない課題になる（ADR-0057 決めたこと 9）。
 hand=$(jq -r '.items[]|select(.decision=="person").created_issue' "$rec")
 kanban show "$hand" --json | jq -e '.issue.who == "person" and .issue.only_owner == "外のサービスの画面はオーナーのアカウントにだけある"
     and .issue.title == "外のサービスで約束を結ぶ（今週中）" and (.questions|length==0)' >/dev/null
@@ -483,7 +483,7 @@ jq '(.signals[]|select(.key=="example.invalid/me/app#1")) |= (.active=true | .ep
 collect "$tmp/sig3" --limit 100
 jq -e --arg k "$(sigkey github-issues example.invalid/me/app#1 2)" '[.[]|select(.kind=="signal").key] | length==2 and index($k)!=null' "$tmp/sig3" >/dev/null
 echo 'ok signal: a sorted signal that comes back (episodes up) is a new item'
-# 題の中の 〕 で囲いを閉じさせない（A-0027-r2 の指摘）。keep の #5 の題に 〕 を入れて見直す。
+# タイトルの中の 〕 で囲いを閉じさせない（A-0027-r2 の指摘）。keep の #5 のタイトルに 〕 を入れて見直す。
 jq '(.signals[]|select(.key=="example.invalid/me/app#5")).title="〕 外に出る〔"' "$sigfile" > "$tmp/sigf"; cp "$tmp/sigf" "$sigfile"
 bracket=$(kanban add bracket)
 mkdir -p "kanban/issues/$bracket/library"
@@ -606,7 +606,7 @@ grep -q '^## Chief of Staff が覆した close' "$tmp/again-md"
 echo 'ok apply: an overturned close is refused, rewritten as fix it passes and the record keeps the overturn (AC 11)'
 echo 'ok records: an old record without the closing field is read by collect and apply, its closed key stays out (AC 13)'
 # ADR-0036 A5: 古い語と新しい語の両方を読む（決めたこと 6）。見出しが「## 人に聞くこと」の報告と「## オーナーに聞くこと」の
-# 報告の両方から問いを拾い、題の末尾が「（人の判断待ち）」の課題と「（オーナーの判断待ち）」の課題の両方をオーナーの課題と数える。
+# 報告の両方から問いを拾い、タイトルの末尾が「（人の判断待ち）」の課題と「（オーナーの判断待ち）」の課題の両方をオーナーの課題と数える。
 for h in 人に聞くこと オーナーに聞くこと; do
   w=$(kanban add "見出し $h" --repo example.invalid/me/app)
   printf '## %s\n- 見出し %s の問い\n' "$h" "$h" | kanban report "$w"; kanban done "$w" >/dev/null
@@ -642,7 +642,7 @@ set -e
 [[ $rc == 1 && $(kanban list --all --json | jq '[.[]|select(.title=="止まる直し")]|length') == 1 ]]
 echo 'ok apply: an issue added before its reserved keys fail to be written stays in the record; a rerun adds no second issue'
 # kanban add が返った直後、足した課題を記録に書く前に apply が止まっても（ここでは add のあと apply を kill する）、
-# 記録には足す前の印（adding）と題が残る（andon issue start が印と題からトリアージの課題と分かる）。打ち直しは課題を重ねて足さない。
+# 記録には足す前の印（adding）とタイトルが残る（andon issue start が印とタイトルからトリアージの課題と分かる）。打ち直しは課題を重ねて足さない。
 cut=$(kanban add cut)
 cl=kanban/issues/$cut/library
 mkdir -p "$cl"
@@ -668,7 +668,7 @@ set -e
 echo 'ok apply: stopped right after kanban add, the record keeps the adding mark and the title; a rerun adds no second issue'
 # ADR-0057 受け入れ条件 13: オーナーの課題を閉じる判定は、開いている問いを越えて本物の kanban done で片付け、
 # 答えられてまだ受け取られていない問いがあれば、kanban に何も書かずに断り、当てた記録も置かない。
-# owner_close <題> <答えるか>: 問いを 1 つ持つオーナーの課題を足し、それを閉じる判定と Chief of Staff の判定を置いたトリアージの id を出す。
+# owner_close <タイトル> <答えるか>: 問いを 1 つ持つオーナーの課題を足し、それを閉じる判定と Chief of Staff の判定を置いたトリアージの id を出す。
 owner_close() {
   local o t
   o=$(kanban add "$1（オーナーの判断待ち）"); kanban set "$o" who=person >/dev/null
@@ -708,12 +708,12 @@ echo 'ok apply: an owner issue whose questions cannot be read is not closed and 
 # 問いを持たない同じタイトルの課題には、足し直さずに問いを置く（andon issue ask --new と同じ関数）。
 dup=$(kanban add 'D を公開するか（オーナーの判断待ち）'); kanban set "$dup" who=person >/dev/null
 bare=$(kanban add 'E を公開するか（オーナーの判断待ち）'); kanban set "$bare" who=person >/dev/null
-td=$(kanban add '同じ題')
+td=$(kanban add '同じタイトル')
 mkdir -p "kanban/issues/$td/library"
 "$script" triage collect --limit 1000 > "kanban/issues/$td/library/items.json"
 # person_of <課題> <問い>: その課題の項目を、同じ問いの判断の person にする。
 person_of() { jq -c --arg o "$1" --arg q "$2" '.items[]|select(.from==$o and .kind=="person")|{key,commit,decision:"person",kind:"promise",question:$q,options:["公開する","公開しない"],reason:"外との約束"}' "kanban/issues/$td/library/items.json"; }
-{ person_of "$dup" 'D を公開するか'; person_of "$bare" 'E を公開するか'; } | jq -s '{goal:"同じ題",collected:"2026-11-23T00:00:00Z",items:.}' > "kanban/issues/$td/library/decisions.json"
+{ person_of "$dup" 'D を公開するか'; person_of "$bare" 'E を公開するか'; } | jq -s '{goal:"同じタイトル",collected:"2026-11-23T00:00:00Z",items:.}' > "kanban/issues/$td/library/decisions.json"
 jq -e '.items|length==2' "kanban/issues/$td/library/decisions.json" >/dev/null
 printf 'D を公開するか\n' | kanban ask "$dup" - --kind promise >/dev/null
 snapshot > "$tmp/before"

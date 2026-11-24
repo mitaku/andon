@@ -187,7 +187,7 @@ r=0; flock "$tmp/state/andon/dispatcher/.dispatcher.lock" "$andon" dispatcher --
 ok 'andon dispatcher は .dispatcher.lock をほかが持っていれば巡を回さずに終わる'
 
 # Chief of Staff が課題を切る（t5 が予約キーを書く）。担当 t7 が worktree で作業し、PR 7 を出す
-newtask() { # newtask <題> <merge> → id。$(...) の中で呼ばれて set -e が効かないので、各行の失敗は die で止める（die の exit 1 が外の代入を落とす）
+newtask() { # newtask <タイトル> <merge> → id。$(...) の中で呼ばれて set -e が効かないので、各行の失敗は die で止める（die の exit 1 が外の代入を落とす）
     local id; id=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app) || die "newtask: kanban add が失敗した: $1"
     [ -n "$id" ] || die "newtask: kanban add が id を返さなかった: $1"
     HC_TERMINAL_ID=t5 kanban set "$id" review=on must_fix=major merge="$2" >/dev/null || die "newtask: kanban set（review・must_fix・merge）が失敗した: $id"
@@ -1306,7 +1306,7 @@ ok 'rate limit でない gh の失敗で gate が落ちたら、今どおり nee
 basemod='GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)'
 tried() { grep -c -- "--match-head-commit $head\$" "$tmp/gh/merges" || true; }   # 今の head（$head）に gh pr merge を打った回数
 no_question() { [ ! -e "$L/issues/$id/library/questions" ]; }
-base_moved() { # base_moved <題>: gate の approve のあと、1回目の gh pr merge が base の動きで失敗した所まで。id と head を置く
+base_moved() { # base_moved <タイトル>: gate の approve のあと、1回目の gh pr merge が base の動きで失敗した所まで。id と head を置く
     id=$(newtask "$1" auto)
     printf '%s\n' "$basemod" > "$tmp/gh/mergefail"
     to_gate "$id" docs/a.md
@@ -1481,7 +1481,7 @@ term() { # term <addr> <状態> <turn> [<k=v>…]: 偽の hc get --json
         '{address: $a, state: "live", status: {state: $s}, turn: $n, labels: (add // {})}' > "$tmp/hc/term-$a.json"
 }
 cos() { term t5 "$1" "$2" role=chief-of-staff project=demo; }
-event() { # event <題>: dispatcher が通知 report を積む出来事（担当が報告を書く。届ける kind）。id を返す
+event() { # event <タイトル>: dispatcher が通知 report を積む出来事（担当が報告を書く。届ける kind）。id を返す
     local id; id=$(newtask "$1" person)
     work "$id" docs/a.md
     as_worker "$id" report --pr https://github.com/example/app/pull/7

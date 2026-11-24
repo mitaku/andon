@@ -38,7 +38,7 @@ type DigestDestination struct {
 	Channel string `json:"channel"`
 }
 
-// ProjectInfo は題と接頭字。
+// ProjectInfo はタイトルと接頭字。
 type ProjectInfo struct {
 	Title  string `json:"title"`
 	Prefix string `json:"prefix"`

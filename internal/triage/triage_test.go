@@ -140,8 +140,8 @@ func TestParseDecisionsRejects(t *testing.T) {
 	bad := map[string][]map[string]any{
 		"空白の理由":            {with(fix(k1, "t"), "reason", " ")},
 		"改行の理由":            {with(fix(k1, "t"), "reason", "a\nb")},
-		"題が空":              {withIssue("title", "")},
-		"題が - で始まる":        {withIssue("title", "-x")},
+		"タイトルが空":           {withIssue("title", "")},
+		"タイトルが - で始まる":     {withIssue("title", "-x")},
 		"repo の形":          {withIssue("repo", "me/app")},
 		"profile の形":       {withIssue("profile", "-x")},
 		"review の値":        {withIssue("review", "yes")},
@@ -277,7 +277,7 @@ func TestSummary(t *testing.T) {
 	items := []item{
 		{"key": k1, "decision": "close", "closing": "done", "reason": "a|b", "text": "行\n本文"},
 		{"key": "demo:T-4:remember:0000000000000000000000000000000000000004", "decision": "close", "closing": "one-off", "reason": "その場限り", "text": "学び"},
-		{"key": k2, "decision": "fix", "reason": "r", "created_issue": "T-9", "issue": map[string]any{"title": "題", "review": "on"}},
+		{"key": k2, "decision": "fix", "reason": "r", "created_issue": "T-9", "issue": map[string]any{"title": "タイトル", "review": "on"}},
 		{"key": "demo:T-3:unreadable:0000000000000000000000000000000000000003", "decision": "keep", "reason": "読む"},
 	}
 	// 種類を決めきれなかった判断（unsure）が 4 件と、手作業が 1 件（ADR-0057 受け入れ条件 12）。
@@ -298,7 +298,7 @@ func TestSummary(t *testing.T) {
 		t.Errorf("got:\n%s", got)
 	}
 	for _, line := range []string{
-		"| T-9 | 題 | " + k2 + " | on |\n",
+		"| T-9 | タイトル | " + k2 + " | on |\n",
 		"| T-10 | q | line（unsure） | 推す案 |\n",
 		"| T-20 | 実機で確かめる（今週中） | 手作業 | 実機はオーナーの手元にだけある |\n",
 		"| demo:T-3:unreadable:0000000000000000000000000000000000000003 | demo:T-3:unreadable:0000000000000000000000000000000000000003 | 読む |\n",

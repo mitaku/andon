@@ -42,7 +42,7 @@ func awayLine(a *Away) string {
 	return fmt.Sprintf("留守の間（%s〜%s）に %d 件", clean(a.Since, 40), clean(until, 40), a.Count)
 }
 
-// clean は制御文字と区切り（<>）を空白に替え、max 字に切る。題や名前は外から来た文を含みうる。
+// clean は制御文字と区切り（<>）を空白に替え、max 字に切る。タイトルや名前は外から来た文を含みうる。
 func clean(v any, max int) string {
 	s := strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) || r == '<' || r == '>' {
@@ -157,7 +157,7 @@ func line(n Notification) string {
 		}
 		return s
 	case "signal":
-		// 題は外の人の文。区切りと制御文字を消し、囲いの中に置く（ADR-0011 決めたこと 16）。release は先頭の 12 桁（ADR-0051 決めたこと 7）
+		// タイトルは外の人の文。区切りと制御文字を消し、囲いの中に置く（ADR-0011 決めたこと 16）。release は先頭の 12 桁（ADR-0051 決めたこと 7）
 		s := "signal: " + short("source") + " " + d("key") + "（" + d("url") + "）"
 		if _, ok := n.Detail["release"]; ok {
 			s += "release " + clean(n.Detail["release"], 12) + " "

@@ -179,7 +179,7 @@ echo "ok   words: 「台帳」「ゲート」「版」が替えた範囲（${old
 #   印のある行も、単引用符の外の字は見る。
 # 範囲は替え終えた場所だけで、替えるたびに dai_paths に足す（docs/vision.md と .github/ は足さない）。
 dai='(?<![課問主話議本])題(?![名材])'
-dai_paths=(package init tests/package tests/andon-init.sh docs/design.md)
+dai_paths=(package init tests docs/design.md internal cmd .claude/skills/verify-andon)
 existing=()
 for p in "${dai_paths[@]}"; do [ -e "$p" ] && existing+=("$p"); done
 hits=""

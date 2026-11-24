@@ -55,7 +55,7 @@ func (f *fake) write(rel, body string) {
 
 // issue は課題を置く（keys は issue.yaml に足す行）。
 func (f *fake) issue(id, status string, keys ...string) {
-	body := fmt.Sprintf("id: %s\ntitle: 題 %s\nstatus: %s\ncreated: \"2026-11-21T01:00:00Z\"\n", id, id, status)
+	body := fmt.Sprintf("id: %s\ntitle: タイトル %s\nstatus: %s\ncreated: \"2026-11-21T01:00:00Z\"\n", id, id, status)
 	for _, k := range keys {
 		body += k + "\n"
 	}
@@ -581,9 +581,9 @@ func TestText(t *testing.T) {
 	f.issue("S-0002", "todo", "after: [S-0001]")
 	f.issue("S-0003", "todo", "who: person")
 	out := Text(f.read())
-	for _, s := range []string{"sample-site の枠: 上限 4、動いている 0、オーナー待ち 0、空き 4", "手作業 S-0001（題 S-0001）", "後ろで 1 件が待つ（S-0002）",
+	for _, s := range []string{"sample-site の枠: 上限 4、動いている 0、オーナー待ち 0、空き 4", "手作業 S-0001（タイトル S-0001）", "後ろで 1 件が待つ（S-0002）",
 		"理由: ホストで image を焼き直す",
-		"判断 S-0003（題 S-0003）。2026-11-21T01:00:00Z から。理由: オーナーに聞く問いが置かれていない",
+		"判断 S-0003（タイトル S-0003）。2026-11-21T01:00:00Z から。理由: オーナーに聞く問いが置かれていない",
 		`直す: 判断なら andon issue ask S-0003 -、手作業なら kanban set S-0003 only_owner="<理由>"`} {
 		if !strings.Contains(out, s) {
 			t.Errorf("出力に %q が無い:\n%s", s, out)

@@ -70,7 +70,7 @@ func (f *fake) write(rel, body string) {
 }
 
 func (f *fake) issue(id, status string, keys ...string) {
-	body := fmt.Sprintf("id: %s\ntitle: 題 %s\nstatus: %s\ncreated: \"2026-11-01T01:00:00Z\"\n", id, id, status)
+	body := fmt.Sprintf("id: %s\ntitle: タイトル %s\nstatus: %s\ncreated: \"2026-11-01T01:00:00Z\"\n", id, id, status)
 	for _, k := range keys {
 		body += k + "\n"
 	}
@@ -148,7 +148,7 @@ func TestCollect(t *testing.T) {
 	f.row("2026-11-21T07:00:00Z", "t1", "S-0005", `{"status":"done"}`) // PR の無い片付け
 	f.issue("S-0006", "done", "routine: retro")
 	f.merged("S-0007", 7, "2026-11-21T07:30:00Z", sha3, true)
-	f.write("kanban/issues/S-0007/issue.yaml", "id: S-0007\ntitle: 題 S-0007\nstatus: done\nparent: S-0006\n")
+	f.write("kanban/issues/S-0007/issue.yaml", "id: S-0007\ntitle: タイトル S-0007\nstatus: done\nparent: S-0006\n")
 	f.issue("S-0008", "review")
 	f.lib("S-0008", "report.json", fmt.Sprintf(`{"commit": "%s", "pr": "%s"}`, sha1, prURL(8)))
 	f.lib("S-0008", "gate/"+sha1+".json", `{"at": "2026-11-21T09:30:00Z", "decision": "fix"}`)
@@ -345,7 +345,7 @@ func TestBuildRejects(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 4: どのテーマにも入らないマージ済みの課題は「そのほか」に題で出る。
+// 受け入れ条件 4: どのテーマにも入らないマージ済みの課題は「そのほか」にタイトルで出る。
 func TestBuildRest(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
@@ -360,9 +360,9 @@ func TestBuildRest(t *testing.T) {
 	rest := html[i:]
 	rest = rest[:strings.Index(rest, "</div>")]
 	if !strings.Contains(rest, "テーマに入らなかった直し") || !strings.Contains(rest, prURL(2)) {
-		t.Errorf("そのほかに題と PR が無い: %s", rest)
+		t.Errorf("そのほかにタイトルと PR が無い: %s", rest)
 	}
-	if strings.Contains(rest, "題 S-0001") {
+	if strings.Contains(rest, "タイトル S-0001") {
 		t.Errorf("テーマに入った課題をそのほかにも並べた: %s", rest)
 	}
 }
@@ -462,7 +462,7 @@ func TestColors(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 7: 題に GitHub のトークンの形を置くと、html と message に印が出て、元の文字列が無い。
+// 受け入れ条件 7: タイトルに GitHub のトークンの形を置くと、html と message に印が出て、元の文字列が無い。
 func TestRedact(t *testing.T) {
 	token := "gh" + "p_" + strings.Repeat("A1b2C3d4E5", 4)[:36]
 	f := newFake(t)
@@ -669,7 +669,7 @@ func TestSendStaleBuild(t *testing.T) {
 	}
 }
 
-// 反論の段で見つけた道: 課題の題の「curl (」で url( の検査に当たらない（検査はスタイルの中だけを見る）。
+// 反論の段で見つけた道: 課題のタイトルの「curl (」で url( の検査に当たらない（検査はスタイルの中だけを見る）。
 func TestTitleWithParen(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
@@ -677,7 +677,7 @@ func TestTitleWithParen(t *testing.T) {
 	f.collect("S-0100")
 	html := buildHTML(t, f, validText())
 	if !strings.Contains(html, "curl (標準の HTTP)") {
-		t.Errorf("題が出ていない")
+		t.Errorf("タイトルが出ていない")
 	}
 }
 

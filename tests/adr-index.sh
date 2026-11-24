@@ -17,7 +17,7 @@
 #   - docs/adr/README.md に見出し「## 一覧」があり、その下の 1 行のバージョンが CHANGELOG.md の一番上のバージョンと同じで、
 #     続く行はどれも一覧の行の形で、在る ADR を同じ番号で指す（ADR-0055 決めたこと 5）。一覧は前のバージョンまでの写しなので、
 #     ADR ごとの行があることと、行のタイトル・状態が今の ADR と同じことは見ない。
-#   - 全部の ADR に決定の記録が要る（AGENTS.md の表の決まり）。docs/decisions/ の「YYYY-MM-DD-adr-NNNN-<題>.md」か、
+#   - 全部の ADR に決定の記録が要る（AGENTS.md の表の決まり）。docs/decisions/ の「YYYY-MM-DD-adr-NNNN-<タイトル>.md」か、
 #     docs/decisions.md の凍結した表（§14）の行で、出典の欄が在る ADR のファイル（docs/adr/NNNN-….md）を同じ名前で指すもの。
 #     §14 の外の行と、番号だけ合って在りえない名前を指すリンクは数えない。
 # 引数なしは repo を見たあと、壊した写し（索引・状態行・決定の記録・一覧）でそれぞれ落ちることと、ADR を足しただけ・状態を
@@ -203,7 +203,7 @@ if board is not None:
         if name not in files:
             fail(f"{LIST}: 一覧の docs/adr/{name} が無い")
 
-# 決定の記録: ADR 1 本につき docs/decisions/ の YYYY-MM-DD-adr-NNNN-<題>.md か、docs/decisions.md の凍結した表（§14）の行
+# 決定の記録: ADR 1 本につき docs/decisions/ の YYYY-MM-DD-adr-NNNN-<タイトル>.md か、docs/decisions.md の凍結した表（§14）の行
 recorded = {}
 dec_dir = os.path.join(root, "docs", "decisions")
 for d in sorted(os.listdir(dec_dir)) if os.path.isdir(dec_dir) else []:
@@ -228,7 +228,7 @@ else:
     fail("docs/decisions.md が無い")
 for f in files:
     if f[:4] not in recorded:
-        fail(f"docs/adr/{f}: 決定の記録（docs/decisions/YYYY-MM-DD-adr-{f[:4]}-<題>.md か docs/decisions.md §14 の行）が無い")
+        fail(f"docs/adr/{f}: 決定の記録（docs/decisions/YYYY-MM-DD-adr-{f[:4]}-<タイトル>.md か docs/decisions.md §14 の行）が無い")
 
 for m in fails:
     print(f"FAIL {m}")

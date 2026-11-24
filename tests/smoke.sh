@@ -17,7 +17,7 @@ check "docs/decisions.md がある" test -f docs/decisions.md
 decision_ok() { # decision_ok <file>
   local f=$1 base date
   base=$(basename "$f")
-  [[ $base =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})-[a-z0-9]+(-[a-z0-9]+)*\.md$ ]] || { echo "  名前が YYYY-MM-DD-<英字の短い題>.md でない: $f" >&2; return 1; }
+  [[ $base =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})-[a-z0-9]+(-[a-z0-9]+)*\.md$ ]] || { echo "  名前が YYYY-MM-DD-<英字の短いタイトル>.md でない: $f" >&2; return 1; }
   date=${BASH_REMATCH[1]}
   head -1 "$f" | grep -q '^# ' || { echo "  1行目が見出しでない: $f" >&2; return 1; }
   grep -qx -- "- 日付: $date" "$f" || { echo "  「- 日付: $date」の行が無い（名前の日付と揃える）: $f" >&2; return 1; }

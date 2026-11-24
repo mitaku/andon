@@ -21,9 +21,9 @@ func patternsInput() *Input {
 		PreviousRetro: &PrevRetroIn{Issue: "S-0010", DoneAt: ago(2 * day)},
 		Boundary:      ptr(ago(2 * day)),
 		Issues: []Bundle{
-			{ID: "S-0011", Title: "S-0011 の題", DoneAt: ago(3 * day)},
-			{ID: "S-0012", Title: "S-0012 の題", DoneAt: ago(1 * day), PR: &pr},
-			{ID: "S-0013", Title: "S-0013 の題", DoneAt: ago(1 * day)},
+			{ID: "S-0011", Title: "S-0011 のタイトル", DoneAt: ago(3 * day)},
+			{ID: "S-0012", Title: "S-0012 のタイトル", DoneAt: ago(1 * day), PR: &pr},
+			{ID: "S-0013", Title: "S-0013 のタイトル", DoneAt: ago(1 * day)},
 		},
 		Typed: []Typed{
 			{ID: "h-a", Session: cosSess, At: ago(3 * day), Role: "chief-of-staff"},
@@ -39,9 +39,9 @@ func patternsInput() *Input {
 func ptr(s string) *string { return &s }
 
 func pattern(evidence ...string) Pattern {
-	return Pattern{ID: "p1", Summary: "PR の題に課題番号が入る", Evidence: evidence, Level: "test", Action: "add",
+	return Pattern{ID: "p1", Summary: "PR のタイトルに課題番号が入る", Evidence: evidence, Level: "test", Action: "add",
 		Target: Target{Kind: "project", Repo: "github.com/example/sample-site", Paths: []string{"tests/pr-title.sh"}},
-		Effect: "題に課題番号が入った PR が CI で落ちる", Risk: "題の検査が誤検知する", Decision: "fix", Reason: "テストで止められる"}
+		Effect: "タイトルに課題番号が入った PR が CI で落ちる", Risk: "タイトルの検査が誤検知する", Decision: "fix", Reason: "テストで止められる"}
 }
 
 var repos = []string{"github.com/example/sample-site"}
@@ -239,7 +239,7 @@ func TestPlan(t *testing.T) {
 		t.Fatalf("直す課題: %+v", pl)
 	}
 	for _, want := range []string{"解決すべき問題: " + p.Summary, "直す先: テスト・lint の段で足す", "tests/pr-title.sh",
-		"期待する効果: " + p.Effect, "リスク: " + p.Risk, "- S-0012: S-0012 の題", "- h-b: オーナーが打った文",
+		"期待する効果: " + p.Effect, "リスク: " + p.Risk, "- S-0012: S-0012 のタイトル", "- h-b: オーナーが打った文",
 		"PR の本文に書いてよい根拠の PR: https://github.com/example/sample-site/pull/12", "S-0020 の library/retro.json のパターン p1", "ラベル retro"} {
 		if !strings.Contains(pl.Brief, want) {
 			t.Errorf("依頼書に %q が無い:\n%s", want, pl.Brief)

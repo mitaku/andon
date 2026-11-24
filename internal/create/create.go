@@ -1,12 +1,12 @@
 // Package create は andon create [slug]: セルの repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
 //
 //	projects/<slug>/kanban/      kanban（`kanban init` で作る。prefix と repos を渡す）
-//	projects/<slug>/project.json 下書き（version・project〈題・接頭字〉・repos・repo があれば signals。delegation は無し＝無委譲）。commit しない
+//	projects/<slug>/project.json 下書き（version・project〈タイトル・接頭字〉・repos・repo があれば signals。delegation は無し＝無委譲）。commit しない
 //	projects/<slug>/AGENTS.md    薄い地図の見出しだけ
 //	repos の clone               ghq get（GHQ_ROOT の下に無いものだけ）
 //
-// 引数で足りないもの（slug・repos・prefix・題）は、端末なら既定値を示して順に聞く。端末でなければ聞かない:
-// slug が無ければ止まり、ほかは既定（repos は無し・prefix は slug の頭文字・題は slug）。
+// 引数で足りないもの（slug・repos・prefix・タイトル）は、端末なら既定値を示して順に聞く。端末でなければ聞かない:
+// slug が無ければ止まり、ほかは既定（repos は無し・prefix は slug の頭文字・タイトルは slug）。
 // projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。
 package create
 
@@ -31,12 +31,12 @@ import (
 )
 
 // Usage は andon create --help の中身。
-const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <題>]\n" +
+const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <タイトル>]\n" +
 	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に kanban（projects/<slug>/kanban/）・project.json の下書き・\n" +
 	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（オーナーが見て commit する）。\n" +
 	"repo が 1 つ以上あれば、下書きの signals に main の CI の失敗を読む 1 行（github-ci・now）を入れる（要らなければ commit の前に消す）。\n" +
 	"足りない引数は、端末なら既定値を示して順に聞く（repos は 1 行に 1 つ、空行で終わり）。端末でなければ聞かない:\n" +
-	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・題は slug）。\n" +
+	"slug が無ければ止まり、ほかは既定（repos 無し・prefix は slug の頭文字・タイトルは slug）。\n" +
 	"slug は英小文字・数字・_・-（28字まで）。projects/<slug> が既にあれば何も変えずに止まる。役の端末（hc のラベル role= か issue=）では打てない。\n" +
 	"kanban を作ったあと、dispatcher の置き場が kanban の数に合わなければ、見回りの終わりを待って起動し直す。\n"
 
@@ -192,11 +192,11 @@ func fill(in *input, a *asker) error {
 	}
 	checkTitle := func(s string) error {
 		if strings.TrimSpace(s) == "" {
-			return errors.New("題が空")
+			return errors.New("タイトルが空")
 		}
-		// 題は AGENTS.md の 1 行目の見出しになる（改行で本文を足させない）
+		// タイトルは AGENTS.md の 1 行目の見出しになる（改行で本文を足させない）
 		if strings.IndexFunc(s, unicode.IsControl) >= 0 {
-			return errors.New("題に改行や制御文字がある（1 行で）")
+			return errors.New("タイトルに改行や制御文字がある（1 行で）")
 		}
 		return nil
 	}
@@ -238,7 +238,7 @@ func fill(in *input, a *asker) error {
 	if in.title == "" {
 		in.title = in.slug
 		if a != nil {
-			if in.title, err = a.ask("題（オーナーに見せる名前）", in.title, checkTitle); err != nil {
+			if in.title, err = a.ask("タイトル（オーナーに見せる名前）", in.title, checkTitle); err != nil {
 				return err
 			}
 			asked = true
@@ -254,7 +254,7 @@ func fill(in *input, a *asker) error {
 	if len(in.repos) > 0 {
 		repos = strings.Join(in.repos, " ")
 	}
-	fmt.Fprintf(a.w, "\nprojects/%s/ を作る: 題 %s・prefix %s・repos %s\n", in.slug, in.title, in.prefix, repos)
+	fmt.Fprintf(a.w, "\nprojects/%s/ を作る: タイトル %s・prefix %s・repos %s\n", in.slug, in.title, in.prefix, repos)
 	ok, err := a.ask("作りますか（y/n）", "y", func(s string) error {
 		if s != "y" && s != "n" {
 			return errors.New("y か n")

@@ -88,30 +88,30 @@ title_terms() {
     || m="$m [writing.md に語の決まりの 1 行が無い]"
   grep -q 'ふだんカタカナで言う語（[^）]*・タイトル・テーマ）' "$1" || m="$m [writing.md のカタカナの例にタイトルとテーマが無い]"
   grep -q '^- 括弧に説明を入れない。.*括弧に入れるのは識別子と、番号に添えるタイトルだけ。$' "$1" || m="$m [writing.md の括弧の決まりが「番号に添えるタイトルだけ」でない]"
-  if grep -q '番号に添える題' "$1"; then m="$m [writing.md の括弧の決まりに古い語が残る]"; fi  # 古い語を見る（ADR-0052 決めたこと 10）
+  if grep -q '番号に添えるタイトル' "$1"; then m="$m [writing.md の括弧の決まりに古い語が残る]"; fi  # 古い語を見る（ADR-0052 決めたこと 10）
   ceg=$(sed -n '/^\*\*Chief Engineer\*\*（chief-engineer。略して CE）:/,/^_避ける_/p' "$2")
   grep -q '受け持つ検討の単位をテーマと呼び、1人1テーマで' <<<"$ceg" || m="$m [用語集の Chief Engineer の項に 1人1テーマ が無い]"
-  if grep -q '1人1題' <<<"$ceg"; then m="$m [用語集の Chief Engineer の項に古い語が残る]"; fi  # 古い語を見る（ADR-0052 決めたこと 10）
+  if grep -q '1人1タイトル' <<<"$ceg"; then m="$m [用語集の Chief Engineer の項に古い語が残る]"; fi  # 古い語を見る（ADR-0052 決めたこと 10）
   grep -qx '# <タイトル>（仕様・設計。日付）' "$3" || m="$m [Chief Engineer の skill の文書の形の 1 行目が # <タイトル>（仕様・設計。日付） でない]"
   grep -qx '# <タイトル>（仕様・設計。日付）' "$4" || m="$m [design.md §1.8 の文書の形の 1 行目が # <タイトル>（仕様・設計。日付） でない]"
-  if grep -q '^# <題>' "$3" "$4"; then m="$m [文書の形の 1 行目に古い置き場が残る]"; fi  # 古い語を見る（ADR-0052 決めたこと 10）
+  if grep -q '^# <タイトル>' "$3" "$4"; then m="$m [文書の形の 1 行目に古い置き場が残る]"; fi  # 古い語を見る（ADR-0052 決めたこと 10）
   echo "$m"
 }
 miss=$(title_terms "$wr" "$g" "$ce" docs/design.md)
 [ -z "$miss" ] && pass "ADR-0052 A1: writing.md の語の決まりの 1 行と例、括弧の決まり、用語集の 1人1テーマ、文書の形の 1 行目がタイトルとテーマで書いてある" || fail "ADR-0052 A1:$miss"
 # 否定の検査が当たる場合があること: 古い語を戻した写しでは落ちる
 miss=
-sed 's/番号に添えるタイトルだけ/番号に添える題だけ/' "$wr" >"$tmp/writing.md"  # 古い語を見る（ADR-0052 決めたこと 10）
+sed 's/番号に添えるタイトルだけ/番号に添えるタイトルだけ/' "$wr" >"$tmp/writing.md"  # 古い語を見る（ADR-0052 決めたこと 10）
 [ -n "$(title_terms "$tmp/writing.md" "$g" "$ce" docs/design.md)" ] || miss="$miss [括弧の決まりに古い語を戻した]"
 sed '/^- 課題や PR の名前は「タイトル」/d' "$wr" >"$tmp/writing.md"
 [ -n "$(title_terms "$tmp/writing.md" "$g" "$ce" docs/design.md)" ] || miss="$miss [語の決まりの 1 行を消した]"
 sed 's/・タイトル・テーマ）/）/' "$wr" >"$tmp/writing.md"
 [ -n "$(title_terms "$tmp/writing.md" "$g" "$ce" docs/design.md)" ] || miss="$miss [カタカナの例からタイトルとテーマを消した]"
-sed 's/受け持つ検討の単位をテーマと呼び、1人1テーマで/1人1題で/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0052 決めたこと 10）
+sed 's/受け持つ検討の単位をテーマと呼び、1人1テーマで/1人1タイトルで/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0052 決めたこと 10）
 [ -n "$(title_terms "$wr" "$tmp/glossary.md" "$ce" docs/design.md)" ] || miss="$miss [用語集に古い語を戻した]"
-sed 's/^# <タイトル>（仕様・設計。日付）$/# <題>（仕様・設計。日付）/' "$ce" >"$tmp/ce.md"  # 古い語を見る（ADR-0052 決めたこと 10）
+sed 's/^# <タイトル>（仕様・設計。日付）$/# <タイトル>（仕様・設計。日付）/' "$ce" >"$tmp/ce.md"  # 古い語を見る（ADR-0052 決めたこと 10）
 [ -n "$(title_terms "$wr" "$g" "$tmp/ce.md" docs/design.md)" ] || miss="$miss [Chief Engineer の skill の文書の形に古い語を戻した]"
-sed 's/^# <タイトル>（仕様・設計。日付）$/# <題>（仕様・設計。日付）/' docs/design.md >"$tmp/design.md"  # 古い語を見る（ADR-0052 決めたこと 10）
+sed 's/^# <タイトル>（仕様・設計。日付）$/# <タイトル>（仕様・設計。日付）/' docs/design.md >"$tmp/design.md"  # 古い語を見る（ADR-0052 決めたこと 10）
 [ -n "$(title_terms "$wr" "$g" "$ce" "$tmp/design.md")" ] || miss="$miss [design.md の文書の形に古い語を戻した]"
 [ -z "$miss" ] && pass "ADR-0052 A1: 古い語を戻した写しと、決まりの 1 行を消した写しでは落ちる（検査が見ている）" || fail "ADR-0052 A1: 写しで落ちない:$miss"
 ! grep -q '一度に出すのは互いに依らない問いの全部' "$ce" && grep -q 'ask-one-by-one skill §2 に従う（1回の返事で1問）' "$ce" \

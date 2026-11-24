@@ -32,7 +32,7 @@ type Item struct {
 	Commit  string `json:"commit,omitempty"`
 	Text    string `json:"text"`
 	AgeDays int64  `json:"age_days"`
-	// kind: signal の項目だけ: オーナーと担当が読む所と、text（出所の題）が外の人の文であることの印。
+	// kind: signal の項目だけ: オーナーと担当が読む所と、text（出所のタイトル）が外の人の文であることの印。
 	URL       string `json:"url,omitempty"`
 	Untrusted bool   `json:"untrusted,omitempty"`
 	path      string // kind: memory の項目のファイル（apply が消す）
@@ -52,13 +52,13 @@ type ledgerIssue struct {
 	NotBefore string   `json:"not_before"`
 }
 
-// personSuffix は、オーナーの判断待ちの課題の題の古い末尾（バージョンを上げる前の kanban に残る）。
+// personSuffix は、オーナーの判断待ちの課題のタイトルの古い末尾（バージョンを上げる前の kanban に残る）。
 const personSuffix = "（人の判断待ち）"
 
 // ownerSuffix は、skill が書くようになった新しい末尾（ADR-0036）。読む側は古い末尾と両方を受ける（決めたこと 6）。
 const ownerSuffix = "（オーナーの判断待ち）"
 
-// personTitle は題の末尾が、オーナーの判断待ちの印（古い形か新しい形）か。
+// personTitle はタイトルの末尾が、オーナーの判断待ちの印（古い形か新しい形）か。
 func personTitle(title string) bool {
 	return strings.HasSuffix(title, personSuffix) || strings.HasSuffix(title, ownerSuffix)
 }

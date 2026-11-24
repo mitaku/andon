@@ -65,7 +65,7 @@ done
 setup; sed -i 's/^## 未リリース$/&\n- 人の判断待ちの課題を数える/' "$tmp/r/CHANGELOG.md"; expect fail 'CHANGELOG の未リリースの「人の判断待ち」で落ちる'
 setup; printf -- '- 人の判断待ちの課題を数えた\n' >>"$tmp/r/CHANGELOG.md"; expect ok 'CHANGELOG の版の節の「人の判断待ち」は通る'
 # docs/contract.md が古い語も読むと書いた所は通り、同じ行の地の文は当たる。docs/adr/README.md の一覧（ADR の 1 行目の写し）は ADR と同じに読む
-for w in '`## オーナーに聞くこと`（古い見出し `## 人に聞くこと` も同じに読む）' '題の末尾が「（オーナーの判断待ち）」。古い末尾「（人の判断待ち）」も同じに読む' \
+for w in '`## オーナーに聞くこと`（古い見出し `## 人に聞くこと` も同じに読む）' 'タイトルの末尾が「（オーナーの判断待ち）」。古い末尾「（人の判断待ち）」も同じに読む' \
   '答え（前のバージョンの「人がマージした（…）」か、今の「オーナーがマージした（…）」）'; do
   setup; echo "$w" >"$tmp/r/docs/contract.md"; expect ok "docs/contract.md の「${w:0:40}」は通る"
 done
@@ -221,7 +221,9 @@ setup; mkdir -p "$tmp/r/docs/decisions"; printf '# 「台帳」「ゲート」�
 expect ok 'docs/decisions/ の「」の中の 3 語と、新しい語は通る'
 
 # 漢字 1 字の「題」（ADR-0052 受け入れ条件 2）: 替えた範囲に古い形を足すと落ち、熟語と名指しした例外は通る
-for f in package/x.md docs/design.md tests/package/x.sh tests/andon-init.sh init/wiki/log.md; do
+for f in package/x.md docs/design.md tests/package/x.sh tests/andon-init.sh init/wiki/log.md \
+  internal/x/x.go internal/x/x_test.go cmd/x/x.go tests/andon-x.sh tests/lib/x.sh tests/host/x.mjs tests/README.md \
+  .claude/skills/verify-andon/scripts/x.sh .claude/skills/verify-andon/features/x.md; do
   for w in 'S-7（題）を t42' 'この題では決めない' '`andon chief-engineer "<題>"`' '1人に1題' '題が空'; do
     setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo "$w" >"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
   done
@@ -240,6 +242,11 @@ for w in "この題では決めない; ! grep -q '1人1題' \"\$g\"  $m" "! grep
   setup; mkdir -p "$tmp/r/tests/package"; echo "$w" >"$tmp/r/tests/package/08-x.sh"; expect fail "tests/package/ の、印のある行の単引用符の外の「題」で落ちる（${w:0:30}）"
 done
 setup; mkdir -p "$tmp/r/package"; echo "1人1題  $m" >"$tmp/r/package/x.sh"; expect fail 'tests/ の外では、末尾に印があっても「題」で落ちる'
+for f in internal/x/x.go .claude/skills/verify-andon/scripts/x.sh tests/host/x.mjs; do
+  setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo "x='1人1題'  $m" >"$tmp/r/$f"; expect fail "tests/ の .sh の外（$f）では、末尾に印があっても「題」で落ちる"
+done
+setup; mkdir -p "$tmp/r/tests"; echo "! grep -q '1人1題' \"\$g\"  $m" >"$tmp/r/tests/andon-x.sh"; expect ok 'tests/ の直下の .sh の、末尾に印のある行の単引用符の中の「題」は通る'
+setup; mkdir -p "$tmp/r/internal/x"; echo '// 課題・問題・主題・タイトル・テーマ' >"$tmp/r/internal/x/x.go"; expect ok 'internal/ の熟語と新しい語は通る'
 setup; echo 'S-7（題）を t42' >"$tmp/r/docs/x.md"; expect ok '替えていない範囲（docs/ の残り）の「題」はまだ見ない'
 
 # 句読点のすぐ後ろの半角の空白（\p{Han} が句読点も含むため、和字と英字の間に空白を足す置き換えが作る形）: 落ち、決まりの形は通る

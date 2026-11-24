@@ -310,7 +310,7 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		}
 		v.Themes = append(v.Themes, c)
 	}
-	// どのテーマにも入らなかったマージ済みの課題は「そのほか」に題で並べる（黙って落とさない）
+	// どのテーマにも入らなかったマージ済みの課題は「そのほか」にタイトルで並べる（黙って落とさない）
 	for _, x := range in.Issues {
 		if _, ok := inTheme[x.ID]; !ok && x.MergedBy != nil {
 			v.Rest = append(v.Rest, refOf(x.ID))

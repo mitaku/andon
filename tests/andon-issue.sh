@@ -746,7 +746,7 @@ keys "$s11"
 "$andon" issue start "$s11" >/dev/null
 wt11=$(field "$s11" worktree); br11=$(field "$s11" branch); a11=$(field "$s11" agent)
 HC_TERMINAL_ID=$a11 "$andon" issue ask "$s11" - <<<'{"kind":"users","question":"どちらにするか","options":[{"label":"A","pick":true},{"label":"B"}],"from":"issue"}' >/dev/null
-checked() { # checked <題>: finish が断り、端末・worktree・branch・kanban がそのまま
+checked() { # checked <タイトル>: finish が断り、端末・worktree・branch・kanban がそのまま
     : > "$tmp/hc/log"
     expect_fail "$1" "$andon" issue finish "$s11"
     ! grep -q '^kill \|^rm ' "$tmp/hc/log" || die "断る finish が端末を消した: $(cat "$tmp/hc/log")"
@@ -796,7 +796,7 @@ setsignals() {
   jq --argjson s "$1" '.signals = $s' "$tmp/plant/projects/demo/project.json" > "$tmp/p.json" && cp "$tmp/p.json" "$tmp/plant/projects/demo/project.json"
   GIT_AUTHOR_EMAIL=owner@example.com git -C "$tmp/plant" commit -qam "signals: $1"
 }
-wbissue() {  # wbissue <題> <links…>: links と report.json の pr を持つ、repo の無い課題
+wbissue() {  # wbissue <タイトル> <links…>: links と report.json の pr を持つ、repo の無い課題
   local x; x=$(kanban add "$1" --profile claude); shift
   kanban set "$x" "links=$(IFS=,; echo "$*")" >/dev/null
   mkdir -p "kanban/issues/$x/library"; jq -n --arg pr "$pr" '{pr: $pr}' > "kanban/issues/$x/library/report.json"

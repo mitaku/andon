@@ -110,7 +110,7 @@ func checkShape(ps []Pattern, fixes []FixView) error {
 			}
 		}
 		if strings.HasPrefix(p.Summary, "-") {
-			return fmt.Errorf("%s の summary が - で始まる（直す課題の題になる）", at)
+			return fmt.Errorf("%s の summary が - で始まる（直す課題のタイトルになる）", at)
 		}
 		if !slices.Contains(levels, p.Level) {
 			return fmt.Errorf("%s の level %q は %s のどれでもない", at, p.Level, strings.Join(levels, "・"))

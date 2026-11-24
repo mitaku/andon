@@ -283,8 +283,8 @@ func TestRewriteSettings(t *testing.T) {
 		issue             Issue
 	}{
 		{"あとから書き直した予約キー",
-			"# 題\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail,
-			"# 題\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail,
+			"# タイトル\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail,
+			"# タイトル\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail,
 			Issue{"review": "on", "must_fix": "major", "reviewer": "codex-review", "review_rounds": "2", "merge": "auto", "estimate": "medium"}},
 		{"合っていれば変えない",
 			"## Settings\n- Review: on\n- Merge: person\n- Estimate: 小\n" + tail, "",
@@ -305,7 +305,7 @@ func TestRewriteSettings(t *testing.T) {
 			Issue{"review": "on", "merge": "auto"}},
 		{"見出しで終わる依頼書", "## Settings", "## Settings\n- Review: on\n", Issue{"review": "on"}},
 		{"CRLF", "## Settings\r\n- Review: off\r\n", "## Settings\r\n- Review: on\r\n", Issue{"review": "on"}},
-		{"写しが無ければ書き足さない", "# 題\n完了条件: 押せる\n", "", Issue{"review": "on"}},
+		{"写しが無ければ書き足さない", "# タイトル\n完了条件: 押せる\n", "", Issue{"review": "on"}},
 		{"見出しが2つあれば両方",
 			"## Settings\n- Review: off\n\n## 追記\n## Settings\n- Review: off\n- Merge: person\n",
 			"## Settings\n- Review: on\n- Merge: auto\n\n## 追記\n## Settings\n- Review: on\n- Merge: auto\n",
