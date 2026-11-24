@@ -241,7 +241,7 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		p.Session = spawn.NewSession()
 		p.Labels = append(p.Labels, spawn.SessionLabel+"="+p.Session)
 	}
-	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath) + spawn.Guide()
+	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath) + spawn.Guide() + spawn.Wiki()
 	return p, nil
 }
 

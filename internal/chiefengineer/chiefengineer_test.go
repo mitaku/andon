@@ -460,3 +460,29 @@ func TestFirstMessageNotSent(t *testing.T) {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
 	}
 }
+
+// Chief Engineer の最初のメッセージには、目録の Topics にページがあっても wiki の目録の行を足さない（ADR-0061 決めたこと 12・受け入れ条件 7）。
+// Chief Engineer の skill がもう wiki を読むと書いている。
+func TestFirstMessageHasNoWiki(t *testing.T) {
+	f := newFake(t)
+	idx := filepath.Join(os.Getenv("ANDON_WORKSPACE"), spawn.WikiIndex)
+	if err := os.MkdirAll(filepath.Dir(idx), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(idx, []byte("# wiki\n\n## Entities\n\n## Topics\n\n- [topics/a.md](topics/a.md) — a\n\n## Sources\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if spawn.Wiki() == "" {
+		t.Fatal("目録の Topics にページがあるのに、担当なら足す行が空（検査が何も見ていない）")
+	}
+	if rc, _, errs := runMain("--repo", "github.com/example/sample-site", "Billing の設計"); rc != 0 {
+		t.Fatalf("rc=%d err=%q", rc, errs)
+	}
+	all := strings.Join(f.calls(), "\n")
+	if !strings.Contains(all, "依頼書は `") {
+		t.Fatalf("最初のメッセージが見えない:\n%s", all)
+	}
+	if strings.Contains(all, idx) {
+		t.Errorf("Chief Engineer の最初のメッセージに目録の行がある:\n%s", all)
+	}
+}

@@ -696,6 +696,9 @@ func (p *project) sendFirst(t ledger.Issue, agent, status string, done bool) (ke
 		p.logf("%s の担当 %s は最初のメッセージのラベルが残っているが、もう動いている（手で送られた）。送らない", id, agent)
 	case status == "idle" || status == "":
 		msg := spawn.FirstMessage(p.l.Slug, id, filepath.Join(p.l.Dir, "issues", id, "brief.md")) + spawn.Guide()
+		if !isEngineer(t) {
+			msg += spawn.Wiki() // wiki の目録の行は担当だけ。Chief Engineer には足さない（ADR-0061 決めたこと 12）
+		}
 		if isReviewer(t) {
 			msg = p.reviewerFirst(id) // dispatcher が起動したレビュアー（startReviewer と同じ文）
 		}

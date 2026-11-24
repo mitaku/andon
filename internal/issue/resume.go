@@ -57,7 +57,7 @@ func ResumeMessage(slug, id string) string {
 }
 
 // FreshMessage は --fresh で起動した端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。
-// guide は指針の行（spawn.Guide()）。担当とレビュアーのときだけ渡す（Chief Engineer には空）。
+// guide は指針の行（spawn.Guide()）。担当とレビュアーのときだけ渡す（Chief Engineer には空）。担当には wiki の目録の行（spawn.Wiki()）も続ける。
 func FreshMessage(slug, id, brief, report, guide string) string {
 	return spawn.FirstMessage(slug, id, brief) + guide + fmt.Sprintf("\n前の担当の会話は続けられなかった。前の担当の報告 `%s`（あれば）を読み、worktree と kanban の今の状態から続ける。", report)
 }
@@ -290,8 +290,11 @@ func (c *ctx) resumePlan(dry, fresh bool) (*resumePlan, error) {
 	}
 	if fresh {
 		guide := spawn.Guide()
-		if p.Profile == chiefengineer.Profile {
+		switch {
+		case p.Profile == chiefengineer.Profile:
 			guide = ""
+		case !p.Reviewer:
+			guide += spawn.Wiki() // wiki の目録の行は担当だけ（ADR-0061 決めたこと 12）
 		}
 		p.FirstMessage = FreshMessage(slug, id, p.BriefPath, filepath.Join(c.l.Dir, "issues", id, "report.md"), guide)
 	} else {

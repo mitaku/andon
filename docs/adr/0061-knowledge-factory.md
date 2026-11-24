@@ -19,9 +19,9 @@
 | 8 | 根拠が 1 件の、skill とパッケージに足りないものの申告は「1 件目」で閉じ、次の申告のときに command が前の申告を並べる | この ADR | まだ実装していない |
 | 9 | 振り返りは申告を束に足して読むが、申告だけのパターンは作らない | `internal/retro/retro.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
 | 10 | 振り返りの入力にオーナーへの問いを足し、問いの繰り返しは振り返りの担当が申告として書く | `internal/retro/questions.go`・`schema/retro.schema.json`・[contract.md](../contract.md) §20・`package/skills/retro/SKILL.md` | 生きている |
-| 11 | 担当が wiki を引く口を足す | この ADR | まだ実装していない |
-| 12 | 届け方は、最初のメッセージの 1 行と、担当の skill の理解の工程の 1 行にする | この ADR | まだ実装していない |
-| 13 | wiki の目録は Entities、Topics、Sources の順に並べ、引く側は Sources の手前まで読む | この ADR | まだ実装していない |
+| 11 | 担当が wiki を引く口を足す | `package/skills/worker/SKILL.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 12 | 届け方は、最初のメッセージの 1 行と、担当の skill の理解の工程の 1 行にする | `internal/spawn/spawn.go`・`package/skills/worker/SKILL.md` | 生きている |
+| 13 | wiki の目録は Entities、Topics、Sources の順に並べ、引く側は Sources の手前まで読む | `init/wiki/index.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 14 | Chief of Staff が課題を切るときに wiki を引く決まりと、学びの置き場の線は変えない | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 15 | 使われたかは、依頼書に載せた数、読んだ数、申告の数の 3 つで見る | この ADR | まだ実装していない |
 | 16 | ADR-0060 の内訳に知識の読みを足し、段の表に 2 行を足す | この ADR | まだ実装していない |
