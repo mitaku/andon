@@ -7,7 +7,7 @@
 #      scripts/・tests/ の名前・repo のパス）
 #   5. scripts/features.sh: 当たる範囲で機能の名前、当たらない範囲（文書・Go のテストだけ）で何も出さず 0
 #   6. 自分の確かめ: 地図のファイルを1つ消すか、無い command を名指した写しで、この検査が落ちる
-#   7. 記録を読む道（dispatcher-news・boot）: 偽のセル（パッケージの置き場・HOME・hc）で、証拠が足りないときに 0 で終わらない
+#   7. 記録を読む道（dispatcher-news・boot・worker-launch・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban）で、証拠が足りないときに 0 で終わらない
 # 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。andon は tests/lib/andon.sh が用意し、写しの回にも渡す）
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -116,10 +116,21 @@ if [ "$self" = true ]; then
   c2=$(put package/hooks/stop x)
   c3=$(put docs/x.md x)
   c4=$(put internal/gate/x_test.go x)
+  c5=$(put internal/digest/x.go x)
+  c6=$(put internal/ledger/ask.go x)
+  c7=$(put internal/spawn/x.go x)
+  c8=$(put internal/delegate/x.go x)
   feat() { (cd "$repo" && bash "$root/$skill/scripts/features.sh" "$1"); }
   [ "$(feat "$c0..$c1")" = gate ] || die "features.sh: internal/gate/ の差分で gate だけにならない: $(feat "$c0..$c1" | tr '\n' ' ')"
   got=$(feat "$c0..$c2" | tr '\n' ' ')
   [ "$got" = "dispatcher-news gate hooks " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hooks にならない: $got"
+  [ "$(feat "$c4..$c5")" = digest ] || die "features.sh: internal/digest/ の差分で digest だけにならない: $(feat "$c4..$c5" | tr '\n' ' ')"
+  got=$(feat "$c5..$c6" | tr '\n' ' ')
+  [ "$got" = "digest measure report-ready waiting " ] || die "features.sh: internal/ledger/ask.go の差分で digest measure report-ready waiting にならない: $got"
+  got=$(feat "$c6..$c7" | tr '\n' ' ')
+  [[ " $got" == *" create "* ]] || die "features.sh: internal/spawn/ の差分で create を返さない: $got"
+  got=$(feat "$c7..$c8" | tr '\n' ' ')
+  [[ " $got" == *" create "* ]] || die "features.sh: internal/delegate/ の差分で create を返さない: $got"
   out=$(feat "$c2..$c4") || die "features.sh: 当たらない範囲で 0 で終わらない"
   [ -z "$out" ] || die "features.sh: 文書と Go のテストだけの差分で $out を出す"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?
@@ -224,4 +235,34 @@ if [ "$self" = true ]; then
   VERIFY_COMMIT=dead01 journey worker-launch
   [ "$jrc" = 3 ] || die "worker-launch: 記録に無い commit で終了コード $jrc（3 でない）: $jout"
   ok "verify-andon: 記録を読む道は、検証する commit が当たっていた間を次に当てた時刻まで読み、前のバージョンの記録や記録に無い commit は未確認の 3 で終わる"
+
+  # gate の gt-answer: dispatcher が閉じた問いは gate の問いだけで、「決め直した」の答えが名指す gate の記録が在る。
+  # 偽のセルに本物の kanban の CLI で kanban を作り、dispatcher の端末として問いを出して答えて受け取る（今の時刻なので、上の beef02 の間に入る）
+  . tests/lib/kanban.sh
+  g=$c/ws/projects/g head=$(printf 'a%.0s' {1..40})
+  gsetup() { # gsetup <問いの from> <答え>: kanban を作り直し、gate の記録 1 つと、dispatcher が閉じた問い 1 つを置く（from が空なら問いを置かない）
+    rm -rf "$g" && mkdir -p "$g" && (cd "$g" && "$kanban" init --prefix G >/dev/null) || die "gt-answer の場面の kanban が作れない"
+    local id lib
+    id=$(KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" add "gate の問い")
+    lib=$g/kanban/issues/$id/library && mkdir -p "$lib/gate" "$lib/questions"
+    echo "{\"at\": \"2026-01-01T00:12:00Z\", \"id\": \"$id\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"C\", \"decision\": \"needs_human\", \"merged\": false, \"reasons\": []}" >"$lib/gate/$head.json"
+    [ -n "$1" ] || return 0
+    KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" ask "$id" - --kind line <<<"マージするか" >/dev/null
+    echo "{\"from\": \"$1\"}" >"$lib/questions/1.json"
+    KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" answer --decided-by machine -- "$id#1" "${2//<lib>/$lib}" >/dev/null
+    KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" received "$id#1" >/dev/null
+  }
+  gsetup gate "PR の head が動いた（bbbbbbbbbbbb → aaaaaaaaaaaa）。gate が今の head で決め直した（記録 <lib>/gate/$head.json）"
+  journey gate
+  [ "$jrc" = 0 ] && grep -qF 'ok   gt-answer' <<<"$jout" || die "gate: dispatcher が gate の問いを記録つきで閉じたのに gt-answer が ok でない（$jrc）: $jout"
+  gsetup gate "PR の head が動いた（bbbbbbbbbbbb → cccccccccccc）。gate が今の head で決め直した（記録 <lib>/gate/cccc.json）"
+  journey gate
+  [ "$jrc" = 1 ] && grep -qF 'FAIL gt-answer' <<<"$jout" && grep -qF 'gate の記録' <<<"$jout" || die "gate: 答えが名指す gate の記録が無いのに落ちない（$jrc）: $jout"
+  gsetup chief-of-staff "Chief of Staff の問いを dispatcher が閉じた"
+  journey gate
+  [ "$jrc" = 1 ] && grep -qF 'gate の外の問い' <<<"$jout" || die "gate: dispatcher が gate の外の問いを閉じたのに落ちない（$jrc）: $jout"
+  gsetup "" ""
+  journey gate
+  [ "$jrc" = 0 ] && grep -qF 'note gt-answer' <<<"$jout" || die "gate: dispatcher が閉じた問いが無いのに note gt-answer が出ない（$jrc）: $jout"
+  ok "verify-andon: gate の gt-answer は、gate の外の問いを閉じたか、答えが名指す gate の記録が無いと落ち、閉じた問いが無ければ note を出す"
 fi

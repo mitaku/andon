@@ -1,6 +1,6 @@
 ---
 name: verify-andon
-description: Andon の repo の検証の skill。マージした変更をセルへ当てたあと（image/apply-main.sh apply）、当てた差分に当たる機能（担当の起動・報告と ready・gate・dispatcher の通知・hook・boot）を、セルに入っている本物の andon・`kanban`・`/opt/andon` で動かし、走らせた記録を証拠に残して片付ける手順と機能の地図を持つ。検証の課題の依頼書がこの SKILL.md のパスを名指したときだけ読む
+description: Andon の repo の検証の skill。マージした変更をセルへ当てたあと（image/apply-main.sh apply）、当てた差分に当たる機能（担当の起動・報告と ready・gate・dispatcher の通知・hook・boot・ダイジェスト・流れの数え・プロジェクトを立てる・オーナー待ち）を、セルに入っている本物の andon・`kanban`・`/opt/andon` で動かし、走らせた記録を証拠に残して片付ける手順と機能の地図を持つ。検証の課題の依頼書がこの SKILL.md のパスを名指したときだけ読む
 disable-model-invocation: true
 ---
 

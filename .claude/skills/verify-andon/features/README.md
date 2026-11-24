@@ -53,6 +53,10 @@
 | dispatcher の通知 | [dispatcher-news.md](./dispatcher-news.md) | 本物の記録を読む | 記録は検証の担当だけ。届いた turn は Chief of Staff の試しの課題 |
 | hook | [hooks.md](./hooks.md) | 切り離して動かす | 振る舞いは検証の担当だけ。待ち役と Esc はオーナーが見る |
 | boot | [boot.md](./boot.md) | 本物の記録を読む | 検証の担当だけ |
+| ダイジェスト | [digest.md](./digest.md) | 切り離して動かす | 検証の担当だけ。Slack に届いたかはオーナーが見る |
+| 流れの数え | [measure.md](./measure.md) | 切り離して動かす | 検証の担当だけ |
+| プロジェクトを立てる | [create.md](./create.md) | 切り離して動かす | 検証の担当だけ。端末で聞く道はオーナーが見る |
+| オーナー待ち | [waiting.md](./waiting.md) | 切り離して動かす | 検証の担当だけ。Herdr App のパネルはオーナーが見る |
 
 ## 地図が覆わないもの
 

@@ -55,6 +55,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - 手直しの記録は、当てたあとに片付いた課題にだけ書かれる。当ててすぐ検証すると、片付いた課題がまだ無く dn-corrections は未確認になる。当てる前の見回りで書いた記録（時刻が切り替わった時刻より前）は、前のパッケージのコードが書いたので証拠にしない。
 - 通知 signal は、信号の出所（`andon signal auth` で入れる）が無いセルでは出ない。出ないことは壊れではない。`release` は出所が github-ci で、記録が失敗の始まった run の commit を持つときだけ載る。
 - 通知 signal の `title` は外の人の文。`dn-signal` の行には出さない。
+- `dn-signal` に偽の信号の出所を置く道は持たない。偽の出所で dispatcher を切り離して回しても、セルの本物の dispatcher が当てたあとに通知を作った証拠にならない。届けた記録は detail を持たないので、`release` が載ったかは、信号の出所（`project.json` の `signals`）を持つプロジェクトのあるセルで、記録だけの通知の detail を読んで見る。
 - 信号の記録（`<slug>.signals.json`）の `release` を、通知に載った証拠にしない。信号の記録は今の状態で、通知の中身でも、検証する commit が当たっていた間の状態でもない。届けた通知 signal に `release` が載ることは `tests/andon-dispatcher-signal.sh` と `go test ./internal/dispatcher/` が見ている。
 - 空きで撃つのは、`paused` でなく、片付いていない課題を持たないルーチンだけ。dispatcher は `paused` が無いか真偽値の false のときだけ撃ち、`true`・引用符の文字列・空の値では撃たない。道も YAML と同じく注釈（前に空白のある `#` から後）を外して読む。`idle_hours` はルーチンのファイルに Andon が読む欄で、1 以上の整数でない値は欄が無いものとして扱う。書いたルーチンが kanban に無ければ、`idle_hours` で撃つところは見られない。履歴の `fired` の行は、空きで撃ったか `schedule` で撃ったかを区別しない。どちらで撃ったかは dispatcher の端末のログ（`hc read dispatcher`）の行で読む。
 - 通知 `idle` は課題を持たない。`dn-delivered` の行では課題が `-` になる。
