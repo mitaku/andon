@@ -2,7 +2,7 @@
 # tests/lib/scope.sh [--heavy | --isolation] < 変更されたパス（repo からの相対・1行1つ）
 #
 # 手元で「変えたものに関係する検査だけ」を走らせるとき（tests/run --changed）と CI の文書だけの PR で、走らせる tests/*.sh を
-# 1行1つで出す。安く全体を見るもの（public・public-selftest・smoke・ci・words・words-selftest・agents-md・verify-andon・shell-and・readme）はいつも。コードや package/ を
+# 1行1つで出す。安く全体を見るもの（public・public-selftest・smoke・ci・words・words-selftest・agents-md・verify-andon・shell-and・shell-sigpipe・readme）はいつも。コードや package/ を
 # 変えたら、重い検査（下の表）を除く全部と、変えたパスが「見る部分」に入る重い検査を足す。知らないパスは重い検査を含む全部。
 # tests/image.sh は CI と同じ tests/lib/image-scope.sh が true のときだけ。表は docs/image.md の「手元は関係する検査だけ」。
 #   --heavy  重い検査と見る部分の表を「<検査> <部分>」で1行ずつ出す（tests/ci.sh が Go の import と突き合わせる）
@@ -91,9 +91,10 @@ sees() {
 # verify-andon.sh は検証の skill の目次・地図・名指す command の実在を見る。名指す command を消すコードの PR でも、skill の文だけの PR でも
 # 走るよう、いつもの側に置く（ADR-0035 決めたこと 5）。
 # shell-and.sh は tests/ の下のシェルの、set -e で止まらない A && B の判定を見る。検査の1本だけを書き換えた PR でも走るよう、いつもの側に置く
+# shell-sigpipe.sh は tests/ の下のシェルの、pipefail の下の pipe の後ろの途中で抜ける読み手（head・grep -q）を見る。同じ理由でいつもの側に置く
 # readme.sh は 2 つの README の構成と、README が指す相対リンクの先が在ることを見る。README が指す文書を消す・動かす PR でも走るよう、
 # いつもの側に置く（ADR-0046 決めたこと 10）
-declare -A run=([tests/public.sh]=1 [tests/public-selftest.sh]=1 [tests/smoke.sh]=1 [tests/ci.sh]=1 [tests/words.sh]=1 [tests/words-selftest.sh]=1 [tests/agents-md.sh]=1 [tests/verify-andon.sh]=1 [tests/shell-and.sh]=1 [tests/readme.sh]=1)
+declare -A run=([tests/public.sh]=1 [tests/public-selftest.sh]=1 [tests/smoke.sh]=1 [tests/ci.sh]=1 [tests/words.sh]=1 [tests/words-selftest.sh]=1 [tests/agents-md.sh]=1 [tests/verify-andon.sh]=1 [tests/shell-and.sh]=1 [tests/shell-sigpipe.sh]=1 [tests/readme.sh]=1)
 light=false # 重い検査を除く全部
 all=false   # 重い検査も含む全部（知らないパス）
 paths=()
