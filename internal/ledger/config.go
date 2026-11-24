@@ -10,15 +10,14 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// ErrNotMapping は config.yaml の一番上が mapping でないこと。
 var ErrNotMapping = errors.New("not a mapping")
 
 // Config は kanban の config.yaml（docs/ledger.md）。読み手はこれ1つで、バージョンを確かめるのは呼び手。
 type Config struct {
-	HasVersion   bool   // version があり null でない
-	Version      string // version の字面
-	IntVersion   bool   // version が YAML の整数（2。"2" は文字列）
-	HasPrefix    bool   // prefix が null でないスカラー
+	HasVersion   bool // version があり null でない
+	Version      string
+	IntVersion   bool // version が YAML の整数（2。"2" は文字列）
+	HasPrefix    bool // prefix が null でないスカラー
 	Prefix       string
 	Columns      []string // 空でない並びのときだけ（中のスカラーだけ）。無ければ nil
 	Repos        []string // スカラーの並び（1つのスカラーは1つの並び）
@@ -26,7 +25,6 @@ type Config struct {
 	ChiefOfStaff string
 }
 
-// VersionIs は version が整数の n か。
 func (c Config) VersionIs(n int) bool { return c.IntVersion && c.Version == strconv.Itoa(n) }
 
 // ReadConfig は kanban の dir（kanban/）の config.yaml を読む。読めない・YAML でなければその誤り、一番上が mapping でなければ ErrNotMapping。
@@ -83,7 +81,6 @@ func ReadConfig(dir string) (Config, error) {
 	return c, nil
 }
 
-// Config は kanban の config.yaml。
 func (l *Ledger) Config() (Config, error) { return ReadConfig(l.Dir) }
 
 func alias(n *yaml.Node) *yaml.Node {
@@ -97,7 +94,6 @@ func isNull(n *yaml.Node) bool {
 	return n == nil || (n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null")
 }
 
-// scalars はスカラーの並び（1つのスカラーは1つの並び。null でないスカラーだけ）。
 func scalars(n *yaml.Node) []string {
 	switch {
 	case isNull(n):

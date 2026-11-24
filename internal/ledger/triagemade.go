@@ -16,10 +16,6 @@ import (
 func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 	dir, cos := l.Dir, l.ChiefOfStaff()
 	id := CanonID(t.Str("id"))
-	// 足した行が無い課題は、kanban add が issue.yaml を書いたあと log.jsonl に足す前に止まったもの（kanban add は行を書かずに
-	// 終わらない）。足した端末は分からないので、課題が印（adding_at）より後に作られた（created）ときだけ、その印の課題と見る。
-	// 前に別の端末が足す途中で止めた同じタイトルの課題は、印より前に作られているので辿らない。
-	// log.jsonl が読めない・空のときは、行が無いのか読めないのかを分けられないので辿らない
 	hasRow, byCos := false, false
 	for _, r := range rows {
 		if _, ok := r.Change["add"]; ok && CanonID(r.ID) == id {
@@ -56,7 +52,6 @@ func (l *Ledger) TriageMade(rows []Row, t Issue) (string, string) {
 		if json.Unmarshal(b, &rec) != nil {
 			continue
 		}
-		// 印のある項目は1つの決定（apply は決定を1つずつ当て、止まればそこで終わる）なので、review は印のある項目の全部で見る
 		created, adding, onCreated, onAdding := false, false, false, false
 		for _, it := range rec.Items {
 			if it.Decision != "fix" && it.Decision != "bundle" {

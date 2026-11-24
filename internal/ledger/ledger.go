@@ -20,13 +20,10 @@ import (
 	"strings"
 )
 
-// CLI は kanban の CLI の名前。
 const CLI = "kanban"
 
-// Missing は kanban の CLI が PATH に無いときの言い方（入れ方の案内つき）。
 const Missing = "kanban が無い（kanban の CLI。Andon の image に入っている。手元なら go install ./cmd/kanban で入れる）"
 
-// Check は kanban の CLI が PATH にあるかを確かめる。無ければ Missing を返す。
 func Check() error {
 	if _, err := exec.LookPath(CLI); err != nil {
 		return errors.New(Missing)
@@ -38,20 +35,17 @@ func Check() error {
 // dispatcher が足したレビュアーの課題は、Chief of Staff が足したものと同じに数える（docs/dispatcher.md §5 の P6a）。
 const DispatcherBy = "terminal:dispatcher"
 
-// Ledger は1つの kanban。
 type Ledger struct {
 	Root string // プロジェクトの根（kanban/ の親）
 	Slug string
-	Dir  string   // <Root>/kanban
-	Env  []string // kanban の CLI に足す環境（dispatcher は HC_TERMINAL_ID=dispatcher）
+	Dir  string
+	Env  []string
 }
 
-// At は kanban の根 root（kanban/ の親）の Ledger。
 func At(root string) *Ledger {
 	return &Ledger{Root: root, Slug: filepath.Base(root), Dir: filepath.Join(root, "kanban")}
 }
 
-// Open は kanban の CLI に kanban の根を聞く。
 func Open() (*Ledger, error) {
 	if err := Check(); err != nil {
 		return nil, err
@@ -64,7 +58,6 @@ func Open() (*Ledger, error) {
 	return At(root), nil
 }
 
-// Run は kanban の CLI をこの kanban に向けて打ち、stdout を返す（前後の空白を除く）。
 func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	c := exec.Command(CLI, args...)
 	c.Env = append(append(os.Environ(), "KANBAN_ROOT="+l.Root), l.Env...)
@@ -82,16 +75,13 @@ func (l *Ledger) Run(stdin string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Issue は kanban の課題の項目（`show <id> --json` の .issue）。値は全部文字列（kanban の CLI がそう書く）。
 type Issue map[string]any
 
-// Str はキーの値。文字列でなければ空。
 func (t Issue) Str(k string) string {
 	s, _ := t[k].(string)
 	return s
 }
 
-// Path はキーの値をパスとして読む。kanban の CLI は HOME の下を `~/…` で書くことがあるので、HOME に開く。
 func (t Issue) Path(k string) string {
 	s := t.Str(k)
 	if rest, ok := strings.CutPrefix(s, "~/"); ok {
@@ -102,7 +92,6 @@ func (t Issue) Path(k string) string {
 	return s
 }
 
-// Show は課題の項目を読む。
 func (l *Ledger) Show(id string) (Issue, error) {
 	out, err := l.Run("", "show", id, "--json")
 	if err != nil {
@@ -117,7 +106,6 @@ func (l *Ledger) Show(id string) (Issue, error) {
 	return v.Issue, nil
 }
 
-// List は全部の課題（done も）。
 func (l *Ledger) List() ([]Issue, error) {
 	out, err := l.Run("", "list", "--all", "--json")
 	if err != nil {
@@ -130,7 +118,6 @@ func (l *Ledger) List() ([]Issue, error) {
 	return v, nil
 }
 
-// Library は課題の library/（機械向けの置き場）。
 func (l *Ledger) Library(id string) string {
 	return filepath.Join(l.Dir, "issues", id, "library")
 }
@@ -153,16 +140,14 @@ func (l *Ledger) Repos() []string {
 	return c.Repos
 }
 
-// Row は log.jsonl の1行（kanban の CLI が書く）。
 type Row struct {
-	At     string         `json:"at"`
-	By     string         `json:"by"`
-	ID     string         `json:"id"`
-	Change map[string]any `json:"change"`
-	Config map[string]any `json:"config"` // kanban config set の行（id と change は無い）
-	// ルーチンが課題を足した行（by は routine:<名前>。id と change は無い）
-	Routine string `json:"routine"`
-	Fired   string `json:"fired"`
+	At      string         `json:"at"`
+	By      string         `json:"by"`
+	ID      string         `json:"id"`
+	Change  map[string]any `json:"change"`
+	Config  map[string]any `json:"config"`
+	Routine string         `json:"routine"`
+	Fired   string         `json:"fired"`
 }
 
 // Log は log.jsonl を読む。読めない行は飛ばす（無いキーと同じ）。ファイルが読めなければ読めたところまで（無ければ nil）。
@@ -181,11 +166,11 @@ func (l *Ledger) ReadLog() ([]Row, error) {
 	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
 	var rows []Row
 	s := bufio.NewScanner(f)
-	s.Buffer(make([]byte, 64<<10), 16<<20) // kanban と同じ1行の上限（cmd/kanban の loggedNumber）
+	s.Buffer(make([]byte, 64<<10), 16<<20)
 	for s.Scan() {
 		var r Row
 		if json.Unmarshal(s.Bytes(), &r) == nil {
-			r.ID = CanonID(r.ID) // 移す前の行は A-5 と書いてある（kanban migrate は log.jsonl を書き換えない）
+			r.ID = CanonID(r.ID)
 			rows = append(rows, r)
 		}
 	}
@@ -205,7 +190,7 @@ func TakenByChiefOfStaff(rows []Row, id, agent string) bool {
 		if r.Config != nil {
 			for _, k := range []string{"chief_of_staff", "coordinator"} { // 2026-11-06 より前の行は coordinator（docs/ledger.md）
 				if v, ok := r.Config[k]; ok {
-					cos, _ = v.(string) // null は消した（空）
+					cos, _ = v.(string)
 				}
 			}
 			continue
@@ -272,7 +257,7 @@ func LastChangeThen(rows []Row, t Issue, key, cos string) (*Row, bool) {
 		if r.Config != nil {
 			for _, k := range []string{"chief_of_staff", "coordinator"} { // 2026-11-06 より前の行は coordinator（docs/ledger.md）
 				if v, ok := r.Config[k]; ok {
-					then, _ = v.(string) // null は消した（空）
+					then, _ = v.(string)
 					seen = true
 				}
 			}
@@ -292,7 +277,7 @@ func LastChangeThen(rows []Row, t Issue, key, cos string) (*Row, bool) {
 		if seen {
 			return last, false
 		}
-		lastCoS = cos // 履歴のどこにも Chief of Staff の行が無い
+		lastCoS = cos
 	}
 	return last, lastCoS != "" && last.By == "terminal:"+lastCoS
 }
@@ -308,7 +293,6 @@ func HoldOf(rows []Row, tasks []Issue, cos string, t Issue) (string, bool) {
 	if v := t.Str("hold"); v != "" {
 		return v, true
 	}
-	// prev は hold を最後に変えた行の直前の値（外したあとに空をもう一度消した行では空）
 	last, prev, cur := -1, "", ""
 	for i, r := range rows {
 		if r.ID != id || r.Change == nil {
@@ -426,7 +410,6 @@ type Settings struct {
 	Acceptance   string `json:"acceptance,omitempty"`
 }
 
-// Severities は重い順。
 var Severities = []string{"critical", "major", "minor", "trivial"}
 
 // SeverityRank は重さの順位（0 が一番重い）。知らなければ -1。
@@ -486,7 +469,6 @@ func (l *Ledger) Unsettled(rows []Row, t Issue, defaults []string) []string {
 	return out
 }
 
-// fenceRe はコード例の囲みの行（3つ以上の ` か ~ の並びと、その後ろ）。
 var fenceRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})(.*)$")
 
 // settingNames は予約キーの、依頼書の ## Settings の行の名前（playbooks/brief.md の表）。settingOrder は写しに足すときの順。
@@ -497,7 +479,6 @@ var (
 	settingSizes = map[string]string{"small": "小", "medium": "中", "large": "大"}
 )
 
-// copyValue は予約キーの値の、写しでの書き方（見込みは段の名）。
 func copyValue(k, v string) string {
 	if k == "estimate" {
 		return settingSizes[v]
@@ -527,7 +508,7 @@ func SettingsCopy(keys []string) string {
 func RewriteSettings(brief string, t Issue) (string, bool) {
 	lines := strings.SplitAfter(brief, "\n")
 	var out strings.Builder
-	fence := "" // 開いているコード例の囲みの印（``` か ~~~ の並び）。空なら囲みの外
+	fence := ""
 	for i := 0; i < len(lines); i++ {
 		ln := lines[i]
 		trim := strings.TrimRight(ln, " \t\r\n")
@@ -553,7 +534,7 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 		}
 		block := settingsBlock(lines[i+1:end], t, eol)
 		if len(block) > 0 && !strings.HasSuffix(ln, "\n") {
-			ln += eol // 見出しが依頼書の最後の行のとき
+			ln += eol
 		}
 		out.WriteString(ln + strings.Join(block, ""))
 		i = end - 1
@@ -561,9 +542,7 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 	return out.String(), out.String() != brief
 }
 
-// settingsBlock は写しの行の並び old を、課題 t の予約キーに合わせて書き直した行の並びにする（RewriteSettings）。
 func settingsBlock(old []string, t Issue, eol string) []string {
-	// 値は SettingsOf が読んだもの（gate・dispatcher・担当が読む値）。知らない値は既定か空になり、空の行は消す
 	s := SettingsOf(t)
 	vals := map[string]string{"review": s.Review, "must_fix": s.MustFix, "reviewer": s.Reviewer, "review_rounds": s.ReviewRounds,
 		"merge": s.Merge, "deliverable": s.Deliverable, "acceptance": s.Acceptance, "estimate": copyValue("estimate", s.Estimate)}
@@ -574,7 +553,6 @@ func settingsBlock(old []string, t Issue, eol string) []string {
 	}
 	var block []string
 	add := func(ln string) {
-		// 写しが依頼書の最後の行で改行が無いとき、前の行に改行を足してから足す（行がつながらないように）
 		if n := len(block); n > 0 && !strings.HasSuffix(block[n-1], "\n") {
 			block[n-1] += eol
 		}
@@ -586,15 +564,15 @@ func settingsBlock(old []string, t Issue, eol string) []string {
 		k, known := byName[strings.ToLower(strings.TrimSpace(name))]
 		switch {
 		case !ok || !known:
-			add(ln) // 知らない名前の行は残す
+			add(ln)
 			continue
 		case seen[k]:
-			continue // 同じキーの2つ目の行は消す（どちらが正かを読み手に迷わせない）
+			continue
 		}
 		seen[k] = true
 		v := value(k)
 		switch f := strings.Fields(cur); {
-		case v == "": // 正に値が無い行は消す
+		case v == "":
 		case len(f) > 0 && f[0] == v:
 			add(ln)
 		default:
@@ -609,7 +587,6 @@ func settingsBlock(old []string, t Issue, eol string) []string {
 	return block
 }
 
-// Brand はプロファイルのブランド（codex* → codex、ほかは claude）。
 func Brand(profile string) string {
 	if strings.HasPrefix(profile, "codex") {
 		return "codex"
@@ -617,7 +594,6 @@ func Brand(profile string) string {
 	return "claude"
 }
 
-// SettingsOf は課題の予約キーを読む。
 func SettingsOf(t Issue) Settings {
 	s := Settings{ReviewRounds: "2", Merge: "person", Deliverable: "pr"}
 	if v := t.Str("review"); v == "on" || v == "off" {
@@ -690,7 +666,6 @@ func AcceptanceKey(id string) string {
 	return id
 }
 
-// nameOK は英数字で始まり、英数字と . _ - だけの名前か（machine の名前と受け入れ条件の番号）。
 func nameOK(v string) bool {
 	if v == "" {
 		return false
@@ -704,9 +679,6 @@ func nameOK(v string) bool {
 	return true
 }
 
-// reviewers は、課題 t のレビューに数えるレビュアーの課題を古い順（updated・id の順）に全部と、
-// 数えなかった子課題（理由の文に使う）を返す。数えるのは: parent が t の id・status が review か done・
-// 作成の行（log.jsonl の最初の add）の by が terminal:<chief_of_staff> か dispatcher（DispatcherBy）・profile が実装と別ブランドの *-review。
 func (l *Ledger) reviewers(rows []Row, tasks []Issue, t Issue) ([]string, []string) {
 	cos := l.ChiefOfStaff()
 	creator := map[string]string{}

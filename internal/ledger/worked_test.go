@@ -28,7 +28,7 @@ func TestWorked(t *testing.T) {
 	issues := []Issue{
 		{"id": "A-0001", "profile": "claude"},
 		{"id": "A-0001-r1", "parent": "A-0001", "profile": "codex-review"},
-		{"id": "A-0002", "parent": "A-0001", "profile": "claude"}, // レビュアーでない子は待ちに数えない
+		{"id": "A-0002", "parent": "A-0001", "profile": "claude"},
 	}
 	cases := []struct {
 		name string

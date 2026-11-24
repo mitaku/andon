@@ -16,7 +16,6 @@ func EstimateMinutes(v string) int {
 	return estimateMinutes[v]
 }
 
-// span は時刻の区間 [from, to)。
 type span struct{ from, to time.Time }
 
 // Worked は課題 id の実働（待ちを除いた時間。ADR-0014 決めたこと 5・11 の 1・2）。
@@ -41,9 +40,9 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 		doing  []span
 		waits  []span
 		in     *time.Time
-		asked  = map[string]time.Time{} // 開いている自分の問い（番号 → open の時刻）
-		review = map[string]time.Time{} // 結果を待っているレビュアーの子課題（id → add の時刻）
-		agents []time.Time              // 課題の agent の行（死んでいた区間の終わり）
+		asked  = map[string]time.Time{}
+		review = map[string]time.Time{}
+		agents []time.Time
 	)
 	for _, r := range rows {
 		at, err := time.Parse(time.RFC3339, r.At)
@@ -164,7 +163,6 @@ func MovedTo(rows []Row, status string) []bool {
 	return out
 }
 
-// union は区間を時刻の順に並べ、重なるものをつなぐ。
 func union(in []span) []span {
 	sort.Slice(in, func(i, j int) bool { return in[i].from.Before(in[j].from) })
 	var out []span

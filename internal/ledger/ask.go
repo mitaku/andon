@@ -13,10 +13,8 @@ import (
 	"andon/internal/contract"
 )
 
-// askedRe は kanban ask の返事（<id>#<n>）の番号。
 var askedRe = regexp.MustCompile(`#([1-9][0-9]*)$`)
 
-// addedRe は kanban add の返事（足した id）。
 var addedRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
 // Ask は確かめた問い（contract.ParseQuestion）を課題 id に kanban ask で問い、library/questions/<n>.json に置く。
@@ -41,10 +39,8 @@ func (l *Ledger) Ask(id string, q *contract.Question) (string, error) {
 	return out, nil
 }
 
-// ownerTitle は andon issue ask --new が問いの文から作るオーナーの課題のタイトル。
 func ownerTitle(q *contract.Question) string { return q.Question + "（オーナーの判断待ち）" }
 
-// ownerBrief は andon issue ask --new が問いの JSON から書く依頼書（人が読む写し。問いの正は library/questions/）。
 func ownerBrief(q *contract.Question) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", ownerTitle(q))
@@ -66,9 +62,6 @@ func ownerBrief(q *contract.Question) string {
 }
 
 // NewOwnerQuestion はオーナーの課題を足し、who: person を書き、問いを置く（andon issue ask --new。ADR-0057 決めたこと 7）。
-// タイトルは問いの文に「（オーナーの判断待ち）」を付けたもの、依頼書は問いの JSON から書く写し。
-// トリアージと振り返りの apply も同じ関数を呼べるよう、andon issue の外（この package）に置く（internal/issue は
-// dispatcher を通して triage・retro を import するので、そちらに置くと循環する）。
 // 足した id と kanban の CLI の返事（<id>#<n>）を返す。
 func (l *Ledger) NewOwnerQuestion(q *contract.Question, parent string, after []string) (string, string, error) {
 	return l.NewOwnerIssue(q, ownerTitle(q), ownerBrief(q), parent, after)
@@ -127,9 +120,6 @@ func (l *Ledger) NewOwnerIssue(q *contract.Question, title, brief, parent string
 	return id, out, nil
 }
 
-// unfinished は、タイトルが title で parent が同じ（どちらも無いも同じに数える）片付いていない（done でない）課題の id と、
-// その課題に置かれた問いの数を返す。無ければ空。
-// parent を見るのは、別の振り返りが足した同じタイトルの課題を、この振り返りの課題と取り違えないため。
 func (l *Ledger) unfinished(title, parent string) (string, int, error) {
 	tasks, err := l.List()
 	if err != nil {

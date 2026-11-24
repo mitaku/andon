@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// gitRepo は一時の repo で git を打つ補助。HOME と全体の設定は読まない。
 type gitRepo struct {
 	t   *testing.T
 	dir string
@@ -36,7 +35,6 @@ func (g *gitRepo) run(args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// commit は files（名前 → 中身）を書いて commit し、その sha を返す。
 func (g *gitRepo) commit(msg string, files map[string]string) string {
 	g.t.Helper()
 	for name, body := range files {
@@ -49,8 +47,6 @@ func (g *gitRepo) commit(msg string, files map[string]string) string {
 	return g.run("rev-parse", "HEAD")
 }
 
-// rebased は、課題の branch（commit x）を、main が進んだあと（衝突しない変更）に rebase した repo を作る。
-// 返すのは repo と、レビューが見た x と、rebase のあとの head。origin/HEAD は進んだ main を指す（担当が fetch した後）。
 func rebased(t *testing.T) (*gitRepo, string, string) {
 	g := newGitRepo(t)
 	g.commit("base", map[string]string{"a.txt": "a\n", "c.txt": "c\n"})
@@ -65,8 +61,6 @@ func rebased(t *testing.T) (*gitRepo, string, string) {
 	return g, x, g.run("rev-parse", "HEAD")
 }
 
-// 衝突の無い rebase で head だけが変わったとき、前のレビューが見た commit と PR の差分が同じと分かる。
-// 差分の変わった rebase・origin/HEAD が無い・commit が無い・worktree が無いときは同じと言わない。
 func TestSamePatch(t *testing.T) {
 	g, x, y := rebased(t)
 	if x == y {
@@ -108,7 +102,6 @@ func TestSamePatchBinary(t *testing.T) {
 }
 
 // 文字列の中の空白だけが違う差分は同じと言わない（git patch-id は空白を無視して同じ id を返す）。
-// レビューが見た commit の raw string の `a b` が、head で `ab` に変わった形。
 func TestSamePatchWhitespaceInString(t *testing.T) {
 	g := newGitRepo(t)
 	g.commit("base", map[string]string{"main.go": "package main\n"})
@@ -122,7 +115,6 @@ func TestSamePatchWhitespaceInString(t *testing.T) {
 	}
 }
 
-// main が同じファイルの離れた所を変えて rebase しても（行番号と blob の id はずれる）、PR の差分は同じと分かる。
 func TestSamePatchSameFileMoved(t *testing.T) {
 	g := newGitRepo(t)
 	body := strings.Repeat("line\n", 20)
@@ -141,9 +133,6 @@ func TestSamePatchSameFileMoved(t *testing.T) {
 	}
 }
 
-// rebaseAfter は、base の上で課題の branch が topic を commit し、main が main を commit したあと、課題の branch を main に
-// rebase した repo を作る。resolve が nil でなければ衝突を解いたのと同じにする（main の上に resolve の中身を積む）。
-// 返すのは repo と、レビューが見た commit と、rebase のあとの head。origin/HEAD は進んだ main を指す。
 func rebaseAfter(t *testing.T, base, topic, main, resolve map[string]string) (*gitRepo, string, string) {
 	t.Helper()
 	g := newGitRepo(t)
@@ -163,25 +152,18 @@ func rebaseAfter(t *testing.T, base, topic, main, resolve map[string]string) (*g
 	return g, x, g.commit("topic", resolve)
 }
 
-// main が PR の変えた行の近く（コンテキストの行）を変えた rebase や、衝突を解いた rebase でも、PR が足した行と消した行が
-// 同じ囲み（関数の宣言の行など）の中で同じなら同じ差分と分かる。足した行か消した行か囲みが変わったら同じと言わない。
 func TestSamePatchIgnoresContextLines(t *testing.T) {
-	// 表の行を PR が変え、main が2行下の行の語を替えた（衝突しない。コンテキストの行だけが変わる）
 	table := "| 決まり | 守らせるもの |\n|---|---|\n| 一 | 無し。 |\n| 二 | 無し。 |\n| 三 | 古い語を見る |\n| 四 | 無し。 |\n"
 	tableTopic := strings.Replace(table, "| 一 | 無し。 |", "| 一 | tests/run。 |", 1)
 	tableMain := strings.Replace(table, "古い語を見る", "新しい語を見る", 1)
-	// PR が関数の中に足した行のすぐ上を main が変えた（衝突する）
 	conflictBase := "func f() {\n\ta\n\tb\n}\n"
 	conflictTopic := "func f() {\n\ta\n\tA\n\tb\n}\n"
 	conflictMain := "func f() {\n\ta2\n\tb\n}\n"
-	// PR が表の隣り合う2行を書き換え、main がその間に行を足した（衝突する。解くと消す・足すの組が2つに割れる）
 	rowsBase := "| 一 |\n| 二 |\n| 三 |\n| 四 |\n"
 	rowsTopic := "| 一 |\n| 二。 |\n| 三。 |\n| 四 |\n"
 	rowsMain := "| 一 |\n| 二 |\n| 足した |\n| 三 |\n| 四 |\n"
-	// 関数が2つあるファイル
 	twoFuncs := "func safe() {\n\tx()\n}\n\nfunc unsafe() {\n\ty()\n}\n"
 	longFunc := "func f() {\n\ta\n\tb\n\tc\n\td\n\te\n}\n"
-	// 最後の行に改行の無いファイルで、PR が8行目を変え、main が最後の行に改行を足した（コンテキストの「No newline」の行だけが変わる）
 	var lines []string
 	for i := 1; i <= 10; i++ {
 		lines = append(lines, string(rune('a'+i-1)))
@@ -231,8 +213,6 @@ func TestSamePatchIgnoresContextLines(t *testing.T) {
 	}
 }
 
-// 結果（findings.json）を残さずに返ったレビュアーのあと、同じ commit で起動し直した次の回のレビュアーが結果を残すと、
-// 照合はその新しい回を見て current にする（返った前の回の findings.json が無いことで missing にしない）。
 func TestCheckReviewLatestRoundAfterEmptyReturn(t *testing.T) {
 	const head = "1111111111111111111111111111111111111111"
 	l := At(t.TempDir())

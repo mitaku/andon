@@ -8,9 +8,6 @@ import (
 	"testing"
 )
 
-// 途中で止まる kanban の CLI は、書く command ごとに3つの所を数え、本物の書き方（課題のファイルを書いてから log.jsonl に足す）の
-// どこで止まった形にするかを分ける: 1 は何も書かない、2 は issue.yaml だけ書いて log.jsonl の行が無い、3 は両方書いてから落ちる。
-// 読むだけの command は数えない。
 func TestFaultStopsAtEachPointOfAWrite(t *testing.T) {
 	f := NewFault(t)
 	for _, c := range []struct {
@@ -36,7 +33,6 @@ func TestFaultStopsAtEachPointOfAWrite(t *testing.T) {
 		if (statErr == nil) != c.issue || strings.Contains(string(log), `"add":"ボタンを足す"`) != c.row {
 			t.Errorf("%d 番目で止めた: issue.yaml %v（want %v）、log.jsonl %q（行 want %v）", c.at, statErr == nil, c.issue, log, c.row)
 		}
-		// 止めた所で落ちるので、数えるのはそこまで。止めなければ3つ
 		want := 3
 		if c.at > 0 {
 			want = c.at
@@ -44,7 +40,6 @@ func TestFaultStopsAtEachPointOfAWrite(t *testing.T) {
 		if got := f.Points(); got != want {
 			t.Errorf("%d 番目で止めた: 数えた所 %d（want %d）", c.at, got, want)
 		}
-		// 読むだけの command は数えない
 		f.Arm(0)
 		show := exec.Command("kanban", "list", "--all", "--json")
 		show.Env = append(os.Environ(), "KANBAN_ROOT="+root)
@@ -54,7 +49,6 @@ func TestFaultStopsAtEachPointOfAWrite(t *testing.T) {
 	}
 }
 
-// KANBAN_ROOT の無いまま書く command を打たれたら、log.jsonl の置き場が分からず中で止めた形を作れないので、本物を打たずに落ちる。
 func TestFaultRefusesAWriteWithoutKanbanRoot(t *testing.T) {
 	NewFault(t)
 	dir := t.TempDir()

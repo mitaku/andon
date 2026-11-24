@@ -11,7 +11,6 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// fakeBin は name の名前で、kanban の根に dir を答える偽の CLI を置いた PATH を返す。
 func fakeBin(t *testing.T, dir string, names ...string) string {
 	t.Helper()
 	bin := t.TempDir()
@@ -24,7 +23,6 @@ func fakeBin(t *testing.T, dir string, names ...string) string {
 	return bin
 }
 
-// kanban が PATH に無ければ、入れ方を案内して止める。
 func TestOpenRefusesWithoutKanban(t *testing.T) {
 	t.Setenv("PATH", fakeBin(t, t.TempDir()))
 	_, err := Open()
@@ -33,7 +31,6 @@ func TestOpenRefusesWithoutKanban(t *testing.T) {
 	}
 }
 
-// kanban があればそれを打つ。
 func TestOpenUsesKanban(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("PATH", fakeBin(t, root, "kanban"))
@@ -43,7 +40,6 @@ func TestOpenUsesKanban(t *testing.T) {
 	}
 }
 
-// オーナーが短く打った id と、移す前の log.jsonl の id は 4 桁に揃えて読む。
 func TestCanonID(t *testing.T) {
 	for in, want := range map[string]string{"A-5": "A-0005", "A-05": "A-0005", "A-0005": "A-0005", "A-12345": "A-12345", "Y-T-7": "Y-T-0007", "A-0": "A-0", "A-x": "A-x", "abc": "abc", "-5": "-5", "A-": "A-",
 		"A-5-r1": "A-0005-r1", "A-0005-r01": "A-0005-r1", "A-0005-r0": "A-0005-r0", "A-0005-r": "A-0005-r", "A-0005-rx": "A-0005-rx", "A-12345-r3": "A-12345-r3"} {
@@ -53,7 +49,6 @@ func TestCanonID(t *testing.T) {
 	}
 }
 
-// レビュアーの課題は親のすぐあとに回の順で並ぶ（番号が 4 桁を超えても）。
 func TestIdLess(t *testing.T) {
 	ids := []string{"A-10000", "A-0006", "A-0005-r10", "A-0005-r2", "A-0005", "A-0005-r1"}
 	sort.SliceStable(ids, func(i, j int) bool { return IDLess(ids[i], ids[j]) })
@@ -62,7 +57,6 @@ func TestIdLess(t *testing.T) {
 	}
 }
 
-// 移す前の行（id: A-5・by: Chief of Staff）は、移したあとの課題 A-0005 の照合に数える。
 func TestTrustedReadsOldIds(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
@@ -77,8 +71,6 @@ func TestTrustedReadsOldIds(t *testing.T) {
 	}
 }
 
-// Log は kanban が書く長さ（16 MiB まで）の行を読み、その先の行も読む。長い行で読むのを止めると、
-// 後の行（Chief of Staff が書いた予約キー）が無いことになる。
 func TestLogReadsLongLinesAndWhatFollows(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
@@ -101,8 +93,8 @@ func TestCandidates(t *testing.T) {
 	row := func(id, by, v string) Row { return Row{ID: id, By: by, Change: map[string]any{"deliverable": v}} }
 	rows := []Row{
 		row("A-0001", "terminal:t5", "candidates"),
-		row("A-0002", "terminal:t7", "candidates"),                                             // 担当が書いた
-		row("A-0003", "terminal:t5", "candidates"), row("A-0003", "terminal:t7", "candidates"), // 最後が担当
+		row("A-0002", "terminal:t7", "candidates"),
+		row("A-0003", "terminal:t5", "candidates"), row("A-0003", "terminal:t7", "candidates"),
 		row("A-0004", "terminal:t5", "pr"),
 	}
 	for _, c := range []struct {
@@ -112,9 +104,9 @@ func TestCandidates(t *testing.T) {
 		{Issue{"id": "A-0001", "deliverable": "candidates"}, true},
 		{Issue{"id": "A-0002", "deliverable": "candidates"}, false},
 		{Issue{"id": "A-0003", "deliverable": "candidates"}, false},
-		{Issue{"id": "A-0004", "deliverable": "candidates"}, false}, // 履歴の値と違う
+		{Issue{"id": "A-0004", "deliverable": "candidates"}, false},
 		{Issue{"id": "A-0004", "deliverable": "pr"}, false},
-		{Issue{"id": "A-0005"}, false}, // 無い＝pr
+		{Issue{"id": "A-0005"}, false},
 	} {
 		if got := l.Candidates(rows, c.task); got != c.want {
 			t.Errorf("Candidates(%v) = %v, want %v", c.task, got, c.want)
@@ -131,9 +123,9 @@ func TestEstimate(t *testing.T) {
 	row := func(id, by, v string) Row { return Row{ID: id, By: by, Change: map[string]any{"estimate": v}} }
 	rows := []Row{
 		row("A-0001", "terminal:t5", "medium"),
-		row("A-0002", "terminal:t7", "large"),                                        // 担当が書いた
-		row("A-0003", "terminal:t5", "small"), row("A-0003", "terminal:t7", "large"), // 最後が担当
-		row("A-0004", "terminal:t5", "中"), // 段の名は値でない
+		row("A-0002", "terminal:t7", "large"),
+		row("A-0003", "terminal:t5", "small"), row("A-0003", "terminal:t7", "large"),
+		row("A-0004", "terminal:t5", "中"),
 		row("A-0005", "terminal:t5", "small"),
 	}
 	for _, c := range []struct {
@@ -145,8 +137,8 @@ func TestEstimate(t *testing.T) {
 		{Issue{"id": "A-0002", "estimate": "large"}, "large", ""},
 		{Issue{"id": "A-0003", "estimate": "large"}, "large", ""},
 		{Issue{"id": "A-0004", "estimate": "中"}, "", ""},
-		{Issue{"id": "A-0005", "estimate": "large"}, "large", ""}, // 履歴の値と違う
-		{Issue{"id": "A-0006"}, "", ""},                           // 無い＝見込み無し（既定で埋めない）
+		{Issue{"id": "A-0005", "estimate": "large"}, "large", ""},
+		{Issue{"id": "A-0006"}, "", ""},
 	} {
 		if got := SettingsOf(c.task).Estimate; got != c.settings {
 			t.Errorf("SettingsOf(%v).Estimate = %q, want %q", c.task, got, c.settings)
@@ -160,21 +152,21 @@ func TestEstimate(t *testing.T) {
 // 予約キー acceptance は受け入れ条件の番号のコンマの並び（ADR-0035 決めたこと 3）。無ければ番号を持たない課題、形が違えば ok が false。
 func TestAcceptanceOf(t *testing.T) {
 	for _, c := range []struct {
-		v        any // nil ならキーが無い
+		v        any
 		ids      string
 		ok       bool
 		settings string
 	}{
 		{nil, "", true, ""},
 		{"A4", "A4", true, "A4"},
-		{"A4,A13,A4", "A4,A13", true, "A4,A13,A4"}, // 重なりは1つに（settings は書いたまま）
-		{"4,13", "4,13", true, "4,13"},             // Chief Engineer の文書の番号の振り方（数字だけ）
-		{"4,A4,13", "4,13", true, "4,A4,13"},       // 4 と A4 は同じ番号
-		{"A01,A1", "A01,A1", true, "A01,A1"},       // 数字の綴りは変えない
-		{"A1, A4", "", false, ""},                  // 空白
-		{"A1,,A4", "", false, ""},                  // 空の番号
+		{"A4,A13,A4", "A4,A13", true, "A4,A13,A4"},
+		{"4,13", "4,13", true, "4,13"},
+		{"4,A4,13", "4,13", true, "4,A4,13"},
+		{"A01,A1", "A01,A1", true, "A01,A1"},
+		{"A1, A4", "", false, ""},
+		{"A1,,A4", "", false, ""},
 		{"", "", false, ""},
-		{[]any{"A1"}, "", false, ""}, // 文字列でない
+		{[]any{"A1"}, "", false, ""},
 	} {
 		task := Issue{"id": "A-0001"}
 		if c.v != nil {
@@ -190,7 +182,6 @@ func TestAcceptanceOf(t *testing.T) {
 	}
 }
 
-// 受け入れ条件の番号は A を付けた形（A4）と数字だけの形（4）を同じ番号と読む。A の後が数字だけでなければそのまま。
 func TestAcceptanceKey(t *testing.T) {
 	for id, want := range map[string]string{"4": "4", "A4": "4", "A13": "13", "A01": "01", "A": "A", "A4a": "A4a", "a4": "a4", "B4": "B4", "AA4": "AA4"} {
 		if got := AcceptanceKey(id); got != want {
@@ -199,7 +190,6 @@ func TestAcceptanceKey(t *testing.T) {
 	}
 }
 
-// config.yaml の repos は block の並びも flow の並び（repos: [x]）も読む。chief_of_staff・timezone は引用符と行末のコメントを除く。
 func TestConfigReadsReposAnyForm(t *testing.T) {
 	for body, want := range map[string]string{
 		"version: 3\nrepos:\n  - github.com/example/a\n  - \"github.com/example/b\"\n": "github.com/example/a github.com/example/b",
@@ -254,8 +244,6 @@ func TestTakenByChiefOfStaff(t *testing.T) {
 	}
 }
 
-// Unsettled は既定のうち、無いキーと、既定と同じ値なのに照合が外れたキーを返す（command が足した課題の打ち直しで書き直す）。
-// Chief of Staff が書いた値と、既定と違う値（誰かが選んだもの）は返さない。
 func TestUnsettled(t *testing.T) {
 	root := t.TempDir()
 	l := At(root)
@@ -275,7 +263,6 @@ func TestUnsettled(t *testing.T) {
 	}
 }
 
-// 依頼書の ## Settings の写しは予約キー（正）に合わせて書き直す。写しの後ろの地の文と追記の節は触らない。
 func TestRewriteSettings(t *testing.T) {
 	const tail = "\n頼まれていない稀なケースのために設計しない。\n\n## 追記（2026-11-23）\n- Review: off のままにしない\n"
 	for _, c := range []struct {
@@ -334,7 +321,6 @@ func TestRewriteSettings(t *testing.T) {
 			if got != want || changed != (want != c.brief) {
 				t.Errorf("changed=%v\n got %q\nwant %q", changed, got, want)
 			}
-			// 書き直したものをもう一度書き直しても変わらない（打ち直しても写しが動かない）
 			if again, ch := RewriteSettings(got, c.issue); ch || again != got {
 				t.Errorf("2回目で変わった: %q", again)
 			}
@@ -368,9 +354,7 @@ func TestHoldOf(t *testing.T) {
 		{"今の担当（issue.yaml の agent）が消した", "", []Row{row("terminal:w2", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
 		{"子の課題の担当が消した", "", []Row{row("terminal:r1", "A-0001", map[string]any{"hold": nil})}, "A-0009", true},
 		{"ほかの課題の担当が消した", "", []Row{row("terminal:x9", "A-0001", map[string]any{"hold": nil})}, "", false},
-		// Chief of Staff が外したあとに担当が空のキーをもう一度消しても、外した止めは戻らない（消す前の値は空）
 		{"外したあとに担当が空を消し直した", "", []Row{row("terminal:cos", "A-0001", map[string]any{"hold": nil}), row("terminal:w1", "A-0001", map[string]any{"hold": nil})}, "", false},
-		// 理由は消す直前の値（その前の値ではない）
 		{"理由を書き換えたあと担当が消した", "", []Row{row("terminal:cos", "A-0001", map[string]any{"hold": "A-0007"}), row("terminal:w1", "A-0001", map[string]any{"hold": nil})}, "A-0007", true},
 	}
 	for _, c := range cases {
@@ -383,7 +367,6 @@ func TestHoldOf(t *testing.T) {
 	if _, held := HoldOf(nil, nil, "cos", Issue{"id": "A-0001"}); held {
 		t.Error("hold を一度も書いていない課題を止めていると読んだ")
 	}
-	// 担当が Chief of Staff の端末と同じ（Chief of Staff が自分で引き取った課題）なら、消したのは Chief of Staff として外す
 	rows := append(append([]Row{}, base...), row("terminal:cos", "A-0001", map[string]any{"agent": "cos"}), row("terminal:cos", "A-0001", map[string]any{"hold": nil}))
 	if _, held := HoldOf(rows, tasks, "cos", Issue{"id": "A-0001"}); held {
 		t.Error("Chief of Staff が消した止めを、担当が消したと読んだ")
@@ -397,7 +380,7 @@ func TestHoldUnreadableLog(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("version: 3\nprefix: A\nchief_of_staff: cos\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(dir, "log.jsonl"), 0o755); err != nil { // 開けるが読めない
+	if err := os.Mkdir(filepath.Join(dir, "log.jsonl"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	l := &Ledger{Dir: dir, Slug: "demo"}
@@ -445,8 +428,8 @@ func TestTrustedThen(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		rows  []Row
-		value string // 課題の今の値
-		now   string // 今の config.yaml の chief_of_staff
+		value string
+		now   string
 		want  bool
 	}{
 		{"書いたあとで Chief of Staff が起き直した", []Row{cos("t5"), set("t5", "急がない"), cos("t6")}, "急がない", "t6", true},

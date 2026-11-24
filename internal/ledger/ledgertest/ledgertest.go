@@ -19,13 +19,11 @@ import (
 	"andon/internal/contract"
 )
 
-// schema/ledger/ の名前。
 const (
-	LogSchema   = "log.v3.schema.json"   // log.jsonl の1行
-	ReadySchema = "ready.v3.schema.json" // kanban ready --json の出力
+	LogSchema   = "log.v3.schema.json"
+	ReadySchema = "ready.v3.schema.json"
 )
 
-// Dir は repo の schema/ledger/（このファイルの置き場から辿る。テストの cwd に依らない）。
 func Dir() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "schema", "ledger")
