@@ -11,14 +11,14 @@
 | 1 | 範囲は、受け口と保存、課題 1 件の流れを引く command、measure と振り返りへの内訳、直しの前後の比較までにする | この ADR | まだ実装していない |
 | 2 | 受け口は andon のバイナリの中に作り、OpenTelemetry Collector は入れない | `internal/otel/otel.go`・`internal/otel/serve.go` | 生きている |
 | 3 | 受けるのは OTLP/HTTP の JSON のトレースとログだけで、metrics は受けない | `internal/otel/otel.go`・`docs/contract.md` §30 | 生きている |
-| 4 | 受け口は boot と役の起動のたびに確かめて起動し、止まっていても課題を止めない | この ADR | まだ実装していない |
-| 5 | 送る設定は起動の行で渡し、役の起動だけが送る | この ADR | まだ実装していない |
-| 6 | セッションを課題に結ぶのは、起動のときに載せる resource 属性にする | この ADR | まだ実装していない |
-| 7 | ツールの詳細は載せ、プロンプトと応答の本文は載せない | この ADR | まだ実装していない |
+| 4 | 受け口は boot と役の起動のたびに確かめて起動し、止まっていても課題を止めない | `internal/otel/env.go`・`internal/boot/start.go`・`docs/dispatcher.md` §7.2 | 生きている |
+| 5 | 送る設定は起動の行で渡し、役の起動だけが送る | `internal/otel/env.go`・`package/templates/`・`docs/contract.md` §30 | 生きている（Codex は決めたこと 19） |
+| 6 | セッションを課題に結ぶのは、起動のときに載せる resource 属性にする | `internal/otel/env.go`・`docs/contract.md` §30 | 生きている |
+| 7 | ツールの詳細は載せ、プロンプトと応答の本文は載せない | `internal/otel/env.go`・`docs/contract.md` §30 | 生きている |
 | 8 | 受け口は、書く前に個人の属性を落とし、秘密の形を伏せる | `internal/otel/otel.go`・`docs/contract.md` §30 | 生きている（Codex の属性は決めたこと 19 の実測のあと） |
 | 9 | 置き場は作り直しても残る volume にし、課題ごとのファイルに OTLP の JSON の行で書く | `internal/otel/otel.go`・`docs/contract.md` §30 | 生きている |
-| 10 | 生の記録の寿命は 30 日、合計の上限は 10 GB にし、片付けは dispatcher が 1 日に 1 回走らせる | `internal/otel/prune.go`・`internal/dispatcher/otel.go`・`docs/dispatcher.md` §2.14 | 生きている（値は既定のまま。替える口は決めたこと 11） |
-| 11 | 止める設定と寿命の設定は `project.json` の任意のキー `otel` に置き、既定は送る。読めないときは送らない | この ADR | まだ実装していない |
+| 10 | 生の記録の寿命は 30 日、合計の上限は 10 GB にし、片付けは dispatcher が 1 日に 1 回走らせる | `internal/otel/prune.go`・`internal/dispatcher/otel.go`・`docs/dispatcher.md` §2.14 | 生きている（値は `project.json` の `otel` で替えられる。決めたこと 11） |
+| 11 | 止める設定と寿命の設定は `project.json` の任意のキー `otel` に置き、既定は送る。読めないときは送らない | `schema/project.schema.json`・`internal/otel/env.go`・`internal/dispatcher/otel.go`・`docs/contract.md` §11 | 生きている |
 | 12 | 段は kanban の記録から導き、andon の command と dispatcher とフックは span を出さない | この ADR | まだ実装していない |
 | 13 | 流れの単位は課題にし、レビュアーの課題は親の課題の木に入れる | この ADR | まだ実装していない |
 | 14 | `andon trace <id>` を足し、1 本のトレースに縫い直した OTLP の JSON も出せるようにする | この ADR | まだ実装していない |

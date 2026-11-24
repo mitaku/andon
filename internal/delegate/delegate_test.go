@@ -233,6 +233,51 @@ func TestParseProjectDigest(t *testing.T) {
 	}
 }
 
+// ADR-0060 決めたこと 11: otel の正しい形は通り、書き直してもそのまま残る。形の違うものは command も schema も断る。
+func TestParseProjectOtel(t *testing.T) {
+	with := func(o string) []byte {
+		return []byte(`{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": [], "otel": ` + o + `}`)
+	}
+	for _, o := range []string{`{}`, `{"enabled":false}`, `{"enabled":true,"days":7,"max_gb":1}`, `{"days":3650,"max_gb":1048576}`} {
+		p, err := ParseProject(with(o), "sample-site")
+		if err != nil {
+			t.Fatalf("%s: %v", o, err)
+		}
+		out, err := contract.Encode(contract.SchemaProject, p)
+		if err != nil {
+			t.Fatalf("%s: %v", o, err)
+		}
+		var back, want map[string]any
+		_ = json.Unmarshal(out, &back)
+		_ = json.Unmarshal(with(o), &want)
+		if !reflect.DeepEqual(back["otel"], want["otel"]) {
+			t.Errorf("書き直すと otel が変わる: %s", out)
+		}
+	}
+	for name, o := range map[string]string{
+		"enabled が文字列":   `{"enabled":"false"}`,
+		"enabled が null": `{"enabled":null}`,
+		"otel が null":    `null`,
+		"days が 0":       `{"days":0}`,
+		"max_gb が 0":     `{"max_gb":0}`,
+		"days が小数":       `{"days":1.5}`,
+		"知らないキー":         `{"endpoint":"http://127.0.0.1:4318"}`,
+	} {
+		if _, err := ParseProject(with(o), "sample-site"); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
+		if contract.SchemaProject.Check(with(o)) == nil {
+			t.Errorf("%s: schema を通ってしまう", name)
+		}
+	}
+	// 上限は schema の検査器が maximum を知らないので command だけが断る
+	for name, o := range map[string]string{"days が上限を超える": `{"days":3651}`, "max_gb が上限を超える": `{"max_gb":1048577}`} {
+		if _, err := ParseProject(with(o), "sample-site"); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
+	}
+}
+
 func TestParseProject(t *testing.T) {
 	full := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"},
  "repos": ["github.com/example/sample-site"], "references": ["github.com/example/design-notes", "https://example.com/spec"],

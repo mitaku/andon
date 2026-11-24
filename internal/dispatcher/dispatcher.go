@@ -42,6 +42,7 @@ import (
 	"andon/internal/delegate"
 	"andon/internal/flock"
 	"andon/internal/ledger"
+	"andon/internal/otel"
 )
 
 // Usage は andon dispatcher --help の中身。
@@ -160,7 +161,7 @@ type Dispatcher struct {
 	// 空きの段の失敗をログに書いた理由（kanban と種類ごと。同じ理由を二度書かない。idle.go）
 	idleLogged map[string]string
 	// OtelPrune はハーネスの生の記録の寿命の片付け（無ければ otel.PruneDue。検査が失敗を返す片付けに替える。otel.go）
-	OtelPrune func(project string, now time.Time) (ran bool, removed int, err error)
+	OtelPrune func(project string, now time.Time, limits func() otel.Limits) (ran bool, removed int, err error)
 	// 生の記録の片付けの失敗をログに書いた理由（kanban ごと。同じ理由を二度書かない。otel.go）
 	pruneLogged map[string]string
 }

@@ -19,7 +19,7 @@ _andon() {
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
     retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;
     dispatcher) COMPREPLY=($(compgen -W "drain wait rewake" -- "$cur")) ;;
-    otel) COMPREPLY=($(compgen -W "serve" -- "$cur")) ;;
+    otel) COMPREPLY=($(compgen -W "serve env" -- "$cur")) ;;
     schema) COMPREPLY=($(compgen -W "check batch" -- "$cur")) ;;
     process) COMPREPLY=($(compgen -W "render json" -- "$cur")) ;;
     open)

@@ -560,13 +560,10 @@ func (c *ctx) after() []string {
 }
 
 func roleOf(profile string) string {
-	switch {
-	case profile == chiefengineer.Profile:
+	if profile == chiefengineer.Profile {
 		return launch.RoleChiefEngineer
-	case strings.HasSuffix(profile, "-review"):
-		return launch.RoleReviewer
 	}
-	return launch.RoleWorker
+	return launch.RoleOf(profile)
 }
 
 // appendLaunch は起動できた端末 addr の起動の記録（contract.md §18）を課題の library/launches.jsonl に1行足す。

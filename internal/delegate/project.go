@@ -24,7 +24,22 @@ type Project struct {
 	ChiefOfStaff *ChiefOfStaff   `json:"chief_of_staff,omitempty"`
 	Signals      []Signal        `json:"signals,omitempty"`
 	Digest       *Digest         `json:"digest,omitempty"`
+	Otel         *Otel           `json:"otel,omitempty"`
 }
+
+// Otel はハーネスのトレースとログの設定（contract.md §11・ADR-0060 決めたこと 11）。どのキーも任意で、無ければ送り、30 日と 10 GB で回す。
+// 読むのは andon otel env（役の起動が受け口へ送るか）と、dispatcher の生の記録の片付け（寿命と上限）。
+type Otel struct {
+	Enabled *bool `json:"enabled,omitempty"`
+	Days    *int  `json:"days,omitempty"`
+	MaxGB   *int  `json:"max_gb,omitempty"`
+}
+
+// otel の値の上限（schema の検査器は maximum を知らないので command が確かめる。時間とバイトの数が溢れない大きさ）。
+const (
+	OtelMaxDays = 3650
+	OtelMaxGB   = 1 << 20
+)
 
 // Digest はダイジェストをセルの外へ送る先（contract.md §11・ADR-0044 決めたこと 12）。書いてあることが、送ってよいというオーナーの go。
 // 読むのは andon digest send と check。
@@ -138,6 +153,14 @@ func ParseProject(b []byte, slug string) (*Project, error) {
 	}
 	if err := checkDigest(p.Digest); err != nil {
 		return nil, err
+	}
+	if o := p.Otel; o != nil {
+		switch {
+		case o.Days != nil && (*o.Days < 1 || *o.Days > OtelMaxDays):
+			return nil, fmt.Errorf("otel.days は 1 以上 %d 以下", OtelMaxDays)
+		case o.MaxGB != nil && (*o.MaxGB < 1 || *o.MaxGB > OtelMaxGB):
+			return nil, fmt.Errorf("otel.max_gb は 1 以上 %d 以下", OtelMaxGB)
+		}
 	}
 	if p.Delegation != nil {
 		if _, err := Parse(p.Delegation, slug); err != nil {

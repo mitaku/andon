@@ -127,10 +127,11 @@ func TestPruneMissingAndSymlink(t *testing.T) {
 
 // PruneDue は 1 日に 1 回だけ走らせる。置き場の無いプロジェクトは何もしない。形の違う名前は断る。
 func TestPruneDue(t *testing.T) {
+	def := func() Limits { return Default }
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
 	now := time.Now()
-	if ran, _, err := PruneDue("sample-site", now); ran || err != nil {
+	if ran, _, err := PruneDue("sample-site", now, def); ran || err != nil {
 		t.Errorf("置き場の無いプロジェクトで走らせた: %v・%v", ran, err)
 	}
 	if exists(filepath.Join(Root(), "sample-site")) {
@@ -139,18 +140,18 @@ func TestPruneDue(t *testing.T) {
 	dir := filepath.Join(state, "andon", "otel", "sample-site")
 	old := filepath.Join(dir, "issues", "S-0001", "traces.jsonl")
 	put(t, old, 10, now.Add(-31*24*time.Hour))
-	ran, n, err := PruneDue("sample-site", now)
+	ran, n, err := PruneDue("sample-site", now, def)
 	if !ran || n != 1 || err != nil || exists(old) {
 		t.Fatalf("1 度目: ran=%v 消した数 %d err %v", ran, n, err)
 	}
 	put(t, old, 10, now.Add(-31*24*time.Hour))
-	if ran, _, _ := PruneDue("sample-site", now.Add(23*time.Hour)); ran || !exists(old) {
+	if ran, _, _ := PruneDue("sample-site", now.Add(23*time.Hour), def); ran || !exists(old) {
 		t.Error("1 日たたないうちに走らせた")
 	}
-	if ran, n, _ := PruneDue("sample-site", now.Add(25*time.Hour)); !ran || n != 1 {
+	if ran, n, _ := PruneDue("sample-site", now.Add(25*time.Hour), def); !ran || n != 1 {
 		t.Errorf("1 日たったのに走らせない: ran=%v 消した数 %d", ran, n)
 	}
-	if _, _, err := PruneDue("..", now); err == nil {
+	if _, _, err := PruneDue("..", now, def); err == nil {
 		t.Error("形の違うプロジェクトの名前を断らない")
 	}
 }
