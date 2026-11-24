@@ -37,7 +37,6 @@ type fake struct {
 func newFake(t *testing.T) *fake {
 	t.Helper()
 	base := t.TempDir()
-	// git（project.json の作者の照合）とトークンの置き場が本物の HOME とセルを読まない
 	t.Setenv("HOME", filepath.Join(base, "home"))
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("ANDON_WORKSPACE", filepath.Join(base, "workspace"))
@@ -50,7 +49,6 @@ func newFake(t *testing.T) *fake {
 	f.write("kanban/config.yaml", "version: 3\nprefix: S\nchief_of_staff: t1\n")
 	f.env = Env{Root: root, Workspace: f.ws, Hostname: "cell", Now: now,
 		Delivered: filepath.Join(base, "state", "sample-site.delivered.jsonl"), Signals: filepath.Join(base, "state", "sample-site.signals.json")}
-	// 期間を決めるダイジェストの課題（ルーチン daily-digest が足したもの）
 	f.issue("S-0100", "doing", "routine: daily-digest", "profile: claude")
 	return f
 }
@@ -81,7 +79,6 @@ func (f *fake) lib(id, rel, body string) { f.write("kanban/issues/"+id+"/library
 
 func prURL(n int) string { return fmt.Sprintf("https://github.com/example/sample-site/pull/%d", n) }
 
-// merged は PR n をマージした課題を置く（auto なら dispatcher が head でマージした）。
 func (f *fake) merged(id string, n int, at, head string, auto bool) {
 	f.issue(id, "done")
 	f.lib(id, "report.json", fmt.Sprintf(`{"commit": "%s", "pr": "%s"}`, head, prURL(n)))
@@ -90,7 +87,6 @@ func (f *fake) merged(id string, n int, at, head string, auto bool) {
 	f.row(at, "dispatcher", id, `{"status":"done"}`)
 }
 
-// mergeWait は PR n のマージを待っている課題を置く（review にいて、今の head について gate の問いが開いている）。
 func (f *fake) mergeWait(id string, n int, head, title string) {
 	f.write("kanban/issues/"+id+"/issue.yaml", fmt.Sprintf("id: %s\ntitle: %s\nstatus: review\nprofile: claude\ncreated: \"2026-11-21T01:00:00Z\"\n", id, title))
 	f.lib(id, "report.json", fmt.Sprintf(`{"commit": "%s", "pr": "%s"}`, head, prURL(n)))
@@ -576,7 +572,6 @@ func TestSendRetry(t *testing.T) {
 	}
 }
 
-// 短い文は 3000 字まで。超えたら待っているものの行を下から削り、削った数を出す。
 func TestMessageLimit(t *testing.T) {
 	in := &Input{Title: "デイリーダイジェスト", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}
 	long := strings.Repeat("長", 700)
@@ -624,8 +619,6 @@ func TestOutputsMatchSchema(t *testing.T) {
 	}
 }
 
-// 反論の段で見つけた道: マージの時刻が前の期間で、done が今の期間（オーナーのマージの片付けが止まっていた）でも、マージとして数える。
-// done なのに結果の記録がまだ無い課題は、黙って落とさず skipped に出す。
 func TestMergeAcrossBoundary(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-19T08:00:00Z", sha1, false)
@@ -649,7 +642,6 @@ func TestMergeAcrossBoundary(t *testing.T) {
 	}
 }
 
-// 反論の段で見つけた道: 組み立てたあとに集め直したら、古い HTML を新しい期間として送らない。
 func TestSendStaleBuild(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
@@ -669,7 +661,6 @@ func TestSendStaleBuild(t *testing.T) {
 	}
 }
 
-// 反論の段で見つけた道: 課題のタイトルの「curl (」で url( の検査に当たらない（検査はスタイルの中だけを見る）。
 func TestTitleWithParen(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
@@ -681,7 +672,6 @@ func TestTitleWithParen(t *testing.T) {
 	}
 }
 
-// 反論の段で見つけた道: 担当が添える気になることは、command が見つけた気になることの課題と、オーナーを待っている課題も指せる。
 func TestConcernRefs(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)

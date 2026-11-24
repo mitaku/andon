@@ -43,14 +43,12 @@ type Input struct {
 	Skipped   []Skip         `json:"skipped"`
 }
 
-// Previous は前に送ったダイジェスト。
 type Previous struct {
 	Issue  string `json:"issue"`
 	Until  string `json:"until"`
 	SentAt string `json:"sent_at"`
 }
 
-// Issue は期間の課題1件。
 type Issue struct {
 	ID       string  `json:"id"`
 	Title    string  `json:"title"`
@@ -64,7 +62,6 @@ type Issue struct {
 	Retro    bool    `json:"retro"`
 }
 
-// Concern は command が見つけた、うまくいっていないこと1件。
 type Concern struct {
 	Kind  string  `json:"kind"`
 	Issue *string `json:"issue" andon:"nullable"`
@@ -78,7 +75,6 @@ func (c Concern) failed() bool {
 	return c.Kind == "stalled" || c.Kind == "ci_failed" || c.Kind == "revert"
 }
 
-// Numbers は直近 7 日とその前の 7 日。
 type Numbers struct {
 	Days     []Day `json:"days"`
 	Current  Week  `json:"current"`
@@ -104,28 +100,24 @@ type Week struct {
 	Tokens       *int64   `json:"tokens" andon:"nullable"`
 }
 
-// Next はこのあと。
 type Next struct {
 	Ready        int           `json:"ready"`
 	Observations []Observation `json:"observations"`
 	Routines     []Routine     `json:"routines"`
 }
 
-// Observation は見る日が近い観察の課題。
 type Observation struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	NotBefore string `json:"not_before"`
 }
 
-// Routine は kanban のルーチン1つ。
 type Routine struct {
 	Name  string  `json:"name"`
 	Title string  `json:"title"`
 	Next  *string `json:"next" andon:"nullable"`
 }
 
-// Skip は読めなかったもの。
 type Skip struct {
 	Source string `json:"source"`
 	Reason string `json:"reason"`
@@ -141,7 +133,6 @@ const (
 	soonDays    = 7                  // 見る日が近い観察の課題
 )
 
-// task は issue.yaml から読む所。
 type task struct {
 	id, title, status, profile, who, parent, routine, notBefore, estimate, repo string
 	after                                                                       []string
@@ -313,7 +304,6 @@ func (c *collector) previous(self *task) *Previous {
 	return best
 }
 
-// outcome は outcome.json のうち読む所。
 type outcome struct {
 	Result   string  `json:"result"`
 	PR       *string `json:"pr"`
@@ -357,7 +347,6 @@ func (c *collector) doneAt(rows []ledger.Row, in func(time.Time) bool) map[strin
 	return out
 }
 
-// title は課題のタイトル（kanban に無ければ id）。
 func (c *collector) title(id string) string {
 	if t := c.byID[id]; t != nil {
 		return t.title
@@ -512,7 +501,6 @@ func (c *collector) concerns(issues []Issue, rows []ledger.Row, in func(time.Tim
 			}
 		})
 	}
-	// gate の差し戻しと、レビューの上限を超えた課題
 	for _, id := range c.ids {
 		t := c.byID[id]
 		if t.reviewer() {
@@ -568,7 +556,6 @@ func (c *collector) concerns(issues []Issue, rows []ledger.Row, in func(time.Tim
 			}
 		}
 	}
-	// revert（期間にマージされた revert の PR）
 	prIssue := map[string]string{}
 	repos := map[string]bool{}
 	for _, id := range c.ids {

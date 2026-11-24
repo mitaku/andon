@@ -46,8 +46,7 @@ type fakeSlack struct {
 	completeError string
 	// uploadStatus があれば中身を置く呼び出しがその status を返す
 	uploadStatus int
-	// before は応答の前に呼ばれる
-	before func(path string)
+	before       func(path string)
 }
 
 func newFakeSlack(t *testing.T) *fakeSlack {
@@ -119,7 +118,6 @@ func toChannel(id string) string {
 	return projectWith(`{"destinations": [{"kind": "slack", "channel": "` + id + `"}]}`)
 }
 
-// commitProject はセルの repo の project.json を author で commit する。body が空なら project.json の無い repo を作る。
 func (f *fake) commitProject(body, author string) {
 	f.t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -138,7 +136,6 @@ func (f *fake) commitProject(body, author string) {
 	}
 }
 
-// withSlack は偽の Slack とトークンを Env に向ける。project.json は置かない。
 func (f *fake) withSlack() *fakeSlack {
 	f.t.Helper()
 	s := newFakeSlack(f.t)
@@ -148,7 +145,6 @@ func (f *fake) withSlack() *fakeSlack {
 	return s
 }
 
-// ready は送り先のあるセルで、組み立てたところまで作る。
 func ready(t *testing.T) (*fake, *fakeSlack) {
 	t.Helper()
 	f := newFake(t)
@@ -348,7 +344,6 @@ func TestSendSlack(t *testing.T) {
 	})
 }
 
-// published は files/ に出した HTML。
 func (f *fake) published() []byte {
 	f.t.Helper()
 	names, err := filepath.Glob(filepath.Join(f.ws, "files", "*-S-0100.html"))
@@ -366,7 +361,6 @@ type writerFunc func(p []byte) (int, error)
 
 func (w writerFunc) Write(p []byte) (int, error) { return w(p) }
 
-// 反論で見つけた疑い: files/ と Slack と sent.json が、同じ 1 枚を指す。
 func TestSendSameDigest(t *testing.T) {
 	t.Run("送り直す前に組み立て直した", func(t *testing.T) {
 		f, s := ready(t)
@@ -688,7 +682,6 @@ func TestCheck(t *testing.T) {
 	})
 }
 
-// 短い文: 行が無くても長すぎるときに URL と削った数を残す。タイトルの <!channel> で全員を呼ばない。
 func TestMessageKeepsURLAndNoMention(t *testing.T) {
 	const u = "http://files.cell.localhost:1355/x.html"
 	in := &Input{Title: "デイリーダイジェスト", Project: "sample-site", Since: "2026-11-20T10:00:00Z", Until: "2026-11-21T10:00:00Z"}

@@ -23,7 +23,6 @@ type Text struct {
 	Concerns []TextConcern `json:"concerns"`
 }
 
-// Theme はテーマ1つ。
 type Theme struct {
 	Title  string   `json:"title"`
 	Body   []string `json:"body"`
@@ -40,7 +39,6 @@ type Figure struct {
 	Focus  int      `json:"focus,omitempty"`
 }
 
-// TextConcern は担当が根拠つきで添える気になること。
 type TextConcern struct {
 	Text   string   `json:"text"`
 	Issues []string `json:"issues"`
@@ -57,7 +55,7 @@ const (
 	stepsMax     = 6
 	htmlMax      = 1 << 20 // 1 MiB（決めたこと 7）
 	messageMax   = 3000    // 短い文の上限（字。決めたこと 13）
-	messageTop   = 5       // 短い文に並べる待っているもの
+	messageTop   = 5
 )
 
 //go:embed digest.html.tmpl
@@ -117,7 +115,6 @@ func compose(in *Input, text *Text, loc *Loc) ([]byte, []string) {
 	if errs := Check(text, in); len(errs) > 0 {
 		return nil, errs
 	}
-	// 組み立てる前に、入力と担当の JSON の文字列から秘密の形を伏せる（決めたこと 17）
 	if err := redactInto(in); err != nil {
 		return nil, []string{err.Error()}
 	}
@@ -215,10 +212,9 @@ func Check(t *Text, in *Input) []string {
 }
 
 var (
-	tagRe = regexp.MustCompile(`(?is)<([a-z][a-z0-9:-]*)\b([^>]*)>`)
-	refRe = regexp.MustCompile(`(?is)\b(?:xlink:)?(?:src|href)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
-	urlRe = regexp.MustCompile(`(?i)url\s*\(`)
-	// url( を見るのはスタイルの中（<style> の中身と style 属性）だけ。本文の「curl (」には当てない
+	tagRe   = regexp.MustCompile(`(?is)<([a-z][a-z0-9:-]*)\b([^>]*)>`)
+	refRe   = regexp.MustCompile(`(?is)\b(?:xlink:)?(?:src|href)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
+	urlRe   = regexp.MustCompile(`(?i)url\s*\(`)
 	styleRe = regexp.MustCompile(`(?is)<style\b[^>]*>(.*?)</style>|\bstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
 	svgRe   = regexp.MustCompile(`(?i)<svg\b`)
 	scrRe   = regexp.MustCompile(`(?i)<script\b`)
@@ -331,7 +327,6 @@ func truncateRunes(s string, n int) string {
 
 var kindName = map[string]string{"merge": "マージの依頼", "decision": "判断", "task": "手作業"}
 
-// location は kanban の timezone（無ければ UTC）。
 func location(root string) *Loc {
 	return newLoc(ledger.At(root).Timezone())
 }

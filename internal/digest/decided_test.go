@@ -22,7 +22,6 @@ type gitRepo struct {
 	origin, local string
 }
 
-// newGitRepo は期間の前の commit が 1 つある origin と、その時点の checkout（GHQ_ROOT の下）を作る。
 func newGitRepo(t *testing.T, files map[string]string) *gitRepo {
 	t.Helper()
 	base := t.TempDir()
@@ -57,7 +56,6 @@ func (g *gitRepo) git(dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// commit は origin に at の時刻の commit を積む。中身が空の文字列なら消す。
 func (g *gitRepo) commit(at string, files map[string]string) string {
 	g.t.Helper()
 	for rel, body := range files {
@@ -87,7 +85,6 @@ type wantDecision struct {
 	Line                     int
 }
 
-// collectDecisions は input.json の決定の行（書かれた JSON から読む）。
 func collectDecisions(t *testing.T, f *fake) []wantDecision {
 	t.Helper()
 	b := contract.Marshal(f.collect("S-0100"))
@@ -164,7 +161,6 @@ func TestDecisionsLineShapes(t *testing.T) {
 	}
 }
 
-// 期間の中だけ・本文だけの直しと改名は新しい決定でない・マージ commit は入った時刻で数える・古い checkout から読み、checkout に何も書かない。
 func TestDecisionsHistory(t *testing.T) {
 	line := func(n int, text, body string) string {
 		return fmt.Sprintf("%d. **%s（Chief Engineer が決めた）。** %s\n", n, text, body)
@@ -204,7 +200,6 @@ func TestDecisionsHistory(t *testing.T) {
 	}
 }
 
-// 期間の中で語を直した行は最後の形の 1 行、足して取り消した行は出ない、括弧の中だけの直しは新しい決定でない。
 func TestDecisionsNet(t *testing.T) {
 	const sec = "## 決めたこと\n"
 	g := newGitRepo(t, map[string]string{"docs/a.md": sec + "1. **前からある。**（Chief Engineer が決め、推奨どおり）\n"})
@@ -219,7 +214,6 @@ func TestDecisionsNet(t *testing.T) {
 	}
 }
 
-// 最初の commit（親が無い）の文書の行も拾う。
 func TestDecisionsRootCommit(t *testing.T) {
 	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n1. **最初。**（Chief Engineer が決めた）\n"})
 	got, _, err := repoDecisions(docRepo, "", time.Time{}, now.AddDate(1, 0, 0))
@@ -228,7 +222,6 @@ func TestDecisionsRootCommit(t *testing.T) {
 	}
 }
 
-// main を取り直せない・checkout が無いときは、古い木で数えずに skipped へ出し、ほかは集める。
 func TestDecisionsUnreadable(t *testing.T) {
 	for name, breakIt := range map[string]func(g *gitRepo) error{
 		"origin が無い":   func(g *gitRepo) error { return os.RemoveAll(g.origin) },
@@ -258,7 +251,6 @@ func hasSkip(in *Input, source, reason string) bool {
 	return false
 }
 
-// Chief of Staff が決めたこと: トリアージ・振り返りの記録と、範囲の問いの答え。
 func TestDecidedRecords(t *testing.T) {
 	f := newFake(t)
 	for _, id := range []string{"S-0020", "S-0021", "S-0022"} {
@@ -324,7 +316,6 @@ func TestDecidedRecords(t *testing.T) {
 	}
 }
 
-// 節 5 は入力から描く。秘密は伏せ、decided の無い前のバージョンの入力は「入っていない」と描く（「無かった」と読ませない）。
 func TestBuildDecided(t *testing.T) {
 	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n"})
 	secret := "ghp_" + strings.Repeat("a", 36)
@@ -361,7 +352,6 @@ func TestBuildDecided(t *testing.T) {
 	}
 }
 
-// 前からある決定の 1 文の語を直しても、新しい決定にしない（同じ文書・番号・日付）。番号を奪った別の決定と、日付の変わった決め直しは載せる。
 func TestDecisionsRewording(t *testing.T) {
 	const sec = "## 決めたこと\n"
 	g := newGitRepo(t, map[string]string{"docs/a.md": sec +
@@ -386,7 +376,6 @@ func TestDecisionsRewording(t *testing.T) {
 	}
 }
 
-// sentBefore は at に集めて送り終えた前のダイジェスト。
 func sentBefore(f *fake, at time.Time) {
 	f.t.Helper()
 	const id = "S-0090"
@@ -399,7 +388,6 @@ func sentBefore(f *fake, at time.Time) {
 	f.lib(id, "digest/sent.json", `{"issue": "`+id+`", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "http://files.cell.localhost:1355/x.html"}]}`)
 }
 
-// commit の時刻が期間の前でも、前のダイジェストのあとに main に入った行は載る（fast-forward の push は commit の時刻が古いまま入る）。
 func TestDecisionsPushedLate(t *testing.T) {
 	const sec = "## 決めたこと\n"
 	for name, newer := range map[string]bool{"それだけ": false, "上に新しい commit": true} {
@@ -419,7 +407,6 @@ func TestDecisionsPushedLate(t *testing.T) {
 	}
 }
 
-// main を読めなかった回の分は、次のダイジェストが同じ所から読む。
 func TestDecisionsAfterFailedRead(t *testing.T) {
 	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n"})
 	f := newFake(t)
@@ -446,7 +433,6 @@ func TestDecisionsAfterFailedRead(t *testing.T) {
 	}
 }
 
-// 集めている最中に当て終えていなかった振り返りは、終わった次のダイジェストに 1 度だけ載る（applied_at は当て始めの時刻のまま）。
 func TestRetroFinishedAfterCollect(t *testing.T) {
 	f := newFake(t)
 	f.issue("S-0030", "review")
@@ -461,7 +447,6 @@ func TestRetroFinishedAfterCollect(t *testing.T) {
 	}
 }
 
-// 読んだ main を使えない前の入力（前のバージョン・main に無い commit・送ったあとの集め直し・7 日で切った期間）では、時刻で切る。
 func TestDecisionsWithoutLastMain(t *testing.T) {
 	g := newGitRepo(t, map[string]string{"docs/a.md": "## 決めたこと\n"})
 	g.commit("2026-11-21T09:00:00Z", map[string]string{"docs/a.md": "## 決めたこと\n1. **期間の中（Chief Engineer が決めた）。**\n"})

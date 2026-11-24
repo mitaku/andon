@@ -29,7 +29,6 @@ func (l *Loc) parse(s string) (time.Time, bool) {
 	return t.In(l.loc), err == nil
 }
 
-// full は 2026-11-22 07:37 の形。
 func (l *Loc) full(s string) string {
 	if t, ok := l.parse(s); ok {
 		return t.Format("2006-01-02 15:04")
@@ -37,7 +36,6 @@ func (l *Loc) full(s string) string {
 	return s
 }
 
-// short は 11/22 07:37 の形。
 func (l *Loc) short(s string) string {
 	if t, ok := l.parse(s); ok {
 		return t.Format("1/2 15:04")
@@ -130,7 +128,6 @@ type tierBar struct {
 	Count, Width int
 }
 
-// decidedView は節 5（代わりに決めたこと）。
 type decidedView struct {
 	Decisions []decisionRow
 	Triage    []triageRow
@@ -180,7 +177,6 @@ var concernName = map[string]string{
 	"ci_failed": "main の CI の失敗", "revert": "revert", "estimate": "見込みとのズレ",
 }
 
-// 棒の幅（SVG の座標）。
 const (
 	barW = 160 // 横棒の長さ
 	dayW = 36  // 日ごとの棒の間隔
@@ -225,7 +221,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		return r
 	}
 
-	// 1. 冒頭の大きな数
 	merged, auto, closed := 0, 0, 0
 	for _, x := range in.Issues {
 		if x.MergedBy != nil {
@@ -264,7 +259,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 			Merged: d.Merged, Auto: d.Auto})
 	}
 
-	// 2. オーナーを待っているもの
 	until, _ := time.Parse(timeLayout, in.Until)
 	maxH := 0.0
 	hours := make([]float64, len(in.Waiting.Items))
@@ -283,7 +277,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 			Wait: duration(hours[i]), PR: it.PR, Class: cls, Width: scale(hours[i], maxH, barW), Holds: len(it.Holds)})
 	}
 
-	// 3. 進んだこと
 	inTheme := map[string]string{}
 	maxN := 0
 	for _, th := range t.Themes {
@@ -317,7 +310,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		}
 	}
 
-	// 4. オーナーを通らずに入った変更
 	tiers := map[string]int{}
 	for _, x := range in.Issues {
 		if x.MergedBy == nil || *x.MergedBy != "dispatcher" {
@@ -347,7 +339,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		v.Tiers = append(v.Tiers, tierBar{Tier: k, Count: tiers[k], Width: scale(float64(tiers[k]), float64(maxT), barW)})
 	}
 
-	// 5. 代わりに決めたこと
 	if d := in.Decided; d != nil {
 		dv := &decidedView{}
 		for _, x := range d.Decisions {
@@ -370,7 +361,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		v.Decided = dv
 	}
 
-	// 6. 気になること
 	for _, c := range in.Concerns {
 		r := concernRow{Kind: concernName[c.Kind], Title: c.Title, At: loc.short(c.At)}
 		if c.Issue != nil {
@@ -392,7 +382,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		v.Notes = append(v.Notes, n)
 	}
 
-	// 7. 数字
 	cw, pw := in.Numbers.Current, in.Numbers.Previous
 	v.MetricWeeks = [2]string{cw.Since + "〜" + cw.Until, pw.Since + "〜" + pw.Until}
 	rate := func(w Week) *float64 {
@@ -439,7 +428,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 		v.Metrics = append(v.Metrics, r)
 	}
 
-	// 8. このあと
 	for _, r := range in.Next.Routines {
 		row := routineRow{Name: r.Name, Title: r.Title, Next: "止めてある"}
 		if r.Next != nil {
@@ -458,7 +446,6 @@ func Render(t *Text, in *Input, loc *Loc) ([]byte, error) {
 // periodKey は入力の期間の印（HTML の meta に書き、send が照らす。英数と - : _ だけで、html/template がエスケープしない）。
 func periodKey(in *Input) string { return in.Since + "_" + in.Until }
 
-// duration は待っている時間の人が読む形。
 func duration(h float64) string {
 	switch {
 	case h < 1:

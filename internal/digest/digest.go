@@ -28,7 +28,6 @@ import (
 	"andon/internal/signal"
 )
 
-// 葉ごとの使い方（andon digest <動詞> --help の中身と、引数を誤ったときに出す文）。
 const (
 	where        = "projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
 	period       = "<id> はダイジェストの課題。期間は、同じルーチンの前に送ったダイジェストの終わりから今まで（無ければ 24 時間前から、7 日より前へは遡らない）。\n"
@@ -51,7 +50,6 @@ const (
 
 var usages = map[string]string{"collect": CollectUsage, "build": BuildUsage, "send": SendUsage, "check": CheckUsage, "auth": AuthUsage}
 
-// 置き場（課題の library/digest/）。
 const (
 	dirName     = "digest"
 	inputFile   = "input.json"
@@ -63,12 +61,11 @@ const (
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
-// Env は command が外から読むもの。テストで差し替える。
 type Env struct {
-	Root      string    // プロジェクトの根（kanban/ の親）
-	Workspace string    // セルの repo（files/ の親）
-	Hostname  string    // files の URL のホスト名に使うセルの名前
-	Now       time.Time // 集める時刻・送る時刻
+	Root      string // プロジェクトの根（kanban/ の親）
+	Workspace string // セルの repo（files/ の親）
+	Hostname  string
+	Now       time.Time
 	// GH は repo（<owner>/<repo>）のマージされた PR の一覧（measure.GH と同じ形）。nil なら GitHub を読まない。
 	GH func(repo string) ([]byte, error)
 	// Delivered・Signals・State は dispatcher の記録（届けた通知・外の信号・控え）。空なら読まない。
@@ -87,27 +84,22 @@ func (e Env) warn(format string, a ...any) {
 	}
 }
 
-// CollectMain は andon digest collect。
 func CollectMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run(append([]string{"collect"}, args...), stdin, stdout, stderr, defaultEnv)
 }
 
-// BuildMain は andon digest build。
 func BuildMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run(append([]string{"build"}, args...), stdin, stdout, stderr, defaultEnv)
 }
 
-// SendMain は andon digest send。
 func SendMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run(append([]string{"send"}, args...), stdin, stdout, stderr, defaultEnv)
 }
 
-// CheckMain は andon digest check。
 func CheckMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run(append([]string{"check"}, args...), stdin, stdout, stderr, defaultEnv)
 }
 
-// AuthMain は andon digest auth。
 func AuthMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return run(append([]string{"auth"}, args...), stdin, stdout, stderr, defaultEnv)
 }
@@ -117,7 +109,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, newEnv func()
 	fail := func(err error) int { fmt.Fprintf(stderr, "andon digest: %v\n", err); return 1 }
 	switch {
 	case len(args) == 2 && args[0] == "auth":
-		// 引数は誤りに写さない（トークンを貼り間違えても出力に残さない）
 		if args[1] != kindSlack {
 			fmt.Fprintln(stderr, "andon digest auth: 知らない送り先（slack）。トークンは引数に書かず、標準入力に渡す")
 			return 2
@@ -228,7 +219,6 @@ func readArg(arg string, stdin io.Reader) ([]byte, error) {
 	return os.ReadFile(arg)
 }
 
-// dir は課題 id の library/digest/。
 func dir(root, id string) string {
 	return filepath.Join(ledger.At(root).Library(id), dirName)
 }
@@ -245,7 +235,6 @@ func writeInput(root, id string, in *Input) (string, error) {
 	return path, nil
 }
 
-// readInput は input.json を読み、schema とオーナー待ちの schema に照らす。
 func readInput(root, id string) (*Input, error) {
 	path := filepath.Join(dir(root, id), inputFile)
 	b, err := os.ReadFile(path)
