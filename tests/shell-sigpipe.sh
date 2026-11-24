@@ -24,7 +24,8 @@ scan() { # scan <ファイル> …: 拾った行を「<ファイル>:<行>:<TAB>
 import re, sys
 
 PIPEFAIL = re.compile(r"^\s*(\(\s*)?set\s+[^#\n]*?(-o\s+pipefail|-[a-zA-Z]*o\s+pipefail)\b")
-HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+# here-doc の始まり。区切りは引用符の中身か、空白・演算子までの語（<<EOF-X は EOF-X）
+HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(?:'([^']*)'|\"([^\"]*)\"|\\?([^\s;&|<>()'\"]+))")
 PIPE = re.compile(r"(?<![|])\|&?(?![|])")
 PREFIX = re.compile(r"\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+|command\s+|env\s+|timeout\s+\S+\s+)*")
 READER = re.compile(r"(?:\S*/)?(head|grep|egrep|fgrep)(?=\s|$|;)")
@@ -33,63 +34,102 @@ ARG_SHORT = set("efmABCD")
 EARLY_LONG = ("--quiet", "--silent", "--max-count", "--files-with-matches", "--files-without-match")
 
 
-def strip_line(line, state):
-    """一重引用符の中と注釈を落とした行を返す。state は行をまたぐ引用符（None・"'"・'"'・"$'"）"""
-    out = []
-    i, n, sq = 0, len(line), 0
+def strip_line(line, stack):
+    """1行を読み、(コード, here-doc を探す文字, stack) を返す。
+    コードは一重引用符の中と注釈を落とした行（"$( … )" の中は残す）。here-doc を探す文字は、コマンドの位置（引用符の外か
+    $( … ) の中）の文字だけで、二重引用符の中と算術（$(( … ))・(( … ))）の中を除く。一重引用符の中身は残す（<<'EOF' の区切り）。
+    stack は行をまたぐ入れ子: "'"・"'k"（here-doc の区切り。中身を残す）・"$'"（一重引用符）・'"'（二重引用符）・"("（$( … ) と、その中の ( … )）・"A"（算術）"""
+    out, hd = [], []
+    i, n = 0, len(line)
     while i < n:
         c = line[i]
-        if state == "'":
+        top = stack[-1] if stack else None
+        if top in ("'", "'k"):
             if c == "'":
-                state = None
-                word = line[sq:i]
-                # here-doc の区切り（<<'EOF'）は残す。ほかの中身は落とす
-                out.append("'" + word + "'" if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", word) else "''")
+                stack.pop()
+                out.append("''")
+            if top == "'k" or c == "'":  # 中身を残すのは here-doc の区切り（<<'EOF'）だけ
+                hd.append(c)
             i += 1
             continue
-        if state == "$'":
+        if top == "$'":
             if c == "\\":
                 i += 2
                 continue
             if c == "'":
-                state = None
+                stack.pop()
                 out.append("''")
             i += 1
             continue
-        if state == '"':
+        if top in ('"', "A"):
             if c == "\\":
                 out.append(line[i:i + 2])
                 i += 2
                 continue
-            if c == '"':
-                state = None
+            if top == '"' and c == '"':
+                stack.pop()
+            elif line.startswith("$((", i):
+                stack.append("A")
+                out.append("$((")
+                i += 3
+                continue
+            elif line.startswith("$(", i):
+                stack.append("(")
+                out.append("$(")
+                i += 2
+                continue
+            elif top == "A" and line.startswith("))", i):
+                stack.pop()
+                out.append("))")
+                i += 2
+                continue
+            elif top == "A" and c == "(":
+                stack.append("(")
             out.append(c)
             i += 1
             continue
-        # 引用符の外
+        # コマンドの位置（引用符の外か $( … ) の中）
         if c == "\\":
             out.append(line[i:i + 2])
+            hd.append(line[i:i + 2])
             i += 2
             continue
         if c == "'":
-            state = "'"
+            stack.append("'k" if re.search(r"<<-?[ \t]*$", "".join(hd)) else "'")
+            hd.append(c)
             i += 1
-            sq = i
             continue
         if c == "$" and line[i + 1:i + 2] == "'":
-            state = "$'"
+            stack.append("$'")
             i += 2
             continue
         if c == '"':
-            state = '"'
+            stack.append('"')
             out.append(c)
             i += 1
             continue
-        if c == "#" and (i == 0 or line[i - 1] in " \t;|&("):
+        if line.startswith("$((", i) or line.startswith("((", i):
+            k = 3 if c == "$" else 2
+            stack.append("A")
+            out.append(line[i:i + k])
+            i += k
+            continue
+        if line.startswith("$(", i):
+            stack.append("(")
+            out.append("$(")
+            hd.append("$(")
+            i += 2
+            continue
+        if c == "(" and top == "(":
+            stack.append("(")
+        elif c == ")" and top == "(":
+            stack.pop()
+        elif c == "#" and (i == 0 or line[i - 1] in " \t;|&("):
             break
         out.append(c)
+        hd.append(c)
         i += 1
-    return "".join(out), state
+    return "".join(out), "".join(hd), stack
 
 
 def early_reader(code):
@@ -138,19 +178,21 @@ for path in sys.argv[1:]:
     lines = text.split("\n")
     if not any(PIPEFAIL.match(l) and "+o pipefail" not in l for l in lines):
         continue
-    state = None
+    stack = []
     heredocs = []  # (区切り, タブを除くか)
     logical, raw = [], []
     for no, line in enumerate(lines, 1):
-        if heredocs and state is None and not logical:
+        if heredocs:
             word, tabs = heredocs[0]
             if (line.lstrip("\t") if tabs else line) == word:
                 heredocs.pop(0)
             continue
         raw.append(line)
-        code, state = strip_line(line, state)
+        code, hd, stack = strip_line(line, stack)
         logical.append(code)
-        if state is not None:
+        for m in HEREDOC.finditer(hd):
+            heredocs.append((next(g for g in m.group(2, 3, 4) if g is not None), m.group(1) == "-"))
+        if stack:
             continue
         stripped = code.rstrip()
         if stripped.endswith("\\") and not stripped.endswith("\\\\"):
@@ -158,14 +200,13 @@ for path in sys.argv[1:]:
             continue
         if stripped.endswith("|") and not stripped.endswith("||"):
             continue
-        for m in HEREDOC.finditer(code):
-            heredocs.append((m.group(3), m.group(1) == "-"))
         joined = " ".join(" ".join(logical).split())
         if early_reader(joined) and not any("shell-sigpipe: ok" in r for r in raw):
             print(f"{path}:{no}:\t{joined}")
         logical, raw = [], []
-    if state is not None:
-        print(f"{path}: 読めない: 閉じていない引用符", file=sys.stderr)
+    if stack or heredocs:
+        what = "閉じていない here-doc（" + heredocs[0][0] + "）" if heredocs else "閉じていない引用符か $( … )"
+        print(f"{path}: 読めない: {what}", file=sys.stderr)
         bad = True
 sys.exit(2 if bad else 0)
 PY
@@ -264,6 +305,24 @@ cat <<-'EOF' >"$tmp/x"
 python3 -c '
 import sys; print(sys.argv) | head
 '
+a="$(tr -d '"' <f)"
+git log | head -1 # 拾う（"$( … )" の中の一重引用符は引用符）
+b="$(tr -d '"' <g)"
+n=$(( 1 << width ))
+git log | head -2 # 拾う（算術の << は here-doc でない）
+echo "usage <<EOF>>"
+git log | head -3 # 拾う（二重引用符の中の << は here-doc でない）
+cat <<EOF-X
+seq 10 | head -1
+EOF-X
+git log | head -4 # 拾う（区切りは空白まで）
+out=$(cat <<EOF
+seq 10 | head -1
+EOF
+)
+x=$(
+  seq 10 | head -1
+) # 拾う（複数行の $( … ) は終わりの行で出す）
 SAMPLE
 grep -n '# 拾う' "$tmp/sample.sh" | cut -d: -f1 | sed "s|^|$tmp/sample.sh:|" >"$tmp/want"
 scan "$tmp/sample.sh" | cut -d: -f1-2 >"$tmp/got" || die "見本を読めない"
@@ -280,6 +339,9 @@ done
 printf '#!/usr/bin/env bash\nset -o pipefail\necho "x\n' >"$tmp/broken.sh"
 if scan "$tmp/broken.sh" >/dev/null 2>"$tmp/err"; then die "閉じていない引用符のファイルを読めたことにした"; fi
 grep -q '読めない' "$tmp/err" || die "読めないときの理由が出ない"
+printf '#!/usr/bin/env bash\nset -o pipefail\ncat <<EOF\nx\n' >"$tmp/open-heredoc.sh"
+if scan "$tmp/open-heredoc.sh" >/dev/null 2>"$tmp/err"; then die "閉じていない here-doc のファイルを読めたことにした"; fi
+grep -q 'here-doc' "$tmp/err" || die "閉じていない here-doc の理由が出ない"
 # 控え: 載っている行は拾わない。同じ行を1つ足すと拾う。行を書き換えると拾う
 mkdir -p "$tmp/tests"
 printf '#!/usr/bin/env bash\nset -o pipefail\nseq 10 | head -1\n' >"$tmp/tests/a.sh"
