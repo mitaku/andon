@@ -21,7 +21,7 @@ const mainAfterBase = `{"ahead_by": 2, "files": [
   {"filename": "internal/waiting/open.go", "previous_filename": null}]}`
 
 func TestStaleBaseFromIncident(t *testing.T) {
-	files, unread, err := ParseCompare([]byte(mainAfterBase))
+	files, _, unread, err := ParseCompare([]byte(mainAfterBase))
 	if err != nil || unread {
 		t.Fatalf("compare を読めない: %v %v", err, unread)
 	}
@@ -99,7 +99,7 @@ func TestCheckPlaceFiles(t *testing.T) {
 
 func TestParseCompare(t *testing.T) {
 	// 既定ブランチが分かれ目から進んでいない（rebase 済み）
-	if files, unread, err := ParseCompare([]byte(`{"ahead_by": 0, "files": [{"filename": "tests/a.sh"}]}`)); err != nil || unread || len(files) != 0 {
+	if files, _, unread, err := ParseCompare([]byte(`{"ahead_by": 0, "files": [{"filename": "tests/a.sh"}]}`)); err != nil || unread || len(files) != 0 {
 		t.Fatalf("進んでいない既定ブランチ: %v %v %v", files, unread, err)
 	}
 	// 上限の数だけ返れば、一覧が切れているかもしれない
@@ -112,13 +112,46 @@ func TestParseCompare(t *testing.T) {
 		fmt.Fprintf(&b, `{"filename": "docs/%d.md"}`, i)
 	}
 	b.WriteString("]}")
-	if files, unread, err := ParseCompare([]byte(b.String())); err != nil || !unread || len(files) != compareFilesLimit {
+	if files, _, unread, err := ParseCompare([]byte(b.String())); err != nil || !unread || len(files) != compareFilesLimit {
 		t.Fatalf("上限で切れた一覧を読み切れたとした: %d %v %v", len(files), unread, err)
 	}
 	// 読めない応答は誤り（通さない）
 	for _, s := range []string{``, `{}`, `{"ahead_by": -1}`, `{"ahead_by": 1, "files": [{"filename": ""}]}`, `[]`} {
-		if _, _, err := ParseCompare([]byte(s)); err == nil {
+		if _, _, _, err := ParseCompare([]byte(s)); err == nil {
 			t.Fatalf("読めない応答を読めたとした: %q", s)
+		}
+	}
+}
+
+// 逆の向き: PR 自身が検査の置き場を変え（目録の網羅を求める検査を足す）、その分かれ目より後に既定ブランチへ置き場の外のファイル
+// （internal/dispatcher/otel.go）が入った。PR の CI はそのファイルを見ていないので、マージすると既定ブランチの tests が落ちる。
+func TestStaleBaseOwnChecks(t *testing.T) {
+	files, ahead, unread, err := ParseCompare([]byte(`{"ahead_by": 1, "files": [{"filename": "internal/dispatcher/otel.go", "previous_filename": null}]}`))
+	if err != nil || unread || ahead != 1 {
+		t.Fatalf("compare を読めない: %v %v %v", ahead, unread, err)
+	}
+	pr := []File{{Path: "tests/verify-andon.sh", Additions: 5}, {Path: "internal/a.go", Additions: 1}}
+	f := Facts{PROpen: true, RepoKnown: true, Tier: "B", MergeLevel: "B", Review: ledger.Review{State: "current"},
+		GitHubChecks: GitHubChecks{State: "success"}, StaleBase: CheckPlaceFiles(RepoTable{}, files), OwnChecks: CheckPlaceFiles(RepoTable{}, pr), BaseAhead: ahead}
+	d, r := Decide(f)
+	if d != "fix" || len(r) != 1 || !strings.HasPrefix(r[0], "base が古い: ") || !strings.Contains(r[0], "tests/verify-andon.sh") {
+		t.Fatalf("検査の置き場を変えた PR の古い base を戻さない: %s %v", d, r)
+	}
+	if o := outsideReason(r[0]); o == otherReason || !strings.Contains(o, "tests/verify-andon.sh") {
+		t.Fatalf("外向けの文が無い: %s", o)
+	}
+	// 既定ブランチが分かれ目から進んでいなければ通す
+	f.BaseAhead, f.StaleBase = 0, nil
+	if d, r := Decide(f); d != "approve" {
+		t.Fatalf("進んでいない既定ブランチで通さない: %s %v", d, r)
+	}
+}
+
+// compare の応答にファイルの一覧が無い（欠けた・null）のに既定ブランチが進んでいれば、読めないとして判定しない
+func TestParseCompareMissingFiles(t *testing.T) {
+	for _, s := range []string{`{"ahead_by": 2}`, `{"ahead_by": 2, "files": null}`} {
+		if _, _, _, err := ParseCompare([]byte(s)); err == nil {
+			t.Fatalf("ファイルの一覧の無い compare を読めたとした: %s", s)
 		}
 	}
 }

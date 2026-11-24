@@ -133,6 +133,9 @@ var reasonRewrites = []rewrite{
 	{regexp.MustCompile(`^base が古い: PR の分かれ目より後に既定ブランチで検査の置き場が変わった（(.*)）。`), func(m []string) string {
 		return "PR の元の既定ブランチが古く、その後に既定ブランチで検査が変わった（" + m[1] + "）。この PR の CI は今の検査を通っていないので、既定ブランチに rebase して CI を回し直す"
 	}},
+	{regexp.MustCompile(`^base が古い: PR が検査の置き場を変えた（(.*)）のに、PR の分かれ目より後に既定ブランチが ([0-9]+) commit 進んだ。`), func(m []string) string {
+		return "この PR は検査を変えた（" + m[1] + "）が、PR の元の既定ブランチより後に既定ブランチが " + m[2] + " commit 進んだ。この PR の CI はその変更を通っていないので、既定ブランチに rebase して CI を回し直す"
+	}},
 	{regexp.MustCompile(`^base が古い: PR の分かれ目より後の既定ブランチの変更が多く`), fixed("PR の元の既定ブランチが古く、その後の変更が多くて検査が変わったか確かめられない。既定ブランチに rebase して CI を回し直す")},
 	{regexp.MustCompile(`^check: (.*)$`), func(m []string) string { return "検査が落ちた: `" + m[1] + "`" }},
 	{regexp.MustCompile(`^GitHub の checks が落ちた: (.*)$`), func(m []string) string { return "CI が落ちた: " + m[1] }},

@@ -336,15 +336,31 @@ echo '{"ahead_by":2,"files":[{"filename":"tests/verify-andon.sh","previous_filen
 rm -f "$tmp/gh/calls"
 got=$(gate "$id" --dry-run); expect 1 fix 'base が古い'
 jq -e '.reasons | length == 1 and (.[0] | contains("tests/verify-andon.sh") and (contains("internal/a.go") | not))' "$tmp/out" >/dev/null || die "古い base の理由が違う: $(jq -c .reasons "$tmp/out")"
-grep -qxF "api repos/example/app/compare/$head...main --jq {ahead_by, files: [.files[]? | {filename, previous_filename}]}" "$tmp/gh/calls" || die "compare を PR の head と既定ブランチで読んでいない: $(cat "$tmp/gh/calls")"
+grep -qxF "api repos/example/app/compare/$head...main --jq {ahead_by, files: (if .files == null then null else [.files[] | {filename, previous_filename}] end)}" "$tmp/gh/calls" || die "compare を PR の head と既定ブランチで読んでいない: $(cat "$tmp/gh/calls")"
 echo '{"ahead_by":1,"files":[{"filename":"internal/a.go","previous_filename":null}]}' > "$tmp/gh/compare.json"
 got=$(gate "$id" --dry-run); expect 0 approve
-echo '{"files":[]}' > "$tmp/gh/compare.json"
-got=$(gate "$id" --dry-run)
-[ "$got" = 3 ] && grep -q 'compare' "$tmp/err" || { cat "$tmp/out" "$tmp/err" >&2; die "読めない compare で rc $got"; }
-rm -f "$tmp/gh/compare.json"
+for bad in '{"files":[]}' '{"ahead_by":2,"files":null}'; do
+    echo "$bad" > "$tmp/gh/compare.json"
+    got=$(gate "$id" --dry-run)
+    [ "$got" = 3 ] && grep -q 'compare' "$tmp/err" || { cat "$tmp/out" "$tmp/err" >&2; die "読めない compare（$bad）で rc $got"; }
+done
+# 逆の向き: PR 自身が検査の置き場を変え、分かれ目より後に既定ブランチが置き場の外だけ進んだ
+echo '{"ahead_by":1,"files":[{"filename":"internal/a.go","previous_filename":null}]}' > "$tmp/gh/compare.json"
+cp "$tmp/gh/files.json" "$tmp/files0.json"
+jq '.[0][0].filename = "tests/x.sh"' "$tmp/files0.json" > "$tmp/gh/files.json"
+got=$(gate "$id" --dry-run); expect 1 fix 'PR が検査の置き場を変えた（tests/x.sh）'
+cp "$tmp/files0.json" "$tmp/gh/files.json"
+# compare は条件表の検査のあとに読む（判定からマージまでの間に既定ブランチが動く窓を狭める）
+echo "{\"repos\": {\"github.com/example/app\": {\"merge\": \"squash\", \"check\": [\"test -f docs/a.md && echo check >> $tmp/gh/calls\"]}}}" > "$tmp/plant/gate.local.json"
+as_owner git -C "$tmp/plant" commit -qam '検査が走った印を残す'
+rm -f "$tmp/gh/compare.json" "$tmp/gh/calls"
 got=$(gate "$id" --dry-run); expect 0 approve
-ok '古い base（分かれ目より後に既定ブランチで検査の置き場が変わった）は CI が通っていても fix。置き場の外だけなら通し、compare が読めなければ判定しない'
+order=$(grep -nE '^check$|^api repos/example/app/compare/' "$tmp/gh/calls" | cut -d: -f2- | cut -c1-5 | tr '\n' ' ')
+[[ "$order" == "check api r " ]] || die "compare を条件表の検査より先に読んだ: $(cat "$tmp/gh/calls")"
+echo '{"repos": {"github.com/example/app": {"merge": "squash", "check": ["test -f docs/a.md"]}}}' > "$tmp/plant/gate.local.json"
+as_owner git -C "$tmp/plant" commit -qam '検査を戻す'
+got=$(gate "$id" --dry-run); expect 0 approve
+ok '古い base（分かれ目より後に既定ブランチで検査の置き場が変わった・PR が置き場を変えたのに既定ブランチが進んだ）は CI が通っていても fix。置き場の外だけなら通し、compare が読めなければ判定しない。compare は条件表の検査のあとに読む'
 
 # 6. 委譲を最後に変えたのが owner でなければ無委譲
 jq '.delegation = {"version": 1, "project": "demo", "preset": "hobby"}' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json

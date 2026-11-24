@@ -42,6 +42,7 @@ func recordReasons(t *testing.T) []string {
 			f.StaleBase = []string{"tests/a.sh", "tests/b.sh", "tests/c.sh", ".github/workflows/x.yml"}
 		},
 		func(f *Facts) { f.BaseUnread = true },
+		func(f *Facts) { f.OwnChecks = []string{"tests/a.sh"}; f.BaseAhead = 2 },
 		func(f *Facts) { f.Tier = "C" },
 		func(f *Facts) { f.Checks[0].OK = false },
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{"failure", []string{"test"}} },

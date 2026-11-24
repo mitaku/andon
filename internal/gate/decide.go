@@ -584,21 +584,34 @@ type Facts struct {
 	ScreenMissing   []string     // screen_paths に当たるのに PR に添付が無いファイル
 	StaleBase       []string     // PR の分かれ目より後に既定ブランチで変わった検査の置き場のファイル（CheckPlaces）
 	BaseUnread      bool         // 分かれ目より後の既定ブランチの変更が多く、検査の置き場が変わったか読み切れない
+	OwnChecks       []string     // PR 自身が変えた検査の置き場のファイル（CheckPlaces）
+	BaseAhead       int          // PR の分かれ目より後に既定ブランチにだけある commit の数
 }
 
 // staleBaseShown は古い base の理由に並べるファイルの数（残りは「ほか N 件」）。
 const staleBaseShown = 3
+
+// OwnChecksBehindReason は、PR 自身が検査の置き場を変え、その分かれ目より後に既定ブランチが進んだときの理由の文。
+func OwnChecksBehindReason(files []string, ahead int) string {
+	return fmt.Sprintf("base が古い: PR が検査の置き場を変えた（%s）のに、PR の分かれ目より後に既定ブランチが %d commit 進んだ。既定ブランチへ rebase して checks を回し直す",
+		shownFiles(files), ahead)
+}
+
+// shownFiles は理由に並べるファイル（staleBaseShown 件まで。残りは「ほか N 件」）。
+func shownFiles(files []string) string {
+	shown := strings.Join(files[:min(len(files), staleBaseShown)], ", ")
+	if n := len(files) - staleBaseShown; n > 0 {
+		shown += fmt.Sprintf(" ほか %d 件", n)
+	}
+	return shown
+}
 
 // StaleBaseReason は古い base の理由の文（記録の reasons。外向けの文は comment.go の表）。
 func StaleBaseReason(files []string, unread bool) string {
 	if len(files) == 0 && unread {
 		return "base が古い: PR の分かれ目より後の既定ブランチの変更が多く、検査の置き場が変わったか読み切れない。既定ブランチへ rebase して checks を回し直す"
 	}
-	shown := strings.Join(files[:min(len(files), staleBaseShown)], ", ")
-	if n := len(files) - staleBaseShown; n > 0 {
-		shown += fmt.Sprintf(" ほか %d 件", n)
-	}
-	return "base が古い: PR の分かれ目より後に既定ブランチで検査の置き場が変わった（" + shown + "）。既定ブランチへ rebase して checks を回し直す"
+	return "base が古い: PR の分かれ目より後に既定ブランチで検査の置き場が変わった（" + shownFiles(files) + "）。既定ブランチへ rebase して checks を回し直す"
 }
 
 // Decide は決定式（純粋関数）。decision と reasons を返す。approve の reasons は空。
@@ -622,6 +635,10 @@ func Decide(f Facts) (string, []string) {
 	// 古い base の checks は今の検査を通っていない。検査・CI・レビューの結果より先に戻す（マージすると既定ブランチの検査が落ちる）
 	if len(f.StaleBase) > 0 || f.BaseUnread {
 		return "fix", []string{StaleBaseReason(f.StaleBase, f.BaseUnread)}
+	}
+	// 逆の向き: PR 自身が検査の置き場を変えたなら、その CI は分かれ目より後に既定ブランチへ入った変更を見ていない
+	if len(f.OwnChecks) > 0 && f.BaseAhead > 0 {
+		return "fix", []string{OwnChecksBehindReason(f.OwnChecks, f.BaseAhead)}
 	}
 	for _, c := range f.Checks {
 		if !c.OK {
