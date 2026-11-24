@@ -183,7 +183,7 @@ echo "ok   words: 「台帳」「ゲート」「版」が替えた範囲（${old
 #   （## v0.0.14 から下）だけを外す。それより新しいバージョンの節は、置き換えのあとに書いた文なので見る。## v0.0.14 の行が無ければ全部を見る。
 # ADR と決定の記録（docs/adr/・docs/decisions/・docs/decisions.md の凍結した表も。ADR-0052 決めたこと 7・8・10）の例外:
 #   ADR-0052 と、その決定の記録 2 件（docs/decisions/2026-11-22-adr-0052-… と …-dai-replacement-reaches-frozen-records.md）の「」の中
-#   （入れ子も外す）。ADR-0017 のオーナーの指示文の引用の句「この…で入れる:」（2 か所）。語そのものを挙げた所: ADR-0013 決めたこと 20
+#   （入れ子も外す）。ADR-0017 のオーナーの指示文の引用の句「指示文の「この…で入れる:」（2 か所）。語そのものを挙げた所: ADR-0013 決めたこと 20
 #   の並び（「20. **2026-11-11 Andon の語を yomiyasu から守らない。**」の行の「…」）、ADR-0040 の事実 5 の「…」2 件と、やらないことの
 #   並び（土台・…・口）。ADR-0052 のタイトルの写し（docs/adr/README.md の 0052 の行、ADR-0026 の決めたこと 16 とその索引の行の
 #   「…」をタイトル・テーマに替える置き換え、ADR-0053 の「…」をタイトルとテーマに替える作業）。
@@ -210,7 +210,7 @@ hits=""
           || $f eq "docs/decisions/2026-11-22-dai-replacement-reaches-frozen-records.md") {
         1 while $t =~ s/「[^「」]*」//g;                 # 「」の中（入れ子は内側から）
       }
-      $t =~ s/「この題で入れる://g if $f eq "docs/adr/0017-process-definitions.md";
+      $t =~ s/指示文の「この題で入れる://g if $f eq "docs/adr/0017-process-definitions.md";
       $t =~ s/「題」//g if $f eq "docs/adr/0013-short-role-names-and-plain-japanese.md"
         && $t =~ /^20\. \*\*2026-11-11 Andon の語を yomiyasu から守らない。\*\*/;
       if ($f eq "docs/adr/0040-kanban-gate-version-words.md") {

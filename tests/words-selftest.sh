@@ -278,6 +278,8 @@ exc() { # exc <ファイル> <行>
   setup; mkdir -p "$tmp/r/docs/adr"; echo "$2" >"$tmp/r/docs/adr/0099-x.md"; expect fail "名指しした句（${2:0:24}）も、ほかのファイルでは落ちる"
 }
 exc docs/adr/0017-process-definitions.md '別のテーマ（指示文の「この題で入れる: 手順 1〜3」と違う）'
+setup; mkdir -p "$tmp/r/docs/adr"; echo '「この題で入れる: 次の手順」' >"$tmp/r/docs/adr/0017-process-definitions.md"
+expect fail 'ADR-0017 の、指示文の引用でない「この…で入れる:」で落ちる'
 exc docs/adr/0013-short-role-names-and-plain-japanese.md '20. **2026-11-11 Andon の語を yomiyasu から守らない。** yomiyasu は「台帳」「ゲート」「題」「版」を直す'
 exc docs/adr/0040-kanban-gate-version-words.md '5. **パッケージの文。** 残りは「土台」5 件、「題」2 件、「口」1 件'
 exc docs/adr/0040-kanban-gate-version-words.md '- **3 語のほかの語を見直すこと。** yomiyasu がまれに指摘する語（土台・題・口）は、このテーマでは触らない。'
