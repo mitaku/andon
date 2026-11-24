@@ -18,12 +18,12 @@
 前提:
 
 - `scripts/doctor.sh` が終了コード 0。
-- 当てた時刻より後に、gate が1回以上回っている。無ければ終了コード 3（未確認）。
+- 当てた時刻より後に、gate が1回以上回っている。無ければ `gt-record`・`gt-route` を読まずに note を出し、`gt-answer` だけを読んで終了コード 3（未確認）。dispatcher はオーナーのマージでも問いを閉じるので、gate の記録が無い間にも `gt-answer` の証拠は出る。
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh gate <検証する commit>` を打つ。セルの本物の `projects/*/kanban/issues/*/library/gate/*.json` を読むだけ。
 - **記録を読む。** `gt-record` の行に、当てたあとの gate が1行ずつ（課題・PR・レベル・判定・理由の数・checks・レビュー）出る。`ok   gt-record` が見えれば動いた。
 - **行き先を読む。** `gt-route` の行に、課題ごとの判定と今の `status` が出る。`approve` で `merged` が true なら課題は `done` か片付けの途中、`fix` なら `doing`、`needs_human` なら `review` のままオーナーの問いがある。食い違えば、`kanban show <id>` と `log.jsonl` を読んで報告に書く。
-- **閉じた問いを読む。** `gt-answer` の行に、検証する間に dispatcher が閉じた問い（kanban の `log.jsonl` で `by` が `terminal:dispatcher` の `received`）が1件ずつ（問いの `from`・答えた端末・印・答え）出る。`ok   gt-answer` が見えれば動いた。閉じた問いが無ければ `note gt-answer` が出て、gt-answer は未確認になる（終了コードは変えない）。
+- **閉じた問いを読む。** `gt-answer` の行に、検証する間に dispatcher が閉じた問い（kanban の `log.jsonl` で `by` が `terminal:dispatcher` の `received`）が1件ずつ（問いの `from`・答えた端末・印・答え）出る。`ok   gt-answer` が見えれば動いた。閉じた問いが無ければ `note gt-answer` が出て、gt-answer は未確認になる（終了コードは変えない）。gate の記録が無い回は、`ok   gt-answer` が見えても終了コードは 3 のままなので、報告には gt-answer だけを動いたと書き、gt-record・gt-route は未確認と書く。
 - **印を読む。** `drive.sh` は GitHub の印を読まない。`internal/gate/mark.go` を変えた差分では、記録の head ごとに `gh api repos/<owner>/<repo>/commits/<head>/statuses --jq '.[] | select(.context == "andon/gate") | [.created_at, .state, .description] | @tsv'` で印を読む。`approve` と `needs_human` は `success`（緑）、`fix` は `failure`（赤）で、説明文の見出しが判定に合えば動いた。
 
 ## 変えたら動かすパス
