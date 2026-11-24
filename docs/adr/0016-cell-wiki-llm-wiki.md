@@ -12,7 +12,7 @@
 | 4 | 取り込みは、元資料を置いたその場で 1 件ずつする | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 5 | `index.md` と `log.md` を置く | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 6 | 点検は取り込み約 10 件ごとと、オーナーが頼んだときにする | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
-| 7 | 問いの口は 3 つで、使える答えは `topics/` に戻す | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
+| 7 | 問いの口は 3 つで、使える答えは `topics/` に戻す | `package/skills/chief-of-staff/playbooks/wiki.md`・`internal/spawn/spawn.go` | 生きている（口は担当の理解の工程が加わり 4 つ → ADR-0061 決めたこと 11） |
 | 8 | オーナーの発言を写すのは、推奨案と違ったとき・志向が見えたとき・「残して」と言われたとき | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 9 | 規約の骨は Chief of Staff の skill に、セル固有の慣習は `AGENTS.local.md` に置く | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 10 | 前の形の 5 件を新しい形で取り込み直す | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |

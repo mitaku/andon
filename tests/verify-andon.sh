@@ -61,8 +61,10 @@ for name in $files; do
   f=$skill/features/$name.md
   head -1 "$f" | grep -q '^# ' || die "$f が H1 で始まらない"
   [ "$(grep '^## ' "$f" | sed 's/^## //')" = "$want" ] || die "$f の H2 が「$(tr '\n' '・' <<<"$want")」の順でない"
-  sed -n '/^## 動かし方$/,/^## /p' "$f" | grep -q '^前提:$' || die "$f の動かし方が「前提:」で始まらない"
-  sed -n '/^## 動かし方$/,/^## /p' "$f" | grep -qF "scripts/drive.sh $name <検証する commit>" || die "$f の動かし方が drive.sh $name <検証する commit> を名指さない"
+  # 節を変数で受けてから grep する（pipefail の下で grep -q が先に終わると、長い節の sed が SIGPIPE で落ちる）
+  run_sec=$(sed -n '/^## 動かし方$/,/^## /p' "$f")
+  grep -q '^前提:$' <<<"$run_sec" || die "$f の動かし方が「前提:」で始まらない"
+  grep -qF "scripts/drive.sh $name <検証する commit>" <<<"$run_sec" || die "$f の動かし方が drive.sh $name <検証する commit> を名指さない"
   sed -n '/^## 細かい機能$/,/^## /p' "$f" | grep '^- `' | grep -vqE '見る道: (検証の担当だけ|Chief of Staff が試しの課題を起動し、検証の担当が画面を読む|オーナーが見る)。$' \
     && die "$f の細かい機能に、見る道（3つのどれか）の無い行がある"
   mapfile -t parts < <(sed -n '/^## 変えたら動かすパス$/,/^## /p' "$f" | sed -n 's/^- `\([^`]*\)`.*/\1/p')

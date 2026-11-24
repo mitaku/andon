@@ -29,6 +29,9 @@ for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate
   [ -f "x-cell/$f" ] || fail "x-cell/$f が無い"
 done
 for h in '## Sources' '## Entities' '## Topics'; do grep -qx "$h" x-cell/wiki/index.md || fail "wiki/index.md に $h の節が無い"; done
+# 目録の節の順は Overview、Entities、Topics、Sources（ADR-0061 決めたこと 13。担当は Sources の手前まで読む）
+order=$(grep '^## ' x-cell/wiki/index.md | tr '\n' '|')
+[[ "$order" == "## Overview|## Entities|## Topics|## Sources|" ]] && pass "wiki/index.md の節は Overview、Entities、Topics、Sources の順（ADR-0061）" || fail "wiki/index.md の節の順: $order"
 [ "$(grep -c '^## ' x-cell/wiki/log.md)" = 0 ] && grep -q '^追記だけの時系列。.*`## \[YYYY-MM-DD\] ingest | <タイトル>`' x-cell/wiki/log.md \
   && pass "wiki の雛形: index.md に種類ごとの節、log.md は空で先頭の形の説明だけ（ADR-0016）" || fail "wiki/log.md: $(cat x-cell/wiki/log.md)"
 grep -qx 'files/' x-cell/.gitignore && fail ".gitignore が files/ を除いている" || pass "files/ は追跡する（.gitignore に無い）"

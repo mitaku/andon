@@ -56,6 +56,7 @@ func newFirst(t *testing.T) *firstFixture {
 	t.Setenv("FAKE_HC", f.d)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.d, "state")) // 送る前の控えの保存を一時の置き場へ（本物の控えに触らない）
 	t.Setenv("HOME", filepath.Join(f.d, "home"))            // template の本文（spawn.WithBody）を一時の HOME から読む。セルの本物を読まない
+	t.Setenv("ANDON_WORKSPACE", filepath.Join(f.d, "ws"))   // 指針のファイルと wiki の目録を一時のセルの repo から読む（セルの本物を読まない）
 	st := &State{Reviewers: map[string]Reviewer{}, Pending: []Notification{}}
 	st.ensure()
 	f.p = &project{c: &Dispatcher{Log: &f.log}, l: ledger.At(filepath.Join(f.d, "projects", "sample-site")), st: st,
@@ -371,5 +372,39 @@ func TestReviewerFirstGuide(t *testing.T) {
 	os.WriteFile(filepath.Join(ws, spawn.GuideFile), []byte("x"), 0o644)
 	if m := f.p.reviewerFirst("S-8"); !strings.Contains(m, filepath.Join(ws, spawn.GuideFile)) {
 		t.Errorf("ファイルがあるのに指していない: %q", m)
+	}
+}
+
+// dispatcher が送り直す最初のメッセージは、担当のときだけ、目録の Topics にページがあれば wiki の目録の行を持つ。
+// レビュアーと Chief Engineer には、どちらのときも無い（ADR-0061 受け入れ条件 7）。
+func TestFirstMessageResentWiki(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		task ledger.Issue
+		want bool
+	}{
+		{"担当", ledger.Issue{"id": "S-7", "status": "doing", "agent": "t42", "profile": "claude"}, true},
+		{"レビュアー", ledger.Issue{"id": "S-7", "status": "doing", "agent": "t42", "parent": "S-6", "profile": "codex-review"}, false},
+		{"Chief Engineer", ledger.Issue{"id": "S-7", "status": "doing", "agent": "t42", "profile": "chief-engineer"}, false},
+	} {
+		for _, pages := range []bool{false, true} {
+			f := newFirst(t)
+			f.p.tasks = []ledger.Issue{c.task}
+			ws := os.Getenv("ANDON_WORKSPACE")
+			body := "# wiki\n\n## Entities\n\n## Topics\n\n## Sources\n\n- [sources/a.md](sources/a.md) — a\n"
+			if pages {
+				body = strings.Replace(body, "## Topics\n", "## Topics\n\n- [topics/a.md](topics/a.md) — a\n", 1)
+			}
+			os.MkdirAll(filepath.Join(ws, "wiki"), 0o755)
+			os.WriteFile(filepath.Join(ws, spawn.WikiIndex), []byte(body), 0o644)
+			got := f.round()
+			if len(got) != 2 {
+				t.Fatalf("%s: 送っていない: %q", c.name, got)
+			}
+			has := strings.Contains(got[0], filepath.Join(ws, spawn.WikiIndex))
+			if has != (c.want && pages) {
+				t.Errorf("%s（Topics にページ %v）: 目録の行 %v: %q", c.name, pages, has, got[0])
+			}
+		}
 	}
 }

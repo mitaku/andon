@@ -167,6 +167,42 @@ func Guide() string {
 	return fmt.Sprintf("\nオーナーの指針 `%s` も読む。", p)
 }
 
+// WikiIndex はセルの wiki の目録（セルの repo の wiki/index.md。ADR-0016）。
+const WikiIndex = "wiki/index.md"
+
+// Wiki は担当の最初のメッセージに足す、wiki の目録を引く1行（先頭の改行つき）を返す（ADR-0061 決めたこと 11・12）。
+// 目録の Entities か Topics の節にページの行（"- " で始まる行）が1つ以上あるときだけ返し、無ければ空。
+// andon init の雛形は節だけの目録を作るので、目録が在るかでは分けない。足すのは担当だけで、レビュアーと Chief Engineer には足さない。
+func Wiki() string {
+	ws := os.Getenv("ANDON_WORKSPACE")
+	if ws == "" {
+		ws = "/workspace"
+	}
+	p := filepath.Join(ws, WikiIndex)
+	b, err := os.ReadFile(p)
+	if err != nil || !wikiHasPages(string(b)) {
+		return ""
+	}
+	return fmt.Sprintf("\nセルの wiki の目録 `%s` の Entities と Topics の節を読み、課題に当たるページがあれば読む。", p)
+}
+
+// wikiHasPages は目録の Entities か Topics の節に、ページの行が1つ以上あるか。
+func wikiHasPages(index string) bool {
+	in := false
+	for _, l := range strings.Split(index, "\n") {
+		l = strings.TrimRight(l, " \t\r")
+		if h, ok := strings.CutPrefix(l, "## "); ok {
+			h = strings.TrimSpace(h)
+			in = h == "Entities" || h == "Topics"
+			continue
+		}
+		if in && strings.HasPrefix(l, "- ") {
+			return true
+		}
+	}
+	return false
+}
+
 // SessionLabel は担当・Chief Engineer の端末に付けるラベルの名前。値はハーネスのセッションの id（kanban の session と同じ）。
 // hc の template は呼び手の環境変数を渡さないので、template の command・resume の行が andon issue session で読む（ADR-0012 決めたこと 14）。
 const SessionLabel = "session"

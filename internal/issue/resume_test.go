@@ -2,10 +2,13 @@ package issue
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"andon/internal/spawn"
 )
 
 func fakeHcGet(t *testing.T) {
@@ -126,5 +129,53 @@ func TestResumeRunsHcAndMovesAgent(t *testing.T) {
 	}
 	if !f.has("kanban set S-0007 agent=t43") {
 		t.Errorf("kanban の agent を起動した端末に替えない: %q", f.calls())
+	}
+}
+
+// 前の会話を続けない起動し直し（--fresh）の最初のメッセージは、担当のときだけ wiki の目録の行を持つ。
+// レビュアーと Chief Engineer、会話を続ける起動し直しには無い（ADR-0061 受け入れ条件 7）。
+func TestResumeFirstMessageWiki(t *testing.T) {
+	sid := "11111111-2222-4333-8444-555555555555"
+	for _, c := range []struct {
+		name  string
+		task  map[string]any
+		fresh bool
+		want  bool
+	}{
+		{"担当の --fresh", map[string]any{"profile": "claude"}, true, true},
+		{"担当の会話を続ける起動し直し", map[string]any{"profile": "claude", "session": sid}, false, false},
+		{"レビュアーの --fresh", map[string]any{"profile": "codex-review", "parent": "S-0006"}, true, false},
+		{"Chief Engineer の --fresh", map[string]any{"profile": "chief-engineer"}, true, false},
+	} {
+		for _, pages := range []bool{false, true} {
+			f := newStart(t)
+			ws := os.Getenv("ANDON_WORKSPACE")
+			putWiki(t, ws, pages)
+			cfg := filepath.Join(f.home, ".claude")
+			t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+			os.MkdirAll(filepath.Join(cfg, "projects", "x"), 0o755)
+			os.WriteFile(filepath.Join(cfg, "projects", "x", sid+".jsonl"), nil, 0o644)
+			f.task = map[string]any{"id": "S-0007", "title": "Add the button", "status": "doing"}
+			for k, v := range c.task {
+				f.task[k] = v
+			}
+			os.WriteFile(filepath.Join(f.root, "show-S-0007.json"), []byte(js(map[string]any{"issue": f.task})), 0o644)
+			args := []string{"resume", "S-0007", "--dry-run", "--json"}
+			if c.fresh {
+				args = append(args, "--fresh")
+			}
+			var out, errb bytes.Buffer
+			if rc := Main(args, strings.NewReader(""), &out, &errb); rc != 0 {
+				t.Fatalf("%s: rc=%d out=%q err=%q", c.name, rc, out.String(), errb.String())
+			}
+			var p resumePlan
+			if err := json.Unmarshal(out.Bytes(), &p); err != nil {
+				t.Fatalf("%s: JSON でない: %v\n%s", c.name, err, out.String())
+			}
+			has := strings.Contains(p.FirstMessage, filepath.Join(ws, spawn.WikiIndex))
+			if has != (c.want && pages) {
+				t.Errorf("%s（Topics にページ %v）: 目録の行 %v: %q", c.name, pages, has, p.FirstMessage)
+			}
+		}
 	}
 }

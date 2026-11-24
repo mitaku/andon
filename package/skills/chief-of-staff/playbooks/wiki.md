@@ -1,6 +1,6 @@
 ---
 読む時: wiki に元資料を置く・ingest・query・lint をするとき（finish のあと・オーナーの答えが推奨案と違ったとき・オーナーが資料を持ち込んだとき・トリアージの memory と申告の写し・課題を切る前に引くとき）
-消す条件: commit と push の段は「wiki の commit と push を command がするようになったら」。層と ingest の手順は「素のバージョン（原則と目次だけ）で ingest を流して、触るページと log の形が変わらなかったら」。移行の段は「前の形の `wiki/<日付>-<短い名>.md` が残るセルが無くなったら」
+消す条件: commit と push の段は「wiki の commit と push を command がするようになったら」。層と ingest の手順は「素のバージョン（原則と目次だけ）で ingest を流して、触るページと log の形が変わらなかったら」。移行の段は「前の形の `wiki/<日付>-<短い名>.md` が残るセルが無くなったら」。目録の並べ替えの段は「Sources の節が Entities・Topics より先にある目録が残るセルが無くなったら」
 ---
 
 # wiki
@@ -20,7 +20,7 @@
   - `entities/` — 実体（役・部品・案件・オーナー）ごとに1ページ。例 `entities/owner.md`・`entities/dispatcher.md`。
   - `topics/` — 概念・運用のテーマごとに1ページ（比べたもの・まとめもここ）。例 `topics/review-after-rebase.md`（rebase のあとのレビューの頼み直し）。
   - `overview.md` — wiki 全体のまとめ1枚。
-  - `index.md` — 目録。種類ごとの節（Sources・Entities・Topics）に、ページごとに1行（リンク・1行の要約）。query は最初にこれを読む。
+  - `index.md` — 目録。種類ごとの節に、ページごとに1行（リンク・1行の要約）。節は Overview・Entities・Topics・Sources の順に並べる（Sources は取り込むたびに伸びるので最後。引く側は Sources の手前まで読む）。query は最初にこれを読む。
   - `log.md` — 追記だけの時系列。ingest・query・lint の1件に1項で、先頭を `## [YYYY-MM-DD] ingest | <タイトル>`（`query`・`lint` も同じ形）に揃える。`grep '^## \[' wiki/log.md` で引ける。
 - **元資料を置くとき**（置いたらその場で ingest）:
   - 書く前に秘密（token・鍵・パスワード）と、オーナーが出さないでと言った個人の情報を `<伏せた: 種類>` に置き換える（「言葉のまま」の唯一の例外）。伏せたかを確かめられない資料は写さず、kanban か元の場所を指すだけにする。
@@ -34,11 +34,14 @@
   2. 関わる `entities/`・`topics/` のページを直す（無ければ作る）。主張ごとに出典（`sources/` のページ）へリンクする。
   3. `index.md` に足し、直したページの1行も直す。全体の見え方が変われば `overview.md` も直す。
   4. `log.md` の末尾に `## [YYYY-MM-DD] ingest | <タイトル>` と、触ったページを1行。
-- **query**: 引く口は3つ — Chief Engineer の「読む」・課題を切るとき（`cut.md`）・オーナーが Chief of Staff に聞いたとき。`index.md` → ページの順で読み、出典（`sources/` のページか `raw/` の元資料）つきで答える。
+- **query**: 引く口は4つ — Chief Engineer の「読む」・課題を切るとき（`cut.md`）・オーナーが Chief of Staff に聞いたとき・担当の理解の工程。
+  担当の口: 目録の Entities か Topics の節にページの行が1つ以上あるとき、担当の最初のメッセージに目録を指す1行が付く（`andon issue start`・前の会話を続けない起動し直し・dispatcher の送り直し。レビュアーと Chief Engineer には付かない）。担当は Entities と Topics の節を読み、課題に当たるページを読むだけで、wiki を書かない。読んだページの誤りは担当の報告の申告（`gaps`）に来る。
+  `index.md` → ページの順で読み、出典（`sources/` のページか `raw/` の元資料）つきで答える。
   オーナーに答えたもののうち次も使えるものは `topics/` のページにして（戻すかは自分の判断）、`index.md` に足し、`log.md` に `## [YYYY-MM-DD] query | <問い>` を足す。
 - **lint**: ingest 約10件ごと（`log.md` の前の `lint` の項から `ingest` の項を数える）と、オーナーが頼んだとき。定期の課題は作らない。数えるきっかけは、通知 `idle` を受けたターン（`idle.md` の 6）。
   見るもの: ページ間の矛盾・新しい元資料に覆された古い主張・孤立ページ（入るリンクが無い）・名前は出るのにページが無い重要な概念・リンク漏れ。
   矛盾は古いページを上書きせず、末尾に `→ 覆された（<新しいページ>）` を1行足す。終わったら `log.md` に `## [YYYY-MM-DD] lint | <見つけた数と直した数>`。
+- **目録の並べ替え**（Sources の節が Entities・Topics より先にある目録のセルで1回）: 節を Overview・Entities・Topics・Sources の順に並べ替える。行の中身は変えない。`log.md` に `## [YYYY-MM-DD] lint | 目録の節を並べ替えた` を足し、下の commit・push をする。
 - **移行**（前の形の `wiki/<日付>-<短い名>.md` が残るセルで1回）: 無いフォルダと `log.md` を足す（形は `andon init` の雛形と同じ）。
   前のページのオーナーの言葉の部分を `raw/` に発言の写しとして置き直し、上の ingest をし直す（`entities/owner.md` と `topics/` ができる）。repo に置くべき手順は直す課題に切り、wiki のページは skill・ADR を指すだけにする。前のページは消す（git に残る）。
 - **commit・push**: `git -C /workspace add wiki && git -C /workspace commit --only -m "wiki: <要点>" -- wiki && git -C /workspace push`（`--only -- wiki` で、wiki の外が staged でも commit に入れない）。

@@ -1041,3 +1041,41 @@ func TestWriteSettingsCopyTakesTheKanbanLock(t *testing.T) {
 		t.Errorf("鍵を持つ書き手の追記が消えた:\n got %q\nwant %q", got, want)
 	}
 }
+
+// putWiki はセルの repo（ANDON_WORKSPACE）に wiki の目録を置く。pages なら Topics の節にページの行を1つ置き、そうでなければ雛形のまま。
+func putWiki(t *testing.T, ws string, pages bool) {
+	t.Helper()
+	body := "# wiki\n\n## Overview\n\n- [overview.md](overview.md) — まとめ\n\n## Entities\n\n## Topics\n\n## Sources\n"
+	if pages {
+		body = strings.Replace(body, "## Topics\n", "## Topics\n\n- [topics/a.md](topics/a.md) — a\n", 1)
+	}
+	if err := os.MkdirAll(filepath.Join(ws, "wiki"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, spawn.WikiIndex), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// 担当の起動の最初のメッセージに、目録の Topics にページがあるときだけ wiki の目録の行がある（ADR-0061 受け入れ条件 7）。
+func TestStartFirstMessageWiki(t *testing.T) {
+	f := newStart(t)
+	ws := os.Getenv("ANDON_WORKSPACE")
+	idx := filepath.Join(ws, spawn.WikiIndex)
+	putWiki(t, ws, false)
+	if m := f.dryJSON().FirstMessage; strings.Contains(m, idx) {
+		t.Errorf("目録が雛形のままなのに指している: %q", m)
+	}
+	putWiki(t, ws, true)
+	if m := f.dryJSON().FirstMessage; !strings.HasSuffix(m, spawn.Wiki()) || !strings.Contains(m, idx) {
+		t.Errorf("Topics にページがあるのに指していない: %q", m)
+	}
+	// andon issue start で起動する Chief Engineer の課題には、Topics にページがあっても足さない
+	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-engineer"}]}`)
+	f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+	f.task["profile"] = "chief-engineer"
+	f.ready(f.task)
+	if m := f.dryJSON().FirstMessage; strings.Contains(m, idx) {
+		t.Errorf("Chief Engineer の最初のメッセージに目録の行がある: %q", m)
+	}
+}
