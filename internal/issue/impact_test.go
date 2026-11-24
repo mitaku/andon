@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"andon/internal/contract"
+	"andon/internal/gate"
 	"andon/internal/ledger"
 )
 
@@ -118,26 +119,29 @@ func TestImpactChecksMoved(t *testing.T) {
 	run("commit", "-q", "-m", "fresh")
 	run("checkout", "-q", "--detach")
 
-	places := func(repoName, at string, gh ...string) []string {
+	places := func(repoName, at string, pr ...gate.File) []string {
 		t.Helper()
-		got, err := mergedCheckPlaces(repo, repoName, at, gh)
+		got, err := mergedCheckPlaces(repo, repoName, at, pr)
 		if err != nil {
 			t.Fatalf("mergedCheckPlaces(%s): %v", at, err)
 		}
 		return got
 	}
-	checks := places(app, sha, "doc.md", "tests/x.sh")
+	f := func(p string) gate.File { return gate.File{Path: p} }
+	checks := places(app, sha, f("doc.md"), f("tests/x.sh"))
 	for _, x := range []struct {
 		name string
 		got  []string
 		want []string
 	}{
 		{"検査の置き場を変えた", checks, []string{"tests/x.sh"}},
-		{"gh の一覧が切れた", places(app, sha), []string{"tests/x.sh"}},
-		{"検査の置き場を変えない", places(app, plain, "doc.md"), []string{}},
-		{"rename の元（gh は新しいパスだけ）", places(app, moved, "y.sh"), []string{"tests/y.sh"}},
-		{"strip_prefix を外す", places("github.com/example/mono", mono, "app/tests/z.sh"), []string{"tests/z.sh"}},
-		{"strip_prefix の無い repo", places(app, mono, "app/tests/z.sh"), []string{}},
+		{"PR の一覧が空でもマージの commit の差分で拾う", places(app, sha), []string{"tests/x.sh"}},
+		{"検査の置き場を変えない", places(app, plain, f("doc.md")), []string{}},
+		{"rebase のマージ（最後の commit は検査の外、前の commit が検査を変えた）", places(app, plain, f("doc.md"), f("tests/x.sh")), []string{"tests/x.sh"}},
+		{"PR の一覧の rename の元", places(app, plain, gate.File{Path: "w.sh", PreviousPath: "tests/w.sh"}), []string{"tests/w.sh"}},
+		{"マージの commit の rename の元", places(app, moved, f("y.sh")), []string{"tests/y.sh"}},
+		{"strip_prefix を外す", places("github.com/example/mono", mono, f("app/tests/z.sh")), []string{"tests/z.sh"}},
+		{"strip_prefix の無い repo", places(app, mono, f("app/tests/z.sh")), []string{}},
 	} {
 		if x.got == nil || !reflect.DeepEqual(x.got, x.want) {
 			t.Errorf("%s: %v, want %v", x.name, x.got, x.want)
@@ -168,7 +172,7 @@ func TestImpactChecksMoved(t *testing.T) {
 	if fresh.Error != "" || !fresh.Contains || len(fresh.ChecksMoved) != 0 || fresh.Affected() {
 		t.Errorf("マージを含む課題が影響ありになった: %+v", fresh)
 	}
-	other := c.impactOf(issue("A-2", "review", "old"), repo, plain, []string{"doc.md"}, places(app, plain, "doc.md"))
+	other := c.impactOf(issue("A-2", "review", "old"), repo, plain, []string{"doc.md"}, places(app, plain, f("doc.md")))
 	if other.Error != "" || other.ChecksMoved == nil || len(other.ChecksMoved) != 0 || other.Affected() {
 		t.Errorf("検査の置き場を変えない PR のマージで影響ありになった: %+v", other)
 	}

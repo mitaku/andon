@@ -37,8 +37,11 @@ git clone -q "$tmp/origin" "$app"
 # 偽の gh: PR 1 の状態・マージの commit・ファイルは $tmp/gh/view.json
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
-[ "\$*" = "pr view https://github.com/example/app/pull/1 --json state,mergeCommit,files" ] || { echo "unexpected gh \$*" >&2; exit 99; }
-cat $tmp/gh/view.json
+case "\$*" in
+  "pr view https://github.com/example/app/pull/1 --json state,mergeCommit,files") cat $tmp/gh/view.json ;;
+  "api --paginate --slurp repos/example/app/pulls/1/files") cat $tmp/gh/files.json ;;   # REST の全ページ（gh pr view の files は 100 件で切れる）
+  *) echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -99,6 +102,8 @@ ok 'PR がまだ MERGED でなければ終了コード 4 で何も出さない'
 
 # 2. マージしたあと: 衝突・重なり・依頼書・関係なし
 jq -n --arg o "$sha" '{state: "MERGED", mergeCommit: {oid: $o}, files: [{path: "doc.md"}, {path: "new.md"}]}' > "$tmp/gh/view.json"
+# REST の一覧は2ページ目に、gh pr view の一覧から切れた検査の置き場（rebase のマージの前の commit が変えた）を持つ
+echo '[[{"filename": "doc.md"}, {"filename": "new.md"}], [{"filename": "tests/t.sh"}]]' > "$tmp/gh/files.json"
 # worktree はあるが git として読めない（.git の指す先が消えた）
 echo "gitdir: $tmp/nowhere" > "$HOME/.herdr/worktrees/app/demo-$gone/.git"
 # worktree の上の段に入れない（stat が EACCES）。無い（ENOENT）とは分けて error にする
@@ -116,7 +121,7 @@ row "$conf" | jq -e '.status == "review" and .conflict == true and .conflict_fil
 row "$clean" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "衝突しない重なり: $(row "$clean")"
 row "$dirty" | jq -e '.conflict == false and .overlap == ["doc.md"]' >/dev/null || die "commit していない変更の重なり: $(row "$dirty")"
 row "$brief" | jq -e '.conflict == false and .overlap == [] and .brief_refs == ["doc.md"]' >/dev/null || die "依頼書が指す: $(row "$brief")"
-row "$none" | jq -e '.conflict == false and .overlap == [] and .brief_refs == [] and .checks_moved == [] and (has("error") | not)' >/dev/null || die "関係ない: $(row "$none")"
+row "$none" | jq -e '.conflict == false and .overlap == [] and .brief_refs == [] and .checks_moved == ["tests/t.sh"] and (has("error") | not)' >/dev/null || die "関係ない（検査の置き場は REST の2ページ目から拾う）: $(row "$none")"
 row "$fresh" | jq -e '.overlap == ["new.md"] and (has("error") | not)' >/dev/null || die "まだ git add していない新しいファイルの重なり: $(row "$fresh")"
 chmod 755 "$tmp/locked"
 if [ "$(id -u)" != 0 ]; then   # root は権限で止まらない

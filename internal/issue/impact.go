@@ -74,7 +74,15 @@ func (c *ctx) impact(stdout io.Writer) error {
 		res.Files = append(res.Files, f.Path)
 	}
 	sort.Strings(res.Files)
-	checks, err := mergedCheckPlaces(repoDir, repo, sha, res.Files)
+	owner, name, number, ok := contract.ParsePR(rep.PR)
+	if !ok {
+		return fail("report.json の pr が PR の URL でない: %s", rep.PR)
+	}
+	prFiles, err := gate.PRFiles(owner+"/"+name, number)
+	if err != nil {
+		return fail("PR のファイルの一覧が読めない: %s %v", rep.PR, err)
+	}
+	checks, err := mergedCheckPlaces(repoDir, repo, sha, prFiles)
 	if err != nil {
 		return err
 	}
@@ -172,9 +180,9 @@ func mergeTree(repoDir, head, sha string) (bool, []string, error) {
 }
 
 // mergedCheckPlaces は、マージで変わったファイルのうち検査の置き場に当たるものを返す（判定は gate.CheckPlaceFiles だけ。
-// 条件表の strip_prefix を外す）。ファイルは gh の一覧（100 件で切れうる・rename の元が無い）に、マージの commit と
-// その1番目の親の差分（rename の両側）を足す。rebase のマージでは差分が最後の commit の分だけなので、gh の一覧も捨てない。
-func mergedCheckPlaces(repoDir, repo, sha string, ghFiles []string) ([]string, error) {
+// 条件表の strip_prefix を外し、rename の元も見る）。ファイルは REST の PR の一覧（全ページ。gate.PRFiles）に、マージの commit と
+// その1番目の親の差分（rename の両側）を足す。gh pr view の files は 100 件で切れ、rename の元を持たないので使わない。
+func mergedCheckPlaces(repoDir, repo, sha string, prFiles []gate.File) ([]string, error) {
 	table, _, err := gate.LoadTable(pkgHome(), delegate.Workspace())
 	if err != nil {
 		return nil, fail("条件表が読めない: %v", err)
@@ -183,8 +191,8 @@ func mergedCheckPlaces(repoDir, repo, sha string, ghFiles []string) ([]string, e
 	if err != nil {
 		return nil, fail("マージの commit %s の差分が読めない: %v", sha, err)
 	}
-	var files []gate.File
-	for _, f := range append(append([]string{}, ghFiles...), lines(diff)...) {
+	files := append([]gate.File{}, prFiles...)
+	for _, f := range lines(diff) {
 		files = append(files, gate.File{Path: f})
 	}
 	return gate.CheckPlaceFiles(table.Repos[repo], files), nil
