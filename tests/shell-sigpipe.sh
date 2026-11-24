@@ -12,7 +12,7 @@
 # 見るのは、set の行に pipefail のあるファイルの、here-doc の外の、一重引用符の外のコード（"$( … )" の中は見る）。
 # 引数なしは、自分の読み手を見本で確かめてから、tests/ の下のシェルを全部見る（git が追跡するか、まだ add していない新しい
 # ファイルのうち、*.sh と先頭行が bash か sh の #! のもの）。引数を渡すと、そのファイルだけを見る（控えは当てる。控えの古さは
-# 見ない）。--list は、見たファイルの拾った行を控えの形で出す（控えを当てない）。
+# 見ない）。--list は、見たファイル（引数なしは tests/ の下のシェルの全部）の拾った行を控えの形で出す（控えを当てない）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 allow=tests/shell-sigpipe.allow
@@ -163,7 +163,7 @@ def early_reader(code):
                         skip = k == len(tok) - 1  # 値が次の語
                         break
                 continue
-            break  # パターンかファイル。後ろの -q はもう見ない（grep x -q は GNU では読むが、書き方として拾わない）
+            # パターンかファイル。GNU grep はこの後ろの option も読む（grep x -q）ので、-- か演算子まで見る
     return False
 
 
@@ -249,8 +249,28 @@ check() {
   fi
 }
 
+# tests/ の下で git が追跡するか、まだ add していない新しいシェルを files に入れる
+list_files() {
+  files=()
+  local f first
+  while IFS= read -r f; do
+    case "$f" in
+      *.sh) files+=("$f") ;;
+      *) if [ -f "$f" ]; then
+        first=$(sed -n 1p "$f")
+        if [[ $first =~ ^#!.*[/\ ](bash|sh)([[:space:]]|$) ]]; then files+=("$f"); fi
+      fi ;;
+    esac
+  done < <(git ls-files --cached --others --exclude-standard tests)
+  [ "${#files[@]}" -ge 50 ] || die "見るファイルが少なすぎる（${#files[@]} 本）"
+}
+
 if [ "${1:-}" = --list ]; then
   shift
+  if [ $# -eq 0 ]; then
+    list_files
+    set -- "${files[@]}"
+  fi
   scan "$@" | sed 's/^\([^:]*\):[0-9]*:\t/\1\t/'
   exit 0
 fi
@@ -275,6 +295,8 @@ seq 10 | grep -m 1 3 # 拾う
 seq 10 | grep --quiet 3 # 拾う
 seq 10 | grep --max-count=1 3 # 拾う
 seq 10 | grep -l 3 # 拾う
+seq 10 | grep 1 -q # 拾う（GNU grep はパターンの後ろの option も読む）
+seq 10 | grep 1 -m 1 f # 拾う
 seq 10 | LC_ALL=C grep -q 3 # 拾う
 seq 10 | /usr/bin/grep -q 3 # 拾う
 seq 10 |& head -2 # 拾う
@@ -355,19 +377,10 @@ printf '#!/usr/bin/env bash\nset -o pipefail\nseq 20 | head -1\n' >"$tmp/tests/a
 if ( allow=$tmp/allow; scan "$tmp/tests/a.sh" >"$tmp/f3"; apply "$tmp/f3" >/dev/null ); then die "書き換えた行を拾わない"; fi
 echo 'ok shell-sigpipe: 見本の拾う形と拾わない形、控えの当て方'
 
-# tests/ の下で git が追跡するシェル
-files=()
-while IFS= read -r f; do
-  case "$f" in
-    *.sh) files+=("$f") ;;
-    *) if [ -f "$f" ]; then
-      first=$(sed -n 1p "$f")
-      if [[ $first =~ ^#!.*[/\ ](bash|sh)([[:space:]]|$) ]]; then files+=("$f"); fi
-    fi ;;
-  esac
-done < <(git ls-files --cached --others --exclude-standard tests)
-[ "${#files[@]}" -ge 50 ] || die "見るファイルが少なすぎる（${#files[@]} 本）"
+list_files
 check "${files[@]}"
+# 引数なしの --list は、ここで見たファイルと同じ一覧を出す
+[ "$(bash "$0" --list | sort)" = "$(scan "${files[@]}" | sed 's/^\([^:]*\):[0-9]*:\t/\1\t/' | sort)" ] || die "引数なしの --list が、tests/ の下のシェルの拾った行を出さない"
 # 控えの古さ: 控えの行が今のファイルに無ければ、控えから消す（減らすだけの控えにする）
 scan "${files[@]}" | sed 's/^\([^:]*\):[0-9]*:\t/\1\t/' | sort >"$tmp/now"
 sort "$allow" | sed '/^$/d' >"$tmp/allowed"
