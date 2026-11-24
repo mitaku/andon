@@ -49,10 +49,10 @@ export HC_TERMINAL_ID=tc
 # hd-refuse: 理由の課題が自分自身・片付いた課題なら、何も書かずに断る
 step "hd-refuse: 理由の課題に $id 自身を渡す" "$andon" issue hold "$id" "$id" \
   && fail "hd-refuse: 自分自身を理由にした hold が通った" \
-  || { [ -z "$(hold_of)" ] && ok "hd-refuse: 自分自身を理由にすると断り、hold を書かない" || fail "hd-refuse: 断ったのに hold を書いた"; }
+  || { grep -qF "自身は書けない" "$tmp/step.out" && [ -z "$(hold_of)" ] && ok "hd-refuse: 自分自身を理由にすると断り、hold を書かない" || fail "hd-refuse: 断ったのに hold を書いた"; }
 step "hd-refuse: 片付いた課題 $gone を理由に渡す" "$andon" issue hold "$id" "$gone" \
   && fail "hd-refuse: 片付いた課題を理由にした hold が通った" \
-  || { [ -z "$(hold_of)" ] && ok "hd-refuse: 片付いた課題を理由にすると断り、hold を書かない" || fail "hd-refuse: 断ったのに hold を書いた"; }
+  || { grep -qF "もう片付いている" "$tmp/step.out" && [ -z "$(hold_of)" ] && ok "hd-refuse: 片付いた課題を理由にすると断り、hold を書かない" || fail "hd-refuse: 断ったのに hold を書いた"; }
 
 # hd-hold: hold に理由の課題を書き、緑の印の commit に黄（pending）を書いてから返る。別の口（kanban show・log.jsonl）で読み直す
 : >"$tmp/gh.calls"
@@ -75,12 +75,18 @@ rc=$?
   || fail "hd-gate-wait: 止めているのに gate が wait でないか、GitHub を読んだか、記録を書いた"
 
 # hd-worker: 担当（agent の端末 tw）が hold を消しても止めたまま（gate は wait のまま）
-HC_TERMINAL_ID=tw "$kanban" set "$id" hold= >/dev/null
-echo "  担当 tw が kanban set $id hold= を打った。今の hold: '$(hold_of)'"
+# 担当が消せたこと（今の hold が空で、hold を最後に変えた行が terminal:tw）を先に確かめる。
+# 消せていなければ gate は hold の欄だけで wait を返し、担当が消した止めの読み方を通らないまま ok になる
+wrc=0; HC_TERMINAL_ID=tw "$kanban" set "$id" hold= >"$tmp/step.out" 2>&1 || wrc=$?
+echo "  担当 tw が kanban set $id hold= を打った（終了コード $wrc）。今の hold: '$(hold_of)'"
+last_hold_by() { jq -sr --arg id "$id" '[.[] | select(.id == $id and (.change | has("hold")))] | last | .by // ""' "$tmp/project/kanban/log.jsonl"; }
+cleared=false
+[ "$wrc" = 0 ] && [ -z "$(hold_of)" ] && [ "$(last_hold_by)" = terminal:tw ] && cleared=true
+[ "$cleared" = true ] || fail "hd-worker: 担当が hold を消せていない（終了コード $wrc・hold '$(hold_of)'・最後に変えた端末 $(last_hold_by)）"
 : >"$tmp/gh.calls"
 step "hd-worker: 担当が消したあとに andon gate を打つ" "$andon" gate "$id"
 rc=$?
-[ "$rc" = 5 ] && jq -e --arg w "$why" '.decision == "wait" and (.reasons[0] | contains($w))' "$tmp/step.out" >/dev/null && [ ! -s "$tmp/gh.calls" ] \
+[ "$cleared" = true ] && [ "$rc" = 5 ] && jq -e --arg w "$why" '.decision == "wait" and (.reasons[0] | contains($w))' "$tmp/step.out" >/dev/null && [ ! -s "$tmp/gh.calls" ] \
   && ok "hd-worker: 担当が消した hold は止めたままと読み、gate は wait のまま" \
   || fail "hd-worker: 担当が hold を消したら gate が止めを外した"
 

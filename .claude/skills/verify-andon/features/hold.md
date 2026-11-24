@@ -26,7 +26,7 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 - **断られる。** `hd-refuse` の行が2つ出る。自分自身と片付いた課題を理由に渡した `andon issue hold` が終了コード 1 で理由1行を返し、`hold` が空のままで、`ok   hd-refuse` が2行見えれば動いた。
 - **止める。** `hd-hold` の行に `andon issue hold` の出力（「PR の印を黄にした」）、`kanban show` の `hold`、偽の `gh` への2つの呼び出し（`state=pending` と説明文「メンテナーの確認を待っています」）が出る。`ok   hd-hold` が見えれば動いた。
 - **gate が待つ。** `hd-gate-wait` の行に `andon gate` の終了コード 5 と、理由の課題を名指す `{"decision":"wait",…}` が出る。`ok   hd-gate-wait` が見えれば、GitHub を読まず記録も書いていない。
-- **担当が消しても止まる。** `hd-worker` の行の前に、担当 `tw` が `kanban set <id> hold=` を打ったことと今の `hold` が空であることが出る。`andon gate` がまた wait を返し、`ok   hd-worker` が見えれば動いた。
+- **担当が消しても止まる。** `hd-worker` の行の前に、担当 `tw` が `kanban set <id> hold=` を打った終了コードと今の `hold` が出る。道は、担当が消せた（`hold` が空で、`hold` を最後に変えた行が `terminal:tw`）ことを確かめてから `andon gate` を打つ。gate がまた wait を返し、`ok   hd-worker` が見えれば動いた。担当が消せていなければ `FAIL hd-worker: 担当が hold を消せていない` が出る（`hold` の欄が埋まったままだと gate はそれだけで wait を返し、担当が消した止めの読み方を通らない）。
 - **外す。** `hd-unhold` の行に `andon issue unhold` の出力（「止めを外した（理由の課題 …）」）と、もう一度外したときの「止めていない」が出る。`ok   hd-unhold` が2行見え、最後の `log.jsonl` の行で `hold` を最後に変えたのが `terminal:tc` なら動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
