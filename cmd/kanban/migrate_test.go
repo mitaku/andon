@@ -124,7 +124,7 @@ func TestMigrateMovesTheOldLedger(t *testing.T) {
 	}
 	// A draft of project.json from config.yaml and delegation.json, which Andon reads with the same delegation.
 	p, err := delegate.ParseProject([]byte(readFile(t, filepath.Join(root, "project.json"))), "app")
-	if err != nil || p.Project.Title != "app" || p.Project.Prefix != "A" || len(p.Repos) != 0 {
+	if err != nil || p.Project.Title != "app" || p.Project.Prefix != "A" || len(p.Repos) != 0 || p.Signals != nil {
 		t.Fatalf("project.json draft: %+v %v", p, err)
 	}
 	if f, err := delegate.Parse(p.Delegation, "app"); err != nil || f.Effective("2026-11-07")["merge"] != "B" {
@@ -283,8 +283,12 @@ func TestMigrateProjectDraft(t *testing.T) {
 
 	other := filepath.Join(t.TempDir(), "web")
 	put(t, filepath.Join(other, ".flightdeck", "config.yaml"), "version: 2\nprefix: W\ntitle: Web\nrepos:\n  - github.com/x/web\n")
-	kanban(t, other, "migrate")
-	assertUnchanged(t, filepath.Join(other, "project.json"), "{\n  \"version\": 1,\n  \"project\": {\n    \"title\": \"Web\",\n    \"prefix\": \"W\"\n  },\n  \"repos\": [\n    \"github.com/x/web\"\n  ]\n}\n")
+	out := kanban(t, other, "migrate")
+	// With a repo, the draft reads main's CI failures now, as andon create's does (ADR-0051, 4).
+	assertUnchanged(t, filepath.Join(other, "project.json"), "{\n  \"version\": 1,\n  \"project\": {\n    \"title\": \"Web\",\n    \"prefix\": \"W\"\n  },\n  \"repos\": [\n    \"github.com/x/web\"\n  ],\n  \"signals\": [\n    {\n      \"source\": \"github-ci\",\n      \"weight\": \"now\"\n    }\n  ]\n}\n")
+	if !strings.Contains(out, "signals") {
+		t.Fatalf("migrate did not say the draft has signals:\n%s", out)
+	}
 }
 
 // A quoted version is not format 2: nothing moves; an integer one does.
