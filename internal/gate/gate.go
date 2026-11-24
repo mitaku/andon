@@ -521,7 +521,8 @@ func written(path string, began time.Time) bool {
 // CheckPlaces は検査の置き場の glob（条件表の glob と同じ書き方）。ここが変わると、それより前の base で通した checks は今の検査を通っていない。
 // gate は既定ブランチでここが変わったあとの PR を、rebase して checks を回し直すまで通さない（StaleBaseReason）。
 // 検査の置き場の定義はここだけに置く（ほかの command も CheckPlaceFiles・IsCheckPlace で読む）。
-var CheckPlaces = []string{"tests/**", ".github/workflows/**", ".claude/skills/verify-andon/**"}
+// Go の検査（*_test.go）も入れる: 既定ブランチに足した Go の検査は、それより前の base の PR が変えたコードを見ていない。
+var CheckPlaces = []string{"tests/**", ".github/workflows/**", ".claude/skills/verify-andon/**", "**/*_test.go"}
 
 // IsCheckPlace は path（repo の根からのパス）が検査の置き場か。
 func IsCheckPlace(path string) bool { return matchAny(CheckPlaces, path) }

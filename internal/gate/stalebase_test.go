@@ -83,11 +83,12 @@ func TestStaleBaseFirst(t *testing.T) {
 func TestCheckPlaceFiles(t *testing.T) {
 	files := []File{
 		{Path: "tests/run"}, {Path: ".github/workflows/go.yml"}, {Path: ".claude/skills/verify-andon/SKILL.md"},
-		{Path: "docs/tests/a.md"}, {Path: "internal/gate/gate.go"}, {Path: ".github/CODEOWNERS"}, {Path: "internal/x_test.go"},
+		{Path: "docs/tests/a.md"}, {Path: "internal/gate/gate.go"}, {Path: ".github/CODEOWNERS"}, {Path: "internal/x_test.go"}, {Path: "x_test.go"},
+		{Path: "internal/x_test.go.orig"}, {Path: "internal/testdata/a.json"},
 		{Path: "lib/new.sh", PreviousPath: "tests/lib/old.sh"}, // 検査の置き場から出した rename も変わったうちに数える
 		{Path: "tests/run"},
 	}
-	want := []string{"tests/run", ".github/workflows/go.yml", ".claude/skills/verify-andon/SKILL.md", "tests/lib/old.sh"}
+	want := []string{"tests/run", ".github/workflows/go.yml", ".claude/skills/verify-andon/SKILL.md", "internal/x_test.go", "x_test.go", "tests/lib/old.sh"}
 	if got := CheckPlaceFiles(RepoTable{}, files); !slices.Equal(got, want) {
 		t.Fatalf("CheckPlaceFiles = %v, want %v", got, want)
 	}
@@ -144,6 +145,20 @@ func TestStaleBaseOwnChecks(t *testing.T) {
 	f.BaseAhead, f.StaleBase = 0, nil
 	if d, r := Decide(f); d != "approve" {
 		t.Fatalf("進んでいない既定ブランチで通さない: %s %v", d, r)
+	}
+}
+
+// Go の検査も検査の置き場: 既定ブランチに、今のコードの回帰を見つける Go の検査（internal/gate/gate_test.go）が入ったあと、
+// それより前の base で go test を通した PR がそのコードを変えると、マージ後に既定ブランチの go の check が落ちる。
+func TestStaleBaseGoTests(t *testing.T) {
+	files, _, _, err := ParseCompare([]byte(`{"ahead_by": 1, "files": [{"filename": "internal/gate/gate_test.go", "previous_filename": null}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := Facts{PROpen: true, RepoKnown: true, Tier: "B", MergeLevel: "B", Review: ledger.Review{State: "current"},
+		GitHubChecks: GitHubChecks{State: "success"}, StaleBase: CheckPlaceFiles(RepoTable{}, files)}
+	if d, r := Decide(f); d != "fix" || !strings.Contains(r[0], "internal/gate/gate_test.go") {
+		t.Fatalf("Go の検査が既定ブランチで変わったあとの古い base を戻さない: %s %v", d, r)
 	}
 }
 
