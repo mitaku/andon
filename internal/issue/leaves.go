@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -29,10 +30,12 @@ const (
 		"deliverable: candidates なら PR の代わりに candidates.json を確かめる。\n" +
 		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
 	AskUsage = "usage: andon issue ask <id> <question.json|->\n" +
-		"       andon issue ask --new [--parent <id>] [--after <id>,…] <question.json|->\n" +
+		"       andon issue ask --new (--now | --later \"<理由>\" [--until <YYYY-MM-DD>]) [--parent <id>] [--after <id>,…] <question.json|->\n" +
 		"問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く。\n" +
 		"--new はオーナーの課題を足し（タイトルは問いの文に「（オーナーの判断待ち）」、依頼書は問いの写し）、\n" +
 		"who: person を書いて問いを置き、<id>#<n> を出す。--after を付けると課題は queued で作られ、その課題にも問いを置く。\n" +
+		"--now（呼ぶ）か --later（置いておく。理由を later に、--until の日を later_until に書く）のどちらか 1 つを必ず付ける。\n" +
+		"どちらも無い・両方ある・--until だけ・日付の形が違う・--later を Chief of Staff でない端末で打った、のどれでも何も足さない。\n" +
 		"JSON の形が違うか kind が scope なら何も足さない。同じタイトルの片付いていない課題が問いを持たずにあれば、\n" +
 		"足し直さずにその課題へ続きを置く（途中で落ちた回の打ち直し）。queued の課題に問いを置けるのはオーナーの課題（who: person）だけ。\n"
 	CandidatesUsage = "usage: andon issue candidates <id> <candidates.json|->\n" +
@@ -174,19 +177,62 @@ func Ask(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var parent string
 	var after []string
-	for len(args) > 1 && (args[0] == "--parent" || args[0] == "--after") {
-		if args[0] == "--parent" {
+	var now, later, until bool
+	var mark ledger.Mark
+	for len(args) > 1 && strings.HasPrefix(args[0], "--") {
+		switch args[0] {
+		case "--parent", "--after", "--later", "--until":
+			// 値を取る旗の値が旗の形なら、値を書き忘れた打ち方として断る（--later --now - を、理由「--now」の印として通さない）
+			if strings.HasPrefix(args[1], "--") {
+				return askNewRefuse(stderr, fmt.Sprintf("%s の値が無い（%s が続いた）", args[0], args[1]))
+			}
+		}
+		switch args[0] {
+		case "--parent":
 			parent = ledger.CanonID(args[1])
-		} else {
+		case "--after":
 			for _, a := range strings.Split(args[1], ",") {
 				after = append(after, ledger.CanonID(strings.TrimSpace(a)))
 			}
+		case "--now":
+			if now {
+				return askNewRefuse(stderr, "--now が 2 つある")
+			}
+			now = true
+			args = args[1:]
+			continue
+		case "--later":
+			if later {
+				return askNewRefuse(stderr, "--later が 2 つある")
+			}
+			later, mark.Later = true, args[1]
+		case "--until":
+			if until {
+				return askNewRefuse(stderr, "--until が 2 つある")
+			}
+			until, mark.Until = true, args[1]
+		default:
+			fmt.Fprint(stderr, AskUsage)
+			return exitUsage
 		}
 		args = args[2:]
 	}
 	if len(args) != 1 || strings.HasPrefix(args[0], "--") {
 		fmt.Fprint(stderr, AskUsage)
 		return exitUsage
+	}
+	switch {
+	case until && !later:
+		return askNewRefuse(stderr, "--until は --later と一緒のときだけ付ける")
+	case now == later:
+		return askNewRefuse(stderr, "呼ぶか置いておくかを言い切る: --now か --later \"<理由>\" のどちらか 1 つを付ける")
+	case later && (strings.TrimSpace(mark.Later) == "" || strings.ContainsAny(mark.Later, "\r\n")):
+		return askNewRefuse(stderr, "--later の理由は空でない 1 行にする")
+	}
+	if until {
+		if _, err := time.Parse("2006-01-02", mark.Until); err != nil {
+			return askNewRefuse(stderr, fmt.Sprintf("--until の日付は YYYY-MM-DD にする: %q", mark.Until))
+		}
 	}
 	ids := slices.Clone(after)
 	if parent != "" {
@@ -211,7 +257,13 @@ func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if err != nil {
 			return err
 		}
-		_, out, err := l.NewOwnerQuestion(q, parent, after)
+		// 印を信じるのは Chief of Staff の端末が書いたときだけ。ほかの端末の印は黙って書かず、何も足さずに断る（ADR-0062 決めたこと 10）。
+		if later {
+			if cos, me := l.ChiefOfStaff(), os.Getenv("HC_TERMINAL_ID"); cos == "" || me != cos {
+				return fail("--later で印を書くのは Chief of Staff の端末だけ（config.yaml の chief_of_staff: %q・HC_TERMINAL_ID: %q）。呼ぶなら --now", cos, me)
+			}
+		}
+		_, out, err := l.NewOwnerQuestion(q, parent, after, mark)
 		if err != nil {
 			return err
 		}
@@ -223,6 +275,11 @@ func askNew(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return exitFail
 	}
 	return 0
+}
+
+func askNewRefuse(stderr io.Writer, why string) int {
+	fmt.Fprintf(stderr, "andon issue ask --new: %s\n", why)
+	return exitUsage
 }
 
 func Candidates(args []string, stdin io.Reader, stdout, stderr io.Writer) int {

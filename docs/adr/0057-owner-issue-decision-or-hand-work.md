@@ -9,13 +9,13 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | 範囲は、Chief of Staff の手と、トリアージと振り返りが足す課題の全部にする | この ADR | 生きている |
+| 1 | 範囲は、Chief of Staff の手と、トリアージと振り返りが足す課題の全部にする | この ADR | 生きている。「判断は、だれが作っても問いにして灯す」を「問いにし、呼ぶか置いておくかを言い切る」に改めた（ADR-0062 決めたこと 2・10）。`andon issue ask --new` で言い切らせる |
 | 2 | オーナーの課題の形は、問いを持つ判断と、印を持つ手作業の 2 つだけにする | `internal/waiting/waiting.go`・`docs/contract.md` §25 | 生きている |
 | 3 | 手作業の印は、予約キー `only_owner` に理由を 1 行で書く | `docs/contract.md` §2・`internal/waiting/waiting.go` | 生きている |
 | 4 | 問いも印も無いオーナーの課題は、判断として数えて灯す | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 5 | オーナーの課題の判断の行は、前の課題が片付いてから出す。日付では隠さない | `internal/waiting/waiting.go`・`docs/contract.md` §25 | 生きている |
 | 6 | `andon waiting` の出力の形とバージョンは変えず、mod は変えない | `schema/waiting.schema.json`・`tests/host/screen.mjs` | 生きている |
-| 7 | `andon issue ask --new` を足し、オーナーの課題と問いを 1 回で置く | `internal/ledger/ask.go`・`internal/issue/leaves.go`・`process/states/issue.yaml`・`docs/contract.md` §5・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
+| 7 | `andon issue ask --new` を足し、オーナーの課題と問いを 1 回で置く | `internal/ledger/ask.go`・`internal/issue/leaves.go`・`process/states/issue.yaml`・`docs/contract.md` §5・`package/skills/ask-one-by-one/SKILL.md` | 生きている。`--now` か `--later` のどちらかを必ず受ける（ADR-0062 決めたこと 10） |
 | 8 | 手作業の課題は、今の command のまま、印を足して作る | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
 | 9 | トリアージの apply は、判断を問いにして置き、手作業に印を付ける | `internal/triage/apply.go`・`internal/triage/decisions.go`・`package/skills/triage/SKILL.md`・`docs/contract.md` §15 のトリアージの読み方 | 生きている |
 | 10 | トリアージの種類に `line` を足し、「判断がつかない」は印 `unsure` に替える | `internal/triage/decisions.go`・`internal/triage/apply.go` の要約・`package/skills/triage/SKILL.md`・`package/skills/chief-of-staff/playbooks/triage.md` | 生きている |
@@ -153,7 +153,7 @@ Chief of Staff がオーナーに判断を求めても、kanban に問いが置�
 
 ## やらないこと（範囲の外。理由）
 
-- **行燈の灯し方と、灯りの状態を変えること。** [ADR-0043](0043-lamp-lights-on-owner-waits.md) 決めたこと 2・3・4・12 のままにする。手作業では灯さない。灯りを後回しにする口も作らない。
+- **行燈の灯し方と、灯りの状態を変えること。** [ADR-0043](0043-lamp-lights-on-owner-waits.md) 決めたこと 2・3・4・12 のままにする。手作業では灯さない。灯りを後回しにする口も作らない（この行の灯りを後回しにする口は、ADR-0062 決めたこと 2・10 で改めた）。
 - **オーナーに回す線と、回す数を変えること。** トリアージがオーナーへ回すもの（判定表の 5・6・10）は変えない。変わるのは、回したものが灯るかどうかである。
 - **後ろを止めている手作業を灯すこと。** 決めたこと 1 の捨てた案。
 - **`andon waiting` の出力の形、ペイン、mod `inbox`、mod `kanban-board` を変えること。** 決めたこと 6。

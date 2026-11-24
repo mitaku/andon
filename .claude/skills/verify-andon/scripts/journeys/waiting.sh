@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# オーナー待ち（features/waiting.md）。切り離した kanban で、Chief of Staff がオーナーの課題を足し（andon issue ask --new）、
+# オーナー待ち（features/waiting.md）。切り離した kanban で、Chief of Staff がオーナーの課題を足し（andon issue ask --new --now）、
 # オーナーと同じく andon waiting で判断の行として読む。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
@@ -13,7 +13,7 @@ q="{\"kind\": \"users\", \"question\": \"$run の書き出しは CSV だけに�
 owner_of() { "$kanban" show "$1" --json | jq -c '.issue | {id, title, parent, who, status}'; }
 
 # ow-ask-new: オーナーの課題が足され、who: person と問いを持つ
-step "ow-ask-new: 親 $p1 の下にオーナーの課題を足す" "$andon" issue ask --new --parent "$p1" - <<<"$q"
+step "ow-ask-new: 親 $p1 の下にオーナーの課題を足す" "$andon" issue ask --new --now --parent "$p1" - <<<"$q"
 a=$(sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p' "$tmp/step.out")
 echo "  | ${a:-無い}: $( [ -n "$a" ] && owner_of "$a")"
 [ -n "$a" ] && "$kanban" show "$a" --json | jq -e --arg p "$p1" '.issue.who == "person" and .issue.parent == $p and (.issue.title | endswith("（オーナーの判断待ち）"))' >/dev/null \
@@ -22,17 +22,18 @@ echo "  | ${a:-無い}: $( [ -n "$a" ] && owner_of "$a")"
   || fail "ow-ask-new: オーナーの課題か問いが無い・形が違う"
 
 # ow-same-title: 同じ問いでも親が違えば別のオーナーの課題になる。同じ親で打ち直すと断り、課題を増やさない
-step "ow-same-title: 同じ問いを親 $p2 の下に足す" "$andon" issue ask --new --parent "$p2" - <<<"$q"
+step "ow-same-title: 同じ問いを親 $p2 の下に足す" "$andon" issue ask --new --now --parent "$p2" - <<<"$q"
 b=$(sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p' "$tmp/step.out")
 echo "  | ${b:-無い}: $( [ -n "$b" ] && owner_of "$b")"
 [ -n "$b" ] && [ "$b" != "$a" ] && [ "$("$kanban" show "$b" --json | jq -r .issue.parent)" = "$p2" ] \
   && ok "ow-same-title: 親の違う同じタイトルは取り違えず、別のオーナーの課題 $b になる" \
   || fail "ow-same-title: 親の違う同じ問いが別の課題にならない"
 n0=$("$kanban" list --json | jq length)
-step "ow-same-title: 同じ問いを親 $p1 の下に打ち直す" "$andon" issue ask --new --parent "$p1" - <<<"$q" \
+step "ow-same-title: 同じ問いを親 $p1 の下に打ち直す" "$andon" issue ask --new --now --parent "$p1" - <<<"$q" \
   && fail "ow-same-title: 問いを持つ同じオーナーの課題があるのに通った" \
-  || { [ "$("$kanban" list --json | jq length)" = "$n0" ] \
-    && ok "ow-same-title: 同じ親の同じ問いは断り、課題を増やさない" || fail "ow-same-title: 断ったのに課題が増えた"; }
+  || { grep -qF "同じ問いのオーナーの課題 $a がもうある" "$tmp/step.out" && [ "$("$kanban" list --json | jq length)" = "$n0" ] \
+    && ok "ow-same-title: 同じ親の同じ問いは、同じ問いの課題 $a があると言って断り、課題を増やさない" \
+    || fail "ow-same-title: 断った理由が同じ問いの課題でないか、断ったのに課題が増えた"; }
 
 # ow-waiting: オーナー待ちに、2つの課題が判断の行として出る（答えられる問い）
 step "ow-waiting: andon waiting --json を打つ" "$andon" waiting --json >/dev/null
@@ -76,6 +77,29 @@ echo "  waiting: $(row_of "$a")"
 jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == true and (has("later") | not)' "$tmp/step.out" >/dev/null \
   && ok "ow-later: 担当の端末が書いた印は信じず、$a をまた呼ぶ" \
   || fail "ow-later: 担当の端末が書いた印で $a を置いたままにした"
+
+# ow-ask-later: 作る口は呼ぶか置いておくかを言い切らせる。旗が無ければ理由を言って断り、Chief of Staff の --later は印を書いて
+# 置いてある行にし、担当の端末の --later は断る。どの断りでも課題は増えない
+q2="{\"kind\": \"users\", \"question\": \"$run の一覧の既定の並びを変えるか\", \"options\": [{\"label\": \"変えない\", \"pick\": true}, {\"label\": \"新しい順\"}], \"from\": \"chief-of-staff\"}"
+why2="$run 急がない。答えを待つ仕事が無い"
+n1=$("$kanban" list --json | jq length)
+step "ow-ask-later: 旗なしで ask --new を打つ" "$andon" issue ask --new --parent "$p2" - <<<"$q2" \
+  && fail "ow-ask-later: 旗なしの ask --new が通った" \
+  || { grep -qF '呼ぶか置いておくかを言い切る' "$tmp/step.out" && [ "$("$kanban" list --json | jq length)" = "$n1" ] \
+    && ok "ow-ask-later: 旗なしの ask --new は、呼ぶか置いておくかを言い切れと言って断り、課題を増やさない" \
+    || fail "ow-ask-later: 旗なしの断りの理由が違うか、課題が増えた"; }
+step "ow-ask-later: 担当の端末 tw が --later を打つ" env HC_TERMINAL_ID=tw "$andon" issue ask --new --later "$why2" --parent "$p2" - <<<"$q2" \
+  && fail "ow-ask-later: 担当の端末の --later が通った" \
+  || { grep -qF -- '--later で印を書くのは Chief of Staff の端末だけ' "$tmp/step.out" && [ "$("$kanban" list --json | jq length)" = "$n1" ] \
+    && ok "ow-ask-later: 担当の端末の --later は、Chief of Staff の端末だけと言って断り、課題を増やさない" \
+    || fail "ow-ask-later: 担当の端末の --later の断りの理由が違うか、課題が増えた"; }
+step "ow-ask-later: Chief of Staff（tc）が --later --until で足す" "$andon" issue ask --new --later "$why2" --until 2999-12-31 --parent "$p2" - <<<"$q2"
+c=$(sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p' "$tmp/step.out")
+step "ow-ask-later: 足したあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+echo "  waiting: $( [ -n "$c" ] && row_of "$c")"
+[ -n "$c" ] && jq -e --arg c "$c" --arg w "$why2" '.items[] | select(.id == $c) | .call == false and .later == $w and .later_until == "2999-12-31"' "$tmp/step.out" >/dev/null \
+  && ok "ow-ask-later: --later --until で足した $c は、印の理由と呼ぶ日を持つ置いてある行（call: false）になる" \
+  || fail "ow-ask-later: --later --until で足した課題が置いてある行にならない"
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"

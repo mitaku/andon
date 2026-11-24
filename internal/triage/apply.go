@@ -444,7 +444,7 @@ const unsureFact = "トリアージは種類を決めきれなかった: "
 
 // addDecision は判断の person を、andon issue ask --new と同じ関数でオーナーの課題と問いにして置く（ADR-0057 決めたこと 7・9）。
 func (l *ledger) addDecision(it item) (string, error) {
-	newID, _, err := ledgercli.At(l.root).NewOwnerQuestion(personQuestion(it), "", nil)
+	newID, _, err := ledgercli.At(l.root).NewOwnerQuestion(personQuestion(it), "", nil, ledgercli.Mark{})
 	if err != nil && newID != "" {
 		// トリアージの apply は打ち直せない（記録が先に置かれる）。残った課題は問いも印も無いので andon waiting が判断に数えて灯す。
 		return "", fail("%v（トリアージの apply は打ち直さず、andon issue ask %s - で問いを置く）", err, newID)

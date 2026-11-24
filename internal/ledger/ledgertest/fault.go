@@ -204,7 +204,7 @@ func (f *Fault) Snapshot(root string, trusted func(id, key string) bool) string 
 	var b strings.Builder
 	for _, is := range issues {
 		id, _ := is["id"].(string)
-		fmt.Fprintf(&b, "issue %s title=%v status=%v parent=%v who=%v only_owner=%v\n", id, is["title"], is["status"], is["parent"], is["who"], is["only_owner"])
+		fmt.Fprintf(&b, "issue %s title=%v status=%v parent=%v who=%v only_owner=%v later=%v later_until=%v\n", id, is["title"], is["status"], is["parent"], is["who"], is["only_owner"], is["later"], is["later_until"])
 		for _, k := range SettingKeys {
 			if v, ok := is[k]; ok {
 				fmt.Fprintf(&b, "  %s=%v trusted=%v\n", k, v, trusted(id, k))
