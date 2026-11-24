@@ -10,7 +10,7 @@ root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel
 name=$(curl -s -m 2 http://127.0.0.1:4318/ 2>/dev/null | tr -d '\r\n') || name=
 echo "-- ot-listen: GET http://127.0.0.1:4318/ → ${name:-返らない}"
 [ "$name" = andon-otel ] && ok "ot-listen: 受け口が listen し、名前 andon-otel を返す" || fail "ot-listen: 受け口が listen していないか、ほかのプロセスがポートを取っている"
-# 受け口は止まっていたときだけ起動されるので、当てても起動し直さない。検証する commit を当てる前から動く受け口は、
+# 当てる道具は受け口を起動し直す（ot-applied）が、前のバージョンの道具で当てたときや失敗したときは残る。検証する commit を当てる前から動く受け口は、
 # その commit の受け口のコード（internal/otel/ の受けて書く処理・落とす属性）を持たない。記録の読み方が変わるので書き出す。
 # 見えるのは今動いている受け口だけで、検証する間に記録を書いた受け口が別のこともある（起動が当てた時刻より後のとき）。
 # 起動の時刻は ps の lstart（秒まで。ps と date は同じ TZ で読む）。当てた時刻と同じ秒の起動は当てたあとに数える。
