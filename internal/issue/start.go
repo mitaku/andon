@@ -241,7 +241,10 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		p.Session = spawn.NewSession()
 		p.Labels = append(p.Labels, spawn.SessionLabel+"="+p.Session)
 	}
-	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath) + spawn.Guide() + spawn.Wiki()
+	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath) + spawn.Guide()
+	if p.Profile != chiefengineer.Profile {
+		p.FirstMessage += spawn.Wiki() // wiki の目録の行は担当だけ。Chief Engineer には足さない（ADR-0061 決めたこと 12）
+	}
 	return p, nil
 }
 

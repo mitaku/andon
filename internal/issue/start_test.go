@@ -1070,4 +1070,12 @@ func TestStartFirstMessageWiki(t *testing.T) {
 	if m := f.dryJSON().FirstMessage; !strings.HasSuffix(m, spawn.Wiki()) || !strings.Contains(m, idx) {
 		t.Errorf("Topics にページがあるのに指していない: %q", m)
 	}
+	// andon issue start で起動する Chief Engineer の課題には、Topics にページがあっても足さない
+	t.Setenv("FAKE_TPL", `{"templates":[{"name":"claude"},{"name":"chief-engineer"}]}`)
+	f.unset("review", "must_fix", "reviewer", "review_rounds", "merge", "estimate")
+	f.task["profile"] = "chief-engineer"
+	f.ready(f.task)
+	if m := f.dryJSON().FirstMessage; strings.Contains(m, idx) {
+		t.Errorf("Chief Engineer の最初のメッセージに目録の行がある: %q", m)
+	}
 }
