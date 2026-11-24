@@ -673,8 +673,11 @@ if [ "$self" = true ]; then
   [ "$drc" = 3 ] && grep -qF '名指したうち未確認: wl-resume' <<<"$dout" || die "drive.sh: 名指した wl-resume が未確認なのに 3 で終わらない（$drc）: $dout"
   drive worker-launch "$new" "wl-record gt-route"
   [ "$drc" = 0 ] && grep -qF '別の機能の gt-route は数えない' <<<"$dout" || die "drive.sh: 別の機能の細かい機能を名指しに数える（$drc）: $dout"
+  # 名指しが別の機能か外で見るものだけ: 決める細かい機能が無く、補いの wl-resume の未確認で 3 にしない（Verify-features: wl-first-turn の範囲の形）
   drive worker-launch "$new" gt-route
-  [ "$drc" = 3 ] && grep -qF 'drive.sh で確かめるものがこの機能に無い' <<<"$dout" || die "drive.sh: この機能の名指しが無いのに、道の終了コードのままでない（$drc）: $dout"
+  [ "$drc" = 0 ] && grep -qF 'drive.sh で確かめるものがこの機能に無い' <<<"$dout" || die "drive.sh: 名指しが別の機能のものだけなのに、補いの未確認で 0 でない（$drc）: $dout"
+  drive worker-launch "$new" wl-first-turn
+  [ "$drc" = 0 ] && grep -q '^結果 wl-resume 未確認（補い）' <<<"$dout" || die "drive.sh: 名指しが外で見る wl-first-turn だけなのに、補いの未確認で 0 でない（$drc）: $dout"
   # 見る道が drive.sh の外（Chief of Staff の試し）の細かい機能は、名指しても終了コードに数えない（数えると、いつも 3 になる）
   drive worker-launch "$new" wl-record,wl-first-turn
   [ "$drc" = 0 ] && grep -q '^結果 wl-first-turn 外で見る（名指し）' <<<"$dout" || die "drive.sh: drive.sh の外で見る wl-first-turn を名指しの終了コードに数える（$drc）: $dout"
@@ -684,5 +687,11 @@ if [ "$self" = true ]; then
   launch 2026-01-01T00:12:00Z "$old" | jq -c --arg a 2026-01-01T00:12:00Z '.launch = "start" | .at = $a' >"$lib/launches.jsonl"
   drive worker-launch "$new" wl-terminal
   [ "$drc" = 1 ] && grep -qx '結果 wl-record FAIL（補い）' <<<"$dout" || die "drive.sh: 名指さない wl-record が FAIL なのに 1 で終わらない（$drc）: $dout"
+  # 道が FAIL を出したあと 3 で終わる（otel は受け口が無いと FAIL を出し、Claude Code の起動が無いと 3 で抜ける）: 壊れを未確認にせず 1
+  for a in "" ot-restart gt-route ot-records; do
+    drive otel "$new" ${a:+"$a"}
+    [ "$drc" = 1 ] && grep -q '^FAIL ot-' <<<"$dout" && grep -qF '終了コード 1（FAIL の行がある。道の終了コードは 3）' <<<"$dout" \
+      || die "drive.sh: 道が FAIL を出して 3 で終わったのに、名指し「${a:-無し}」で 1 にしない（$drc）: $dout"
+  done
   ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
 fi
