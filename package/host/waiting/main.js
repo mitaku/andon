@@ -19,11 +19,12 @@ const QUESTION = /^[A-Za-z0-9][A-Za-z0-9._-]*#[1-9][0-9]*$/;
 // The andon layout's right panel, which the inbox shows this block in (layout.show) and this pane hides.
 export const PANEL = "panel";
 
-// Whether the shown layout has this mod inside the panel: only then can the pane close it.
-export function inPanel(node = layout(), under = false) {
+// Whether a layout tree has this mod inside the panel: only then can the pane close it.
+function holds(node, under) {
   const here = under || node?.id === PANEL;
-  return (here && node?.content?.mod === "waiting") || (node?.children ?? []).some((n) => inPanel(n, here));
+  return (here && node?.content?.mod === "waiting") || (Array.isArray(node?.children) && node.children.some((n) => holds(n, here)));
 }
+export const inPanel = () => holds(layout(), false);
 
 // Where the person is: the focused pane's folder and machine, as Herdr's Files panel finds them.
 function location() {
@@ -103,7 +104,8 @@ export default class Waiting extends View {
   // Hides the right panel. The copy stays alive while hidden, so what was read, the open rows, the picks and an
   // answer in flight are there when the inbox shows the panel again. Holding the keyboard, it is first handed to
   // the left, as the inbox's Esc hands it to the right, so it doesn't stay on a hidden pane.
-  close() {
+  // Not close(): Herdr calls a View's close(cx) as its cleanup when the block goes and on quit.
+  closePanel() {
     if (!inPanel()) return false;
     if (this.handle.is_focused()) run("pane.go", { direction: "left" });
     run("layout.hide", { id: PANEL });
@@ -113,14 +115,21 @@ export default class Waiting extends View {
   // Keys while the pane holds the keyboard: Esc closes the panel. (key(i) is a row's key.)
   onKey(e, cx) {
     if (e.modifiers?.control || e.modifiers?.alt || e.modifiers?.platform) return;
-    if (e.key !== "escape" || !this.close()) return;
+    if (e.key !== "escape" || !this.closePanel()) return;
     cx.stop_propagation();
     cx.notify();
   }
 
+  // Where the rows are read from: the focused pane's place, except while this pane holds the keyboard. Then the
+  // focused pane may be reported otherwise (clicking a row takes the keyboard), and the place stays as it was.
+  place() {
+    if (this.where && this.handle.is_focused()) return { cwd: this.where.cwd, on: this.where.on };
+    return location();
+  }
+
   // Runs the command in the focused pane's folder on its machine; a new place drops what was read.
   refresh(cx) {
-    const { cwd, on } = location();
+    const { cwd, on } = this.place();
     const key = JSON.stringify([cwd, on]);
     if (this.where?.key !== key) {
       this.where = { key, cwd, on };
@@ -170,7 +179,7 @@ export default class Waiting extends View {
   // Whether the row is in what is on screen now, read from where the focus is now: a row drawn from a place
   // the focus has since left is not, even before the pane reads the new place.
   current(i) {
-    const { cwd, on } = location();
+    const { cwd, on } = this.place();
     return this.where?.key === JSON.stringify([cwd, on]) && Array.isArray(this.data?.items) && this.data.items.includes(i);
   }
 
@@ -314,7 +323,7 @@ export default class Waiting extends View {
 
   render(cx) {
     const t = /** @type {Record<string, `#${string}`>} */ (theme());
-    const { cwd, on } = location();
+    const { cwd, on } = this.place();
     if (this.where?.key !== JSON.stringify([cwd, on])) this.refresh(cx);
     const d = this.data;
     const body = [];
@@ -342,7 +351,7 @@ export default class Waiting extends View {
           // The inbox's waiting button shows the panel again.
           .when(closable, (el) => el.child(div().id("waiting-close").size(24).flex_none().flex().items_center().justify_center()
             .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("Close (Esc)")
-            .on_click((_e, cx) => { cx.stop_propagation(); this.close(); cx.notify(); })
+            .on_click((_e, cx) => { cx.stop_propagation(); this.closePanel(); cx.notify(); })
             .child(svg(`${CHROME}/x.svg`).size(13))))))
       .children(body)
       .when(keyboard && closable, (el) => el.child(div().id("waiting-keys").h(24).px(16).flex_none().flex().items_center()

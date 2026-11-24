@@ -842,7 +842,7 @@ const ANDON_LAYOUT = JSON.parse(await readFile(`${HOST}/layouts/andon.json`, 'ut
 const escape = (tree, cx, key = 'escape', modifiers = {}) => { const [fn] = args(byId(tree, 'waiting'), 'on_key_down').at(-1); fn({ key, modifiers }, cx); };
 
 await check('waiting: 見出しの閉じるボタンと Esc で右の panel を閉じる（layout.hide panel）。キーボードを持っていれば先に左へ渡す。ほかのキーや修飾つきの Esc では閉じない', async () => {
-  const { calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING), { tree: ANDON_LAYOUT });
+  const { v, calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING), { tree: ANDON_LAYOUT });
   const click = clickOn(cx);
   let tree = draw();
   const close = byId(tree, 'waiting-close');
@@ -863,8 +863,37 @@ await check('waiting: 見出しの閉じるボタンと Esc で右の panel を�
   calls.run.length = 0;
   escape(tree, cx, 'j');
   escape(tree, cx, 'escape', { control: true });
+  escape(tree, cx, 'escape', { alt: true });
+  escape(tree, cx, 'escape', { platform: true });
   escape(tree, cx, 'enter');
   assert.deepEqual(calls.run, [], `Esc でないキーで閉じた: ${JSON.stringify(calls.run)}`);
+  // Herdr calls a View's close(cx) as cleanup when the block goes or the app quits: that must not hide the panel.
+  await v.close?.(cx);
+  assert.deepEqual(calls.run, [], `後片付けの close(cx) で panel を閉じた: ${JSON.stringify(calls.run)}`);
+});
+
+await check('waiting: 画面がキーボードを持つ間は、フォーカスした pane の場所が変わって見えても読む場所を変えず、開いた行と選んだ選択肢を残して答えられる', async () => {
+  const { v, calls, draw, cx, here } = await waitingPane(json(SAMPLE_WAITING), { tree: ANDON_LAYOUT });
+  const click = clickOn(cx);
+  click(byId(draw(), 'waiting-head-S-0030-1'));
+  click(byId(draw(), 'waiting-option-S-0030-1-1'));
+  // A click takes the keyboard; the focused pane is then reported elsewhere.
+  here.focused = true;
+  here.cwd = '/srv/cell';
+  v.refresh(cx);
+  await cx.settle();
+  let tree = draw();
+  assert.ok(byId(tree, 'waiting-detail-S-0030-1'), 'キーボードを取ったら開いた行が閉じた');
+  click(byId(tree, 'waiting-answer-S-0030-1'));
+  await cx.settle();
+  assert.deepEqual(calls.exec.filter((c) => c[1][0] === 'waiting').map((c) => c[2].cwd), Array(calls.exec.filter((c) => c[1][0] === 'waiting').length).fill('/srv/cell/projects/sample-site'), '読む場所か答える場所が移った');
+  assert.ok(byId(draw(), 'waiting-answered-S-0030-1'), 'キーボードを持つ間に答えられない');
+  // The keyboard back on a pane: the place follows the focus again.
+  here.focused = false;
+  draw();
+  await cx.settle();
+  assert.equal(calls.exec.at(-1)[2].cwd, '/srv/cell', 'キーボードを返したあとも前の場所を読む');
+  assert.ok(!byId(draw(), 'waiting-detail-S-0030-1'), '場所が変わったのに開いた行が残った');
 });
 
 await check('waiting: panel の中に置かれていないとき（layout が読めない・panel の外に置いた）は閉じるボタンを出さず、Esc でも何も打たない', async () => {
@@ -888,9 +917,9 @@ await check('waiting: pane.go が渡す focus でキーボードを取る', asyn
   await cx.settle();
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(calls.focus, 1, 'focus でキーボードを取らない');
-  const none = await waitingPane(json(SAMPLE_WAITING));
+  const none = await waitingPane(json(SAMPLE_WAITING), { commands: ['waiting.other'] });
   await new Promise((r) => setTimeout(r, 0));
-  assert.equal(none.calls.focus, 0, 'focus が来ないのにキーボードを取った');
+  assert.equal(none.calls.focus, 0, 'focus でない command でキーボードを取った');
 });
 
 await check('waiting: 閉じて開き直しても、開いた行・選んだ選択肢・答えている途中の操作が残り、読み直しのあとも壊れない', async () => {

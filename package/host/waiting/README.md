@@ -27,7 +27,7 @@ The `andon` layout (`../layouts/andon.json`) has it as the third block of the ri
 
 The inbox's header has a button (`waiting.svg`) that shows the panel and selects this block (`layout.show` `panel`, then `layout.select` `panel-body` / `waiting`). The tab bar's Files and Changes buttons open their own blocks as before.
 
-To close it, press the close button at the right of its header, or Esc while the pane has the keyboard. That hides the whole right panel (`layout.hide` `panel`), Files and Changes with it, and the shown tab takes the width. What you opened or picked is kept: show it again from the inbox and it is as you left it. The button and Esc are there only when the block sits in the layout's `panel`.
+To close it, press the close button at the right of its header, or Esc while the pane has the keyboard. That hides the whole right panel (`layout.hide` `panel`), Files and Changes with it, and the shown tab takes the width. What you opened or picked is kept while you stay in the same folder: show it again from the inbox and it is as you left it. Moving to another folder meanwhile starts over there, as it always does. The button and Esc are there only when the block sits in the layout's `panel`.
 
 ## What it runs
 
