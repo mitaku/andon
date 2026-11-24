@@ -52,8 +52,10 @@ func (p *resumePlan) check(name, result, format string, a ...any) {
 }
 
 // ResumeMessage は resume で起動した端末への最初のメッセージ（ADR-0012 決めたこと 3）。
+// ハーネスのセッションの続きに入り、セッションの最初の文でないので、オーナーの文を抜く処理が位置で外せない。
+// 先頭に送り手の印 [resume]（spawn.Mark）を置き、印で外させる。
 func ResumeMessage(slug, id string) string {
-	return fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。`kanban list` と git で今の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id)
+	return spawn.Mark(spawn.FromResume, fmt.Sprintf("課題 `%s/%s` の続き。セルが起き直した。worktree は同じ場所に戻した。`kanban list` と git で今の状態を確かめ、続きから。報告・問いは今までどおり。", slug, id))
 }
 
 // FreshMessage は --fresh で起動した端末への最初のメッセージ: start の2行に、前の担当の報告を読む1行（ADR-0012 決めたこと 7）。

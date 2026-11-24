@@ -38,8 +38,9 @@ type owner struct {
 
 // wrapped は機械が送った文の包み（hc send・dispatcher の通知・ハーネスの通知）。貼った文の包みの内側も見る。
 var (
-	pastedOpen = regexp.MustCompile(`^<pasted_content[^>]*>\s*`)
-	wrappers   = []string{"<hc from=", "<news ", "<news>", "<task-notification>"}
+	pastedOpen  = regexp.MustCompile(`^<pasted_content[^>]*>\s*`)
+	pastedClose = regexp.MustCompile(`\s*</pasted_content[^>]*>$`)
+	wrappers    = []string{"<hc from=", "<news ", "<news>", "<task-notification>"}
 )
 
 func wrappedText(s string) bool {
@@ -53,11 +54,20 @@ func wrappedText(s string) bool {
 	return false
 }
 
-// machineText は Andon の command が端末の外から hc send した文か（hc の包みが付かず、オーナーの印が付く）。
+// machineText は Andon の command が端末の外から送った文か（hc の包みが付かず、オーナーの印が付く）。
 // dispatcher と gate は、担当・レビュアーへ送る文の先頭に送り手の印（[dispatcher]・[gate]。spawn.Mark）を置く。
-// その印で照らし、文の意味は読まない。貼った文の包みの内側も見る。起動の最初のメッセージは位置で除く。
+// andon issue resume は最初のメッセージの先頭に [resume] を置くが、hc run が template の本文と空行をその前に貼るので、
+// 印は最後の段落の頭に来る。文の頭か最後の段落の頭の印で照らし、文の意味は読まない。貼った文の包みの内側も見る。
+// 起動の最初のメッセージ（andon issue start）は位置で除く。resume はハーネスのセッションの続きに入るので位置で除けない。
 func machineText(s string) bool {
-	return spawn.Marked(pastedOpen.ReplaceAllString(strings.TrimSpace(s), ""))
+	s = pastedClose.ReplaceAllString(pastedOpen.ReplaceAllString(strings.TrimSpace(s), ""), "")
+	if spawn.Marked(s) {
+		return true
+	}
+	if i := strings.LastIndex(s, "\n\n"); i >= 0 {
+		return spawn.Marked(s[i+2:])
+	}
+	return false
 }
 
 // roleOf は課題のプロファイルから役を決める（起動の記録の role と同じ決め方）。

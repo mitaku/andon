@@ -888,7 +888,7 @@ hcn=$(wc -l < "$tmp/hc/log"); before=$(wc -l < kanban/log.jsonl)
   || die "resume --dry-run が読むほかに hc を打ったか何かを作った: $(tail -n +"$((hcn + 1))" "$tmp/hc/log")"
 jq -e --arg wt "$rwt" --arg br "$rbr" --arg s "$sess" --arg a "$a1" '.dry_run and .template == "claude-resume" and .agent == $a and .agent_state == "bare_shell"
   and .worktree == $wt and .cwd == $wt and .branch == $br and .restore == "add" and .session == $s and (.labels | index("session=" + $s) != null)
-  and (.first_message | test("の続き。セルが起き直した。worktree は同じ場所に戻した。`kanban list` と git で今の状態を確かめ、続きから。"))' "$tmp/dry" >/dev/null \
+  and (.first_message | test("^\\[resume\\] 課題 `[^`]*` の続き。セルが起き直した。worktree は同じ場所に戻した。`kanban list` と git で今の状態を確かめ、続きから。"))' "$tmp/dry" >/dev/null \
   || die "resume --dry-run の計画: $(cat "$tmp/dry")"
 ok 'resume --dry-run: doing で素のシェルの課題は、worktree のパス・branch・起動する template・cwd・session・最初のメッセージの計画を出す（hc は読むだけ）'
 
@@ -900,7 +900,7 @@ a2=$(field "$r1" agent)
   || die "kanban: $(kanban show "$r1" --json | jq -c .issue)"
 order=$(grep -n "^keep $a1 --off\|^kill $a1\|^rm $a1\|^run " "$tmp/hc/log" | cut -d: -f2 | cut -d' ' -f1 | tr '\n' ' ')
 [ "$order" = "keep kill rm run " ] || die "素のシェルを片付けてから起動していない: $(cat "$tmp/hc/log")"
-grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(tr A-Z a-z <<<"$r1") --label project=demo --label issue=$r1 --label title=Resume me --label herdr.space=andon-demo-$r1 --label herdr.tab=andon-demo-$r1 --label session=$sess --cwd $rwt claude-resume 課題 \`demo/$r1\` の続き。" "$tmp/hc/log" \
+grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(tr A-Z a-z <<<"$r1") --label project=demo --label issue=$r1 --label title=Resume me --label herdr.space=andon-demo-$r1 --label herdr.tab=andon-demo-$r1 --label session=$sess --cwd $rwt claude-resume \[resume\] 課題 \`demo/$r1\` の続き。" "$tmp/hc/log" \
   || die "hc run の形: $(grep ^run "$tmp/hc/log")"
 jq -e --arg id "$r1" --arg a "$a2" 'select(.id == $id and .change.agent == $a) | .by == "terminal:t5"' kanban/log.jsonl >/dev/null || die 'kanban の agent を新しい端末にしていない'
 ok 'resume: worktree を同じパスに branch で戻し、素のシェルを片付け、同じ名前・ラベルで <profile>-resume を起動し、届いてから kanban の agent を書く（doing のまま・session は同じ）'
@@ -951,7 +951,7 @@ meta "$new" "$cwt" 2026-11-10T02:00:00.000Z > "$cs/rollout-b.jsonl"
 meta "$other" /elsewhere 2026-11-10T03:00:00.000Z > "$cs/rollout-c.jsonl"
 : > "$tmp/hc/log"
 "$andon" issue resume "$s4" >/dev/null || die 'Codex の resume が落ちた'
-[ "$(field "$s4" session)" = "$new" ] && grep -q -- "--label session=$new --cwd $cwt codex-resume 課題 \`demo/$s4\` の続き。" "$tmp/hc/log" \
+[ "$(field "$s4" session)" = "$new" ] && grep -q -- "--label session=$new --cwd $cwt codex-resume \[resume\] 課題 \`demo/$s4\` の続き。" "$tmp/hc/log" \
   || die "Codex の resume: session=$(field "$s4" session) $(cat "$tmp/hc/log")"
 tail -n 1 "$(launches "$s4")" | jq -e --arg s "$new" '.launch == "resume" and .template == "codex-resume" and .session == $s' >/dev/null || die "Codex の起動し直しの記録: $(tail -n 1 "$(launches "$s4")")"
 ok 'resume: Codex 系は記録の先頭行から cwd が同じ最新の id を引き、codex-resume で起動し、引けた id を kanban の session に書く。無ければ非 0。起動の記録の session は引けた id'
@@ -1001,7 +1001,7 @@ jq -e --arg wt "$rvwt" --arg cwd "$rvcwd" --arg c "$rc" --arg s "$rvs" --arg id 
 : > "$tmp/hc/log"
 "$andon" issue resume "$rv" > "$tmp/out" || die "レビュアーの resume が落ちた: $(cat "$tmp/out")"
 [ "$(git -C "$rvwt" rev-parse HEAD)" = "$rc" ] && ! git -C "$rvwt" symbolic-ref -q HEAD >/dev/null || die "detached worktree が commit $rc に戻っていない: $(cat "$tmp/out")"
-grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
+grep -qF -- "--label session=$rvs --cwd $rvcwd codex-review-resume [resume] 課題 \`demo/$rv\` の続き。" "$tmp/hc/log" || die "レビュアーの hc run: $(grep ^run "$tmp/hc/log")"
 [ "$(field "$rv" agent)" != t90 ] && [ "$(field "$rv" status)" = doing ] && [ "$(field "$rv" session)" = "$rvs" ] && [ "$(field "$rv" worktree)" = "$rvwt" ] && [ -z "$(field "$rv" branch)" ] \
   || die "レビュアーの kanban: $(kanban show "$rv" --json | jq -c .issue)"
 jq -e --arg c "$rc" --arg wt "$rvwt" '.role == "reviewer" and .launch == "resume" and .repo.commit == $c and .repo.path == $wt' "$(launches "$rv")" >/dev/null \

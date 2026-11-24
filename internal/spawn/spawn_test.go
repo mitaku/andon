@@ -184,19 +184,21 @@ func TestSendCommandInBash(t *testing.T) {
 	}
 }
 
-// 機械の送り手の印: 先頭に角括弧の名前を1つ置くだけで、文の中身は変えない。照らすのは dispatcher と gate の印だけ。
+// 機械の送り手の印: 先頭に角括弧の名前を1つ置くだけで、文の中身は変えない。照らすのは dispatcher・gate・resume の印だけ。
 func TestMark(t *testing.T) {
 	if got := Mark(FromGate, "S-7（タイトル）: gate が fix を返した。"); got != "[gate] S-7（タイトル）: gate が fix を返した。" {
 		t.Errorf("Mark: %q", got)
 	}
 	for s, want := range map[string]bool{
-		Mark(FromDispatcher, "続けて"): true,
-		Mark(FromGate, "直して"):       true,
-		"\n [gate] 直して":             true,
-		"[dispatcher]続けて":           false,
-		"[cos] オーナーの文":              false,
-		"オーナーの文 [gate] ":            false,
-		"":                          false,
+		Mark(FromDispatcher, "続けて"):                   true,
+		Mark(FromGate, "直して"):                         true,
+		Mark(FromResume, "課題 `sample-site/S-7` の続き。"): true,
+		"[resume]続けて":                                 false,
+		"\n [gate] 直して":                               true,
+		"[dispatcher]続けて":                             false,
+		"[cos] オーナーの文":                                false,
+		"オーナーの文 [gate] ":                              false,
+		"":                                            false,
 	} {
 		if got := Marked(s); got != want {
 			t.Errorf("Marked(%q) = %v", s, got)
