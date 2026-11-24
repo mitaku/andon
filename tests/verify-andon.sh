@@ -245,6 +245,12 @@ if [ "$self" = true ]; then
   [ -z "$out" ] || die "features.sh: 地図が覆わないもの（cmd/kanban/migrate.go）だけの差分で $out を出す"
   c14=$(put cmd/kanban/main.go x)
   [ "$(feat "$c13..$c14")" = report-ready ] || die "features.sh: cmd/kanban/main.go の差分で report-ready だけにならない: $(feat "$c13..$c14" | tr '\n' ' ')"
+  # dispatcher が巡ごとに呼ぶ生の記録の片付け（internal/otel/prune.go）は dispatcher-news を選び、まだ誰も起動しない受け口（serve.go）は地図が覆わないものとして何も選ばない
+  c15=$(put internal/otel/prune.go x)
+  [ "$(feat "$c14..$c15")" = dispatcher-news ] || die "features.sh: internal/otel/prune.go の差分で dispatcher-news だけにならない: $(feat "$c14..$c15" | tr '\n' ' ')"
+  c16=$(put internal/otel/serve.go x)
+  out=$(feat "$c15..$c16") || die "features.sh: 地図が覆わないもの（internal/otel/serve.go）だけの範囲で 0 で終わらない"
+  [ -z "$out" ] || die "features.sh: 地図が覆わないもの（internal/otel/serve.go）だけの差分で $out を出す"
   rc=0; (cd "$repo" && bash "$root/$skill/scripts/features.sh") 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "features.sh: 範囲が無いのに終了コード $rc（2 でない）"
   rc=0; bash "$skill/scripts/drive.sh" no-such-feature 0123456789abcdef0123456789abcdef01234567 2>/dev/null || rc=$?
