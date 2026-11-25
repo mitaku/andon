@@ -1,6 +1,6 @@
 # 流れの数え
 
-オーナーか役が `andon measure` を打つと、kanban の記録から期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・gate の差し戻し率）と対抗の指標と、通知の素通りの数と、課題ごとのトークン数を数えて出す。読むだけで、何も書かない。
+オーナーか役が `andon measure` を打つと、kanban の記録から期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・gate の差し戻し率）と対抗の指標と、通知の素通りの数と、課題ごとのトークン数と、知識（wiki）が依頼書に載り読まれたかと知識の欠けの申告の数を数えて出す。読むだけで、何も書かない。
 
 ## 細かい機能
 
@@ -12,6 +12,8 @@
   - 見るファイル: `internal/measure/tokens.go`、`internal/sessionlog/sessionlog.go`
 - `ms-breakdown` 内訳の節が、期間に片付いた課題の結果の記録（`library/outcome.json`）の `breakdown` を役ごとに合わせ、Chief of Staff のトークンをハーネスの役ごとの生の記録（`~/.local/state/andon/otel/<slug>/roles/chief-of-staff/<日付>.traces.jsonl`）から数えた日数と一緒に出す。プロファイルごとの節に、片付いた担当の課題がプロファイルごとに出る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/measure/breakdown.go`、`internal/measure/measure.go`、`internal/trace/roletokens.go`、`internal/trace/check.go`、`schema/measure.schema.json`
+- `ms-knowledge` 知識の節が、期間に片付いた担当の課題について、依頼書（`brief.md`）に wiki のページを載せた課題の数、結果の記録の内訳の読み（`breakdown.knowledge`）からページを読んだ課題の数と読まれた数の多いページ、wiki の置き場（`<ANDON_WORKSPACE>/wiki/`）の Topics と Entities のうち読まれなかったページ、報告の申告（`report.json` の `gaps[]`）の種類ごと・先ごとの数と繰り返しを出す。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/measure/knowledge.go`、`internal/measure/measure.go`、`schema/measure.schema.json`
 - `ms-table` 人向けの表が「価値:」の行で始まる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/measure/measure.go`
 - `ms-readonly` 打つ前と後で、kanban とセッションの記録が変わらない。見る道: 検証の担当だけ。
@@ -33,7 +35,8 @@
 - **置いてある問いを外す。** 打つ前に、Chief of Staff の端末が呼ぶ判断（`andon issue ask --new --now`）と置いておく判断（`--later`）を 1 件ずつ足してある。どちらの問いも開いたまま。`ms-question-later` の行に `flow.question_open` が出る。`count` が 1 で、`ok   ms-question-later` が見えれば動いた。
 - **トークンを読む。** `ms-tokens` の行に課題ごとの `tokens` が出る。片付いた課題が入力 11・出力 22・キャッシュの読み 33・書き 44、残った課題が `null` で、`ok   ms-tokens` が見えれば動いた。
 - **内訳を読む。** 打つ前に、片付いた課題の結果の記録に内訳（担当。入力 1・出力 2・キャッシュの読み 3・書き 4。待ちとツール 2 つ）を置き、結果の記録の無いレビュアーの課題を片付け、一時の HOME の `.local/state/andon/otel/project/roles/chief-of-staff/` に今日の日付の Chief of Staff の記録（入力 5・出力 6・キャッシュの読み 7・書き 8）を置いてある。`ms-breakdown` の行に `breakdown` と `profiles` が出る。片付いた課題 2・内訳の無い課題 1、担当の行と待ちとツールが置いた数どおり、Chief of Staff が 1 日分で割合 0.72、プロファイル `claude` が 1 件で周回 1 で、`ok   ms-breakdown` が見えれば動いた。
-- **表を読む。** `ms-table` の行に人向けの表が出る。先頭が「価値:」の行で、内訳の節とプロファイルの節の行がある。`ok   ms-table` が見えれば動いた。
+- **知識を読む。** 打つ前に、片付いた課題の依頼書に `wiki/topics/shell.md` を書き、内訳に `topics/shell.md` を 2 回と目録を 1 回読んだ記録を足し、報告に `AGENTS.md` への申告を 2 件置き、wiki の置き場を一時のセルの repo（`ANDON_WORKSPACE`）に向けて Topics を 2 枚と Entities を 1 枚置いてある。`ms-knowledge` の行に `knowledge` が出る。依頼書に載せた課題 1・読んだ課題 1・ページ `topics/shell.md` が 2 回・読まれなかったページが `entities/owner.md` と `topics/ci.md`・申告 2 件で `AGENTS.md` が繰り返しで、`ok   ms-knowledge` が見えれば動いた。
+- **表を読む。** `ms-table` の行に人向けの表が出る。先頭が「価値:」の行で、内訳の節とプロファイルの節と知識の節の行がある。`ok   ms-table` が見えれば動いた。
 - **書かないことを確かめる。** `ok   ms-readonly` が見えれば、打つ前と後で kanban とセッションの記録の sha256 が同じ。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
@@ -58,3 +61,4 @@
 - 切り離した kanban の課題は PR を持たないので、`gh pr list` は呼ばれず、マージに関わる指標（リードタイム・自動マージ率・介在回数）は「記録なし」になる。これらの数え方は `go test ./internal/measure/` が見ている。`ms-flow` はリードタイムを見ない。
 - 期間は UTC の日付で、既定は今日までの 7 日。日付が変わる前後に打つと、作った履歴が期間の外に落ちることがある。そのときは打ち直す。
 - セッションの記録の置き場は `CLAUDE_CONFIG_DIR` が無ければ `~/.claude`。切り離した道は HOME を一時に向けるので、セルの本物のセッションの記録は読まない。
+- 知識の節の wiki の置き場は `ANDON_WORKSPACE` が無ければ `/workspace` の `wiki/`。HOME を一時に向けても、セルの本物の wiki を読む。切り離した道は `ANDON_WORKSPACE` も一時に向ける。

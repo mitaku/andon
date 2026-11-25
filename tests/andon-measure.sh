@@ -65,8 +65,16 @@ cat >"$k/issues/S-0001/library/outcome.json" <<'EOF'
 {"issue": "S-0001", "breakdown": {"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 2, "llm_ms": 900, "tool_ms": 300, "blocked_ms": 0,
  "tokens": {"input": 10, "output": 20, "cache_read": 60, "cache_write": 10}, "errors": {"llm": 0, "tool": 1},
  "tools": [{"name": "Bash", "argv0": "go", "count": 3, "ms": 300, "errors": 1}],
- "waits": {"question_ms": 600000, "review_ms": 0, "ci_ms": 120000, "gone_ms": 0}}}
+ "waits": {"question_ms": 600000, "review_ms": 0, "ci_ms": 120000, "gone_ms": 0},
+ "knowledge": {"index_reads": 1, "pages": [{"path": "topics/shell.md", "reads": 2}]}}}
 EOF
+# 知識の節（ADR-0061 決めたこと 17）: 依頼書に wiki のページ、申告 2 件（同じ先）、wiki の置き場（切り離したセルの repo の wiki/）に
+# 読まれたページ 1 枚と読まれなかったページ 2 枚
+printf '先に wiki/topics/shell.md を読む。\n' >"$k/issues/S-0001/brief.md"
+printf '{"pr": "%s/1", "gaps": [{"kind": "missing", "where": "AGENTS.md", "text": "x"}, {"kind": "wrong", "where": "AGENTS.md", "text": "y"}]}\n' "$pr" \
+  >"$k/issues/S-0001/library/report.json"
+mkdir -p "$ANDON_WORKSPACE/wiki/topics" "$ANDON_WORKSPACE/wiki/entities"
+for p in topics/shell.md topics/ci.md entities/owner.md index.md; do printf '# x\n' >"$ANDON_WORKSPACE/wiki/$p"; done
 o=$XDG_STATE_HOME/andon/otel/sample-site/roles/chief-of-staff
 mkdir -p "$o"
 span() { # 1 日分の claude_code.llm_request の span（入力・出力・キャッシュ読み・キャッシュ書き が 1・2・3・4）
@@ -94,7 +102,11 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
   and .breakdown.roles == [{role: "worker", issues: 1, token_issues: 1, tokens: {input: 10, output: 20, cache_read: 60, cache_write: 10}, cache_read_rate: 0.75, errors: {llm: 0, tool: 1}}]
   and .breakdown.chief_of_staff == {days: 2, tokens: {input: 2, output: 4, cache_read: 6, cache_write: 8}, share: 0.17}
   and .profiles == [{profile: null, issues: 1, worked_minutes: {count: 1, median: 360}, tokens: {count: 1, median: 100},
-    gate: {records: 1, fix: 0, needs_human: 0, rate: 0}, review_rounds: {count: 1, median: 0}}]' "$tmp/out.json" >/dev/null
+    gate: {records: 1, fix: 0, needs_human: 0, rate: 0}, review_rounds: {count: 1, median: 0}}]
+  and .knowledge == {issues: 1, briefed: 1, read: {issues: 1, index_only: 0, no_record: 0},
+    pages: [{path: "topics/shell.md", reads: 2, issues: 1}], unread: ["entities/owner.md", "topics/ci.md"],
+    gaps: {count: 2, issues: 1, by_kind: {missing: 1, wrong: 1, hard_to_find: 0},
+      wheres: [{where: "AGENTS.md", count: 2, issues: ["S-0001"]}], repeated: [{where: "AGENTS.md", count: 2, issues: ["S-0001"]}]}}' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
 echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）・内訳・Chief of Staff の 2 日分・プロファイル'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
@@ -108,7 +120,10 @@ grep -q '^  PR あたりのオーナーの介在回数  *3\.00（3回 / 1本。�
 grep -q '^  答えを決めた者  *オーナー 2・Chief of Staff 1・command 0・印なし 1$' "$tmp/table"
 grep -q '^  chief-of-staff 2日分 入力 2・出力 4・キャッシュ読み 6・キャッシュ書き 8（全体の 17%）$' "$tmp/table"
 grep -q '^  プロファイル無し 1件・実働 360（1件）' "$tmp/table"
-echo 'ok 表: 介在の内訳と、答えを決めた者の行'
+grep -q '^  依頼書に wiki のページを載せた課題 1件 / 1件$' "$tmp/table"
+grep -q '^  1 回も読まれなかった Topics と Entities のページ  2枚$' "$tmp/table"
+grep -q '^    AGENTS.md 2件（繰り返し） S-0001$' "$tmp/table"
+echo 'ok 表: 介在の内訳と、答えを決めた者の行と、知識の節'
 echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標・飛ばした行・記録だけへ移す候補'
 after=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 [ "$before" = "$after" ]
@@ -126,7 +141,9 @@ jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .
   and .efficiency.answers == {owner: 0, chief_of_staff: 0, machine: 0, unmarked: 0}
   and .prs == [] and .issues == [] and .estimate == {count: 0, within: 0, rate: null, none: 0} and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}
   and .breakdown == {issues: 0, none: 0, waits: {issues: 0, question_ms: 0, review_ms: 0, ci_ms: 0, gone_ms: 0}, roles: [], tools: [], chief_of_staff: {days: 0, tokens: null, share: null}}
-  and .profiles == []' "$tmp/empty.json" >/dev/null
+  and .profiles == []
+  and .knowledge == {issues: 0, briefed: 0, read: {issues: 0, index_only: 0, no_record: 0}, pages: [], unread: null,
+    gaps: {count: 0, issues: 0, by_kind: {missing: 0, wrong: 0, hard_to_find: 0}, wheres: [], repeated: []}}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'

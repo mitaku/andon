@@ -4,7 +4,7 @@
   "title": "Measure",
   "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
-  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "estimate", "issues", "tokens", "breakdown", "profiles", "skipped"],
+  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "estimate", "issues", "tokens", "breakdown", "profiles", "knowledge", "skipped"],
   "additionalProperties": false,
   "properties": {
     "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
@@ -282,6 +282,67 @@
       "type": "array",
       "items": { "$ref": "#/$defs/profile" }
     },
+    "knowledge": {
+      "description": "Knowledge section (ADR-0061 decisions 15 and 17): for the agents' issues of issues[] (moved into the last column in the period; reviewer, Chief Engineer and owner issues left out), whether the cell wiki was put in the brief, read, and found wanting. Counts to read, not to act on: nothing (gate, delegation, the wiki's pages, the skills) changes from them (decision 19).",
+      "type": "object",
+      "required": ["issues", "briefed", "read", "pages", "unread", "gaps"],
+      "additionalProperties": false,
+      "properties": {
+        "issues": { "description": "The agents' issues counted (the issues of issues[]).", "$ref": "#/$defs/count" },
+        "briefed": { "description": "Of those, issues whose brief.md names a wiki page (under the wiki store's absolute path, or wiki/ after a word break; the same pages as breakdown.knowledge counts). A brief naming only the index does not count.", "$ref": "#/$defs/count" },
+        "read": {
+          "description": "Wiki reads from library/outcome.json breakdown.knowledge (schema/outcome.schema.json). Every issue counted is in exactly one of issues, index_only and no_record, or none of them (a record with no reads).",
+          "type": "object",
+          "required": ["issues", "index_only", "no_record"],
+          "additionalProperties": false,
+          "properties": {
+            "issues": { "description": "Issues whose breakdown.knowledge has one or more pages read. An issue that read only the index is not counted.", "$ref": "#/$defs/count" },
+            "index_only": { "description": "Issues whose breakdown.knowledge has no page read but one or more index reads.", "$ref": "#/$defs/count" },
+            "no_record": { "description": "Issues with no read record: no breakdown (as breakdown.none counts it) or a breakdown without knowledge (a Codex session, or a record written before the key). Not the same as zero reads.", "$ref": "#/$defs/count" }
+          }
+        },
+        "pages": {
+          "description": "The pages read, summed over the issues: the 10 most read, most reads first, then by path.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/knowledge_page" }
+        },
+        "unread": {
+          "description": "The .md pages under the wiki store's entities/ and topics/ that no counted issue read in the period, by path (relative to the wiki store). null when it cannot be told: no wiki store, or no counted issue has a read record (every page would look unread).",
+          "anyOf": [{ "type": "array", "items": { "$ref": "#/$defs/wiki_path" } }, { "type": "null" }]
+        },
+        "gaps": {
+          "description": "Knowledge gap reports (report.json gaps[]) of the counted issues. A report whose kind is none of the three is listed in skipped and not counted.",
+          "type": "object",
+          "required": ["count", "issues", "by_kind", "wheres", "repeated"],
+          "additionalProperties": false,
+          "properties": {
+            "count": { "description": "Gap reports.", "$ref": "#/$defs/count" },
+            "issues": { "description": "Issues with one or more gap reports.", "$ref": "#/$defs/count" },
+            "by_kind": {
+              "description": "Gap reports by kind.",
+              "type": "object",
+              "required": ["missing", "wrong", "hard_to_find"],
+              "additionalProperties": false,
+              "properties": {
+                "missing": { "description": "kind missing.", "$ref": "#/$defs/count" },
+                "wrong": { "description": "kind wrong.", "$ref": "#/$defs/count" },
+                "hard_to_find": { "description": "kind hard_to_find.", "$ref": "#/$defs/count" }
+              }
+            },
+            "wheres": {
+              "description": "Gap reports by where (trimmed, a leading ./ dropped, the path cleaned; empty is unknown), most first, then by where.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/gap_where" }
+            },
+            "repeated": {
+              "description": "The rows of wheres with two or more gap reports, unknown left out: the same knowledge reported again.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/gap_where" }
+            }
+          }
+        }
+      }
+    },
     "skipped": {
       "description": "Records not counted because they could not be read: a log.jsonl line, a line of the dispatcher's notification records, a line or file of a session record, a file, or a repository whose merged pull requests could not be listed.",
       "type": "array",
@@ -440,6 +501,29 @@
             { "type": "null" }
           ]
         }
+      }
+    },
+    "wiki_path": { "description": "A path relative to the wiki store, ending in .md.", "type": "string", "pattern": "^[^/].*[.]md$" },
+    "knowledge_page": {
+      "description": "One wiki page's reads.",
+      "type": "object",
+      "required": ["path", "reads", "issues"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "description": "The page, relative to the wiki store.", "$ref": "#/$defs/wiki_path" },
+        "reads": { "description": "Reads summed over the issues (one or more).", "type": "integer", "minimum": 1 },
+        "issues": { "description": "Issues that read it (one or more).", "type": "integer", "minimum": 1 }
+      }
+    },
+    "gap_where": {
+      "description": "Gap reports to one where.",
+      "type": "object",
+      "required": ["where", "count", "issues"],
+      "additionalProperties": false,
+      "properties": {
+        "where": { "description": "The where, as compared (unknown when it could not be named).", "type": "string", "minLength": 1 },
+        "count": { "description": "Gap reports to it (one or more).", "type": "integer", "minimum": 1 },
+        "issues": { "description": "Issues that reported it, by id.", "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
       }
     },
     "skip": {
