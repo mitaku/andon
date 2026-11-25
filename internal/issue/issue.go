@@ -262,15 +262,21 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 	if err := c.samePRRepo(r.PR); err != nil {
 		return err
 	}
-	// 新しく書く pr は、PR の branch が課題の branch（issue.yaml の branch）と同じときだけ受ける。ほかの課題の PR を書くと、
+	// pr は、PR の branch が課題の branch（issue.yaml の branch）と同じときだけ受ける。ほかの課題の PR を書くと、
 	// gate がその PR に印とコメントを書き、settle がマージ済みと読んで片付け、結果と手直しの記録に混ざる。
-	// 引き継ぐ pr は書いたときに確かめたので、GitHub に聞き直さない。branch の無い課題は照らせないので確かめない
-	if branch := c.issue.Str("branch"); r.PR != "" && branch != "" && (prev == nil || r.PR != prev.PR) {
+	// 新しく書く pr が違えば断る。引き継ぐ pr（この直しより前に書かれたもの）が違えば、断ると担当に外す手が無いので、引き継がずに外す。
+	// 引き継ぐ pr の branch が読めなければ、報告を書けなくしないよう引き継ぐ。branch の無い課題は照らせないので確かめない
+	if branch := c.issue.Str("branch"); r.PR != "" && branch != "" {
+		inherited := prev != nil && pr == "" && r.PR == prev.PR
 		got, err := prBranch(r.PR)
-		if err != nil {
+		switch {
+		case err != nil && inherited:
+		case err != nil:
 			return err
-		}
-		if got != branch {
+		case got != branch && inherited:
+			fmt.Fprintf(stdout, "前の report.json の pr（%s）は PR の branch（%s）が課題の branch（%s）と違う。この課題の PR でないので引き継がない\n", r.PR, got, branch)
+			r.PR = ""
+		case got != branch:
 			return fail("PR の branch（%s）が課題の branch（%s）と違う。この課題の PR でないので pr に書かない（PR を出さない課題なら --pr を付けない）: %s", got, branch, r.PR)
 		}
 	}

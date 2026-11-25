@@ -4,7 +4,7 @@
 # 後半は本物の andon dispatcher --once を偽のセルの repo で回し、止めている間はマージしないこと（外すとマージする対照つき）と、
 # approve のあとに止めた判定を捨てることを通す。
 # 偽の gh は止める口が打つ2つの呼び出しだけを知るものに替える（sandbox.sh の偽の gh はこの2つを知らない）:
-#   pr view <n> --repo <owner>/<repo> --json state,mergeCommit,headRefOid,statusCheckRollup は $tmp/gh/view、
+#   pr view <n> --repo <owner>/<repo> --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository は $tmp/gh/view、
 #   api -X POST repos/<owner>/<repo>/statuses/<sha> … は記録して 0。ほかは記録して 99。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
@@ -13,7 +13,7 @@ cat >"$tmp/bin/gh" <<EOF
 #!/bin/sh
 echo "gh \$*" >>"$tmp/gh.calls"
 case "\$1 \$2" in
-  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup ] && exec cat "$tmp/gh/view" ;;
+  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository ] && exec cat "$tmp/gh/view" ;;
   "api -X") [ "\$3" = POST ] && exit 0 ;;
 esac
 echo "偽の gh: 知らない呼び出し \$*" >&2
@@ -115,10 +115,11 @@ echo "gh \$*" >>"$tmp/gh.calls"
 st() { if [ -f $d/merged ]; then echo MERGED; else echo OPEN; fi; }
 case "\$*" in
   "pr view 7 --repo example/sample-site --json headRefOid -q .headRefOid"|"pr view https://github.com/example/sample-site/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid $d/view.json ;;
+  "pr view https://github.com/example/sample-site/pull/7 --json headRefName -q .headRefName") jq -r .headRefName $d/view.json ;;   # andon issue report が pr の branch を照らす
   "pr view 7 --repo example/sample-site --json state,mergeCommit"|"pr view 7 --repo example/sample-site --json state,mergeCommit,headRefOid"|"pr view 7 --repo example/sample-site --json state,mergeCommit,mergedAt")
     jq --arg s "\$(st)" '{state: \$s, headRefOid, mergeCommit: (if \$s == "MERGED" then {oid: .headRefOid} else null end), mergedAt: (if \$s == "MERGED" then "2026-01-01T00:00:00Z" else null end)}' $d/view.json ;;
-  "pr view 7 --repo example/sample-site --json state,mergeCommit,headRefOid,statusCheckRollup")
-    jq --arg s "\$(st)" --arg m "\$(tail -1 $d/marks 2>/dev/null)" '{state: \$s, headRefOid, mergeCommit: (if \$s == "MERGED" then {oid: .headRefOid} else null end),
+  "pr view 7 --repo example/sample-site --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")
+    jq --arg s "\$(st)" --arg m "\$(tail -1 $d/marks 2>/dev/null)" '{state: \$s, headRefOid, headRefName, isCrossRepository, mergeCommit: (if \$s == "MERGED" then {oid: .headRefOid} else null end),
       statusCheckRollup: (if \$m == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: (\$m | ascii_upcase)}] end)}' $d/view.json ;;
   "pr view 7 --repo example/sample-site --json state,commits,comments,reviews") jq --arg s "\$(st)" '{state: \$s, commits: [{oid: .headRefOid, messageHeadline: "x"}], comments: [], reviews: []}' $d/view.json ;;
   "pr view https://github.com/example/sample-site/pull/7 --json state,mergeCommit,files") jq --arg s "\$(st)" '{state: \$s, mergeCommit: null, files: []}' $d/view.json ;;

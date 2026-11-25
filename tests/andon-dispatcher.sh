@@ -60,13 +60,13 @@ case "\$*" in
     if [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
     elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
     else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
-  "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid,statusCheckRollup")   # andon issue settle。打った回数を states に（上と同じ）。
+  "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")   # andon issue settle。打った回数を states に（上と同じ）。
     echo x >> \$d/states                                                                    # statusCheckRollup は head に書いた gate の印（marks/<sha>。説明文は出さない）
     h=\$(jq -r .headRefOid \$d/view.json); m=\$(cat \$d/marks/\$h 2>/dev/null || :)
     r=\$(jq -n --arg m "\$m" 'if \$m == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: (\$m | ascii_upcase)}] end')
-    if [ -f \$d/closed ]; then jq --argjson r "\$r" '{state:"CLOSED",mergeCommit:null,headRefOid,statusCheckRollup:\$r}' \$d/view.json
-    elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" --argjson r "\$r" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid,statusCheckRollup:\$r}' \$d/view.json
-    else jq --argjson r "\$r" '{state:"OPEN",mergeCommit:null,headRefOid,statusCheckRollup:\$r}' \$d/view.json; fi ;;
+    if [ -f \$d/closed ]; then jq --argjson r "\$r" '{state:"CLOSED",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository}' \$d/view.json
+    elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" --argjson r "\$r" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository}' \$d/view.json
+    else jq --argjson r "\$r" '{state:"OPEN",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository}' \$d/view.json; fi ;;
   "pr view 7 --repo example/app --json state,commits,comments,reviews")   # オーナーの手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
@@ -1167,6 +1167,25 @@ dispatcher
     die "ほかの課題の PR を書いた担当に理由の fix を送らない: $(tail -n 1 "$tmp/hc/sent" 2>/dev/null)"
 HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
 ok 'ほかの課題の branch の PR を報告に書いた課題には、gate は PR に何も書かず、理由の fix を担当へ送る'
+
+# 5g. この直しより前の報告に、ほかの課題のマージ済みの PR が入っていた。settle はこの課題を片付けない（結果と手直しの記録に混ぜない）。
+#     担当が --pr を付けずに報告を書き直すと、その pr を引き継がずに外す（断ると担当に外す手が無い）
+nid=$(newtask 'ほかの課題のマージ済みの PR を持つ' person)
+work "$nid" docs/g.md
+jq '.headRefName = "demo/D-9999"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+as_worker "$nid" report
+jq '.pr = "https://github.com/example/app/pull/7"' "$L/issues/$nid/library/report.json" > "$tmp/rep.new" && mv "$tmp/rep.new" "$L/issues/$nid/library/report.json"   # 直しの前に書かれた報告
+echo "$head" > "$tmp/gh/merged"
+watch_due "$nid"; dispatcher
+kanban show "$nid" --json | jq -e '.issue.status == "doing"' >/dev/null || die "ほかの課題のマージ済みの PR で、この課題を片付けた: $(kanban show "$nid" --json | jq -c .issue.status)"
+[ "$(recorded "$nid" merged)" = null ] && [ "$(pending "$nid" merged)" = null ] || die "ほかの課題のマージを、この課題の merged として知らせた: $(recorded "$nid" merged)"
+[ ! -e "$L/issues/$nid/library/outcome.json" ] && [ ! -e "$(cj "$nid")" ] || die 'ほかの課題のマージを、この課題の結果か手直しの記録に書いた'
+grep -q "$nid の report.json の PR .* はこの課題の PR でない" "$tmp/dispatcher.log" || die "片付けない理由をログに書かない: $(tail -n 3 "$tmp/dispatcher.log")"
+out=$(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$nid" && HC_TERMINAL_ID=t7 "$andon" issue report "$nid" <<<'## Report')
+grep -q 'この課題の PR でないので引き継がない' <<<"$out" && jq -e '(.pr // "") == ""' "$L/issues/$nid/library/report.json" >/dev/null ||
+    die "報告を書き直しても、ほかの課題の PR を引き継いだ: $out $(jq -c .pr "$L/issues/$nid/library/report.json")"
+rm -f "$tmp/gh/merged"; HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
+ok '直しの前の報告に入っていたほかの課題のマージ済みの PR では、settle は課題を片付けず、報告を書き直すとその pr を引き継がない'
 
 # 6. andon issue finish（オーナーがマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')

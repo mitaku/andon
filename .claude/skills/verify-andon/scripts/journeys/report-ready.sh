@@ -43,6 +43,13 @@ step "rr-report: ほかの branch の PR を報告に書く" "$andon" issue repo
   || { grep -q 'この課題の PR でない' "$tmp/step.out" && [ ! -e "$lib/report.json" ] \
     && ok "rr-report: PR の branch が課題の branch と違えば、report.json を書かずに断る" \
     || fail "rr-report: 断る理由が「この課題の PR でない」でないか、report.json を書いた"; }
+# rr-report: 前の report.json の pr がほかの課題の PR（この直しより前に書かれたもの）なら、--pr を付けずに書き直すと引き継がずに外す
+step "rr-report: 報告を書く（pr 無し）" "$andon" issue report "$id" <<<"## Report" >/dev/null
+jq --arg pr "$pr" '.pr = $pr' "$lib/report.json" >"$tmp/rep.new" && mv "$tmp/rep.new" "$lib/report.json"
+step "rr-report: ほかの課題の PR が入った報告を、--pr を付けずに書き直す" "$andon" issue report "$id" <<<"## Report" \
+  && grep -q 'この課題の PR でないので引き継がない' "$tmp/step.out" && jq -e '(.pr // "") == ""' "$lib/report.json" >/dev/null \
+  && ok "rr-report: 前の報告のほかの課題の PR は、書き直すと引き継がずに外す" \
+  || fail "rr-report: 前の報告のほかの課題の PR を引き継いだか、外したことを書かない"
 echo "$branch" >"$tmp/gh/branch"
 # rr-report: 報告が report.json と report.md になる
 data='{"acceptance":[{"id":"A1","result":"pass","evidence":"git log -1（記録 runs/1.json）","run":1}],"next":[{"to":"chief-of-staff","text":"検証の跡を片付ける"}]}'
