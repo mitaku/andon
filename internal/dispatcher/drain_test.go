@@ -178,6 +178,19 @@ func TestLogDeliveredAcked(t *testing.T) {
 	}
 }
 
+// answered と hold を含むターンも、一緒に渡したほかの通知ごと届けた通知の記録に1行残る
+// （記録の schema の kind の一覧が通知の一覧とずれると、EncodeLine が断って行ごと落ちる）。
+func TestLogDeliveredAnsweredAndHold(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	h := &HookNews{News: []Notification{{Issue: "A-0001", Kind: "report"}, {Issue: "A-0002", Kind: "answered"}, {Issue: "A-0003", Kind: "hold"}}}
+	logDelivered("demo", h, false)
+	b, _ := os.ReadFile(DeliveredPath("demo"))
+	var d Delivered
+	if err := json.Unmarshal(b, &d); err != nil || len(d.News) != 3 || d.News[1] != (DeliveredNews{Issue: "A-0002", Kind: "answered"}) || d.News[2] != (DeliveredNews{Issue: "A-0003", Kind: "hold"}) {
+		t.Fatalf("answered と hold を含むターンの記録が違う: %q %v", b, err)
+	}
+}
+
 func TestDrainAckedEvenIfLabelFails(t *testing.T) {
 	bin := t.TempDir()
 	hc := "#!/bin/sh\n" +
