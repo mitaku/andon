@@ -69,6 +69,7 @@ Verify-features: wl-resume, wl-record
 | 担当の起動 | [worker-launch.md](./worker-launch.md) | 本物の記録を読む | 記録は検証の担当だけ。最初の turn は Chief of Staff の試しの課題 |
 | 報告と ready | [report-ready.md](./report-ready.md) | 切り離して動かす | 検証の担当だけ |
 | gate | [gate.md](./gate.md) | 本物の記録を読む | 検証の担当だけ |
+| dispatcher のマージ | [merge.md](./merge.md) | 切り離して動かす | 検証の担当だけ |
 | dispatcher の通知 | [dispatcher-news.md](./dispatcher-news.md) | 本物の記録を読む | 記録は検証の担当だけ。届いた turn は Chief of Staff の試しの課題 |
 | hook | [hooks.md](./hooks.md) | 切り離して動かす | 振る舞いは検証の担当だけ。待ち役と Esc はオーナーが見る |
 | boot | [boot.md](./boot.md) | 本物の記録を読む | 検証の担当だけ |
