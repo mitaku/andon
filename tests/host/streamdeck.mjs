@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 
-import { ACTION, ARGS, PLUGIN, deck, settle, svgOf, textsOf } from './streamdeck-fake.mjs';
+import { ACTION, ARGS, PLUGIN, WORKING, deck, settle, svgOf, textsOf } from './streamdeck-fake.mjs';
 
 let failed = 0;
 async function check(name, fn) {
@@ -248,6 +248,182 @@ await check('8 見えている間だけ読む。タイマーは 1 本（5 つの
   assert.equal(d.intervals.size, 1);
 }));
 
+// The Working key (acceptance 15 to 17). `hc events` never ends unless a case says so.
+const live = (rest = () => ({ code: 0 })) => (bin, args) => (args[0] === 'events' ? {} : rest(bin, args));
+const term = (address, state, labels = { role: 'chief-of-staff' }, extra = {}) => ({ address, state: 'live', labels, status: state ? { app: 'claude-code', state } : null, ...extra });
+const list = (terminals, seq = 10) => ({ channel: null, seq, terminals });
+const ev = (terminal, type, data, seq = 100) => ({ jsonrpc: '2.0', method: 'event', params: { data, seq, terminal, type } });
+const W = (d) => d.images('w1');
+const wtexts = (d) => textsOf(W(d).at(-1));
+const FIRST = [term('t1', 'working'), term('t2', 'working', { issue: 'S-0001', project: 'p' }), term('t3', 'working', {}),
+  term('t4', 'blocked'), term('t5', 'done', { role: 'chief-engineer', issue: 'S-0002' })];
+
+await check('15 Working: 見えると hc events を 1 つ起動し、role か issue の working を数える（5 つの場合）', async () => {
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.event('willAppear', 'w2', WORKING);
+    const runs = d.hcRuns();
+    assert.equal(runs.length, 1, 'hc events が 1 つでない');
+    assert.deepEqual([runs[0].bin, runs[0].args], ['hc', ['events', '--json']]);
+    const o = runs[0].options;
+    assert.deepEqual([o.shell, o.windowsHide, o.detached, o.cwd, o.stdio[1]], [false, true, undefined, d.tmp, 'pipe'], '起動の指定');
+    assert.deepEqual(wtexts(d), ['?'], '初めの 1 通の前は ?');
+    d.line(list(FIRST));
+    assert.deepEqual(wtexts(d), ['2', 'working'], '初めの 1 通の数');
+    assert.deepEqual(d.images('w2'), W(d), '2 つのキーの絵が違う');
+    d.line(ev('t4', 'status', { status: { app: 'claude-code', state: 'working' } }));
+    assert.deepEqual(wtexts(d), ['3', 'working'], '状態が変わった通知');
+    d.line({ jsonrpc: '2.0', method: 'missed', params: list([term('t1', 'working')], 200) });
+    assert.deepEqual(wtexts(d), ['1', 'working'], '遅れたあとの一覧');
+    d.line(ev('t1', 'status', { status: { app: 'claude-code', state: 'done' } }, 150));
+    assert.deepEqual(wtexts(d), ['1', 'working'], '一覧より前の seq の通知を数えた');
+    d.line(ev('t1', 'status', { status: { app: 'claude-code', state: 'done' } }, 201));
+    assert.deepEqual(wtexts(d), ['idle'], '0 のときに idle でない');
+    for (const image of [...W(d), ...d.images('w2')]) assert.equal(colorOf(image), 'dark', '琥珀か赤で塗った');
+  });
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.line({ jsonrpc: '2.0', method: 'missed', params: { seq: 5 } });
+    d.line(ev('t1', 'created', term('t1', 'working'), 6));
+    assert.deepEqual(wtexts(d), ['?'], '一覧の前の通知で数えた');
+    d.line(list(FIRST));
+    d.line('{"jsonrpc":"2.0","method":"heartbeat","params":{"seq":11}}');
+    d.line('not json');
+    d.line(ev('t9', 'status', { status: { state: 'working' } }));
+    assert.deepEqual(wtexts(d), ['2', 'working'], '読めない行か知らない端末で変わった');
+    const sends = W(d).length;
+    d.line(ev('t3', 'title', { title: 'x' }));
+    assert.equal(W(d).length, sends, '数が変わらないのに送った');
+    // A created worker, a label change, a finished and a removed one; a line in two pieces.
+    const created = JSON.stringify(ev('t6', 'created', term('t6', 'working', { issue: 'S-0003' })));
+    d.hcRuns()[0].child.stdout.emit('data', created.slice(0, 20));
+    assert.deepEqual(wtexts(d), ['2', 'working'], '半分の行で数えた');
+    d.hcRuns()[0].child.stdout.emit('data', `${created.slice(20)}\n`);
+    assert.deepEqual(wtexts(d), ['3', 'working'], '作られた担当');
+    d.line(ev('t3', 'labels', { labels: { role: 'chief-engineer' } }));
+    assert.deepEqual(wtexts(d), ['4', 'working'], 'ラベルを足した端末');
+    d.line(ev('t1', 'finished', { exit_code: 0, reason: 'exited' }));
+    d.line(ev('t2', 'removed', {}));
+    assert.deepEqual(wtexts(d), ['2', 'working'], '終わった端末と消えた端末');
+    d.line(ev('t6', 'labels', { labels: { issue: '' } }));
+    assert.deepEqual(wtexts(d), ['1', 'working'], '空のラベル');
+  });
+});
+
+await check('16 Working: 無音と子の終わりで ?、30 秒後に起動し直す。キーが無くなると終わらせる（6 つの場合）', async () => {
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.line(list(FIRST));
+    d.later(30000);
+    d.line('{"jsonrpc":"2.0","method":"heartbeat","params":{"seq":11}}');
+    d.later(44000);
+    assert.deepEqual(wtexts(d), ['2', 'working'], '行が届いていたのに ? にした');
+    d.later(2000);
+    assert.deepEqual(wtexts(d), ['?'], '46 秒の無音で ? にならない');
+    assert.ok(d.hcRuns()[0].killed, '無音の子を終わらせない');
+    d.line(list(FIRST), d.hcRuns()[0]);
+    assert.deepEqual(wtexts(d), ['?'], '終わらせた子の行を読んだ');
+    // ? came at 45 seconds after the last line, a second ago.
+    d.later(28000);
+    assert.equal(d.hcRuns().length, 1, '30 秒たつ前に起動し直した');
+    d.later(1000);
+    assert.equal(d.hcRuns().length, 2, '30 秒で起動し直さない');
+    d.line(list([term('t1', 'working')]));
+    assert.deepEqual(wtexts(d), ['1', 'working']);
+  });
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.line(list(FIRST));
+    d.hcRuns()[0].child.emit('exit', 1, null);
+    assert.deepEqual(wtexts(d), ['?'], '子が終わっても ? にならない');
+    d.later(30000);
+    assert.equal(d.hcRuns().length, 2, '子が終わって 30 秒で起動し直さない');
+    d.event('willDisappear', 'w1', WORKING);
+    assert.ok(d.hcRuns()[1].killed, 'キーが無くなっても子を終わらせない');
+    assert.equal(d.timeouts.size, 0, '待ちが残った');
+    const sends = d.sent.length;
+    d.line(list(FIRST), d.hcRuns()[1]);
+    d.later(120000);
+    assert.deepEqual([d.hcRuns().length, d.sent.length], [2, sends], 'キーが無くなったあとに起動か送信をした');
+    d.event('willAppear', 'w1', WORKING);
+    assert.deepEqual([d.hcRuns().length, wtexts(d)], [3, ['?']], '見え直したキーで起動し直さないか、前の数を出した');
+  });
+  // A page switch: the key goes and comes back. The old child's exit comes after the new child started.
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.event('willDisappear', 'w1', WORKING);
+    d.event('willAppear', 'w1', WORKING);
+    d.line(list(FIRST));
+    d.hcRuns()[0].child.emit('exit', null, 'SIGTERM');
+    d.hcRuns()[0].child.emit('error', new Error('late'));
+    assert.deepEqual([d.hcRuns().length, d.hcRuns()[1].killed, wtexts(d)], [2, false, ['2', 'working']], '古い子の終わりで新しい子を止めた');
+  });
+  // Two Working keys, one goes: the child stays and the other key follows the count.
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.event('willAppear', 'w2', WORKING);
+    d.line(list(FIRST));
+    d.event('willDisappear', 'w2', WORKING);
+    assert.equal(d.hcRuns()[0].killed, false, '残ったキーがあるのに子を止めた');
+    d.line(ev('t4', 'status', { status: { state: 'working' } }));
+    assert.deepEqual(wtexts(d), ['3', 'working'], '残ったキーの数が変わらない');
+    d.line(ev('t4', 'lost', {}));
+    assert.deepEqual(wtexts(d), ['2', 'working'], 'プログラムを失った端末を数えた');
+  });
+  await withDeck({ ends: live(), env: { HERDR_APP_HOME: '/nowhere', HC_BIN: '/srv/hc' } }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    assert.deepEqual(d.hcRuns().map((r) => r.bin), ['/srv/hc'], 'HC_BIN を起動しない');
+  });
+  await withDeck({ ends: live() }, async (d) => {
+    d.lamp(value(d, { light: 'amber', merge: 1 }));
+    d.event('willAppear');
+    d.tick();
+    d.event('keyDown');
+    await settle();
+    assert.deepEqual(d.hcRuns(), [], 'Lamp のキーだけで hc を起動した');
+  });
+  for (const [why, how] of [['起動できない', { error: 'ENOENT' }], ['呼び出しが投げる', { throws: 'spawn EINVAL' }]]) {
+    await withDeck({ ends: (bin, args) => (args[0] === 'events' ? how : { code: 0 }) }, async (d) => {
+      d.lamp(value(d, { light: 'amber', merge: 1 }));
+      d.event('willAppear', 'w1', WORKING);
+      await settle();
+      d.event('willAppear');
+      assert.equal(colorOf(d.images('key-1').at(-1)), 'amber', `${why}: Lamp の絵が送られない`);
+      assert.deepEqual(wtexts(d), ['?'], `${why}: Working が ? でない`);
+      d.lamp(value(d, { light: 'red', failed: 1 }));
+      d.tick();
+      assert.equal(colorOf(d.images('key-1').at(-1)), 'red', `${why}: Lamp が変わらない`);
+      d.later(30000);
+      await settle();
+      assert.equal(d.hcRuns().length, 2, `${why}: 30 秒で起動し直さない`);
+    });
+  }
+});
+
+await check('17 Working を押す: herdr-app status が 0 なら前に出す。0 でなければ showAlert（3 つの場合と manifest）', async () => {
+  for (const [why, status, want, alerts] of [
+    ['0', { code: 0 }, [['status'], []], 0],
+    ['1', { code: 1 }, [['status']], 1],
+    ['起動できない', { error: 'ENOENT' }, [['status']], 1],
+    ['5 秒で終わらない', {}, [['status']], 1],
+  ]) {
+    await withDeck({ ends: (bin, args) => (args[0] === 'status' ? status : { code: 0 }) }, async (d) => {
+      d.event('keyDown', 'w1', WORKING);
+      await settle();
+      if (why === '5 秒で終わらない') { d.later(5000); await settle(); }
+      assert.deepEqual(d.runs.map((r) => r.args), want, `${why}: 起動の一覧`);
+      assert.deepEqual(d.alerts(), Array(alerts).fill('w1'), `${why}: showAlert`);
+      for (const [i, r] of d.runs.entries()) {
+        assert.deepEqual([r.bin, r.options.shell, r.options.windowsHide, r.options.cwd], ['herdr-app', false, true, d.tmp], why);
+        assert.equal(r.options.detached === true, i === 1, `${why}: 切り離しの指定`);
+      }
+    });
+  }
+  const manifest = JSON.parse(await readFile(`${PLUGIN}/manifest.json`, 'utf8'));
+  assert.deepEqual(manifest.Actions.map((a) => [a.UUID, a.Name, a.UserTitleEnabled, a.SupportedInMultiActions]),
+    [[ACTION, 'Lamp', false, false], [WORKING, 'Working', false, false]]);
+});
+
 async function listing(dir, under = '') {
   const out = [];
   for (const e of await readdir(path.join(dir, under), { withFileTypes: true })) {
@@ -315,19 +491,20 @@ async function manifestFaults(dir, manifest, base = path.basename(dir)) {
   if (!(major > 7 || (major === 7 && minor >= 1))) out.push('Stream Deck');
   if (m.OS?.map((o) => o.Platform).sort().join() !== 'mac,windows') out.push('OS');
   if (m.Category !== 'Andon') out.push('category');
-  if (m.Actions?.length !== 1) out.push('actions');
+  if (m.Actions?.map((a) => a.UUID).join() !== `${ACTION},${WORKING}`) out.push('actions');
+  const names = { [ACTION]: 'Lamp', [WORKING]: 'Working' };
   for (const a of m.Actions ?? []) {
-    if (a.UUID !== ACTION || !a.UUID.startsWith(`${m.UUID}.`) || a.Name !== 'Lamp') out.push('action');
+    if (!a.UUID.startsWith(`${m.UUID}.`) || a.Name !== names[a.UUID]) out.push('action');
     if (a.UserTitleEnabled !== false) out.push('UserTitleEnabled');
     if (a.SupportedInMultiActions !== false) out.push('SupportedInMultiActions');
   }
-  const names = await listing(dir);
-  if (!names.includes(m.CodePath)) out.push('CodePath');
+  const files = await listing(dir);
+  if (!files.includes(m.CodePath)) out.push('CodePath');
   for (const image of [m.Icon, m.CategoryIcon, ...(m.Actions ?? []).flatMap((a) => [a.Icon, ...a.States.map((s) => s.Image)])]) {
-    if (!names.includes(`${image}.svg`) && !(names.includes(`${image}.png`) && names.includes(`${image}@2x.png`))) out.push(`image ${image}`);
+    if (!files.includes(`${image}.svg`) && !(files.includes(`${image}.png`) && files.includes(`${image}@2x.png`))) out.push(`image ${image}`);
   }
   for (const [file, px] of [[`${m.Icon}.png`, 256], [`${m.Icon}@2x.png`, 512]]) {
-    const png = names.includes(file) ? await readFile(path.join(dir, file)) : null;
+    const png = files.includes(file) ? await readFile(path.join(dir, file)) : null;
     if (png?.readUInt32BE(16) !== px || png?.readUInt32BE(20) !== px) out.push(`size ${file}`);
   }
   return out;
@@ -342,6 +519,9 @@ await check('9 manifest: UUID・Node.js 26・アプリ 7.1・2 つの偽の指�
     タイトル: (m) => { m.Actions[0].UserTitleEnabled = true; }, タイトルの指定なし: (m) => { delete m.Actions[0].UserTitleEnabled; },
     マルチアクション: (m) => { delete m.Actions[0].SupportedInMultiActions; }, 名前: (m) => { m.Actions[0].Name = 'Lamps'; },
     入口: (m) => { m.CodePath = 'no-such.js'; }, 画像: (m) => { m.Actions[0].States[0].Image = 'imgs/no-such'; },
+    'Working が無い': (m) => { m.Actions.pop(); }, 'Working の名前': (m) => { m.Actions[1].Name = 'Lamp'; },
+    'Working のタイトル': (m) => { m.Actions[1].UserTitleEnabled = true; }, 'Working のマルチアクション': (m) => { m.Actions[1].SupportedInMultiActions = true; },
+    'Working の画像': (m) => { m.Actions[1].Icon = 'imgs/no-such'; }, '順が逆': (m) => { m.Actions.reverse(); },
   })) {
     const copy = structuredClone(manifest);
     spoil(copy);

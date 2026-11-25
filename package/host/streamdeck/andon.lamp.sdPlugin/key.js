@@ -12,6 +12,8 @@ const LIT = {
   red: { lamp: "#D8453B", ink: "#FFFFFF" },
 };
 const DARK = { ground: "#1F2328", frame: "#ECE6DA", window: "#454B53" };
+// The Working key's "idle": the frame's color, dimmed.
+const IDLE = "#8C959F";
 // What waits, the most pressing first, and the word the key says for it.
 const KINDS = [["failed", "failed"], ["blocked", "blocked"], ["decision", "decide"], ["merge", "merge"], ["task", "task"], ["reply", "reply"]];
 const LINES = 2;
@@ -55,5 +57,17 @@ export function draw(value) {
   else [ground, body] = lit(value);
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">'
     + `<rect width="144" height="144" fill="${ground}"/>${body}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+// The Working key's image for a count, or null when it can't tell (ADR-0045 decision 15): dark always, the
+// lantern's amber and red are not its colors. No lantern either, so its "?" isn't the Lamp key's.
+export function drawWorking(n) {
+  let body;
+  if (n === null) body = text(72, 98, 72, DARK.frame, "?");
+  else if (n === 0) body = text(72, 84, 40, IDLE, "idle");
+  else body = text(72, 80, n < 1000 ? 64 : 44, DARK.frame, n) + text(72, 116, 22, DARK.frame, "working");
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">'
+    + `<rect width="144" height="144" fill="${DARK.ground}"/>${body}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

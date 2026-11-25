@@ -1,15 +1,18 @@
 // Andon's lantern on a Stream Deck key (ADR-0045): reads what the inbox mod decided from Herdr App's
 // shared.json, draws it, and on a press has the inbox open what waits. It decides no light itself.
+// A second key, Working, shows how many role terminals herdr-core says are working (decision 15).
 // No dependency: Stream Deck's WebSocket messages are spoken directly.
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { appHome, openWaiting } from "./app.js";
-import { draw, trusted } from "./key.js";
+import { appHome, openWaiting, raiseApp } from "./app.js";
+import { draw, drawWorking, trusted } from "./key.js";
+import { follower } from "./working.js";
 
 const LIGHT = "andon.lamp.light";
+const WORKING = "andon.lamp.working";
 const LAMP = "inbox.lamp";
 const READ_EVERY = 2000;
 
@@ -44,11 +47,13 @@ export function start({
   }
 
   const file = path.join(appHome(env, home), "shared.json");
-  const keys = new Set(); // the contexts of the keys in view
+  const keys = new Set(); // the contexts of the Lamp keys in view
+  const workKeys = new Set(); // and of the Working keys
   let timer = null;
   let value; // inbox.lamp at the last read that worked
   let image = null;
   let pressing = false;
+  let working = drawWorking(null);
 
   const socket = new WebSocket(`ws://127.0.0.1:${port}`);
   const send = (message) => socket.send(JSON.stringify(message));
@@ -82,10 +87,35 @@ export function start({
     timer = null;
   }
 
-  async function press(context) {
+  // Only while a Working key is in view does `hc events` run.
+  const follow = follower({
+    env, home, spawn: run, timers, now,
+    show(n) {
+      const next = drawWorking(n);
+      if (next === working) return;
+      working = next;
+      workKeys.forEach((context) => send({ event: "setImage", context, payload: { image: working } }));
+    },
+  });
+
+  function appearWorking(context) {
+    workKeys.add(context);
+    send({ event: "setImage", context, payload: { image: working } });
+    follow.start();
+  }
+
+  function disappearWorking(context) {
+    workKeys.delete(context);
+    if (workKeys.size) return;
+    follow.stop();
+    working = drawWorking(null);
+  }
+
+  // One press at a time, of either key.
+  async function press(context, open) {
     if (pressing) return;
     pressing = true;
-    const ok = await openWaiting({ env, platform, home, spawn: run, timers });
+    const ok = await open({ env, platform, home, spawn: run, timers });
     pressing = false;
     if (!ok) send({ event: "showAlert", context });
   }
@@ -98,10 +128,16 @@ export function start({
     } catch {
       return;
     }
-    if (message?.action !== LIGHT || typeof message.context !== "string") return;
-    if (message.event === "willAppear") appear(message.context);
-    else if (message.event === "willDisappear") disappear(message.context);
-    else if (message.event === "keyDown") press(message.context);
+    if (typeof message?.context !== "string") return;
+    if (message.action === LIGHT) {
+      if (message.event === "willAppear") appear(message.context);
+      else if (message.event === "willDisappear") disappear(message.context);
+      else if (message.event === "keyDown") press(message.context, openWaiting);
+    } else if (message.action === WORKING) {
+      if (message.event === "willAppear") appearWorking(message.context);
+      else if (message.event === "willDisappear") disappearWorking(message.context);
+      else if (message.event === "keyDown") press(message.context, raiseApp);
+    }
   });
   // No reconnecting (ADR-0045 decision 10): Stream Deck starts the plugin again.
   socket.addEventListener("error", () => exit(1));

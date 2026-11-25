@@ -22,7 +22,8 @@
 | 12 | `host-install` は、置き場を指定されたときだけ plugin を置く | `init/bin/bootstrap`・`docs/operate.md` | 生きている |
 | 13 | 設定の画面は作らず、App の置き場と実行ファイルは環境変数で替える | `package/host/streamdeck/andon.lamp.sdPlugin/app.js`・`package/host/streamdeck/andon.lamp.sdPlugin/README.md` | 生きている |
 | 14 | `inbox.lamp` の形は Andon の約束に足さず、mod と plugin をつないだ検査で守る | `package/host/inbox/README.md`・`tests/host/screen.mjs` | 生きている |
-| 15 | herdr-core の API から、動いている役の端末の数を出す 2 つ目のキーを足す | この ADR | まだ実装していない |
+| 15 | herdr-core の API から、動いている役の端末の数を出す 2 つ目のキーを足す | `package/host/streamdeck/andon.lamp.sdPlugin/working.js`・`package/host/streamdeck/andon.lamp.sdPlugin/lamp.js`・`package/host/streamdeck/andon.lamp.sdPlugin/manifest.json` | 生きている |
+| 16 | 2 つ目のキーで数える端末は、ラベル `role` か `issue` を持つものにする | `package/host/streamdeck/andon.lamp.sdPlugin/working.js` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
@@ -207,6 +208,9 @@
     - npm の依存は足さない（決めたこと 10）。
     オーナーの手元で最初に確かめること: Windows で `hc events --json` が起動でき、セルの端末の変化が届くこと。
     組み込まなかったもの: 「Lamp」のキーが「分からない」の間、herdr-core から読んだ、止まっている端末の数で補う（止まった端末の読み方が、mod `inbox` と plugin の 2 か所になる。App は基本的に開いている）／止まっている端末のタイトルや、報告の文をキーに出す（キーには収まらない。タッチ帯に出すテーマのときに、この API から読める）／キーから端末に返事を送る（やらないこと）／行燈の値を API の通知で受ける（mod から書く口が無い。決めたこと 4 の乗り換える条件）。
+16. **2026-11-25 2 つ目のキーで数える端末は、ラベル `role` か `issue` を持つものにする（決めたこと 15 の小さな改め。Chief of Staff が決めた）。** 状態が `working` の端末のうち、ラベル `role` か `issue` に空でない値を持つものを数える。
+    理由: 事実 16 は、Andon が起動した役の端末がラベル `role` を持つと書いた。しかし `role` を持つのは Chief of Staff・Chief Engineer・dispatcher だけで、担当とレビュアーの端末は `project` と `issue` を持ち、`role` を持たない（`internal/issue/start.go`、セルの `hc` の 0.1.17 で確かめた）。決めたこと 15 の字面のままでは、担当が動いても数が増えず、受け入れ条件 18 が成り立たない。受け入れ条件 15 の字面（`role` の無い端末は数えない場合）は、ラベルの無い端末で成り立つ。
+    捨てた案: 字面どおり `role` だけを数える（受け入れ条件 18 が成り立たない）／ラベル `project` を持つ端末を数える（受け入れ条件 15 の読み替えが要る。`role` か `issue` で足りる）／担当とレビュアーの起動に `role` のラベルを足す（起動の Go を変える話で、`role` か `issue` で足りる）。
 
 ## やらないこと（範囲の外。理由）
 

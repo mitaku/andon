@@ -1,9 +1,10 @@
-// Herdr App, from outside (ADR-0045 decisions 8 and 13): where it keeps shared.json, and what a press runs.
+// Herdr App, from outside (ADR-0045 decisions 8, 13 and 15): where it keeps shared.json, and what a press runs.
 import path from "node:path";
 
 const CALL = ["do", "inbox.call"];
-// How long `herdr-app do` may take.
-const CALL_GIVES_UP = 5000;
+const STATUS = ["status"];
+// How long `herdr-app do` or `herdr-app status` may take.
+const GIVES_UP = 5000;
 // herdr-app do's exit codes when the App is running: 0 the inbox got the command, 1 the App answered an error.
 // 2 is no window. Only 0 and 1 may be followed by a bare herdr-app: without a window, that one becomes the App.
 const DELIVERED = 0;
@@ -15,23 +16,24 @@ export function appHome(env, home) {
   return env.HERDR_APP_HOME || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "herdr-app");
 }
 
-// Opens what waits and brings the App to the front. True when both went well.
-export async function openWaiting({ env, platform, home, spawn, timers }) {
+// Runs `herdr-app <first>`, and a bare detached `herdr-app` to bring the App to the front when `raises(code)`.
+// Returns whether it all went well: `fine(code)` and, if it raised, the raise started.
+async function press({ env, platform, home, spawn, timers }, first, raises, fine) {
   // One working folder for both runs, so one name finds one program. No shell, no window.
   const options = { env, cwd: home, stdio: "ignore", shell: false, windowsHide: true };
 
-  // How `herdr-app do inbox.call` ended: its exit code, NOT_FOUND, or null (couldn't run, killed, too slow).
-  const call = (bin) => new Promise((resolve) => {
+  // How `herdr-app <first>` ended: its exit code, NOT_FOUND, or null (couldn't run, killed, too slow).
+  const run = (bin) => new Promise((resolve) => {
     let child;
     try {
-      child = spawn(bin, CALL, options);
+      child = spawn(bin, first, options);
     } catch {
       return resolve(null); // spawn throws for some failures, as a .cmd without a shell
     }
     const giveUp = timers.setTimeout(() => {
       child.kill();
       resolve(null);
-    }, CALL_GIVES_UP);
+    }, GIVES_UP);
     const ended = (how) => {
       timers.clearTimeout(giveUp);
       resolve(how);
@@ -54,11 +56,21 @@ export async function openWaiting({ env, platform, home, spawn, timers }) {
   });
 
   let bin = env.HERDR_APP_BIN || "herdr-app";
-  let code = await call(bin);
+  let code = await run(bin);
   if (code === NOT_FOUND && !env.HERDR_APP_BIN && platform === "win32" && env.LOCALAPPDATA) {
     bin = path.win32.join(env.LOCALAPPDATA, "Programs", "herdr-app", "herdr-app.exe");
-    code = await call(bin);
+    code = await run(bin);
   }
-  if (code !== DELIVERED && code !== REFUSED) return false;
-  return (await raise(bin)) && code === DELIVERED;
+  if (!raises(code)) return false;
+  return (await raise(bin)) && fine(code);
+}
+
+// The Lamp key: opens what waits and brings the App to the front. True when both went well.
+export function openWaiting(deps) {
+  return press(deps, CALL, (code) => code === DELIVERED || code === REFUSED, (code) => code === DELIVERED);
+}
+
+// The Working key: brings the App to the front when `herdr-app status` says it runs. True when it did.
+export function raiseApp(deps) {
+  return press(deps, STATUS, (code) => code === 0, () => true);
 }

@@ -9,6 +9,7 @@ import path from 'node:path';
 export const PLUGIN = 'package/host/streamdeck/andon.lamp.sdPlugin';
 export const ARGS = ['-port', '12345', '-pluginUUID', 'plugin-instance', '-registerEvent', 'registerPlugin', '-info', '{}'];
 export const ACTION = 'andon.lamp.light';
+export const WORKING = 'andon.lamp.working';
 
 export const settle = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -42,15 +43,16 @@ export async function deck({ argv = ARGS, env, platform = 'linux', home, at = Da
     timers: {
       setInterval: (fn, ms) => { d.intervals.set(++id, { fn, ms }); return id; },
       clearInterval: (n) => d.intervals.delete(n),
-      setTimeout: (fn, ms) => { d.timeouts.set(++id, { fn, ms }); return id; },
+      setTimeout: (fn, ms) => { d.timeouts.set(++id, { fn, ms, due: d.clock + ms }); return id; },
       clearTimeout: (n) => d.timeouts.delete(n),
     },
     spawn: (bin, args, options) => {
       const how = ends(bin, args);
       const child = new EventEmitter();
-      const run = { bin, args: [...args], options, killed: false, unref: false };
+      const run = { bin, args: [...args], options, killed: false, unref: false, child };
       d.runs.push(run);
       if (how.throws) throw new Error(how.throws);
+      child.stdout = Object.assign(new EventEmitter(), { setEncoding() {} });
       child.kill = () => { run.killed = true; };
       child.unref = () => { run.unref = true; };
       queueMicrotask(() => {
@@ -73,6 +75,21 @@ export async function deck({ argv = ARGS, env, platform = 'linux', home, at = Da
   d.tick = (ms = 2000) => { d.clock += ms; for (const { fn } of [...d.intervals.values()]) fn(); };
   d.images = (context) => d.sent.filter((m) => m.event === 'setImage' && (!context || m.context === context)).map((m) => m.payload.image);
   d.alerts = () => d.sent.filter((m) => m.event === 'showAlert').map((m) => m.context);
+  // Moves the clock on by ms and runs the timeouts that came due, in order, as they come due.
+  d.later = (ms) => {
+    const until = d.clock + ms;
+    for (;;) {
+      const next = [...d.timeouts.entries()].filter(([, t]) => t.due <= until).sort(([, a], [, b]) => a.due - b.due)[0];
+      if (!next) break;
+      d.timeouts.delete(next[0]);
+      d.clock = Math.max(d.clock, next[1].due);
+      next[1].fn();
+    }
+    d.clock = until;
+  };
+  // The `hc events` runs, and lines written on one's stdout (the last by default).
+  d.hcRuns = () => d.runs.filter((r) => r.args.join(' ') === 'events --json');
+  d.line = (message, run = d.hcRuns().at(-1)) => run.child.stdout.emit('data', `${typeof message === 'string' ? message : JSON.stringify(message)}\n`);
   d.done = () => rm(tmp, { recursive: true, force: true });
   return d;
 }
