@@ -213,7 +213,8 @@ func TestBundleBreakdown(t *testing.T) {
 	write(t, filepath.Join(k, "config.yaml"), "version: 3\nprefix: A\n")
 	var log []string
 	for i, body := range []string{
-		`{"result":"merged","worked_minutes":3,"breakdown":` + strings.Replace(bdJSON(9223372036854775807, 5), `"output":0`, `"output":7`, 1) + `}`,
+		`{"result":"merged","worked_minutes":3,"breakdown":` + strings.TrimSuffix(strings.Replace(bdJSON(9223372036854775807, 5), `"output":0`, `"output":7`, 1), "}") +
+			`,"knowledge":{"index_reads":1,"pages":[{"path":"topics/tool-quirks.md","reads":2}]}}}`,
 		`{"result":"merged","worked_minutes":3,"breakdown":null}`,
 		`{"result":"merged","worked_minutes":3}`,
 		`{"result":"merged","worked_minutes":3,"breakdown":{"role":"x"}}`,
@@ -252,6 +253,10 @@ func TestBundleBreakdown(t *testing.T) {
 	// 上限で止めた数を float64 に落とさずに写す
 	if !strings.Contains(got["A-0001"], `"input": 9223372036854775807`) || !strings.Contains(got["A-0001"], `"output": 7`) || !strings.Contains(got["A-0001"], `"role": "worker"`) {
 		t.Errorf("A-0001 の内訳が写っていない: %s", got["A-0001"])
+	}
+	// wiki の読み（knowledge）も写す（retro の schema が knowledge を知らないと、Redacted で collect の全体が落ちる）
+	if !strings.Contains(got["A-0001"], `"path": "topics/tool-quirks.md"`) || !strings.Contains(got["A-0001"], `"index_reads": 1`) {
+		t.Errorf("A-0001 の内訳に wiki の読みが写っていない: %s", got["A-0001"])
 	}
 	for _, id := range []string{"A-0002", "A-0003", "A-0004", "A-0005"} {
 		if got[id] != "null" {
@@ -324,7 +329,7 @@ func TestRetroBreakdownSchemaIsOutcomeCopy(t *testing.T) {
 		return v.Defs
 	}
 	r, o := defs(contract.SchemaRetro), defs(contract.SchemaOutcome)
-	for _, k := range []string{"breakdown", "tool"} {
+	for _, k := range []string{"breakdown", "tool", "page_read"} {
 		var a, b any
 		if json.Unmarshal(r[k], &a) != nil || json.Unmarshal(o[k], &b) != nil || !reflect.DeepEqual(a, b) {
 			t.Errorf("schema/retro.schema.json の $defs.%s が schema/outcome.schema.json の写しでない", k)
