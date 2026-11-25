@@ -52,7 +52,9 @@ echo "検証する commit: $2（本物の記録を読む行が読む間を決め
 echo "名指した細かい機能: ${named[*]:-無し}$([ ${#outside[@]} = 0 ] || echo "（drive.sh の外で見る ${outside[*]} は数えない）")$([ ${#other[@]} = 0 ] || echo "（別の機能の ${other[*]} は数えない）")"
 echo "始めた: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 VERIFY_COMMIT=$2 VERIFY_RUN=$run VERIFY_TMP=$tmp VERIFY_REPO=$(cd "$scripts/../../../.." && pwd) bash "$journey" | tee "$out"
-rc=${PIPESTATUS[0]}
+st_pipe=("${PIPESTATUS[@]}"); rc=${st_pipe[0]} teerc=${st_pipe[1]}
+# 写しが途中で切れると、後ろの FAIL を集計が読めず、名指した ok だけで 0 になる。写しを書けなければ壊れとして 1 にする
+[ "$teerc" = 0 ] || echo "FAIL 道の出力の写し $out を書けなかった（tee の終了コード $teerc）。細かい機能ごとの結果は欠けている"
 echo "== 動かした結果: 終了コード $rc"
 
 # 細かい機能ごとの結果。道の行の「ok   <名前>」「FAIL <名前>」を読む。どちらも無ければ未確認で、理由は名前を含む note の行。
@@ -86,7 +88,7 @@ loose=$(grep '^note ' "$out" | while IFS= read -r l; do
   [ "$hit" = true ] || echo "$l"
 done)
 [ -z "$loose" ] || { echo "細かい機能を名指さない note:"; sed 's/^/  | /' <<<"$loose"; }
-anyfail=false; grep -q '^FAIL ' "$out" && anyfail=true # 写しは下の片付けで消えるので、先に読む
+anyfail=false; { [ "$teerc" = 0 ] && ! grep -q '^FAIL ' "$out"; } || anyfail=true # 写しは下の片付けで消えるので、先に読む
 
 # 片付けと、跡が残っていないことの確かめ（証拠の記録 library/runs/*.log は除く。この出力そのものが入る）
 cleanup

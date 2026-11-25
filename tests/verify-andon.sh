@@ -693,5 +693,11 @@ if [ "$self" = true ]; then
     [ "$drc" = 1 ] && grep -q '^FAIL ot-' <<<"$dout" && grep -qF '終了コード 1（FAIL の行がある。道の終了コードは 3）' <<<"$dout" \
       || die "drive.sh: 道が FAIL を出して 3 で終わったのに、名指し「${a:-無し}」で 1 にしない（$drc）: $dout"
   done
+  # 出力の写しが途中で切れる（tee が先頭の数行だけを書いて落ちる）: 後ろの FAIL を読めないまま、名指した ok で 0 にしない
+  mkdir -p "$c/teebin"
+  printf '#!/bin/sh\nf=$1; n=0\nwhile IFS= read -r l; do echo "$l"; n=$((n + 1)); [ "$n" -gt 3 ] || echo "$l" >>"$f"; done\nexit 1\n' >"$c/teebin/tee"; chmod +x "$c/teebin/tee"
+  drc=0; dout=$(env PATH="$c/teebin:$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" CLAUDE_CONFIG_DIR="$c/claude" TMPDIR="$c" \
+    bash "$skill/scripts/drive.sh" otel "$new" ot-listen 2>&1) || drc=$?
+  [ "$drc" = 1 ] && grep -qF 'FAIL 道の出力の写し' <<<"$dout" || die "drive.sh: 出力の写しが途中で切れたのに 1 にしない（$drc）: $dout"
   ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
 fi
