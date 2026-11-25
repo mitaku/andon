@@ -866,14 +866,20 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
  "sessions": [
    {"harness": "claude", "session": "0f8fad5b-d9cb-469f-a165-70867728950e",
     "cost": {"models": ["claude-opus-5-5"], "efforts": ["high"], "turns": 6, "tokens": {"input": 1200, "output": 35000, "cache_read": 2400000, "cache_write": 180000}}},
-   {"harness": "claude", "session": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "cost": null}]}
+   {"harness": "claude", "session": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "cost": null}],
+ "breakdown": {"role": "worker", "coverage": {"sessions": 2, "traced": 1},
+   "interactions": 12, "llm_ms": 1810000, "tool_ms": 640000, "blocked_ms": 0,
+   "tokens": {"input": 1180, "output": 34600, "cache_read": 2390000, "cache_write": 179000},
+   "errors": {"llm": 2, "tool": 5},
+   "tools": [{"name": "Bash", "argv0": "go", "count": 14, "ms": 412000, "errors": 1}, {"name": "Read", "argv0": null, "count": 40, "ms": 9000, "errors": 0}],
+   "waits": {"question_ms": 0, "review_ms": 540000, "ci_ms": 300000, "gone_ms": 0}}}
 ```
 
 PR 無しで片付いた課題で、起動の記録の無い（この仕組みの前に起動した）とき:
 
 ```json
 {"at": "2026-11-19T10:00:00Z", "issue": "S-0013", "result": "none", "pr": null, "merge_commit": null, "merged_at": null,
- "gates": [], "reviewers": 0, "worked_minutes": 20, "sessions": null}
+ "gates": [], "reviewers": 0, "worked_minutes": 20, "sessions": null, "breakdown": null}
 ```
 
 | キー | 意味・元 |
@@ -889,6 +895,14 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `sessions` | 起動の記録（§18）にある全部のセッション。起動の記録が無ければ `null`（さかのぼって作らない） |
 | `sessions[].harness`・`session` | ハーネスと、セッションの id。Claude Code は起動の記録の `session`（同じセッションは1つ。`session` が `null` の起動は1つにまとめて `cost` は `null`）。Codex は起動のときに id が決まらないので、cwd が課題の置き場（kanban の `issues/<id>/`・`issue.yaml` の `worktree`・起動の記録の `repo.path`）の rollout を、`session_meta` の id ごとに1つ。rollout が1つも無ければ `session` も `cost` も `null` の1件 |
 | `sessions[].cost` | セッションログから、書くときに読む。ログが無ければ `null`（Claude Code は既定で 30 日で消す）。Claude Code のログのファイルかサブエージェントの置き場、Codex の rollout を読み切れなかったときも `null`（未計測。トークンが0のセッションと分ける）。トークンの数え方は `andon measure` と同じ（`internal/sessionlog`）。`models` は実際に使われたモデルの id（サブエージェントのものも。出た順）、`efforts` は effort（出た順。記録に無ければ空）、`turns` はターン数（Claude Code は本線の user の行の `promptId` の数、Codex は `turn_context` の `turn_id` の数。印が無ければ `null`） |
+| `breakdown` | 課題のハーネスの生の記録（§30 の置き場の `issues/<id>/traces.jsonl`・`logs.jsonl`）を、書くときに読んでまとめた内訳（[ADR-0060](adr/0060-otel-trace.md) 決めたこと 15）。生の記録は 30 日で消えるので、比べる数はここに残す。読むのはこの課題の置き場だけで、レビュアーの課題の分は親の課題に入らない（レビュアーの課題と Chief Engineer の課題は、それぞれの内訳を持つ）。置き場に 1 行も無ければ `null`。置き場があるのに読めないときも `null` で書き、dispatcher のログに 1 行残す（受け口は止まれば欠けるので、内訳のために結果の記録を止めない）。JSON として読めない行（書く途中で切れた最後の行）は飛ばす。同じ span（`traceId` と `spanId` が同じ）は 1 つに数える。このキーより前に書いた記録には無い（読み手は無いのを `null` と読む）。トークンは `sessions[].cost` と別の数で、どちらも消さない（決めたこと 20） |
+| `breakdown.role` | 起動の記録の最後の行の役（`worker`・`reviewer`・`chief-engineer`）。起動の記録が無ければ、記録の resource 属性 `andon.role` が起動の記録の役のどれかならそれ、無ければ `null` |
+| `breakdown.coverage` | `sessions` は `sessions[]` の数（`sessions` が `null` なら 0）、`traced` はそのうち、生の記録の span が同じセッションの id を持つものの数（Claude Code は `session.id`、Codex は `conversation.id`）。欠けたセッションがあれば `traced` が少ない |
+| `breakdown.interactions`・`llm_ms`・`tool_ms`・`blocked_ms` | プロンプトの数（`claude_code.interaction` の span の数）。モデルの呼び出し（`claude_code.llm_request`）の時間の合計（ミリ秒。サブエージェントのものも）。ツール（`claude_code.tool`）のうちほかのツールの下でないものの時間の合計（サブエージェントを走らせたツールは中の時間を含む。並べて走ったツールはそれぞれ数える）。権限の確かめを待った時間（`claude_code.tool.blocked_on_user`）の合計 |
+| `breakdown.tokens` | `claude_code.llm_request` の `input_tokens`・`output_tokens`・`cache_read_tokens`・`cache_creation_tokens` の合計（サブエージェントのものも） |
+| `breakdown.errors` | 失敗した span の数。`llm` はモデルの呼び出し、`tool` はツール。失敗は `success` が `false` か status が ERROR（ツールは下の `claude_code.tool.execution` の失敗も） |
+| `breakdown.tools[]` | ツールの名前（`tool_name`）と、Bash なら最初の語（`argv0`。`bash_argv0`、無ければ全文 `full_command` の最初の語。ほかのツールは `null`）ごとの、span の数・時間の合計（ミリ秒）・失敗の数。どの深さのツールも数え、時間の長い順に 10 個まで |
+| `breakdown.waits` | 課題が `doing` の間の待ちの内訳（ミリ秒。種類の間で重なればそれぞれに数える）。`question_ms`（自分の問いが開いていた間）・`review_ms`（レビュアーの課題を待った間）・`gone_ms`（端末が死んでいた間）は `worked_minutes` が引く待ちと同じ数え方（`ledger.WorkedWaits`）。`ci_ms` は、Bash の全文が PR の checks を待つ command（`gh pr checks`・`gh run watch`）のツールの時間を、重なりを 1 回にして合わせたもの（`hc run --bg` で裏に回して `hc wait` で待った時間は、command の全文から checks の待ちと分からないので入らない） |
 
 - **ファイルが無いのは「集めていない」。** 読めないもの（gh・kanban・gate の記録・起動の記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目なら dispatcher のログに1行で諦める（通知は積まない。§14 の `corrections` と違い、Chief of Staff が手で集め直す口は無い。振り返りは無い欄を `null` として読む）。gh の上限で止めている間（控えの `GHReset`）は打たず、回数にも数えない。
 - 片付けたあとに状態が変わる PR（`open` のまま片付いて、あとでオーナーがマージした）は、書いたときの状態のまま。書き直さない（「1回だけ書く」。マージ後のことは振り返りが GitHub から読む）。

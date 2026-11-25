@@ -16,7 +16,9 @@ import (
 	"andon/internal/gate"
 	"andon/internal/launch"
 	"andon/internal/ledger"
+	"andon/internal/otel"
 	"andon/internal/sessionlog"
+	"andon/internal/trace"
 )
 
 // 結果の記録（contract.md §19。ADR-0028 決めたこと 7）: done になった課題ごとに1回だけ library/outcome.json を書く。
@@ -25,6 +27,8 @@ import (
 // 片付けたあとに読み直すのは PR の状態だけで、コストはセッションログ（30日で消える）からその時に読む。
 // 読めないもの（gh・kanban・記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目ならログに1行で諦める
 // （ファイルが無いのが「集めていない」。読み手の振り返りは無い欄を null として読む）。オーナーの課題（who: person）には書かない。
+// 内訳 breakdown（ADR-0060 決めたこと 15）は、ハーネスの生の記録（30日で消える）をその時に読んでまとめる。記録が無いか読めなければ
+// null（読めないときはログに1行）。生の記録は受け口が止まれば欠けるので、読めなくても結果の記録は書く。
 
 const outcomeFile = "outcome.json"
 
@@ -49,6 +53,7 @@ type Outcome struct {
 	Reviewers     int               `json:"reviewers"`
 	WorkedMinutes int               `json:"worked_minutes"`
 	Sessions      *[]OutcomeSession `json:"sessions"`
+	Breakdown     *trace.Breakdown  `json:"breakdown"`
 }
 
 type OutcomeGate struct {
@@ -122,6 +127,12 @@ func (p *project) outcome(id string) bool {
 	if err == nil {
 		if err = os.MkdirAll(filepath.Dir(path), 0o755); err == nil {
 			err = contract.Write(path, contract.SchemaOutcome, o)
+			if err != nil && o.Breakdown != nil {
+				// 内訳は送り手の記録から数えるので、schema の外の値が混ざりうる。内訳のために結果の記録を止めない
+				p.logf("%s の内訳が schema を通らない（breakdown は null で書く）: %v", id, err)
+				o.Breakdown = nil
+				err = contract.Write(path, contract.SchemaOutcome, o)
+			}
 		}
 	}
 	if err == nil {
@@ -194,9 +205,11 @@ func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 			o.Reviewers++
 		}
 	}
-	if o.WorkedMinutes, err = p.workedMinutes(id); err != nil {
+	worked, waits, err := p.workedWaits(id)
+	if err != nil {
 		return nil, err
 	}
+	o.WorkedMinutes = int(worked.Minutes())
 	launches, err := readLaunches(filepath.Join(lib, launch.File))
 	if err != nil {
 		return nil, err
@@ -205,7 +218,38 @@ func (p *project) collectOutcome(id string, t ledger.Issue) (*Outcome, error) {
 		s := sessions(launches, p.cwds(id, t, launches), sessionlog.ClaudeDir(), sessionlog.CodexSessions())
 		o.Sessions = &s
 	}
+	o.Breakdown = p.breakdown(id, launches, o.Sessions, waits)
 	return o, nil
+}
+
+// breakdown は課題 id の内訳（contract.md §19）。生の記録は課題の置き場だけを読む（レビュアーの課題の分は入らない）。
+// 待ちのうち問い・レビュー・端末が死んでいた間は実働と同じ数え方（ledger.WorkedWaits）。役は起動の記録の最後の行の役。
+func (p *project) breakdown(id string, launches []launchRow, ss *[]OutcomeSession, waits ledger.Waits) *trace.Breakdown {
+	ids := []string{}
+	if ss != nil {
+		for _, s := range *ss {
+			v := ""
+			if s.Session != nil {
+				v = *s.Session
+			}
+			ids = append(ids, v)
+		}
+	}
+	role := ""
+	if n := len(launches); n > 0 {
+		role = launches[n-1].Role
+	}
+	b, err := trace.BreakdownOf(filepath.Join(otel.Root(), p.l.Slug), id, ids, role)
+	if err != nil {
+		p.logf("%s の内訳を数えられない（breakdown は null で書く）: %v", id, err)
+		return nil
+	}
+	if b != nil {
+		b.Waits.QuestionMs = waits.Question.Milliseconds()
+		b.Waits.ReviewMs = waits.Review.Milliseconds()
+		b.Waits.GoneMs = waits.Gone.Milliseconds()
+	}
+	return b
 }
 
 func gates(dir string) ([]OutcomeGate, error) {
@@ -245,24 +289,27 @@ func gates(dir string) ([]OutcomeGate, error) {
 	return out, nil
 }
 
-func (p *project) workedMinutes(id string) (int, error) {
+// workedWaits は課題 id の実働と待ちの内訳（最後の done の行まで）。
+func (p *project) workedWaits(id string) (time.Duration, ledger.Waits, error) {
 	rows, err := p.l.ReadLog()
 	if err != nil {
-		return 0, fmt.Errorf("log.jsonl が読めない: %v", err)
+		return 0, ledger.Waits{}, fmt.Errorf("log.jsonl が読めない: %v", err)
 	}
 	i, at, ok := ledger.LastStatus(rows, id, "done")
 	if !ok {
-		return 0, fmt.Errorf("log.jsonl に %s の done の行が無い", id)
+		return 0, ledger.Waits{}, fmt.Errorf("log.jsonl に %s の done の行が無い", id)
 	}
 	var gone []time.Time
 	for _, g := range p.st.Gone[id] {
 		gone = append(gone, time.UnixMilli(g.At))
 	}
-	return int(ledger.Worked(rows[:i+1], p.tasks, id, p.l.ChiefOfStaff(), gone, at).Minutes()), nil
+	worked, waits := ledger.WorkedWaits(rows[:i+1], p.tasks, id, p.l.ChiefOfStaff(), gone, at)
+	return worked, waits, nil
 }
 
 // launchRow は起動の記録の1行のうち読む所（contract.md §18）。
 type launchRow struct {
+	Role    string  `json:"role"`
 	Session *string `json:"session"`
 	Harness struct {
 		Name string `json:"name"`

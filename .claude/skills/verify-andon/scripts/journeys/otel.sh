@@ -151,4 +151,9 @@ else
   fail "ot-trace: andon issue trace $tid --otlp が 1 本のトレースにならないか、結び先が違う（出力の先頭: $(sed -n 1p <<<"$tout" | cut -c1-200)）"
 fi
 [ "$fails" = 0 ] || exit 1
+
+# ot-breakdown: 当てたあとに片付いた Claude Code の担当の課題の結果の記録の内訳を比べる（ADR-0060 受け入れ条件 16。判定は scripts/breakdown.sh）
+. "$(dirname "$0")/../breakdown.sh"
+breakdown_check
+[ "$fails" = 0 ] || exit 1
 echo "note ot-restart（受け口を止めてから担当を起動する）はこの道では動かさない。features/otel.md の手順で、Chief of Staff の試しの課題で確かめる"

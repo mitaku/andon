@@ -107,3 +107,38 @@ func TestWorked(t *testing.T) {
 		}
 	}
 }
+
+// 待ちの内訳は種類ごとに doing の区間の中だけを数え、種類の間の重なりはそれぞれに数える。実働は Worked と同じ。
+func TestWorkedWaits(t *testing.T) {
+	base := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
+	at := func(m int) time.Time { return base.Add(time.Duration(m) * time.Minute) }
+	row := func(m int, by, id string, change map[string]any) Row {
+		return Row{At: at(m).Format(time.RFC3339), By: "terminal:" + by, ID: id, Change: change}
+	}
+	st := func(m int, s string) Row { return row(m, "w", "A-0001", map[string]any{"status": s}) }
+	q := func(m int, by string, s string) Row {
+		return row(m, by, "A-0001", map[string]any{"question": 1.0, "status": s})
+	}
+	issues := []Issue{{"id": "A-0001", "profile": "claude"}, {"id": "A-0001-r1", "parent": "A-0001", "profile": "codex-review"}}
+	rows := []Row{
+		st(0, "doing"), q(10, "w", "open"),
+		row(20, "dispatcher", "A-0001-r1", map[string]any{"add": "A-0001 のレビュー（1 回目）"}),
+		q(30, "cos", "answered"),
+		row(40, "r", "A-0001-r1", map[string]any{"status": "review"}),
+		st(60, "review"), // 70 分に死んだ区間は次の agent の行（130 分）までで、doing の外の 70〜100 分は数えない
+		st(100, "doing"),
+		row(130, "cos", "A-0001", map[string]any{"agent": "w2"}),
+		st(150, "review"),
+	}
+	gone := []time.Time{at(70), at(110)}
+	worked, w := WorkedWaits(rows, issues, "A-0001", "cos", gone, at(200))
+	if want := Worked(rows, issues, "A-0001", "cos", gone, at(200)); worked != want {
+		t.Errorf("WorkedWaits の実働 %v が Worked %v と違う", worked, want)
+	}
+	if worked != 50*time.Minute {
+		t.Errorf("実働 = %v, want 50m", worked)
+	}
+	if w.Question != 20*time.Minute || w.Review != 20*time.Minute || w.Gone != 30*time.Minute {
+		t.Errorf("待ちの内訳 = %+v, want 問い 20m・レビュー 20m・死んでいた 30m", w)
+	}
+}

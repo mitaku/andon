@@ -113,8 +113,10 @@ func TestReadLaunches(t *testing.T) {
 	}
 }
 
+// outcomeProject は結果の記録を集める偽のプロジェクト。ハーネスの生の記録の置き場（XDG_STATE_HOME の下）は一時に向ける。
 func outcomeProject(t *testing.T, rows ...string) *project {
 	t.Helper()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	l := ledger.At(t.TempDir())
 	writeFile(t, filepath.Join(l.Dir, "config.yaml"), "version: 3\nchief_of_staff: t5\n")
 	writeFile(t, filepath.Join(l.Dir, "log.jsonl"), ledgertest.Log(t, rows...))

@@ -486,6 +486,38 @@ if [ "$self" = true ]; then
   [ "$jrc" = 1 ] && grep -qF 'andon-extra がパッケージの外' <<<"$jout" || die "boot: 余分な andon-extra がパッケージの外を指すのに落ちない（$jrc）: $jout"
   ok "verify-andon: 記録を読む道は、記録だけの通知なら未確認の 3 で終わり、skill のリンクが無い・パッケージの外を指すと落ちる"
 
+  # 結果の記録の内訳（ot-breakdown。scripts/breakdown.sh）: 偽のセルの課題 1 件で、done と結果の記録と置き場の形ごとに判定を見る
+  bk=$c/ws/projects/b/kanban; bl=$bk/issues/B-0001/library; btr=$c/state/andon/otel/b/issues/B-0001/traces.jsonl
+  mkdir -p "$bl" "$(dirname "$btr")"
+  echo '{"at": "2026-01-01T00:03:00Z", "role": "worker", "profile": "claude", "issue": "B-0001"}' >"$bl/launches.jsonl"
+  bcheck() { # bcheck → 出力を $bout に（FAIL があっても止まらない）
+    bout=$(env PATH="$c/bin:$PATH" HOME="$c/home" XDG_STATE_HOME="$c/state" ANDON_WORKSPACE="$c/ws" VERIFY_PACKAGE="$c/pkg" \
+      VERIFY_TMP="$c" VERIFY_RUN=verify-selftest bash -c '. "$1/cell.sh" >/dev/null; . "$1/breakdown.sh"; breakdown_check' _ "$skill/scripts" 2>&1) || true
+  }
+  bdone() { echo '{"at": "2026-01-01T00:04:00Z", "by": "terminal:t1", "id": "B-0001", "change": {"status": "doing"}}' >"$bk/log.jsonl"
+    [ "$1" = done ] || return 0
+    echo '{"at": "2026-01-01T00:09:00Z", "by": "terminal:t1", "id": "B-0001", "change": {"status": "done"}}' >>"$bk/log.jsonl"; }
+  bout_of() { # bout_of <内訳のトークン（JSON か null）> <セッションのトークン>
+    echo "{\"at\": \"2026-01-01T00:10:00Z\", \"breakdown\": $( [ "$1" = null ] && echo null || echo "{\"tokens\": {\"input\": $1, \"output\": 0, \"cache_read\": 0, \"cache_write\": 0}}"), \"sessions\": [{\"cost\": {\"tokens\": {\"input\": $2, \"output\": 0, \"cache_read\": 0, \"cache_write\": 0}}}]}" >"$bl/outcome.json"; }
+  bdone doing; bcheck
+  grep -qF 'note ot-breakdown: 当てたあとに起動した Claude Code の担当の課題が、まだ片付いていない' <<<"$bout" || die "ot-breakdown: 片付いていない課題で、まだ片付いていない note を出さない: $bout"
+  if grep -q '^FAIL' <<<"$bout"; then die "ot-breakdown: 片付いていない課題で落ちる: $bout"; fi
+  bdone done; bcheck
+  grep -qF 'に done になったのに、結果の記録' <<<"$bout" || die "ot-breakdown: done から時間が経っても結果の記録が無い課題で落ちない: $bout"
+  bout_of 100 102; bcheck
+  grep -qF 'ok   ot-breakdown: 当てたあとに片付いた担当の課題 1 件' <<<"$bout" || die "ot-breakdown: 上下 5% に入る内訳で ok にならない: $bout"
+  bout_of 200 100; bcheck
+  grep -qF 'の上下 5% に入らない' <<<"$bout" || die "ot-breakdown: 上下 5% に入らない内訳で落ちない: $bout"
+  bout_of null 100; bcheck
+  grep -qF 'note ot-breakdown: b/B-0001 は置き場に記録が無く' <<<"$bout" || die "ot-breakdown: 置き場に記録の無い null の内訳で note を出さない: $bout"
+  if grep -q '^FAIL' <<<"$bout"; then die "ot-breakdown: 置き場に記録の無い null の内訳で落ちる: $bout"; fi
+  echo '{"resourceSpans": []}' >"$btr"; bcheck
+  grep -qF '記録があるのに、内訳が null' <<<"$bout" || die "ot-breakdown: 置き場に記録があるのに null の内訳で落ちない: $bout"
+  echo '{"at": "2026-01-01T00:10:00Z", "sessions": []}' >"$bl/outcome.json"; bcheck
+  grep -qF 'breakdown のキーが無い' <<<"$bout" || die "ot-breakdown: breakdown のキーの無い結果の記録で落ちない: $bout"
+  rm -rf "$c/ws/projects/b" "$c/state/andon/otel/b"   # 後の場面が偽の課題を拾わない
+  ok "verify-andon: ot-breakdown は、done から時間の経った課題の結果の記録が無い・置き場に記録があるのに内訳が null・キーが無い・上下 5% に入らないと落ち、片付いていないか記録が無ければ note、入れば ok"
+
   # 検証の途中で次の commit が当たった: 検証する commit（VERIFY_COMMIT）が当たっていた間だけを、次に当てた時刻まで読む
   lib=$c/ws/projects/v/kanban/issues/V-0002/library; mkdir -p "$lib"
   # 起動は andon issue resume（launch が resume）で、セッションの記録 sess の最初のメッセージの最後の段落が [resume] で始まる（wl-resume が確かめられ、0 で終わる）
