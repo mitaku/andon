@@ -110,10 +110,23 @@ while IFS=$'\t' read -r kanban id; do
   email=$(grep -c '"user.email"' "$f" || true)
   echo "  | $slug/$id: claude_code.llm_request と andon.issue・andon.role を持つ行 $llm・user.email を持つ行 $email"
   [ "$email" = 0 ] || fail "ot-records: $f に user.email が残っている"
-  [ "$llm" -gt 0 ] && seen=$((seen + 1))
+  if [ "$llm" -gt 0 ]; then seen=$((seen + 1)); tk=$kanban tid=$id; fi
 done < <(for f in "$ws"/projects/*/kanban/issues/*/library/launches.jsonl; do
   since "$f" | jq -r --arg k "${f%/issues/*}" 'select(.profile | test("codex") | not) | [$k, .issue] | @tsv'; done | sort -u)
 [ "$fails" = 0 ] || exit 1
 [ "$seen" -gt 0 ] || { echo "note 当てたあとに起動した課題のどれにも、まだ claude_code.llm_request の記録が無い。担当が 1 ターン以上動いたあとで打ち直す"; exit 3; }
 ok "ot-records: 当てたあとに起動した $seen 件の課題の記録に claude_code.llm_request と andon.issue・andon.role があり、user.email が無い"
+
+# ot-trace: ot-records が数えた課題の 1 つで、当てたパッケージの andon issue trace --otlp を打つ（読むだけ）。
+# span がどれも同じ traceId で、親の無い span が 1 つだけで、ハーネスの claude_code.llm_request が入っている
+tout=$(cd "$(dirname "$tk")" && KANBAN_ROOT=$(dirname "$tk") "$pkg/bin/andon" issue trace "$tid" --otlp 2>&1) && trc=0 || trc=$?
+read -r ntrace nroot nllm nall < <(jq -r '[.resourceSpans[].scopeSpans[].spans[]]
+  | [(map(.traceId) | unique | length), (map(select((.parentSpanId // "") == "")) | length), (map(select(.name == "claude_code.llm_request")) | length), length] | @tsv' <<<"$tout" 2>/dev/null) || true
+echo "-- ot-trace: $(basename "$(dirname "$tk")")/$tid の andon issue trace --otlp: 終了コード $trc・span ${nall:-読めない}・traceId ${ntrace:-?} 種・親の無い span ${nroot:-?}・claude_code.llm_request ${nllm:-?}"
+if [ "$trc" = 0 ] && [ "${ntrace:-0}" = 1 ] && [ "${nroot:-0}" = 1 ] && [ "${nllm:-0}" -gt 0 ]; then
+  ok "ot-trace: 課題 $tid の流れが 1 本のトレースになり、ハーネスのモデルの呼び出しが入っている"
+else
+  fail "ot-trace: andon issue trace $tid --otlp が 1 本のトレースにならない（出力の先頭: $(sed -n 1p <<<"$tout" | cut -c1-200)）"
+fi
+[ "$fails" = 0 ] || exit 1
 echo "note ot-restart（受け口を止めてから担当を起動する）はこの道では動かさない。features/otel.md の手順で、Chief of Staff の試しの課題で確かめる"

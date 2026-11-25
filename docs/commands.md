@@ -22,6 +22,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon signal auth` | オーナー | 外の信号の出所のトークンをセルの中で聞いて置く |
 | `andon digest auth` | オーナー | ダイジェストを送る Slack の bot のトークンをセルの中で聞いて置く |
 | `andon init` | オーナー | セルの repo の雛形（&lt;slug&gt;-cell）を作る |
+| `andon issue trace` | オーナー・役 | 課題 1 件の流れ（段・起動・プロンプト・モデルの呼び出しとツール）を 1 本の木にして出す（読むだけ） |
 
 ## 役が打つ
 
