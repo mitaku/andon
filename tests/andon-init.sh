@@ -412,6 +412,17 @@ for case_ in 'FAKE_HAS_IMAGE=1:image はあるが本体が無い' 'FAKE_UNUSED=1
   [ "$r" = 1 ] && [ "$(grep -c '^\[build\]' "$log")" = 1 ] && grep -q 'FROM を' "$tmp/err" && grep -q 'ANDON_ENTRY_BODY=' "$tmp/err" && ! grep -q '^\[compose\]' "$log" && ! leftover \
     && pass "${case_#*:}: build は 1 回だけで、FROM を上げる手と ANDON_ENTRY_BODY を言って止まる" || fail "${case_#*:}: rc=$r $(cat "$tmp/err" "$log")"
 done
+# .andon/ に書けないときは、本体が無いと取り違えて焼かず、書けないことを言って止まる
+rm -rf .andon
+: >.andon
+xsandbox FAKE_HAS_IMAGE=1 bash bin/bootstrap status >"$tmp/out" 2>"$tmp/err"; r=$?
+rm -f .andon
+[ "$r" = 1 ] && grep -q '\.andon/ に書けない' "$tmp/err" && ! grep -qE '^\[(build|create)\]' "$log" \
+  && pass ".andon/ に書けないときは、焼かず、取り出しもせず、書けないことを言って止まる" || fail ".andon/ に書けない: rc=$r $(cat "$tmp/err" "$log")"
+# 名指しの本体に薄い入口を渡すと、入口が自分を走らせ続けずに止まる
+timeout 10 env -i PATH="$tmp/path" HOME="$home" ANDON_ENTRY_BODY=bin/bootstrap bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q '薄い入口で、本体でない' "$tmp/err" && [ "$(grep -c '名指しの .* で動く' "$tmp/err")" = 0 ] \
+  && pass "名指しの本体に薄い入口を渡すと、本体でないと言って 1 回で止まる" || fail "薄い入口の名指し: rc=$r $(sed -n 1,3p "$tmp/err")"
 # 受け入れ条件 6: 名指しの本体は、本体のための docker の create・cp・build を打たずに走り、名指しで動くことを 1 行出す。
 # image が無くても焼かない（本体の status が compose.yaml を取り出す create・cp は打つ）。無いファイルは止まる
 xsandbox ANDON_ENTRY_BODY="$body" bash bin/bootstrap status >"$tmp/out" 2>"$tmp/err"; r=$?
@@ -459,7 +470,7 @@ rm -rf .andon
 
 # 受け入れ条件 12: 薄い入口の中身の控え（ハッシュ）と番号。中身が変わって控えが前のままなら落ちる（ADR-0048 決めたこと 12）
 entry_num=1
-entry_sum=dd54000dc502fa702ae68ca7709ba37a2094144b5f46c0b0234d6021b4918000
+entry_sum=4c30be48fc864162149fb7ce59e9fad617146fef045a7cf09619a08c1914765a
 # check_entry <薄い入口のファイル>: 控えと合えば 0。合わなければ直し方を出して 1
 check_entry() {
   local num sum

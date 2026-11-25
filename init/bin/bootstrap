@@ -54,6 +54,10 @@ if [ -z "$body" ] && [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
 fi
 if [ -n "$body" ]; then
   [ -f "$body" ] || die "名指しの本体 $body が無い（ANDON_ENTRY_BODY に本体のファイルを渡す。例 <andon の checkout>/package/host/bootstrap）"
+  # 薄い入口を名指すと、入口が自分を走らせ続ける
+  if grep -qx 'entry=[0-9]*' "$body"; then
+    die "名指しの $body は薄い入口で、本体でない（本体は <andon の checkout>/package/host/bootstrap）"
+  fi
   if [ -n "${ANDON_ENTRY_BODY:-}" ]; then
     echo "[andon-$slug] image の本体でなく、名指しの $body で動く" >&2
   fi
@@ -93,12 +97,16 @@ fi
 
 has_image() { docker image inspect "$image" >/dev/null 2>&1; }
 
+# .andon/ に書けないことを、本体が無いことと取り違えない（取り違えると焼き直して FROM の案内を出す）
+if ! mkdir -p .andon 2>/dev/null || [ ! -w .andon ]; then
+  die "$PWD/.andon/ に書けない（セルの repo を打つ利用者の持ち物にする。sudo で打ったなら持ち主を戻す）"
+fi
+
 # extract_body は image の本体を .andon/bootstrap に取り出す。打つたびに取り出し、前に取り出したものは走らせない。
 # 一時の名前はプロセスごとに変え、mv で置き換える（走っている本体が読むファイルを書き換えない。ADR-0048 決めたこと 4）
 extract_body() {
   local cid part
-  mkdir -p .andon
-  part=$(mktemp .andon/bootstrap.XXXXXX)
+  part=$(mktemp .andon/bootstrap.XXXXXX) || die "$PWD/.andon/ に一時のファイルを作れない"
   if ! cid=$(docker create "$image" 2>/dev/null); then
     rm -f "$part"
     return 1
@@ -109,7 +117,7 @@ extract_body() {
     return 1
   fi
   docker rm "$cid" >/dev/null 2>&1 || true
-  mv "$part" .andon/bootstrap
+  mv "$part" .andon/bootstrap || die "$PWD/.andon/bootstrap を置き換えられない"
 }
 
 stuck() {
