@@ -99,6 +99,17 @@
           "type": "null"
         }
       ]
+    },
+    "breakdown": {
+      "description": "How the issue's own harness records (the otel store's issues/<id>/, docs/contract.md section 30) break down, summed when the dispatcher wrote this record, so the numbers outlive the raw records (kept 30 days). Only this issue's records: a reviewer's issue has its own breakdown and is not in its parent's. null when the store has no line for the issue (or it could not be read; the dispatcher logs that). Optional: records written before breakdown existed have no key. The token counts are separate from sessions[].cost (not dollars).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/breakdown"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "$defs": {
@@ -287,6 +298,222 @@
             }
           },
           "description": "Token counts, the same as andon measure's (not dollars)."
+        }
+      }
+    },
+    "breakdown": {
+      "description": "Counts from the harness spans. A subagent's spans are under its parent session's spans and count for the same issue.",
+      "type": "object",
+      "required": [
+        "role",
+        "coverage",
+        "interactions",
+        "llm_ms",
+        "tool_ms",
+        "blocked_ms",
+        "tokens",
+        "errors",
+        "tools",
+        "waits"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "description": "The role of the issue's last launch record line; with no launch record, the records' andon.role resource attribute when it is a launch role; else null.",
+          "anyOf": [
+            {
+              "enum": [
+                "worker",
+                "reviewer",
+                "chief-engineer",
+                "chief-of-staff"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverage": {
+          "description": "How many of the issue's sessions (the entries of sessions[]; 0 when sessions is null) have at least one span, matched by the span's session.id, gen_ai.conversation.id or conversation.id.",
+          "type": "object",
+          "required": [
+            "sessions",
+            "traced"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sessions": {
+              "description": "Entries of sessions[].",
+              "type": "integer",
+              "minimum": 0
+            },
+            "traced": {
+              "description": "Entries whose session id some span carries.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "interactions": {
+          "description": "claude_code.interaction spans (one per prompt).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "llm_ms": {
+          "description": "Milliseconds of all claude_code.llm_request spans, a subagent's included.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_ms": {
+          "description": "Milliseconds of the claude_code.tool spans that are not under another tool span (a tool that runs a subagent counts the time inside it). Tools run side by side each count.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_ms": {
+          "description": "Milliseconds of claude_code.tool.blocked_on_user spans (waiting on the permission check).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "description": "Summed from the claude_code.llm_request spans' input_tokens, output_tokens, cache_read_tokens and cache_creation_tokens.",
+          "type": "object",
+          "required": [
+            "input",
+            "output",
+            "cache_read",
+            "cache_write"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "input": {
+              "description": "Input tokens neither read from nor written to the cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "description": "Output tokens.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "cache_read": {
+              "description": "Input tokens read from the cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "cache_write": {
+              "description": "Input tokens written to the cache.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "errors": {
+          "description": "Failed spans: success false or status ERROR (for a tool, also a failed claude_code.tool.execution under it).",
+          "type": "object",
+          "required": [
+            "llm",
+            "tool"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "llm": {
+              "description": "Failed claude_code.llm_request spans.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool": {
+              "description": "Failed claude_code.tool spans.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "tools": {
+          "description": "claude_code.tool spans (at any depth) by tool name and, for Bash, first word; the 10 longest, longest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool"
+          }
+        },
+        "waits": {
+          "description": "Waiting time inside the issue's doing time, by kind (kinds may overlap).",
+          "type": "object",
+          "required": [
+            "question_ms",
+            "review_ms",
+            "ci_ms",
+            "gone_ms"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "question_ms": {
+              "description": "The issue's own questions open (the same as worked_minutes leaves out).",
+              "type": "integer",
+              "minimum": 0
+            },
+            "review_ms": {
+              "description": "Waiting for reviewer child issues (the same as worked_minutes leaves out).",
+              "type": "integer",
+              "minimum": 0
+            },
+            "ci_ms": {
+              "description": "Bash tool spans whose full command waits for the pull request checks (gh pr checks, gh run watch), overlaps counted once.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "gone_ms": {
+              "description": "The issue's terminal dead (the same as worked_minutes leaves out).",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "tool": {
+      "description": "One tool's count.",
+      "type": "object",
+      "required": [
+        "name",
+        "argv0",
+        "count",
+        "ms",
+        "errors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "The span's tool_name.",
+          "type": "string",
+          "minLength": 1
+        },
+        "argv0": {
+          "description": "For Bash, the command's first word (bash_argv0, or the first word of full_command); otherwise null.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "count": {
+          "description": "Spans.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "ms": {
+          "description": "Milliseconds, summed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "description": "Failed spans.",
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

@@ -303,6 +303,12 @@ outcome|.gates[0]|head at tier decision reasons merged
 outcome|.sessions[0]|harness session cost
 outcome|.sessions[0].cost|models efforts turns tokens
 outcome|.sessions[0].cost.tokens|input output cache_read cache_write
+outcome|.breakdown|role coverage interactions llm_ms tool_ms blocked_ms tokens errors tools waits
+outcome|.breakdown.coverage|sessions traced
+outcome|.breakdown.tokens|input output cache_read cache_write
+outcome|.breakdown.errors|llm tool
+outcome|.breakdown.tools[0]|name argv0 count ms errors
+outcome|.breakdown.waits|question_ms review_ms ci_ms gone_ms
 retro|.previous_retro|issue done_at until
 retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome gates reviews waived corrections remember agents_md gaps journal after_merge reapplied reapplied_reasons
 retro|.issues[0].launches[0]|at profile model commit
@@ -767,6 +773,17 @@ fail|outcome|.sessions[0].cost.tokens.input = -1|トークンが負
 fail|outcome|.sessions[0].cost.tokens += {"dollars": 1}|ドルの欄を足す
 fail|outcome|.sessions[0].cost.models = [""]|モデルの id が空
 fail|outcome|.issue = "a/b"|issue に /
+pass|outcome|del(.breakdown)|内訳を足す前に書いた記録（breakdown は任意のキー）
+pass|outcome|.breakdown = null|置き場に記録の無い課題
+pass|outcome|.breakdown.role = null | .breakdown.tools = [] | .breakdown.coverage = {sessions: 0, traced: 0}|起動の記録もツールも無い内訳
+pass|outcome|.breakdown.role = "reviewer"|レビュアーの課題の内訳
+fail|outcome|.breakdown.role = "owner"|内訳の役が起動の記録の役でない
+fail|outcome|.breakdown.tokens.cache_read = -1|内訳のトークンが負
+fail|outcome|.breakdown.waits.ci_ms = 1.5|内訳の待ちが整数でない
+fail|outcome|.breakdown.tools[0].argv0 = ""|ツールの最初の語が空
+fail|outcome|.breakdown.tools[0].count = 0|ツールの数が 0
+fail|outcome|.breakdown.tools[0].name = ""|ツールの名前が空
+fail|outcome|.breakdown = []|内訳が object でも null でもない
 fail|measure|.flow.closed.count = 1.5|件数が整数でない
 fail|measure|.days = 0|days が 0
 fail|measure|.since = "2026/11/01"|since が YYYY-MM-DD でない
@@ -1106,6 +1123,7 @@ launch|."$defs".external.additionalProperties = true|external の知らないキ
 outcome|.properties.result.enum += ["reverted"]|結果の値に reverted を足す
 outcome|.required -= ["sessions"]|結果の記録の必須から sessions を外す
 outcome|."$defs".cost.additionalProperties = true|cost の知らないキーを許す
+outcome|."$defs".breakdown.additionalProperties = true|内訳の知らないキーを許す
 retro|.required -= ["typed"]|振り返りの入力の必須から typed を外す
 retro|."$defs".bundle.required -= ["after_merge"]|束の必須から after_merge を外す
 retro|."$defs".typed.properties.role.enum += ["person"]|オーナーの文の role を緩める

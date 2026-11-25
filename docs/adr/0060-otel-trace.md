@@ -22,7 +22,7 @@
 | 12 | 段は kanban の記録から導き、andon の command と dispatcher とフックは span を出さない | `internal/trace/trace.go` | 生きている |
 | 13 | 流れの単位は課題にし、レビュアーの課題は親の課題の木に入れる | `internal/trace/trace.go`・`internal/trace/harness.go` | 生きている |
 | 14 | `andon trace <id>` を足し、1 本のトレースに縫い直した OTLP の JSON も出せるようにする | `internal/trace/output.go`・`internal/cli/leaves.go`・`docs/commands.md` | 生きている（command の名前は、葉の形の決まり〈ADR-0053 決めたこと 5〉に合わせて `andon issue trace <id>`） |
-| 15 | 結果の記録に課題ごとの内訳 `breakdown` を足し、生の記録が消えたあとも残す | この ADR | まだ実装していない |
+| 15 | 結果の記録に課題ごとの内訳 `breakdown` を足し、生の記録が消えたあとも残す | `internal/trace/breakdown.go`・`internal/dispatcher/outcome.go`・`schema/outcome.schema.json`・`docs/contract.md` §19 | 生きている（待ちのうち問いの分は `question_ms` の名前にした。セルの本物でトークンの合計を比べる確かめは受け入れ条件 16） |
 | 16 | `andon measure` に内訳の節とプロファイルごとの節を足す | この ADR | まだ実装していない |
 | 17 | 振り返りの入力に、課題ごとの内訳と、直しの前後の数字を足す | この ADR | まだ実装していない |
 | 18 | 比べる形はバージョンごとの表にせず、プロファイルごとと直しの前後にする | この ADR | まだ実装していない |

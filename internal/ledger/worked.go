@@ -30,6 +30,20 @@ type span struct{ from, to time.Time }
 //
 // 終わっていない区間は now まで。rows は log.jsonl の順（時刻の順）。時刻の読めない行は飛ばす。
 func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now time.Time) time.Duration {
+	worked, _ := WorkedWaits(rows, issues, id, cos, gone, now)
+	return worked
+}
+
+// Waits は Worked が引いた待ちを種類ごとに分けたもの（どれも doing の区間の中だけ。結果の記録の内訳 breakdown の waits。
+// docs/contract.md §19）。種類の間で重なった区間は、それぞれの種類に数える（Worked は重なりを1回だけ引く）。
+type Waits struct {
+	Question time.Duration // 自分の問いが開いていた間
+	Review   time.Duration // レビュアーの課題を待っていた間
+	Gone     time.Duration // 端末が死んでいた間
+}
+
+// WorkedWaits は Worked と、Worked が引いた待ちの種類ごとの内訳を返す。数え方は Worked の注釈のとおり。
+func WorkedWaits(rows []Row, issues []Issue, id, cos string, gone []time.Time, now time.Time) (time.Duration, Waits) {
 	children := map[string]bool{}
 	for _, t := range issues {
 		if t.Str("parent") == id && strings.HasSuffix(t.Str("profile"), "-review") {
@@ -38,7 +52,9 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 	}
 	var (
 		doing  []span
-		waits  []span
+		asks   []span
+		revs   []span
+		deads  []span
 		in     *time.Time
 		asked  = map[string]time.Time{}
 		review = map[string]time.Time{}
@@ -54,7 +70,7 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 			if _, ok := r.Change["add"]; ok {
 				review[r.ID] = at
 			} else if from, ok := review[r.ID]; ok && (status == "review" || status == "done") {
-				waits = append(waits, span{from, at})
+				revs = append(revs, span{from, at})
 				delete(review, r.ID)
 			}
 			continue
@@ -68,7 +84,7 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 		if q, ok := r.Change["question"]; ok {
 			n := fmt.Sprint(q)
 			if from, ok := asked[n]; ok && status != "open" {
-				waits = append(waits, span{from, at})
+				asks = append(asks, span{from, at})
 				delete(asked, n)
 			} else if status == "open" && r.By != DispatcherBy && (cos == "" || r.By != "terminal:"+cos) {
 				asked[n] = at
@@ -95,10 +111,10 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 		doing = append(doing, span{*in, now})
 	}
 	for _, from := range asked {
-		waits = append(waits, span{from, now})
+		asks = append(asks, span{from, now})
 	}
 	for _, from := range review {
-		waits = append(waits, span{from, now})
+		revs = append(revs, span{from, now})
 	}
 	for _, g := range gone {
 		to := now
@@ -108,16 +124,26 @@ func Worked(rows []Row, issues []Issue, id, cos string, gone []time.Time, now ti
 				break
 			}
 		}
-		waits = append(waits, span{g, to})
+		deads = append(deads, span{g, to})
 	}
-	waits = union(waits)
 	var total time.Duration
 	for _, d := range doing {
 		total += d.to.Sub(d.from)
+	}
+	all := append(append(append([]span{}, asks...), revs...), deads...)
+	w := Waits{Question: within(doing, asks), Review: within(doing, revs), Gone: within(doing, deads)}
+	return total - within(doing, all), w
+}
+
+// within は waits を重なりを除いて合わせ、doing の区間に入る長さの合計を返す。
+func within(doing, waits []span) time.Duration {
+	waits = union(waits)
+	var total time.Duration
+	for _, d := range doing {
 		for _, w := range waits {
 			from, to := later(d.from, w.from), earlier(d.to, w.to)
 			if to.After(from) {
-				total -= to.Sub(from)
+				total += to.Sub(from)
 			}
 		}
 	}
