@@ -10,6 +10,8 @@
   - 見るファイル: `internal/measure/measure.go`、`internal/waiting/waiting.go`
 - `ms-tokens` 課題の担当のセッションの記録（Claude Code）から、トークンを入力・出力・キャッシュの読み書きに分けて数える。記録の無い課題は `null`。見る道: 検証の担当だけ。
   - 見るファイル: `internal/measure/tokens.go`、`internal/sessionlog/sessionlog.go`
+- `ms-breakdown` 内訳の節が、期間に片付いた課題の結果の記録（`library/outcome.json`）の `breakdown` を役ごとに合わせ、Chief of Staff のトークンをハーネスの役ごとの生の記録（`~/.local/state/andon/otel/<slug>/roles/chief-of-staff/<日付>.traces.jsonl`）から数えた日数と一緒に出す。プロファイルごとの節に、片付いた担当の課題がプロファイルごとに出る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/measure/breakdown.go`、`internal/measure/measure.go`、`internal/trace/roletokens.go`、`schema/measure.schema.json`
 - `ms-table` 人向けの表が「価値:」の行で始まる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/measure/measure.go`
 - `ms-readonly` 打つ前と後で、kanban とセッションの記録が変わらない。見る道: 検証の担当だけ。
@@ -30,6 +32,7 @@
 - **流れを読む。** `ms-flow` の行に `andon measure --json` の出力と、`closed`・`wip_end` の要約が出る。`closed.count` が 1、`wip_end` が 1 で、`ok   ms-flow` が見えれば動いた。
 - **置いてある問いを外す。** 打つ前に、Chief of Staff の端末が呼ぶ判断（`andon issue ask --new --now`）と置いておく判断（`--later`）を 1 件ずつ足してある。どちらの問いも開いたまま。`ms-question-later` の行に `flow.question_open` が出る。`count` が 1 で、`ok   ms-question-later` が見えれば動いた。
 - **トークンを読む。** `ms-tokens` の行に課題ごとの `tokens` が出る。片付いた課題が入力 11・出力 22・キャッシュの読み 33・書き 44、残った課題が `null` で、`ok   ms-tokens` が見えれば動いた。
+- **内訳を読む。** 打つ前に、片付いた課題の結果の記録に内訳（担当。入力 1・出力 2・キャッシュの読み 3・書き 4）を置き、一時の HOME の `.local/state/andon/otel/project/roles/chief-of-staff/` に今日の日付の Chief of Staff の記録（入力 5・出力 6・キャッシュの読み 7・書き 8）を置いてある。`ms-breakdown` の行に `breakdown` と `profiles` が出る。担当の行が置いた数どおり、Chief of Staff が 1 日分で割合 0.72、プロファイル `claude` が 1 件で、`ok   ms-breakdown` が見えれば動いた。
 - **表を読む。** `ms-table` の行に人向けの表が出る。`ok   ms-table` が見えれば動いた。
 - **書かないことを確かめる。** `ok   ms-readonly` が見えれば、打つ前と後で kanban とセッションの記録の sha256 が同じ。
 - **片付く。** 最後に `ok   片付けた` が出る。
@@ -42,6 +45,7 @@
 - `internal/ghpr/`
 - `internal/waiting/waiting.go`
 - `schema/measure.schema.json`
+- `internal/trace/roletokens.go`
 
 ## 既に見ている検査
 

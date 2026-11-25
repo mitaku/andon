@@ -22,7 +22,19 @@ q="{\"kind\": \"users\", \"question\": \"$run の書き出しは CSV だけに�
 called=$(HC_TERMINAL_ID=tc "$andon" issue ask --new --now - <<<"$q" | sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p')
 placed=$(HC_TERMINAL_ID=tc "$andon" issue ask --new --later "$run 急がない" - <<<"${q/CSV だけにするか/並びを変えるか}" | sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p')
 echo "  | 呼ぶ判断: ${called:-無い}。置いておく判断: ${placed:-無い}"
-sums() { find "$tmp/project" "$HOME/.claude" -type f -exec sha256sum {} + | sort; }
+# 片付いた課題の結果の記録の内訳（dispatcher が書く形。ここでは手で置く）と、Chief of Staff の役ごとの生の記録 1 日分（今日の日付。ms-breakdown）
+mkdir -p "$tmp/project/kanban/issues/$done_id/library"
+cat >"$tmp/project/kanban/issues/$done_id/library/outcome.json" <<EOF
+{"issue": "$done_id", "breakdown": {"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 100, "tool_ms": 50, "blocked_ms": 0,
+ "tokens": {"input": 1, "output": 2, "cache_read": 3, "cache_write": 4}, "errors": {"llm": 0, "tool": 0},
+ "tools": [{"name": "Bash", "argv0": "go", "count": 1, "ms": 50, "errors": 0}],
+ "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}}
+EOF
+otel=$HOME/.local/state/andon/otel/project/roles/chief-of-staff
+mkdir -p "$otel"
+echo '{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[{"traceId":"v","spanId":"1","name":"claude_code.llm_request","startTimeUnixNano":"1","endTimeUnixNano":"2","attributes":[{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}},{"key":"cache_read_tokens","value":{"intValue":"7"}},{"key":"cache_creation_tokens","value":{"intValue":"8"}}]}]}]}]}' \
+  >"$otel/$(date -u +%F).traces.jsonl"
+sums() { find "$tmp/project" "$HOME/.claude" "$HOME/.local/state/andon/otel" -type f -exec sha256sum {} + | sort; }
 before=$(sums)
 
 # ms-flow: 期間の流れが履歴どおり数えられる（片付いた 1・残った WIP 1）
@@ -47,6 +59,16 @@ jq -e --arg d "$done_id" --arg w "$wip_id" \
   "$tmp/step.out" >/dev/null \
   && ok "ms-tokens: $done_id のトークンをセッションの記録のとおり数え、記録の無い $wip_id は null" \
   || fail "ms-tokens: トークンの数が記録と違うか、記録の無い課題が null でない"
+
+# ms-breakdown: 内訳の節が片付いた課題の outcome.json の breakdown を役ごとに合わせ、Chief of Staff の分を役ごとの生の記録から数える。
+# プロファイルごとの節に片付いた担当の課題が出る
+jq -c '{breakdown, profiles}' "$tmp/step.out" 2>/dev/null | sed 's/^/  breakdown: /'
+jq -e '.breakdown.issues == 1 and .breakdown.none == 0
+  and .breakdown.roles == [{"role": "worker", "issues": 1, "tokens": {"input": 1, "output": 2, "cache_read": 3, "cache_write": 4}, "cache_read_rate": 0.38, "errors": {"llm": 0, "tool": 0}}]
+  and .breakdown.chief_of_staff == {"days": 1, "tokens": {"input": 5, "output": 6, "cache_read": 7, "cache_write": 8}, "share": 0.72}
+  and (.profiles | map({profile, issues})) == [{"profile": "claude", "issues": 1}]' "$tmp/step.out" >/dev/null \
+  && ok "ms-breakdown: $done_id の内訳を担当の行に合わせ、Chief of Staff の 1 日分を数え、プロファイル claude に 1 件を出す" \
+  || fail "ms-breakdown: 内訳の節かプロファイルごとの節の数が置いた記録と違う"
 
 # ms-table: 人向けの表は価値の行で始まる
 step "ms-table: andon measure を打つ" "$andon" measure \
