@@ -177,7 +177,7 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
-  [measure]="project since until days value flow efficiency counter news prs estimate issues tokens breakdown profiles skipped"
+  [measure]="project since until days value flow efficiency counter news prs estimate issues tokens breakdown profiles knowledge skipped"
   [corrections]="at corrections"
   [signal]="signals"
   [delivered]="at project acked news"
@@ -299,6 +299,13 @@ measure|.breakdown.chief_of_staff.tokens|input output cache_read cache_write
 measure|.profiles[0]|profile issues worked_minutes tokens gate review_rounds
 measure|.profiles[0].worked_minutes|count median
 measure|.profiles[0].gate|records fix needs_human rate
+measure|.knowledge|issues briefed read pages unread gaps
+measure|.knowledge.read|issues index_only no_record
+measure|.knowledge.pages[0]|path reads issues
+measure|.knowledge.gaps|count issues by_kind wheres repeated
+measure|.knowledge.gaps.by_kind|missing wrong hard_to_find
+measure|.knowledge.gaps.wheres[0]|where count issues
+measure|.knowledge.gaps.repeated[0]|where count issues
 delivered|.news[0]|kind
 corrections|.corrections[0]|kind question decision_kind recommended picked
 corrections|.corrections[1]|kind comments human_commits
@@ -775,6 +782,20 @@ fail|measure|.profiles[0].tokens.median = "1"|中央値が文字列
 fail|measure|.profiles[0].profile = ""|プロファイルが空の文字列
 fail|measure|.profiles[0].review_rounds = 1|周回が {count, median} でない
 fail|measure|.profiles[0] += {"version": "1"}|プロファイルの行にバージョンの欄を足す（バージョンごとの表にしない）
+fail|measure|del(.knowledge)|知識の節が無い
+pass|measure|.knowledge.unread = null|読まれなかったページを数えられない（記録なし）
+pass|measure|.knowledge.unread = []|読まれなかったページが無い
+pass|measure|.knowledge.pages = [] | .knowledge.gaps.wheres = [] | .knowledge.gaps.repeated = []|読みも申告も無い
+fail|measure|.knowledge.read.no_record = -1|読みの記録なしの数が負
+fail|measure|.knowledge.read += {"zero": 0}|読みに知らない欄を足す
+fail|measure|.knowledge.pages[0].reads = 0|読まれた数が 0 のページを並べる
+fail|measure|.knowledge.pages[0].path = "/workspace/wiki/topics/x.md"|ページのパスが絶対パス
+fail|measure|.knowledge.unread = ["topics/x.txt"]|読まれなかったページが .md でない
+pass|measure|.knowledge.unread = ["topics/セットアップ.md"]|日本語の名前のページ
+fail|measure|.knowledge.unread = ["topics//x.md"]|ページのパスに空の名前
+fail|measure|.knowledge.gaps.by_kind += {"stale": 1}|申告の種類に知らない種類を足す
+fail|measure|.knowledge.gaps.repeated[0].issues = []|繰り返しに課題が無い
+fail|measure|.knowledge.gaps.wheres[0].count = 0|先ごとの数が 0
 pass|delivered|.acked = false|ack の無いターン
 pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
 pass|delivered|.news = [{kind: "estimate", issue: "S-0001"}, {kind: "memory"}]|見込みとのズレと memory の量の通知（notification の kind は全部通る）

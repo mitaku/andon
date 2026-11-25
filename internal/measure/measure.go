@@ -41,7 +41,8 @@ const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [-
 	"kanban（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
 	"gate の差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
 	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）と、片付いた課題の内訳（outcome.json の breakdown を\n" +
-	"役ごとに合わせたものと、Chief of Staff の分〈ハーネスの生の記録から〉）と、プロファイルごとの数を数える。\n" +
+	"役ごとに合わせたものと、Chief of Staff の分〈ハーネスの生の記録から〉）と、プロファイルごとの数と、知識の節（依頼書に wiki の\n" +
+	"ページを載せた課題・ページを読んだ課題・知識の欠けの申告）を数える。\n" +
 	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
 
@@ -61,6 +62,9 @@ type Options struct {
 	// Otel はハーネスの記録のプロジェクトの置き場（~/.local/state/andon/otel/<slug>。docs/contract.md §30）。
 	// Chief of Staff の役ごとの生の記録だけを読む。空なら読まない。
 	Otel string
+	// Wiki はセルの wiki の置き場（trace.WikiDir）。知識の節の、依頼書に載せたページと読まれなかったページに使う。
+	// 空なら依頼書は wiki/ から始まる相対パスだけを見て、読まれなかったページは数えない（null）。
+	Wiki string
 }
 
 // Stat は件数と平均か中央値（件数が 0 なら null）。
@@ -92,6 +96,7 @@ type Result struct {
 	Tokens     []Tokens         `json:"tokens"`
 	Breakdown  BreakdownSection `json:"breakdown"`
 	Profiles   []Profile        `json:"profiles"`
+	Knowledge  KnowledgeSection `json:"knowledge"`
 	Skipped    []Skip           `json:"skipped"`
 }
 
@@ -262,6 +267,7 @@ type issue struct {
 	session  string
 	worktree string
 	agentEst string // report.json の estimate.size（担当の見込み）
+	gaps     []gap  // report.json の gaps[]（種類の壊れた申告は除く。知識の節）
 	raw      ledger.Issue
 }
 
@@ -699,6 +705,11 @@ func Measure(o Options) (*Result, error) {
 	})
 	res.Breakdown = breakdownSection(bs, cos, cosDays)
 	res.Profiles = profiles(res.Issues, byID, ids, bs)
+	workers := make([]string, 0, len(res.Issues))
+	for _, x := range res.Issues {
+		workers = append(workers, x.Issue)
+	}
+	res.Knowledge = r.knowledge(o, workers, byID, bs)
 
 	sort.SliceStable(r.skipped, func(i, j int) bool {
 		if r.skipped[i].Source != r.skipped[j].Source {
@@ -956,7 +967,7 @@ func (r *reader) issues() []*issue {
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
 		lib := filepath.Join(r.dir, "issues", id, "library")
-		t.pr, t.agentEst, t.obs = r.report(lib)
+		t.pr, t.agentEst, t.obs, t.gaps = r.report(lib)
 		t.gates = r.gates(lib)
 		if t.pr == "" {
 			var latest time.Time
@@ -973,11 +984,11 @@ func (r *reader) issues() []*issue {
 	return out
 }
 
-func (r *reader) report(lib string) (pr, est, obs string) {
+func (r *reader) report(lib string) (pr, est, obs string, gaps []gap) {
 	path := filepath.Join(lib, "report.json")
 	b, ok := r.read(path)
 	if !ok {
-		return "", "", ""
+		return "", "", "", nil
 	}
 	var v struct {
 		PR       string `json:"pr"`
@@ -991,9 +1002,9 @@ func (r *reader) report(lib string) (pr, est, obs string) {
 	}
 	obs = r.observation(path, b)
 	if bad {
-		return "", "", obs
+		return "", "", obs, nil
 	}
-	return v.PR, v.Estimate.Size, obs
+	return v.PR, v.Estimate.Size, obs, r.gaps(path, b)
 }
 
 // observation は report.json（path の中身 b）の観察の報告の result（hit・miss・unknown）。無ければ空。
@@ -1297,7 +1308,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	slug := filepath.Base(root)
 	res, err := Measure(Options{Root: root, Since: since, Until: until, Now: now, GH: GH,
 		State: dispatcher.StatePath(slug), Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug),
-		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions(), Otel: filepath.Join(otel.Root(), slug)})
+		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions(), Otel: filepath.Join(otel.Root(), slug),
+		Wiki: trace.WikiDir()})
 	if err != nil {
 		fmt.Fprintf(stderr, "andon measure: %v\n", err)
 		return 1
@@ -1412,6 +1424,7 @@ func Table(w io.Writer, res *Result, states []string) {
 	tokensTable(w, res.Tokens)
 	breakdownTable(w, res.Breakdown)
 	profilesTable(w, res.Profiles)
+	knowledgeTable(w, res.Knowledge)
 	newsTable(w, res.News)
 	if len(res.Skipped) == 0 {
 		return

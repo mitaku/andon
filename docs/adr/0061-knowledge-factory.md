@@ -23,10 +23,10 @@
 | 12 | 届け方は、最初のメッセージの 1 行と、担当の skill の理解の工程の 1 行にする | `internal/spawn/spawn.go`・`package/skills/worker/SKILL.md` | 生きている |
 | 13 | wiki の目録は Entities、Topics、Sources の順に並べ、引く側は Sources の手前まで読む | `init/wiki/index.md`・`package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 14 | Chief of Staff が課題を切るときに wiki を引く決まりと、学びの置き場の線は変えない | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
-| 15 | 使われたかは、依頼書に載せた数、読んだ数、申告の数の 3 つで見る | この ADR | まだ実装していない |
+| 15 | 使われたかは、依頼書に載せた数、読んだ数、申告の数の 3 つで見る | `internal/measure/knowledge.go`・`schema/measure.schema.json`・[contract.md](../contract.md) §13 | 生きている |
 | 16 | ADR-0060 の内訳に知識の読みを足し、段の表に 2 行を足す | `internal/trace/knowledge.go`・`internal/trace/trace.go`・`schema/outcome.schema.json`・[contract.md](../contract.md) §19 | 生きている |
-| 17 | `andon measure` に知識の節を足す | この ADR | まだ実装していない |
-| 18 | wiki の点検で、読まれていないページを見る | この ADR | まだ実装していない |
+| 17 | `andon measure` に知識の節を足す | `internal/measure/knowledge.go`・`schema/measure.schema.json`・[contract.md](../contract.md) §13 | 生きている |
+| 18 | wiki の点検で、読まれていないページを見る | `package/skills/chief-of-staff/playbooks/wiki.md` | 生きている |
 | 19 | 数字で、判定や委譲や知識の中身を自動では変えない | この ADR | 生きている |
 | 20 | ダイジェストと通知には、このテーマで何も足さない | この ADR | 生きている |
 | 21 | このテーマでは statechart のモデルを書かない | この ADR | 生きている |

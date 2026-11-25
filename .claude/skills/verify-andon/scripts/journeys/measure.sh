@@ -28,8 +28,17 @@ cat >"$tmp/project/kanban/issues/$done_id/library/outcome.json" <<EOF
 {"issue": "$done_id", "breakdown": {"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 100, "tool_ms": 50, "blocked_ms": 0,
  "tokens": {"input": 1, "output": 2, "cache_read": 3, "cache_write": 4}, "errors": {"llm": 0, "tool": 0},
  "tools": [{"name": "Bash", "argv0": "go", "count": 1, "ms": 50, "errors": 0}, {"name": "Read", "argv0": null, "count": 3, "ms": 20, "errors": 0}],
- "waits": {"question_ms": 1000, "review_ms": 2000, "ci_ms": 3000, "gone_ms": 4000}}}
+ "waits": {"question_ms": 1000, "review_ms": 2000, "ci_ms": 3000, "gone_ms": 4000},
+ "knowledge": {"index_reads": 1, "pages": [{"path": "topics/shell.md", "reads": 2}]}}}
 EOF
+# 知識の節（ms-knowledge）: 片付いた課題の依頼書に wiki のページ、報告に同じ先への申告 2 件。wiki の置き場は一時のセルの repo に向ける
+# （セルの本物の wiki を読まない）。読まれたページ 1 枚と、読まれなかった Topics と Entities のページ 1 枚ずつ
+export ANDON_WORKSPACE=$tmp/workspace
+mkdir -p "$ANDON_WORKSPACE/wiki/topics" "$ANDON_WORKSPACE/wiki/entities"
+for p in index.md topics/shell.md topics/ci.md entities/owner.md; do echo '# x' >"$ANDON_WORKSPACE/wiki/$p"; done
+echo '先に wiki/topics/shell.md を読む。' >>"$tmp/project/kanban/issues/$done_id/brief.md"
+echo '{"gaps": [{"kind": "missing", "where": "AGENTS.md", "text": "x"}, {"kind": "wrong", "where": "AGENTS.md", "text": "y"}]}' \
+  >"$tmp/project/kanban/issues/$done_id/library/report.json"
 # 片付いた課題のレビュアーの課題（結果の記録が無い）。流れにもプロファイルにも数えないが、内訳の無い課題に数え、親の周回になる
 rev_id=$(HC_TERMINAL_ID=tc "$kanban" add "$run のレビュー" --profile codex-review --parent "$done_id" --round 1)
 for s in doing review done; do HC_TERMINAL_ID=tc "$kanban" set "$rev_id" "status=$s" >/dev/null; done
@@ -76,16 +85,43 @@ jq -e '.breakdown.issues == 2 and .breakdown.none == 1
   && ok "ms-breakdown: $done_id の内訳を担当の行と待ちとツールに合わせ、結果の記録の無い $rev_id を内訳の無い課題に数え、Chief of Staff の 1 日分を数え、プロファイル claude に 1 件（周回 1）を出す" \
   || fail "ms-breakdown: 内訳の節かプロファイルごとの節の数が置いた記録と違う"
 
+# ms-knowledge: 知識の節が、片付いた担当の課題の依頼書・内訳の読み・申告を数え、読まれなかったページを wiki の置き場から並べる
+jq -c '.knowledge' "$tmp/step.out" 2>/dev/null | sed 's/^/  knowledge: /'
+jq -e --arg d "$done_id" '.knowledge == {"issues": 1, "briefed": 1, "read": {"issues": 1, "index_only": 0, "no_record": 0},
+    "pages": [{"path": "topics/shell.md", "reads": 2, "issues": 1}], "unread": ["entities/owner.md", "topics/ci.md"],
+    "gaps": {"count": 2, "issues": 1, "by_kind": {"missing": 1, "wrong": 1, "hard_to_find": 0},
+      "wheres": [{"where": "AGENTS.md", "count": 2, "issues": [$d]}], "repeated": [{"where": "AGENTS.md", "count": 2, "issues": [$d]}]}}' \
+  "$tmp/step.out" >/dev/null \
+  && ok "ms-knowledge: $done_id を依頼書に載せた課題と読んだ課題に数え、topics/shell.md の 2 回、読まれなかった 2 枚、AGENTS.md への申告の繰り返しを出す" \
+  || fail "ms-knowledge: 知識の節の数が置いた記録と違う"
+
 # ms-table: 人向けの表は価値の行で始まる
 step "ms-table: andon measure を打つ" "$andon" measure \
   && sed -n 1p "$tmp/step.out" | grep -q '^価値: ' \
   && grep -q '^内訳（' "$tmp/step.out" && grep -q '^  片付いた課題  *2件・内訳の無い課題 1件$' "$tmp/step.out" \
   && grep -q '^  chief-of-staff 1日分 ' "$tmp/step.out" && grep -q '^プロファイル（' "$tmp/step.out" && grep -q '^  claude  *1件・実働 ' "$tmp/step.out" \
-  && ok "ms-table: 人向けの表が「価値:」の行で始まり、内訳の節とプロファイルの節が出る" || fail "ms-table: 表が出ないか、先頭が価値の行でないか、内訳かプロファイルの節が無い"
+  && grep -q '^知識（' "$tmp/step.out" && grep -q '^    AGENTS.md 2件（繰り返し） ' "$tmp/step.out" \
+  && ok "ms-table: 人向けの表が「価値:」の行で始まり、内訳の節とプロファイルの節と知識の節が出る" || fail "ms-table: 表が出ないか、先頭が価値の行でないか、内訳かプロファイルか知識の節が無い"
 
 # ms-readonly: 打つ前と後で、kanban とセッションの記録が1バイトも変わらない
 [ "$before" = "$(sums)" ] && ok "ms-readonly: measure の前後で kanban とセッションの記録が変わらない" \
   || fail "ms-readonly: measure が kanban かセッションの記録を書き換えた"
+
+# ms-knowledge（続き）: 内訳の読みが目録だけなら読んだ課題に入れず、内訳が null なら記録なしに入れて、読まれなかったページを null（記録なし）にする
+lib=$tmp/project/kanban/issues/$done_id/library
+jq '.breakdown.knowledge = {"index_reads": 2, "pages": []}' "$lib/outcome.json" >"$tmp/outcome.json" && mv "$tmp/outcome.json" "$lib/outcome.json"
+step "ms-knowledge: 目録だけの内訳で andon measure --json を打つ" "$andon" measure --json
+jq -c '.knowledge.read, .knowledge.unread' "$tmp/step.out" 2>/dev/null | sed 's/^/  knowledge: /'
+jq -e '.knowledge.read == {"issues": 0, "index_only": 1, "no_record": 0} and .knowledge.pages == []
+  and .knowledge.unread == ["entities/owner.md", "topics/ci.md", "topics/shell.md"]' "$tmp/step.out" >/dev/null \
+  && ok "ms-knowledge: 目録だけを読んだ $done_id を読んだ課題に入れず、目録だけの課題に数える" \
+  || fail "ms-knowledge: 目録だけの課題を読んだ課題に数えたか、読まれなかったページが違う"
+jq '.breakdown = null' "$lib/outcome.json" >"$tmp/outcome.json" && mv "$tmp/outcome.json" "$lib/outcome.json"
+step "ms-knowledge: 内訳が null で andon measure を打つ" "$andon" measure \
+  && grep -q '^  wiki のページを読んだ課題  *0件・目録だけ 0件・読みの記録なし 1件$' "$tmp/step.out" \
+  && grep -q '^  1 回も読まれなかった Topics と Entities のページ  記録なし$' "$tmp/step.out" \
+  && ok "ms-knowledge: 内訳が null の $done_id を読みの記録なしに数え、読まれなかったページを「記録なし」にする" \
+  || fail "ms-knowledge: 内訳が null の課題を記録なしに数えないか、読みの記録の無い期間に読まれなかったページを並べた"
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
