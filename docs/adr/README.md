@@ -10,7 +10,7 @@ Chief Engineer がテーマごとに書いた、Andon 自身の設計の決定�
 
 ## 一覧
 
-CHANGELOG の一番上が v0.0.14 のときに作り直した 55 本。それより新しい ADR と変わった状態は `bash tests/adr-index.sh --list` で出せる。
+CHANGELOG の一番上が v0.0.15 のときに作り直した 62 本。それより新しい ADR と変わった状態は `bash tests/adr-index.sh --list` で出せる。
 
 - [0001 skill の配布](0001-skills-distribution.md): 決定
 - [0002 Herdr App の Space と tab への役の置き方](0002-herdr-spaces.md): 決定
@@ -67,3 +67,10 @@ CHANGELOG の一番上が v0.0.14 のときに作り直した 55 本。それよ
 - [0053 andon のコマンドを「名詞 動詞」に組み直し、どこで打っても動くようにする](0053-command-system.md): 決定
 - [0054 gate は、オーナーのマージ待ちの PR に赤い印を付けない](0054-gate-status-by-decision.md): 決定
 - [0055 ADR を並べて書いても PR が衝突しない作りにする](0055-adr-prs-without-conflicts.md): 決定
+- [0056 gate が判定するまで、PR をマージできないようにする](0056-gate-required-before-merge.md): 決定
+- [0057 オーナーの課題は、判断か手作業のどちらかにする](0057-owner-issue-decision-or-hand-work.md): 決定
+- [0058 エージェントが PR に書いたものを、オーナーの手直しの記録に入れない](0058-agents-stay-out-of-pr-conversation.md): 決定
+- [0059 ボードは片付いて 24 時間を超えた課題を毎回は読まず、表示 History に分ける](0059-board-leaves-old-done-to-history.md): 決定
+- [0060 開発の一連の流れを OpenTelemetry のトレースで辿れるようにし、振り返りと measure がそこから読む](0060-otel-trace.md): 決定
+- [0061 仕事の中で分かった知識の欠けを申告し、直した知識を次の課題へ届け、使われたかを数える](0061-knowledge-factory.md): 決定
+- [0062 オーナー待ちに「置いておく」の印を足し、行燈は今呼んでいるものだけで灯す](0062-later-owner-waits.md): 決定

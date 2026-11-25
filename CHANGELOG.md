@@ -8,10 +8,87 @@
 
 ## 未リリース
 
+（まだ無い）
+
+## v0.0.15 — 2026-11-25
+
+急がないオーナー待ちを置いておく形（ADR-0062）と、オーナーの課題を判断か手作業のどちらかにする形（ADR-0057）が入り、行燈・ペイン・Stream Deck のキー・ダイジェストが、今オーナーを呼んでいるものだけを数えるようになったバージョン。ほかに、Chief of Staff が PR を止める口（ADR-0056）、ボードの表示 History（ADR-0059）、ハーネスのトレースとログをセルに残す受け口（ADR-0060）、担当の知識の欠けの申告（ADR-0061）、枠が空いたときにトリアージと振り返りを撃つ dispatcher（ADR-0047）、エージェントが PR の会話欄に書かない設定（ADR-0058）が入った。Andon を開発する側では、コードのコメントを減らす一連の変更と、当てたあとに確かめる機能の一覧の拡張が入った。**kanban の形式（3）と、どの schema のバージョンも変わらない**。`project.json` の新しい欄 `chief_of_staff.idle_minutes` と `otel` は v0.0.14 が読めないので、書く順と戻す順がある。`image/Dockerfile` が変わったので `rebuild` が要る。`bin/bootstrap` と `package/compose.yaml` は変わらない。`package/host/` の mod 3 つと Stream Deck の plugin が変わり、mod `inbox` と plugin は一緒に置き直す。
+
+### 変わったこと
+
+- **急がないオーナー待ちを置いておく**（[ADR-0062](docs/adr/0062-later-owner-waits.md)。ADR は #584）: Chief of Staff が予約キー `later` に急がない理由を書いた課題の判断と手作業を、`andon waiting` は今は呼ばない「置いてある」行として後ろに並べる。`later_until` の日が来たときと、後ろで置いておけない課題が待っているときは呼ぶ（#599）。判断を作る `andon issue ask --new` は、`--now`（呼ぶ）か `--later "<理由>"`（置いておく）のどちらかを必ず受ける（#610）。トリアージと振り返りの apply も、オーナーへ回す項目ごとに呼ぶか置いておくかを書く（#615）。行燈・Waiting on you のペイン・ボードの Flow・Stream Deck のキーは呼んでいるものだけで灯り、置いてあるものは「Later」として分けて出す（#617）。ダイジェストの「オーナーが呼ばれている」の数と、`andon measure` の問いが開いていた時間も、置いてあるものを分けて数える（#619）。置いておくか呼ぶかは、オーナーが Chief of Staff に言う。ペインにそのボタンは無い。
+- **オーナーの課題は、判断か手作業のどちらか**（[ADR-0057](docs/adr/0057-owner-issue-decision-or-hand-work.md)。ADR は #509）: 問いも印 `only_owner` も無いオーナーの課題を、手作業でなく判断として灯す（#519）。オーナーの課題と問いを `andon issue ask --new` の 1 回で置く（#521）。トリアージの apply はオーナーへの判断を問いにして置き、手作業に印を付ける（#523）。振り返りの apply が足すオーナーの課題には、Andon へ伝えるかの問いを置く（#525）。ペインの手作業の行には依頼書の手順とリンクが出て（#573）、ペインは閉じるボタンと Esc で閉じられる（#587）。答えには、誰が決めたかの印 `decidedBy`（オーナー・Chief of Staff・機械）が付く（#510・#512）。
+- **Chief of Staff が PR を止める口と、gate の印**（[ADR-0056](docs/adr/0056-gate-required-before-merge.md)。ADR は #503）: `andon issue hold <id> <理由の課題>` で止めた PR は、`andon issue unhold` で外すまで gate が回らず、dispatcher もマージしない。理由の課題が片付くと通知 `hold` で知らせる（#530）。gate はオーナー待ちの PR にも緑の印を付け、dispatcher は PR を読むたびに印を課題の状態に揃える（#517）。main で検査の置き場が変わったあとの古い base の PR は、gate が rebase まで通さない（#596）。マージのあとの影響の通知にも、検査の置き場の動きが出る（#598）。`andon/gate` を main の必須の check にする切り替えは、まだしていない。
+- **ボードの表示 History**（[ADR-0059](docs/adr/0059-board-leaves-old-done-to-history.md)。ADR は #526）: 片付いて 24 時間を超えた課題を Board と List から外し、表示 History で見せる（#563）。ボードは毎回すべての課題を読まず、新しい `andon issue board`・`andon issue history` から要る課題だけを受ける（#562・#569）。セルの `andon` が古いときは、今までの読み方に戻る。
+- **ハーネスのトレースとログの受け口**（[ADR-0060](docs/adr/0060-otel-trace.md)。ADR は #572）: セルの中の受け口 `andon otel serve`（`127.0.0.1:4318`）が、Claude Code と Codex が出すトレースとログを受ける。個人の属性を落として秘密の形を伏せてから、作り直しても残る volume `state` の `~/.local/state/andon/otel/` に課題ごとに書く。dispatcher が 1 日に 1 回、30 日を過ぎた記録と 10 GB を超えた分を消す（#577）。役を起動する行が、受け口へ送る設定を渡す（Claude Code は #592、Codex は #601・#604）。受け口は boot が起動し、`image/apply-main.sh` でパッケージを当てたときも、当てたパッケージで起動し直す（#606）。送らない設定と記録の寿命は、`project.json` の `otel` で変えられる。記録を課題 1 件の流れに縫う `andon trace` と、`andon measure` の内訳は、まだ無い。
+- **担当が知識の欠けを申告する**（[ADR-0061](docs/adr/0061-knowledge-factory.md)。ADR は #580）: 担当は、知識が無かった所、誤っていた所、辿り着くのが遅れた所を、報告の `gaps` に書く。`andon issue report` は前の報告から引き継ぐ（#585）。トリアージは申告を 1 件ずつ拾い（#588）、振り返りの入力には、申告と期間に聞かれた問いが載る（#590）。担当の最初のメッセージには、セルの wiki の目録を指す 1 行が付く（#589）。
+- **枠が空いたときに点検を回す**（[ADR-0047](docs/adr/0047-idle-slots-run-upkeep.md) の実装）: dispatcher は `chief_of_staff.idle_minutes`（既定 15 分）おきに並行の枠を見る。2 回続けて空いていれば、トリアージと振り返りのルーチンを線の上で撃ち、通知 `idle` を積む（#504）。ルーチンのファイルに `idle_hours` を書けば、そのルーチンも空いたときに撃つ（#534）。Chief of Staff が `idle` を受けたときの手は、手引き `idle.md` にある（#536）。トリアージは、次回に回した項目を 20 時間は出さない（#497）。
+- **エージェントは PR の会話欄に書かない**（[ADR-0058](docs/adr/0058-agents-stay-out-of-pr-conversation.md)。ADR は #508）: Claude Code の設定で `gh pr comment` と `gh pr review` を断り、Codex の rules でも同じ口を閉じた。伝えることは PR の本文に書く（#514）。オーナーの手直しの記録から、merge commit と Chief Engineer の課題の commit を外した（#531）。
+- **オーナーへの文と問い**: Chief of Staff の最後の返事に、用語集の「オーナーへはふだんの言葉で言う語」があると、Stop フックが言い換えを渡して 1 回だけ言い直させる（#581）。Chief Engineer が範囲を聞くときは、向きの呼び名を選択肢にせず、入るものと入らないものを具体の文で言う（#576）。
+- **担当の起動とレビュー**: 見込みが小・中の担当を effort medium で起動するプロファイル `claude-medium` を足した（#586）。担当を起動する前に、依頼書の Settings の写しを予約キーから書き直す（#555）。トリアージと振り返りの apply とルーチンが足す課題には、予約キーの既定が書かれる（#520）。受け入れ条件の番号は、`A4` と `4` のどちらでも同じ番号と読む（#541）。担当の skill は、起動の文と揃えて読むだけのサブエージェントを許し（#543）、反論の段に「足した検査の素通り」の観点を足した（#579）。`hc wait` の途中の返りを終わりと読まない手順にし（#549・#622）、`andon issue start` が `doing` にした課題では `kanban start` を打たない（#546）。再開の最初のメッセージには送り手の印が付く（#594）。レビュアーは、変えた振る舞いを通る検証の道も見る（#621）。
+- **信号**（[ADR-0051](docs/adr/0051-signals-flow-and-breaking-change.md)）: main の CI の失敗の `release` を、失敗が始まった run の commit に留める（#496）。通知 `signal` にその commit が載り、Chief of Staff はその PR を壊した変更の候補として引く（#533）。`kanban migrate` の `project.json` の下書きにも、repo があれば `github-ci` の 1 行が入る（#567）。
+- **数え方と止まりの直し**: マージされた PR が 1000 本を超えても、`andon measure`・ダイジェスト・振り返りが古い PR を落とさない（#506）。片付いた課題への `kanban done` の打ち直しを、片付けた行に数えない（#564）。介在回数の説明を、操作の種類で数える形に揃えた（#566）。merge の記録が消えても、マージを打ち直す待ちの approve を黙って止めず、gate から回し直す（#570）。
+- **名前を指す語をタイトルとテーマに揃えた**（[ADR-0052](docs/adr/0052-title-and-theme-not-dai.md) の実装）: 書き方の決まり・用語集・skill（#507）、コマンドの出力とコードのコメント（#558）、生きている文書（#582）、ADR と決定の記録（#591）で、名前を指す語を「タイトル」、Chief Engineer が受け持つ検討の単位を「テーマ」と書き、語の検査の範囲に入れた。
+- **コードのコメントを減らした**: Go のコメントを、文書を指す制約・外の振る舞い・API の約束だけに減らし、コードの言い換えと、文書に写しの無い説明を消した。振る舞いは変えていない。`internal/issue`（#575）、`internal/dispatcher`（#595）、`cmd/kanban`（#603）、`internal/retro`（#605）、`internal/ledger`（#607）、`internal/boot`（#608）、`internal/triage`（#611）、`internal/gate`（#612）、`internal/digest`（#613）、`internal/measure`・`waiting`・`contract`（#614）、残りの小さい場所（#616）。
+- **当てたあとに確かめる機能の一覧を広げた**: Andon を開発するセルで、マージした変更をセルへ当てたあとに動かして確かめる機能の一覧（検証の skill の機能の地図）に、次を足した。ダイジェスト・流れの数え・プロジェクトを立てる・オーナー待ちと gate の問いを閉じる処理（#539）、置いておく印と呼ぶ日（#600）、トリアージと振り返りの apply（#618）、ハーネスの受け口と生の記録の片付け（#583・#604・#609）、PR を止める道（#560）、dispatcher の通知の枠の空き・手直しの記録・信号（#513・#532・#535・#537）、担当の起動と再開の印（#545・#597）、受け入れ条件の番号の突き合わせ（#542）、hook の道と gate の道の直し（#511・#515・#522）。細かい機能ごとに見るファイルを持たせ、地図に載らないファイルと package を検査で落とす（#578）。見るファイルを変えた commit は、変えた振る舞いを通る細かい機能を `Verify-features:` の行で名指す（#602）。Go のコメントだけの変更は名指しが要らない（#620）。`drive.sh` は検証する commit を必ず受け、細かい機能ごとの結果を出す（#561・#624）。当て直しの記録 `applied.json` に前に当てた commit と時刻を残し、振り返りの当て直しの印もそれを読む（#516・#527）。
+- **README を英語と日本語に分けた**（[ADR-0046](docs/adr/0046-readme-for-first-time-readers.md) の実装）: `README.md`（英語）と `README.ja.md`（日本語）を同じ構成で書き直し、2 つの構成を検査で突き合わせる（#574）。モデルに置き換わっていくとしても Andon を作る理由の段落を足した（#571）。
+- **コマンドの表と ADR の番号**: andon の葉を 1 つの表にまとめ、help・`docs/commands.md`・bash の補完をそこから作る（#501。[ADR-0053](docs/adr/0053-command-system.md) の一部）。ADR の一覧を `docs/adr/README.md` に移してバージョンを切る PR だけが作り直し、ADR の番号は `tests/adr-new` で取る（#498・#505。[ADR-0055](docs/adr/0055-adr-prs-without-conflicts.md)）。
+- **Andon を開発する人向けの整理**: `AGENTS.md` と `REVIEW.md` の決まり（#499・#518・#529・#538・#551）、検査の書き方を守らせる検査（`A && B` の受け手は #550・#554、pipefail の下で途中で抜ける読み手は #593、検査のシェルを Bash で書き換える呼び出しを断るフックは #553）、PR で検査の隔離を確かめる job isolation（#540・#565・#568）、検査の安定（#500・#524・#528・#544・#552）、振り返りの直しの依頼書（#556・#559）、文書の小直し（#502・#547・#548・#557）。
+
 ### 上げるときにすること
 
+上から順に行う。
+
+- **`merge: auto` の `review` の課題が片付いてから上げる**: 下で Chief of Staff を起動し直すとアドレスが変わる。予約キーを書き直す前に gate が回った課題は自動でマージされず、オーナーの判断待ちになる。キーを書き直しても、PR の head が動くまで戻らない。
+- **image を上げて `rebuild` する**: セルの `Dockerfile` の `FROM` を v0.0.15 に上げて `bin/bootstrap rebuild` を打つ。`image/Dockerfile` が mise の既定の go（`~/.config/mise/config.toml`。repo の `mise.toml` と同じ 1.27.3）を焼くようになり、`mise.toml` の無い所でも非対話のシェルで go が引ける（#623）。`image/apply-main.sh` で当てたセルにはこの設定が当たらないので、`rebuild` が要る。`package/compose.yaml` は変わらず、volume も増えない。ハーネスのトレースとログは、前からある volume `state` に書かれる。受け口は `rebuild` のあとの boot が起動する。
+- **`bin/bootstrap` は置き換えなくてよい**: `init/bin/bootstrap` は変わらない。v0.0.14 の「今あるセルの `bin/bootstrap` を置き換える」を済ませていないセルだけ、その手順で置き換える。
+- **互換**: kanban の形式（3）は変わらず、kanban のための手作業は無い。`issue.yaml` に任意の予約キー `hold`・`later`・`later_until`、`questions.yaml` に任意のキー `decidedBy` が増えた。v0.0.14 はどれも知らないキーとして読み飛ばす（下の「戻すとき」）。`schema/` で変わったのは次のとおりで、どの schema もバージョンは変わらない。
+  - `project` に任意の `chief_of_staff.idle_minutes` と `otel` が増えた。v0.0.14 は読めない（下の「`project.json` の新しい欄」）。
+  - `notification` に種類 `idle` と `hold`、種類 `signal` の `release`、種類 `impact` の課題ごとの `checks_moved` が増えた。`delivered` に種類 `idle` が増えた。
+  - `waiting`（`andon waiting --json`）の行に `call`・`later`・`later_until` と、手作業の行の `steps`・`links` が増えた。`call` は必須でなく、無い行は前の決まり（マージの依頼と判断は呼ぶ、手作業は呼ばない）で読む。
+  - `report` に任意の `gaps`、`issue-keys` に `hold`・`later`・`later_until` が増えた。
+  - `retro`（`andon retro collect` の出力）に、必須の `questions` と、要約の束の必須の `gaps` が増えた。
+  - `signal` の `release` は、見えた run の commit でなく、失敗が始まった run の commit になった。出来事が続く間は書き換えないので、今ある記録の値は、その出来事が終わるまで前の値のまま残る。
+  - `issue-board`（`andon issue board`・`andon issue history` の出力）は新しい。
+  - **既知の不具合（v0.0.14 から残る）**: `delivered`（届けた通知の記録）の schema に、`answered` と、新しい `hold` が無い。どちらかを渡したターンは、一緒に渡したほかの通知ごと、この記録に残らない。通知は届くが、`andon measure` の届けた通知の数と、ダイジェストの止まった担当から落ちる。
+- **host-install**: 雛形が変わった。`host-install` は今あるものを上書きしないので、変わったものを退避してから打ち直す（手順は [docs/operate.md](docs/operate.md) の「Herdr App の mod とレイアウト」の「新しいバージョンに置き直す」と、「Stream Deck に行燈のキーを置く」の「置き直す」）。
+
+  | 置かれるもの | 変わったこと | すること |
+  |---|---|---|
+  | mod `inbox` | `andon waiting` の行の `call` で数え、置いてある行は灯さない。`inbox.lamp` をバージョン 2 にし、`task` と `later` を足した（`main.js`・README・RECIPE） | 退避して置き直す。Stream Deck の plugin と一緒に |
+  | mod `waiting` | 置いてある行を「Later」の見出しの下に分ける。手作業の行に手順とリンクを出す。閉じるボタンと Esc（`main.js`・`mod.json`・README・RECIPE） | 退避して置き直す |
+  | mod `kanban-board` | 表示 History と、`andon issue board`・`andon issue history` の呼び出し、Flow の「Later」の印（`main.js`・README・RECIPE） | 退避して置き直す |
+  | Stream Deck の plugin `andon.lamp.sdPlugin` | `inbox.lamp` のバージョン 2 だけを読み、手作業を `task` と描く（`key.js`・README） | 使っているなら、退避して `STREAMDECK_PLUGINS` を指定して打ち直す。`inbox` と片方だけを置き直すと、キーは「?」になる |
+
+  `andon-up`・herdr の設定・ssh config・cloud-init の雛形・レイアウト `andon`・mod `andon`・`context-header`・`files-plus` は変わらない。App のあるマシンで、セルの repo から次を打つ（WSL＋Windows なら `HERDR_APP_HOME` も付ける）。
+
+  ```bash
+  app="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
+  old="$app-andon-old-$(date +%Y%m%d%H%M)"; mkdir -p "$old/mods"
+  for m in inbox waiting kanban-board; do [ -e "$app/mods/$m" ] && mv "$app/mods/$m" "$old/mods/"; done
+  # Stream Deck を使うときだけ。先に Stream Deck のアプリを終える
+  plugins=<plugin の置き場>      # WSL なら wslpath に通したパス
+  mv "$plugins/andon.lamp.sdPlugin" "$old/"
+  STREAMDECK_PLUGINS="$plugins" bin/bootstrap host-install      # Stream Deck を使わないなら STREAMDECK_PLUGINS を付けない
+  for m in inbox waiting kanban-board; do herdr-app check "$app/mods/$m"; done
+  ```
+
+  打ち直したら、Stream Deck のアプリを起動する。
+- **Chief of Staff と担当を起動し直す**: skill・テンプレート・`environment.md`・`writing.md`・`package/settings.json`・`package/codex.rules` の変更は、動いている役に効かない。テンプレートの起動の行が受け口へ送る設定を渡すようになったので、起動し直すまでの役のトレースとログは残らない。Chief of Staff（と動いている担当）を `hc kill` し、`andon chief-of-staff` で起動し直す。dispatcher は boot が起動し直す。Chief of Staff のアドレスが変わるので、Chief of Staff は開いている課題の予約キーを同じ値で書き直す。書き直すまで `andon issue start` はその課題を断り、gate は自動マージをしない。
 - **今あるオーナーの課題を仕分ける**（[ADR-0057](docs/adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 12）: `andon waiting` は、問いも印 `only_owner` も無いオーナーの課題を、手作業でなく判断に数えて灯す。上げた直後は、今ある手作業の行が問いの番号の無い判断の行に移り、行燈が灯る。Chief of Staff は、起動し直したあとの最初の `andon waiting` で、その行を 1 件ずつ直す。判断なら `andon issue ask <id> -` で問いを置き、オーナーにしかできない手作業なら `kanban set <id> only_owner="<理由>"` を書く。依頼書の文から機械で仕分けることはしない。
 - **セルの側の文の語を直す**（[ADR-0052](docs/adr/0052-title-and-theme-not-dai.md) 決めたこと 11）: Andon の文は漢字 1 字の「題」をやめ、名前を指す所は「タイトル」、Chief Engineer が受け持つ検討の単位は「テーマ」と書く。セルの側の文はパッケージのバージョンアップでは届かないので、Chief of Staff がセルの指針（`AGENTS.local.md` とプロジェクトの `AGENTS.md`）と wiki のページを直す。`wiki/log.md` の冒頭の、見出しの形を言う行も直す。kanban に残る過去の依頼書と報告、wiki の発言の写しは直さない。
+- **残ったオーナー待ちに、置いておく印を書く**（[ADR-0062](docs/adr/0062-later-owner-waits.md) の「依頼書に切る案」7）: 上げた直後は印 `later` を持つ課題が無いので、オーナー待ちは全部呼ぶ。上の仕分けのあと、Chief of Staff は急がないオーナー待ちの課題に `kanban set <id> later="<置いておく理由>"` を書く。判断にも手作業にも書く。基準は skill `ask-one-by-one` §3 の 3 つで、3 つを全部満たすときだけ置き、迷ったら呼ぶ。`andon waiting` は、その時点の Chief of Staff の端末が書いた印だけを信じるので、オーナーは手で書かない。
+- **wiki の目録の節を並べ替える**: `andon init` の雛形の目録は、節を Overview・Entities・Topics・Sources の順に並べるようになった（#589）。担当は目録を Sources の節の手前まで読む。今あるセルの目録はバージョンアップでは変わらないので、Sources の節が Entities・Topics より先にあるセルでは、Chief of Staff が手引き `wiki.md` の「目録の並べ替え」で 1 回並べ替える。
+- **枠が空いたときの点検は、上げると動き出す**: dispatcher は既定で 15 分おきに並行の枠を見て、2 回続けて空いていれば、ルーチン `triage` と `retro` を線の上で撃ち、Chief of Staff に通知 `idle` を積む。止めるなら、下の「`project.json` の新しい欄」で `idle_minutes` に `0` を書く。
+- **`project.json` の新しい欄（任意）**: 次の 2 つは v0.0.14 が知らないキーとして弾き、`project.json` を読めないものとして無委譲・書いてよい repo 無しに倒れる。書くなら、同じ `project.json` を読むセルを全部 v0.0.15 に上げてから、オーナーが書いて commit する（[docs/contract.md](docs/contract.md) §11）。
+  - `chief_of_staff.idle_minutes`: dispatcher が枠の空きを見る間（分）。既定 15。`0` なら見ない。
+  - `otel`: `{"enabled": false}` なら、役の起動が受け口へ送らない。`days`（既定 30）と `max_gb`（既定 10）で、生の記録の寿命と合計の上限を変える。
+- **v0.0.14 へ戻すとき**: image を下げる前に、次の順で戻す。mod と Stream Deck の plugin は戻さなくてよい。前の `andon` の出力（`call` の無い行、`andon issue board` が無いこと）でも、今までどおりに描く。
+  1. `project.json` に `chief_of_staff.idle_minutes` か `otel` があれば、オーナーがキーごと消して commit する。残すと v0.0.14 は `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
+  2. `andon issue hold` で止めている課題を探す（`grep -l '^hold:' /workspace/projects/*/kanban/issues/*/issue.yaml`）。v0.0.14 は `hold` を読まないので、止めた PR にも gate が回り、`merge: auto` ならマージされる。止めておきたい PR は、下げる前に理由の課題を片付けて `andon issue unhold` で外す。
+  3. 置いておく印 `later` も v0.0.14 は読まないので、置いてあったオーナー待ちはまた呼び、行燈が灯る。印は消さなくてよい。上げ直せば、また効く。
+  4. 2 分待って dispatcher に見回らせてから、セルの中で `grep -lE '"kind": "(idle|hold)"' ~/.local/state/andon/dispatcher/*.json` を打ち、何も出ないことを確かめる。ファイル名が出たら、Chief of Staff に受け取らせ、そのターンが終わってから打ち直す。残したまま下げると、v0.0.14 の dispatcher は控えを書けず、通知が届かない。`idle` は枠が空いている間また積まれるので、何も出なかったらすぐ 5 へ進む。
+  5. `FROM` を戻して `rebuild` する。
 
 ## v0.0.14 — 2026-11-23
 
