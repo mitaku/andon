@@ -232,12 +232,14 @@ any(.steps[]; .by == "ai" and ((.decides // []) as $d | ["途中報告を書か�
 any(.counts[]; startswith("flow.wait."))@数えるものに状態ごとの時間（flow.wait.<status>）
 WATCH
 # 仕分けと振り返りも PR の無い課題なので、報告は通知 report で届く（review の通知は来ない）
-report_check='any(.triggers[]; .kind == "notification" and .notification == "report" and .start == "check")'
+report_check='any(.triggers[]; .kind == "notification" and .notification == "report" and .start == "check") and (any(.triggers[]; .notification == "review") | not)'
 "$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"
 jq -e "$report_check" "$tmp/ws.json" >/dev/null &&
-  ok "仕分け: 通知 report から check（仕分けを確かめる）が始まる" || ng "仕分けに 通知 report → check のきっかけが無い"
+  ok "仕分け: 通知 report から check（仕分けを確かめる）が始まり、通知 review のきっかけが無い" || ng "仕分けに 通知 report → check のきっかけが無いか、通知 review のきっかけが残る"
 jq '(.triggers[] | select(.start == "check")).notification = "review"' "$tmp/ws.json" >"$tmp/bad.json"
 ! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: 仕分けのきっかけが review" || ng "review の通知で仕分けを確かめる定義が通る"
+jq '.triggers += [{"name": "review", "kind": "notification", "notification": "review", "start": "check"}]' "$tmp/ws.json" >"$tmp/bad.json"
+! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: 仕分けに report と review のきっかけが並ぶ" || ng "report と review のきっかけが並ぶ仕分けの定義が通る"
 while IFS='@' read -r filter desc; do
   [ -n "$filter" ] || continue
   jq -e "$filter" "$tmp/ws.json" >/dev/null && ok "仕分け: $desc" || ng "仕分けに無い: $desc"
@@ -273,6 +275,8 @@ any(.steps[]; .by == "ai" and ((.skill | if type == "array" then . else [.] end)
 RETRO
 jq '(.triggers[] | select(.start == "check")).notification = "review"' "$tmp/retro.json" >"$tmp/bad.json"
 ! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: ふりかえりのきっかけが review" || ng "review の通知で検収する定義が通る"
+jq '.triggers += [{"name": "review", "kind": "notification", "notification": "review", "start": "check"}]' "$tmp/retro.json" >"$tmp/bad.json"
+! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: ふりかえりに report と review のきっかけが並ぶ" || ng "report と review のきっかけが並ぶふりかえりの定義が通る"
 # ダイジェスト（ADR-0044 決めたこと 3・4）: PR の無い課題なので、報告は通知 report で届く
 "$andon" process json process/workstreams/digest.yaml >"$tmp/digest.json"
 digest_report='any(.triggers[]; .kind == "notification" and .notification == "report" and .start == "check")'
