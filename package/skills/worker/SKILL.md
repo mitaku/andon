@@ -41,7 +41,7 @@ description: Chief of Staff が `andon issue start` で起動した担当とレ�
    | `reviewer`（Reviewer） | `codex-review` / `claude-review` | 実装と別ブランド（Claude → `codex-review`、Codex → `claude-review`） | レビュアーのプロファイル。`review_request.reviewer` に書く |
    | `review_rounds`（Review rounds） | 1 以上の数（文字列） | `"2"` | レビューを頼める回数の上限。`review_request.limit` に書く |
    | `merge`（Merge） | `auto` / `person` | `person` | どの値でも担当はマージしない。PR を出して止まる |
-   | `deliverable`（Deliverable） | `pr` / `candidates` | `pr` | 課題の型。`candidates` は調べる課題（成果は候補の一覧。PR は出さない。§2 の「調べる課題のとき」）。自分で書き換えない |
+   | `deliverable`（Deliverable） | `pr` / `candidates` / `report` | `pr` | 課題の型。`candidates` は調べる課題（成果は候補の一覧。PR は出さない。§2 の「調べる課題のとき」）。`report` は成果が報告で PR は無くてもよい課題（検証・点検・マージ後のレビュー）。直すものが無ければ PR を出さず、`andon issue report` のあと `kanban review <id>` で返す（`andon issue ready` は打たない）。依頼書が許す直しを出すなら PR の課題と同じ手順（§3・§4・§7）を通る。自分で書き換えない |
    | `machine` | マシンの名前 | 指揮側と同じ | 自分が起動したマシン。読むだけ |
    | `acceptance`（Acceptance） | 受け入れ条件の番号のコンマの並び（`4,13`） | 番号を持たない課題 | 課題が満たす受け入れ条件。番号ごとに報告の `acceptance[]` の行が要る（§7）。自分で書き換えない |
 

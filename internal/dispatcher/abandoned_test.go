@@ -66,6 +66,24 @@ func TestWaitedGone(t *testing.T) {
 		ledger.Issue{"id": "E-0032", "status": "done", "profile": "claude", "repo": repo, "deliverable": "candidates"},
 		ledger.Issue{"id": "E-0033", "status": "done", "who": "person", "repo": repo},
 	)
+	// 報告の課題（deliverable: report。ADR-0066 決めたこと 6・10）: どれも done・結果の記録が none。E-0041 は Chief of Staff が書いた
+	// report で pr 無し、E-0042 は Chief of Staff が書いたあと起き直して端末が替わった、E-0043 は閉じた PR を持つ、
+	// E-0044 は担当の端末が書いた report、E-0045 は印の無い同じ記録の課題
+	for _, id := range []string{"E-0041", "E-0042", "E-0043", "E-0044", "E-0045"} {
+		if id == "E-0045" {
+			done(id)
+		} else {
+			done(id, "deliverable", "report")
+		}
+		write(id, "outcome.json", `{"result":"none"}`)
+	}
+	report("E-0043", 2)
+	cosRow := func(v string) ledger.Row { return ledger.Row{By: "andon", Config: map[string]any{"chief_of_staff": v}} }
+	setRow := func(by, id string) ledger.Row {
+		return ledger.Row{By: "terminal:" + by, ID: id, Change: map[string]any{"deliverable": "report"}}
+	}
+	p.rows = []ledger.Row{cosRow("t4"), setRow("t4", "E-0042"), cosRow("t5"),
+		setRow("t5", "E-0041"), setRow("t5", "E-0043"), setRow("t9", "E-0044")}
 
 	after := func(ids ...string) ledger.Issue {
 		a := make([]any, len(ids))
@@ -83,6 +101,8 @@ func TestWaitedGone(t *testing.T) {
 		{"やめになった待つ相手を返す", []string{"E-0001", "E-0011", "E-0012", "E-0013", "E-0014"}, []string{"E-0011", "E-0012", "E-0013", "E-0014"}, nil},
 		{"確かめられない待つ相手は unsure", []string{"E-0021", "E-0013"}, []string{"E-0013"}, []string{"E-0021"}},
 		{"PR を成果にしない待つ相手は見ない", []string{"E-0031", "E-0032", "E-0033"}, nil, nil},
+		{"報告の課題は見分けない（起き直しのあとも、閉じた PR を持っても）", []string{"E-0041", "E-0042", "E-0043"}, nil, nil},
+		{"担当の端末が書いた report と印の無い課題は、今までどおりやめ", []string{"E-0044", "E-0045"}, []string{"E-0044", "E-0045"}, nil},
 		{"待つ相手が無い", nil, nil, nil},
 	}
 	for _, c := range cases {

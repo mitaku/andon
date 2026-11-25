@@ -23,9 +23,13 @@ const (
 )
 
 func (p *project) waitedGone(t ledger.Issue) (gone, unsure []string) {
+	cos := ""
 	for _, id := range afterOf(t) {
 		a, err := p.issue(id)
-		if err != nil || !yieldsPR(a) {
+		if err == nil && cos == "" && a.Str("deliverable") == "report" {
+			cos = p.l.ChiefOfStaff()
+		}
+		if err != nil || !yieldsPR(p.rows, a, cos) {
 			continue
 		}
 		switch p.mergedState(id) {
@@ -63,8 +67,11 @@ func afterOf(t ledger.Issue) []string {
 	return out
 }
 
-func yieldsPR(t ledger.Issue) bool {
-	return t.Str("repo") != "" && !isReviewer(t) && t.Str("who") != "person" && ledger.SettingsOf(t).Deliverable != "candidates"
+// yieldsPR は、待つ相手 t が PR を成果にする課題か。repo の無い課題・レビュアー・オーナーの課題と、成果の形
+// （ledger.DeliverableOf。contract.md §2 の「成果の形の読み方」）が pr でない課題（調べる課題と、書いた時点の Chief of Staff が
+// report を書いた報告の課題）は、done が成果の出来上がりなので見分けない（ADR-0066 決めたこと 6・10）。
+func yieldsPR(rows []ledger.Row, t ledger.Issue, cos string) bool {
+	return t.Str("repo") != "" && !isReviewer(t) && t.Str("who") != "person" && ledger.DeliverableOf(rows, t, cos) == "pr"
 }
 
 // mergedState は課題 id の PR がマージされたかを、手元の記録から先に、無ければ gh で決める。

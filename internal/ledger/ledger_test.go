@@ -305,6 +305,10 @@ func TestRewriteSettings(t *testing.T) {
 			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: off\n",
 			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: on\n",
 			Issue{"review": "on"}},
+		{"成果が報告の課題は Deliverable: report と写す（ADR-0066 受け入れ条件 2）",
+			"## Settings\n- Review: off\n- Deliverable: pr\n",
+			"## Settings\n- Review: off\n- Deliverable: report\n",
+			Issue{"review": "off", "deliverable": "report"}},
 		{"知らない値は SettingsOf が読む値で写す",
 			"## Settings\n- Deliverable: survey\n- Merge: never\n- Review: maybe\n",
 			"## Settings\n- Deliverable: pr\n- Merge: person\n",
@@ -416,6 +420,38 @@ func TestLastHoldSet(t *testing.T) {
 	}
 	if _, _, ok := LastHoldSet(rows[:3], "A-0001", 2); ok {
 		t.Error("review に入る前の止めやほかの課題の止めを読んだ")
+	}
+}
+
+// DeliverableOf は成果の形を照合を済ませて返す。report は書いた時点の Chief of Staff が書いたときだけ信じ、
+// candidates は値だけで読み、値の無い課題と知らない値は pr（ADR-0066 決めたこと 10〜12・受け入れ条件 2）。
+func TestDeliverableOf(t *testing.T) {
+	cos := func(v string) Row { return Row{By: "andon", Config: map[string]any{"chief_of_staff": v}} }
+	set := func(by, v string) Row {
+		return Row{By: "terminal:" + by, ID: "S-0007", Change: map[string]any{"deliverable": v}}
+	}
+	for _, c := range []struct {
+		name, value, now, want string
+		rows                   []Row
+	}{
+		{"Chief of Staff が書いた report", "report", "t5", "report", []Row{cos("t5"), set("t5", "report")}},
+		{"Chief of Staff が書いたあと起き直して端末が替わった", "report", "t6", "report", []Row{cos("t5"), set("t5", "report"), cos("t6")}},
+		{"担当の端末が書いた report", "report", "t5", "pr", []Row{cos("t5"), set("t9", "report")}},
+		{"Chief of Staff が書いたあと担当が書き直した", "report", "t5", "pr", []Row{cos("t5"), set("t5", "report"), set("t9", "report")}},
+		{"行の無い report", "report", "t5", "pr", nil},
+		{"Chief of Staff が書いた candidates", "candidates", "t5", "candidates", []Row{cos("t5"), set("t5", "candidates")}},
+		{"担当が書いた candidates も値だけで読む", "candidates", "t5", "candidates", []Row{cos("t5"), set("t9", "candidates")}},
+		{"値の無い課題", "", "t5", "pr", []Row{cos("t5")}},
+		{"Chief of Staff が書いた pr", "pr", "t5", "pr", []Row{cos("t5"), set("t5", "pr")}},
+		{"知らない値", "reports", "t5", "pr", []Row{cos("t5"), set("t5", "reports")}},
+	} {
+		issue := Issue{"id": "S-0007"}
+		if c.value != "" {
+			issue["deliverable"] = c.value
+		}
+		if got := DeliverableOf(c.rows, issue, c.now); got != c.want {
+			t.Errorf("%s: %q（want %q）", c.name, got, c.want)
+		}
 	}
 }
 

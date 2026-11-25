@@ -387,6 +387,19 @@ func (l *Ledger) Candidates(rows []Row, t Issue) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
 }
 
+// DeliverableOf は課題 t の成果の形（予約キー deliverable の pr・candidates・report。contract.md §2 の「成果の形の読み方」）を、
+// kanban の履歴 rows と今の config.yaml の Chief of Staff cos で照合を済ませて返す（純粋関数。ADR-0066 決めたこと 10〜12）。
+// candidates は値だけで読む（ADR-0006 決めたこと 17）。report は、最後に変えた行の書き手がその行の時点の Chief of Staff の
+// 端末だったときだけ信じ（TrustedThen。Chief of Staff が起き直しても外れない）、外れたら pr。値の無い課題と知らない値は pr。
+// SettingsOf の Deliverable は値だけを読む写し（依頼書の Settings の写しと andon issue show が読む）で、照合を済ませていない。
+func DeliverableOf(rows []Row, t Issue, cos string) string {
+	v := SettingsOf(t).Deliverable
+	if v == "report" && !TrustedThen(rows, t, "deliverable", cos) {
+		return "pr"
+	}
+	return v
+}
+
 // Estimate は、課題の見込みの段（予約キー estimate の small・medium・large）を、最後に書いたのが Chief of Staff のときだけ返す
 // （contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは空（見込み無し）。ADR-0014 決めたこと 2・11 の 5。
 func (l *Ledger) Estimate(rows []Row, t Issue) string {
@@ -617,7 +630,7 @@ func SettingsOf(t Issue) Settings {
 	if v := t.Str("machine"); nameOK(v) {
 		s.Machine = v
 	}
-	if v := t.Str("deliverable"); v == "candidates" {
+	if v := t.Str("deliverable"); v == "candidates" || v == "report" {
 		s.Deliverable = v
 	}
 	if v := t.Str("estimate"); EstimateMinutes(v) > 0 {

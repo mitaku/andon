@@ -419,10 +419,12 @@ fail|issue-keys|.review_rounds = "0"|review_rounds が 0
 fail|issue-keys|.merge = "auto-merge"|merge が auto/person でない
 fail|issue-keys|.reviewer = "claude"|reviewer がレビュアーのプロファイルでない
 pass|issue-keys|.deliverable = "candidates"|deliverable が candidates（調べる課題）
+pass|issue-keys|.deliverable = "report"|deliverable が report（成果が報告で PR は無くてもよい課題。ADR-0066）
+fail|issue-keys|.deliverable = "reports"|deliverable が pr/candidates/report でない（綴りの違う値）
 pass|issue-keys|. + {"later": "急がない", "later_until": "2026-12-01"}|置いておく印と戻す日（ADR-0062）
 fail|issue-keys|. + {"later": ""}|later が空
 fail|issue-keys|. + {"later_until": "12/01"}|later_until が YYYY-MM-DD でない
-fail|issue-keys|.deliverable = "survey"|deliverable が pr/candidates でない（型の名前は値でない）
+fail|issue-keys|.deliverable = "survey"|deliverable が pr/candidates/report でない（型の名前は値でない）
 pass|issue-keys|.estimate = "large"|estimate が large（見込みの段）
 fail|issue-keys|.estimate = "中"|estimate が段の名（値は英字の small/medium/large）
 fail|issue-keys|.estimate = "60"|estimate が分の数
