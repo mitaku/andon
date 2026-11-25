@@ -21,6 +21,7 @@ import (
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
+	"andon/internal/tools"
 )
 
 const exitFirst = 3
@@ -112,6 +113,8 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 	rec := launch.Gather(launch.Spec{Role: roleOf(p.Profile), Launch: launch.LaunchStart, Issue: id, Profile: p.Profile, Template: p.Profile,
 		Command: p.command, Session: p.Session, Repo: p.Repo, RepoPath: p.Worktree, Brand: ledger.Brand(p.Profile)})
+	// 宣言を満たす: worktree の mise.toml の道具を、hc run の前に入れる（ADR-0063 決めたこと 6・7。満たせなくても起動は続ける）
+	tools.Warn(stderr, "andon issue", p.Worktree)
 	run, err := spawn.Run(p.Terminal, p.Labels, p.Cwd, p.Profile, p.FirstMessage)
 	if err != nil {
 		undo()

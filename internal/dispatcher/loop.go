@@ -17,6 +17,7 @@ import (
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
+	"andon/internal/tools"
 )
 
 var (
@@ -296,6 +297,10 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		r.Address = ""
 	}
 	if r.Address == "" {
+		// 起動の前に worktree を書く: レビュアーの端末の andon tools env が、cwd（issues/<rev>/）でなく PR の head の worktree を引く（ADR-0063 決めたこと 10）
+		if _, err := p.l.Run("", "set", rev, "worktree="+r.Worktree); err != nil {
+			return fmt.Sprintf("%s の kanban に worktree を書けない（todo のまま。次の見回りで起動し直す）: %v", rev, err), false
+		}
 		started, session, err := p.runReviewer(t, rev, title, s.Reviewer, launch.LaunchStart, r.Worktree)
 		if err != nil {
 			return fmt.Sprintf("hc run に失敗（%s は todo のまま。次の見回りで起動し直す）: %v", rev, err), false
@@ -356,6 +361,10 @@ func (p *project) runReviewer(t ledger.Issue, rev, title, profile, how, worktree
 	}
 	rec := launch.Gather(launch.Spec{Role: launch.RoleReviewer, Launch: how, Issue: rev, Profile: profile, Template: profile,
 		Session: session, Repo: t.Str("repo"), RepoPath: worktree, Brand: ledger.Brand(profile)})
+	// 宣言を満たす: PR の head の worktree の mise.toml の道具を、hc run の前に入れる（ADR-0063 決めたこと 6・7。満たせなくても起動は続ける）
+	if line := tools.Satisfy(worktree); line != "" {
+		p.logf("%s: %s", rev, line)
+	}
 	out, _, err := run("", nil, "", "hc", append(args, "--cwd", filepath.Join(p.l.Dir, "issues", rev), profile, p.reviewerFirst(rev))...)
 	if err == nil && (json.Unmarshal([]byte(out), &started) != nil || started.Address == "") {
 		err = fmt.Errorf("hc run の出力が読めない: %q", strings.TrimSpace(out))

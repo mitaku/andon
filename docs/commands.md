@@ -76,6 +76,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon boot serve-files` | 機械 | files サーバ（boot が自分で起動する） |
 | `andon otel serve` | 機械 | ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く |
 | `andon otel env` | 機械 | 役の起動の行に、Claude Code か Codex が受け口へトレースとログを送る設定を出す（template が読む） |
+| `andon tools env` | 機械 | 役の起動の行に、端末の課題の worktree の mise.toml をいちばん弱い既定として渡す設定を出す（template が読む） |
 | `andon version stamp` | 機械 | 焼くときに置き場の中身を数えて version.json を書く |
 | `andon schema check` | 機械・役 | JSON を約束の schema と照らす |
 | `andon schema batch` | 機械・役 | 1行1件の表を、検査器を1度読むだけでまとめて照らす |

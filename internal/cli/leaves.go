@@ -23,6 +23,7 @@ import (
 	"andon/internal/retro"
 	"andon/internal/schema"
 	"andon/internal/signal"
+	"andon/internal/tools"
 	"andon/internal/trace"
 	"andon/internal/triage"
 	"andon/internal/waiting"
@@ -196,6 +197,8 @@ var leaves = []leaf{
 		usage: otel.ServeUsage, examples: []string{"otel serve"}, writes: true, run: otel.ServeMain},
 	{name: "otel env", who: []who{machine}, about: "役の起動の行に、Claude Code か Codex が受け口へトレースとログを送る設定を出す（template が読む）",
 		usage: otel.EnvUsage, examples: []string{"otel env", "otel env --codex"}, run: otel.EnvMain},
+	{name: "tools env", who: []who{machine}, about: "役の起動の行に、端末の課題の worktree の mise.toml をいちばん弱い既定として渡す設定を出す（template が読む）",
+		usage: tools.EnvUsage, examples: []string{"tools env"}, run: tools.EnvMain},
 	{name: "version stamp", who: []who{machine}, about: "焼くときに置き場の中身を数えて version.json を書く",
 		usage: pkgversion.StampUsage, examples: []string{"version stamp unknown"}, writes: true, run: pkgversion.StampMain},
 	{name: "schema check", who: []who{machine, role}, about: "JSON を約束の schema と照らす",

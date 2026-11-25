@@ -19,6 +19,7 @@ import (
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
+	"andon/internal/tools"
 )
 
 type resumePlan struct {
@@ -124,6 +125,8 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	}
 	rec := launch.Gather(launch.Spec{Role: roleOf(p.Profile), Launch: kind, Issue: id, Profile: p.Profile, Template: p.Template,
 		Command: p.command, Session: p.Session, Repo: p.Repo, RepoPath: p.Worktree, Brand: ledger.Brand(p.Profile)})
+	// 宣言を満たす: worktree の mise.toml の道具を、hc run の前に入れる（ADR-0063 決めたこと 6・7。満たせなくても起動は続ける）
+	tools.Warn(stderr, "andon issue", p.Worktree)
 	run, err := spawn.Run(p.Terminal, p.Labels, p.Cwd, p.Template, p.FirstMessage)
 	if err != nil {
 		return fail("%v。kanban は変えていない", err)
