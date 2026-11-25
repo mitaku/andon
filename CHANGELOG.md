@@ -44,9 +44,9 @@
 - **`bin/bootstrap` は置き換えなくてよい**: `init/bin/bootstrap` は変わらない。v0.0.14 の「今あるセルの `bin/bootstrap` を置き換える」を済ませていないセルだけ、その手順で置き換える。
 - **互換**: kanban の形式（3）は変わらず、kanban のための手作業は無い。`issue.yaml` に任意の予約キー `hold`・`later`・`later_until`、`questions.yaml` に任意のキー `decidedBy` が増えた。v0.0.14 はどれも知らないキーとして読み飛ばす（下の「戻すとき」）。`schema/` で変わったのは次のとおりで、どの schema もバージョンは変わらない。
   - `project` に任意の `chief_of_staff.idle_minutes` と `otel` が増えた。v0.0.14 は読めない（下の「`project.json` の新しい欄」）。
-  - `notification` に種類 `idle` と `hold`、種類 `signal` の `release`、種類 `impact` の課題ごとの `checks_moved` が増えた。`delivered` に種類 `idle` が増えた。
+  - `notification` に種類 `idle` と `hold`、種類 `signal` の `release`、種類 `impact` の課題ごとの `checks_moved` が増えた。`delivered` に種類 `idle` が増えた。v0.0.14 の dispatcher は、待っているこれらの通知を控えに持つと控えを書けない（下の「戻すとき」）。
   - `waiting`（`andon waiting --json`）の行に `call`・`later`・`later_until` と、手作業の行の `steps`・`links` が増えた。`call` は必須でなく、無い行は前の決まり（マージの依頼と判断は呼ぶ、手作業は呼ばない）で読む。
-  - `report` に任意の `gaps`、`issue-keys` に `hold`・`later`・`later_until` が増えた。
+  - `report` に任意の `gaps`、`issue-keys` に `hold`・`later`・`later_until` が増えた。v0.0.14 は `gaps` を持つ `report.json` を読めない（下の「戻すとき」）。
   - `retro`（`andon retro collect` の出力）に、必須の `questions` と、要約の束の必須の `gaps` が増えた。
   - `signal` の `release` は、見えた run の commit でなく、失敗が始まった run の commit になった。出来事が続く間は書き換えないので、今ある記録の値は、その出来事が終わるまで前の値のまま残る。
   - `issue-board`（`andon issue board`・`andon issue history` の出力）は新しい。
@@ -60,21 +60,21 @@
   | mod `kanban-board` | 表示 History と、`andon issue board`・`andon issue history` の呼び出し、Flow の「Later」の印（`main.js`・README・RECIPE） | 退避して置き直す |
   | Stream Deck の plugin `andon.lamp.sdPlugin` | `inbox.lamp` のバージョン 2 だけを読み、手作業を `task` と描く（`key.js`・README） | 使っているなら、退避して `STREAMDECK_PLUGINS` を指定して打ち直す。`inbox` と片方だけを置き直すと、キーは「?」になる |
 
-  `andon-up`・herdr の設定・ssh config・cloud-init の雛形・レイアウト `andon`・mod `andon`・`context-header`・`files-plus` は変わらない。App のあるマシンで、セルの repo から次を打つ（WSL＋Windows なら `HERDR_APP_HOME` も付ける）。
+  `andon-up`・herdr の設定・ssh config・cloud-init の雛形・レイアウト `andon`・mod `andon`・`context-header`・`files-plus` は変わらない。App のあるマシンで、セルの repo から次を打つ。WSL＋Windows の App なら、先に `export HERDR_APP_HOME="$(wslpath 'C:\Users\<user>\.config\herdr-app')"` を打つ。`host-install` の行にだけ付けると、1 行目の `app` が既定の置き場を指し、古い mod が退避されずに残る。
 
   ```bash
-  app="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
+  app="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"   # WSL＋Windows なら、上の export を先に打つ
   old="$app-andon-old-$(date +%Y%m%d%H%M)"; mkdir -p "$old/mods"
   for m in inbox waiting kanban-board; do [ -e "$app/mods/$m" ] && mv "$app/mods/$m" "$old/mods/"; done
   # Stream Deck を使うときだけ。先に Stream Deck のアプリを終える
   plugins=<plugin の置き場>      # WSL なら wslpath に通したパス
   mv "$plugins/andon.lamp.sdPlugin" "$old/"
-  STREAMDECK_PLUGINS="$plugins" bin/bootstrap host-install      # Stream Deck を使わないなら STREAMDECK_PLUGINS を付けない
+  STREAMDECK_PLUGINS="$plugins" bin/bootstrap host-install      # Stream Deck を使わないなら、plugin の 2 行を飛ばし、STREAMDECK_PLUGINS を付けない
   for m in inbox waiting kanban-board; do herdr-app check "$app/mods/$m"; done
   ```
 
   打ち直したら、Stream Deck のアプリを起動する。
-- **Chief of Staff と担当を起動し直す**: skill・テンプレート・`environment.md`・`writing.md`・`package/settings.json`・`package/codex.rules` の変更は、動いている役に効かない。テンプレートの起動の行が受け口へ送る設定を渡すようになったので、起動し直すまでの役のトレースとログは残らない。Chief of Staff（と動いている担当）を `hc kill` し、`andon chief-of-staff` で起動し直す。dispatcher は boot が起動し直す。Chief of Staff のアドレスが変わるので、Chief of Staff は開いている課題の予約キーを同じ値で書き直す。書き直すまで `andon issue start` はその課題を断り、gate は自動マージをしない。
+- **Chief of Staff と担当を起動し直す**: skill・テンプレート・`environment.md`・`writing.md`・`package/settings.json`・`package/codex.rules` の変更は、動いている役に効かない。テンプレートの起動の行が受け口へ送る設定を渡すようになったので、起動し直すまでの役のトレースとログは残らない。Chief of Staff（と動いている担当）を `hc kill` し、`andon chief-of-staff` で起動し直す。dispatcher は boot が起動し直す。Chief of Staff のアドレスが変わるので、Chief of Staff は開いている課題の予約キーを同じ値で書き直す。書き直すまで `andon issue start` はその課題を断り、gate は自動マージをしない。セルの `templates.local/` でテンプレートを置き替えているなら、boot はそちらを使うので、`package/templates/` の同じ名前のファイルと差分を見て、`command:` と `resume:` の行の `andon otel env` と本文の変更を写す。写さないと、その役のトレースとログは黙って残らない。
 - **今あるオーナーの課題を仕分ける**（[ADR-0057](docs/adr/0057-owner-issue-decision-or-hand-work.md) 決めたこと 12）: `andon waiting` は、問いも印 `only_owner` も無いオーナーの課題を、手作業でなく判断に数えて灯す。上げた直後は、今ある手作業の行が問いの番号の無い判断の行に移り、行燈が灯る。Chief of Staff は、起動し直したあとの最初の `andon waiting` で、その行を 1 件ずつ直す。判断なら `andon issue ask <id> -` で問いを置き、オーナーにしかできない手作業なら `kanban set <id> only_owner="<理由>"` を書く。依頼書の文から機械で仕分けることはしない。
 - **セルの側の文の語を直す**（[ADR-0052](docs/adr/0052-title-and-theme-not-dai.md) 決めたこと 11）: Andon の文は漢字 1 字の「題」をやめ、名前を指す所は「タイトル」、Chief Engineer が受け持つ検討の単位は「テーマ」と書く。セルの側の文はパッケージのバージョンアップでは届かないので、Chief of Staff がセルの指針（`AGENTS.local.md` とプロジェクトの `AGENTS.md`）と wiki のページを直す。`wiki/log.md` の冒頭の、見出しの形を言う行も直す。kanban に残る過去の依頼書と報告、wiki の発言の写しは直さない。
 - **残ったオーナー待ちに、置いておく印を書く**（[ADR-0062](docs/adr/0062-later-owner-waits.md) の「依頼書に切る案」7）: 上げた直後は印 `later` を持つ課題が無いので、オーナー待ちは全部呼ぶ。上の仕分けのあと、Chief of Staff は急がないオーナー待ちの課題に `kanban set <id> later="<置いておく理由>"` を書く。判断にも手作業にも書く。基準は skill `ask-one-by-one` §3 の 3 つで、3 つを全部満たすときだけ置き、迷ったら呼ぶ。`andon waiting` は、その時点の Chief of Staff の端末が書いた印だけを信じるので、オーナーは手で書かない。
@@ -87,8 +87,10 @@
   1. `project.json` に `chief_of_staff.idle_minutes` か `otel` があれば、オーナーがキーごと消して commit する。残すと v0.0.14 は `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
   2. `andon issue hold` で止めている課題を探す（`grep -l '^hold:' /workspace/projects/*/kanban/issues/*/issue.yaml`）。v0.0.14 は `hold` を読まないので、止めた PR にも gate が回り、`merge: auto` ならマージされる。止めておきたい PR は、下げる前に理由の課題を片付けて `andon issue unhold` で外す。
   3. 置いておく印 `later` も v0.0.14 は読まないので、置いてあったオーナー待ちはまた呼び、行燈が灯る。印は消さなくてよい。上げ直せば、また効く。
-  4. 2 分待って dispatcher に見回らせてから、セルの中で `grep -lE '"kind": "(idle|hold)"' ~/.local/state/andon/dispatcher/*.json` を打ち、何も出ないことを確かめる。ファイル名が出たら、Chief of Staff に受け取らせ、そのターンが終わってから打ち直す。残したまま下げると、v0.0.14 の dispatcher は控えを書けず、通知が届かない。`idle` は枠が空いている間また積まれるので、何も出なかったらすぐ 5 へ進む。
-  5. `FROM` を戻して `rebuild` する。
+  4. 片付いていない課題（`todo`・`doing`・`review`）で、`profile: claude-medium` のものは、Chief of Staff が `kanban set <id> profile=claude` で書き換える。v0.0.14 の image には template `claude-medium` が無く、`andon issue start` も起動し直しも断る。
+  5. 片付いていない課題の `library/report.json` に `gaps` があれば（`grep -l '"gaps"' /workspace/projects/*/kanban/issues/*/library/report.json`）、下げる前にその課題を片付けるか、担当に `andon issue report <id> --data '{"gaps": []}'` で報告を書き直させる。v0.0.14 は知らないキーを持つ `report.json` を形が違うとして断るので、担当は報告も ready も打てず、gate はオーナーの判断待ちに倒れる。片付いた課題の報告は残してよい。
+  6. 2 分待って dispatcher に見回らせてから、セルの中で `grep -lE '"kind": "(idle|hold|impact|signal)"' ~/.local/state/andon/dispatcher/*.json` を打ち、何も出ないことを確かめる。`idle`・`hold` は v0.0.14 の知らない種類で、`impact` は課題ごとの `checks_moved` を、`signal` は `release` を v0.0.14 の知らない欄として持つ。ファイル名が出たら、Chief of Staff に受け取らせ、そのターンが終わってから打ち直す。残したまま下げると、v0.0.14 の dispatcher は控えを書けず、通知が届かない。`idle` は枠が空いている間また積まれるので、何も出なかったらすぐ 7 へ進む。
+  7. `FROM` を戻して `rebuild` する。
 
 ## v0.0.14 — 2026-11-23
 
