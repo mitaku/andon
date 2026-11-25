@@ -39,6 +39,8 @@ rebuttal_miss() {
   grep -q '^3\. PR を出す（.*出す前に §4 の反論の段を通す' <<<"$s3" || m="$m [worker §3 の 3 に反論の段]"
   grep -q '^1\. PR を出したらすぐ頼む（反論の段〈上〉の行' <<<"$s4" || m="$m [worker §4 の 1 に反論の段の行]"
   grep -q '^反論: <.*疑い N 件.*直した M 件.*捨てた K 件.*1回目を頼むとき' <<<"$s7" || m="$m [worker §7 の書式に「反論:」の行]"
+  # 自分で通した（Codex など）ときも REVIEW.md の項目を当てたかが、当てたあとの検証で報告から読めるよう、行に件数を書かせる
+  grep -q '^反論: <.*疑い N 件（うち `REVIEW.md` の項目から L 件' <<<"$s7" || m="$m [worker §7 の「反論:」の行に REVIEW.md の項目の件数]"
   echo "$m"
 }
 w=package/skills/worker/SKILL.md
@@ -74,6 +76,8 @@ grep -v '^- \*\*`REVIEW.md` の項目\*\*' "$w" >"$tmp/worker.md"
 [ -n "$(rebuttal_miss "$tmp/worker.md")" ] || miss="$miss [REVIEW.md の項目の行を消した]"
 sed 's/、`REVIEW.md` があればその項目ごとにも書き出して/て/' "$w" >"$tmp/worker.md"
 [ -n "$(rebuttal_miss "$tmp/worker.md")" ] || miss="$miss [自分で通すときの REVIEW.md の項目を消した]"
+sed 's/疑い N 件（うち `REVIEW.md` の項目から L 件。`REVIEW.md` が無ければ書かない）のうち/疑い N 件のうち/' "$w" >"$tmp/worker.md"
+[ -n "$(rebuttal_miss "$tmp/worker.md")" ] || miss="$miss [§7 の反論の行から REVIEW.md の件数を消した]"
 grep -v '^- \*\*サブエージェントを起動できないプロファイル\*\*' "$w" >"$tmp/worker.md"
 [ -n "$(rebuttal_miss "$tmp/worker.md")" ] || miss="$miss [サブエージェントが無いときを消した]"
 sed 's/・`Review: on` は1回目を頼む前の反論の段（§4）//' "$w" >"$tmp/worker.md"
