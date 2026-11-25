@@ -614,6 +614,11 @@ await check('waiting: andon waiting --json をフォーカスした pane のフ�
   const full = (await waitingPane(json({ ...SAMPLE_WAITING, slots: { limit: 2, working: 2, waiting: 2, free: 0, waiting_full: true } }))).draw();
   assert.deepEqual(textOf(byId(full, 'waiting-slots')), ['Slots 2/2 working · 2 waiting on you']);
   assert.deepEqual(slotColor(full), [THEME.muted], '待ちが上限以上で色を変えた');
+  // Nowhere in the pane, not only the slots line's own node: no "full", no blocked color.
+  const painted = (root) => [...colors(root), ...walk(root).flatMap((n) => args(n, 'border_color').map((a) => a[0]))];
+  assert.ok(!textOf(full).some((s) => /full/i.test(s)), `「full」を描いた: ${textOf(full)}`);
+  assert.ok(!painted(full).includes(THEME.blocked), '待ちが上限以上で blocked の色を使った');
+  assert.ok(!painted(tree).includes(THEME.blocked), 'ふだんの描き方で blocked の色を使った（上の行が何も見ない）');
 });
 
 await check('waiting: 行を開くと問いの文・事実・選択肢・後ろで待つ課題が出て、マージの依頼は PR を開け、Chief of Staff へ行ける。選ぶ前は答えるボタンが無い（ADR-0042 受け入れ条件 10）', async () => {
