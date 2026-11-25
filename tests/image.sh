@@ -209,7 +209,22 @@ docker volume create --label com.docker.compose.project=andon-imgtest --label co
 docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
 # セルの image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
 # ホストのシェルの TZ はセルに入らない（.env の CELL_TZ が無ければ Asia/Tokyo。下の (a1t) が見る）
-TZ=UTC BUILDX_BUILDER=default ANDON_ENTRY=1 "$plant/bin/bootstrap" up
+# bin/bootstrap は薄い入口: image（andon-imgtest:local）が無いので焼いてから本体を取り出し、本体が ANDON_ENTRY を渡して起動する（ADR-0048）
+TZ=UTC BUILDX_BUILDER=default "$plant/bin/bootstrap" up
+# (e0) 取り出した本体は image の /opt/andon/host/bootstrap と同じで、image の andon init --print bin/bootstrap はセルの bin/bootstrap と同じ（受け入れ条件 11）
+docker run --rm --network none andon-imgtest:local cat /opt/andon/host/bootstrap >"$tmp/image-body"
+docker run --rm --network none andon-imgtest:local andon init --print bin/bootstrap >"$tmp/printed-entry"
+if ! cmp -s "$plant/.andon/bootstrap" "$tmp/image-body" || ! cmp -s "$tmp/printed-entry" "$plant/bin/bootstrap" || ! grep -q '^host_install()' "$tmp/image-body"; then
+  echo 'FAIL image: .andon/bootstrap が image の本体と違うか、image の andon init --print bin/bootstrap がセルの bin/bootstrap と違う' >&2
+  exit 1
+fi
+left=$(find "$plant/.andon" -name 'bootstrap.*' -o -name 'compose.yaml.?*')
+if [ -n "$left" ]; then
+  printf '%s\n' "$left" >&2
+  echo 'FAIL image: 本体か compose.yaml を取り出した一時のファイルが .andon/ に残った' >&2
+  exit 1
+fi
+echo 'ok   image: 薄い入口から起動し、.andon/bootstrap は image の本体と同じで、andon init --print bin/bootstrap はセルの入口と同じ（受け入れ条件 11）'
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
 if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
@@ -231,9 +246,11 @@ for args in 'up -d' 'up -d --force-recreate' 'down' 'ps' 'logs dev' 'exec -T dev
     echo "FAIL image: 古い入口の docker compose $args が通った（ANDON_ENTRY が無くても止まらない）" >&2
     exit 1
   fi
-  if ! grep -qxF "$paste_line" <<<"$out" || ! grep -qF 'セルの入口 bin/bootstrap が古い' <<<"$out"; then
+  # Compose の補間の文は改行を持てないので、置き換える 1 行は案内の行の最後の「: 」のあとに出る（行の末尾がそのまま打てる 1 行）
+  line=$(grep -F 'セルの入口 bin/bootstrap が古い' <<<"$out" | sed -n 1p)
+  if [[ "$line" != *": $paste_line" ]]; then
     printf '%s\n' "$out" >&2
-    echo "FAIL image: 古い入口の docker compose $args が、入口を置き換える 1 行を 1 行として出さない" >&2
+    echo "FAIL image: 古い入口の docker compose $args が、入口を置き換える 1 行（image の名前入り）を案内の行の最後に出さない" >&2
     exit 1
   fi
 done
@@ -506,7 +523,7 @@ dc exec -T -e MISE_GO="$mise_go" dev bash -euc '
   mise reshim
 '
 dc down --remove-orphans >/dev/null
-BUILDX_BUILDER=default ANDON_ENTRY=1 "$plant/bin/bootstrap" up
+BUILDX_BUILDER=default "$plant/bin/bootstrap" up
 fp2=$(hostkey_fp)
 if [ -z "$fp1" ] || [ "$fp1" != "$vol_fp" ] || [ "$fp1" != "$fp2" ]; then
   echo "FAIL image: sshd のホスト鍵が volume のものでない、または作り直しで変わった（$fp1 / $vol_fp / $fp2）" >&2

@@ -76,13 +76,14 @@ done
 # --help は先頭の注記の塊を出す（行番号で切らない）。注記を1行足した写しでも、最後の注記の行まで出て、コードの行は出さない
 last_note='番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。'
 help_ok() { [ "$(head -n 1 "$1")" = 'セルの入口。ホストに要るのは docker と bash だけ。' ] && [ "$(tail -n 1 "$1")" = "$last_note" ] && ! grep -q 'set -euo' "$1"; }
-grep -qxF "# $last_note" bin/bootstrap && pass "bin/bootstrap の注記の最後の行は確かめる文と同じ" || fail "注記の最後の行が変わった: $(sed -n '2,30p' bin/bootstrap)"
+# help は本体（偽のイメージの opt/andon/host/bootstrap）が自分の先頭の注記を出す（ADR-0048 決めたこと 3）
+body=$img/opt/andon/host/bootstrap
+grep -qxF "# $last_note" "$body" && pass "本体の注記の最後の行は確かめる文と同じ" || fail "注記の最後の行が変わった: $(sed -n '2,30p' "$body")"
 sandbox bash bin/bootstrap --help >"$tmp/out2" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && help_ok "$tmp/out2" && pass "--help は先頭の注記の塊を出す" || fail "--help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
-sed '3i # 足した注記の行' bin/bootstrap >bin/bootstrap-more
-sandbox bash bin/bootstrap-more --help >"$tmp/out2" 2>"$tmp/err"; r=$?
-[ "$r" = 0 ] && help_ok "$tmp/out2" && grep -qx '足した注記の行' "$tmp/out2" && pass "注記の行が増えても --help は欠けない" || fail "注記を足した --help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
-rm bin/bootstrap-more
+sed '3i # 足した注記の行' "$body" >"$tmp/body-more"
+sandbox ANDON_ENTRY_BODY="$tmp/body-more" bash bin/bootstrap --help >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && help_ok "$tmp/out2" && grep -qx '足した注記の行' "$tmp/out2" && pass "本体の注記の行が増えても --help は欠けない" || fail "注記を足した --help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 (cd .. && sandbox bash x-cell/bin/bootstrap --help) >"$tmp/out2" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && help_ok "$tmp/out2" && pass "セルの repo の外から打っても --help を出す" || fail "外からの --help: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 sandbox bash bin/bootstrap no-such-sub >"$tmp/out2" 2>"$tmp/err"; r=$?
@@ -238,14 +239,21 @@ case "$*" in
   "history "*) # 履歴（新しい段が上）: andon-x:local は FAKE_IMAGE_HISTORY、ほか（FROM）は FAKE_FROM_HISTORY。空なら手元に無い
     case "${*: -1}" in andon-x:local) h=${FAKE_IMAGE_HISTORY:-} ;; *) h=${FAKE_FROM_HISTORY:-} ;; esac
     [ -n "$h" ] && printf '%s\n' "$h" || exit 1 ;;
+  # セルの image（andon-x:local）は、FAKE_HAS_IMAGE か FAKE_REVISION があるか、build で焼いた印（$FAKE_DOCKER_LOG.image）があれば在る
+  "image inspect andon-x:local") [ -n "${FAKE_HAS_IMAGE:-}${FAKE_REVISION:-}" ] || [ -e "$FAKE_DOCKER_LOG.image" ] || exit 1 ;;
   "image inspect"*) [ -n "${FAKE_REVISION:-}" ] && echo "$FAKE_REVISION" || exit 1 ;;
+  # セルの image を焼く（FAKE_BUILD_FAIL なら落ちる）。焼いたら印を置く
+  "build "*"-t andon-x:local "*) [ -z "${FAKE_BUILD_FAIL:-}" ] || exit 1; : >"$FAKE_DOCKER_LOG.image" ;;
+  # 取り出し: image の中身は FAKE_IMAGE の根（無いパスは落ちる。本物の docker cp と同じに、今あるファイルは上書きする）
+  "create "*) echo fakecid ;;
+  "cp fakecid:"*) src=${FAKE_IMAGE:-/nonexistent}${2#fakecid:}; [ -e "$src" ] || exit 1; cp -R "$src" "$3" ;;
 esac
 exit 0
 SH
 chmod 755 "$tmp/dpath/docker"
 log=$tmp/docker.log
 argv() { printf '[%s]' "$@"; }
-dsandbox() { : >"$log"; env -i PATH="$tmp/dpath" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_IMAGE_ROOT="$img" FAKE_DOCKER_LOG="$log" FAKE_SHA="$sha" "$@"; }
+dsandbox() { : >"$log"; rm -f "$log.image"; env -i PATH="$tmp/dpath" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_IMAGE_ROOT="$img" FAKE_DOCKER_LOG="$log" FAKE_SHA="$sha" "$@"; }
 cp Dockerfile "$tmp/Dockerfile.orig"
 tag=andon:local-${sha:0:12}
 
@@ -262,7 +270,8 @@ mapfile -t calls <"$log"
   && pass "rebuild --from は Dockerfile の FROM だけを $tag にする" || fail "FROM: $(cat Dockerfile)"
 [ "${calls[2]:-}" = "$(argv build -t andon-x:local "$PWD")" ] \
   && pass "続けて FROM $tag でセルの image を焼く（--pull を付けない）" || fail "セルの build: $(cat "$log")"
-[ "${calls[3]:-}" = "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)" ] \
+# 作り直しは入口から入り直した本体の _recreate が打つ（calls[3] はその docker info。ADR-0048 決めたこと 8）
+[ "${calls[4]:-}" = "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)" ] \
   && pass "そのあと compose で作り直す" || fail "up: $(cat "$log")"
 grep -q "commit: $sha" "$tmp/out" && grep -q 'GHCR のバージョンへ戻すなら' "$tmp/out" \
   && pass "元の commit と、GHCR のバージョンへ戻す道を出す" || fail "出力: $(cat "$tmp/out")"
@@ -329,6 +338,148 @@ dsandbox bash bin/bootstrap rebuild --bogus >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && ! grep -q "^\[build\]" "$log" && pass "rebuild の知らない引数で止まる" || fail "rebuild --bogus: rc=$r"
 cp "$tmp/Dockerfile.orig" Dockerfile
 rm -rf .andon
+
+# 薄い入口と本体（ADR-0048）。偽の image の根を渡さず、偽の docker の create・cp が FAKE_IMAGE の根から取り出す
+xsandbox() { : >"$log"; rm -f "$log.image"; env -i PATH="$tmp/dpath" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_WSL_PROBE="$tmp/no-wsl" FAKE_DOCKER_LOG="$log" FAKE_SHA="$sha" FAKE_IMAGE="$img" "$@"; }
+# at <記録の行の頭>: 偽の docker の記録で、その頭の行が初めて出る行番号（無ければ空）
+at() { grep -nF -- "$1" "$log" | sed -n 1p | cut -d: -f1; }
+take_body=$(argv cp fakecid:/opt/andon/host/bootstrap)
+leftover() { [ -d .andon ] && find .andon -name 'bootstrap.*' -o -name 'compose.yaml.?*' | grep -q .; }
+# 受け入れ条件 1: 薄い入口は host-install・rebuild・mod の名前・install_streamdeck を持たない（本体には当たる）
+entry_words='host-install|rebuild|install_streamdeck|inbox|kanban-board|context-header|files-plus|waiting'
+grep -qE "$entry_words" "$body" && ! grep -qE "$entry_words" bin/bootstrap \
+  && pass "薄い入口は host-install・rebuild・mod の名前・install_streamdeck を持たない（同じ語で本体には当たる）" || fail "薄い入口に本体の語がある: $(grep -nE "$entry_words" bin/bootstrap)"
+cmp -s "$body" "$andon_root/package/host/bootstrap" && grep -q '^host_install()' "$body" && grep -q '^install_streamdeck()' "$body" \
+  && pass "偽の image の根の opt/andon/host/bootstrap が本体（host-install と Stream Deck の置き先を持つ）" || fail "偽の image の本体"
+# 受け入れ条件 2: 打つたびに create・cp（.andon/ の一時の名前へ）・rm の順で本体を取り出し、.andon/bootstrap に置く
+for n in 1 2; do
+  xsandbox FAKE_HAS_IMAGE=1 bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+  c=$(at "$(argv create andon-x:local)") p=$(at "$take_body") d=$(at "$(argv rm fakecid)") u=$(at "[compose]")
+  [ "$r" = 0 ] && [ -n "$c" ] && [ -n "$p" ] && [ -n "$d" ] && [ -n "$u" ] && [ "$c" -lt "$p" ] && [ "$p" -lt "$d" ] && [ "$d" -lt "$u" ] \
+    && grep -qE '^\[cp\]\[fakecid:/opt/andon/host/bootstrap\]\[\.andon/bootstrap\.[A-Za-z0-9]{6}\]$' "$log" && [ "$(grep -cF "$take_body" "$log")" = 1 ] \
+    && cmp -s .andon/bootstrap "$body" && ! leftover && ! grep -q '^\[build\]' "$log" \
+    && pass "up（$n 回目）は create・cp（.andon/ の一時の名前へ）・rm の順で本体を取り出し、.andon/bootstrap に置いてから走らせる（一時のファイルは残らない）" \
+    || fail "本体の取り出し（$n 回目）: rc=$r $(cat "$tmp/err" "$log"; ls -A .andon)"
+done
+# 受け入れ条件 3: 書き換えた .andon/bootstrap は走らず、image の本体に戻る。--dry-run でも走らない
+hack() { printf '#!/bin/bash\n: >"%s"\n' "$tmp/hacked" >.andon/bootstrap; }
+hack
+xsandbox FAKE_HAS_IMAGE=1 bash bin/bootstrap status >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && [ ! -e "$tmp/hacked" ] && cmp -s .andon/bootstrap "$body" && grep -q '^\[compose\].*\[ps\]$' "$log" \
+  && pass "書き換えた .andon/bootstrap は走らせず、image の本体を取り出し直して戻す" || fail "書き換えた本体: rc=$r $(cat "$tmp/err" "$log")"
+hack
+state >"$tmp/s0"
+xsandbox bash bin/bootstrap --dry-run up >"$tmp/out" 2>"$tmp/err"; r=$?
+state >"$tmp/s1"
+want3=$(printf '+ docker build -t andon-x:local %s\n+ docker cp \\<docker\\ create\\ andon-x:local\\>:/opt/andon/host/bootstrap .andon/bootstrap\n+ bash .andon/bootstrap --dry-run up' "$PWD")
+[ "$r" = 0 ] && [ "$(cat "$tmp/out")" = "$want3" ] && [ ! -s "$log" ] && [ ! -e "$tmp/hacked" ] && cmp -s "$tmp/s0" "$tmp/s1" && grep -q ANDON_ENTRY_BODY "$tmp/err" \
+  && pass "--dry-run は docker を打たず、何も書かず、前に取り出した本体も走らせず、焼く・取り出す・走らせるの 3 行を出す" \
+  || fail "--dry-run（根も名指しも無い）: rc=$r $(cat "$tmp/out" "$tmp/err" "$log"; diff "$tmp/s0" "$tmp/s1")"
+rm -rf .andon
+# 受け入れ条件 4: 本体は ANDON_ENTRY=1 で起動される（取り出した本体でも、名指しの本体でも）
+mkdir -p "$tmp/probe-image/opt/andon/host"
+printf '#!/bin/bash\necho "ANDON_ENTRY=$ANDON_ENTRY ARGS=$* PWD=$PWD"\n' >"$tmp/probe-image/opt/andon/host/bootstrap"
+xsandbox FAKE_HAS_IMAGE=1 FAKE_IMAGE="$tmp/probe-image" bash bin/bootstrap status 'a b' >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && [ "$(cat "$tmp/out")" = "ANDON_ENTRY=1 ARGS=status a b PWD=$PWD" ] \
+  && pass "取り出した本体は ANDON_ENTRY=1・引数そのまま・作業フォルダはセルの repo の根で起動される" || fail "本体の起動: rc=$r $(cat "$tmp/out" "$tmp/err")"
+(cd bin && xsandbox ANDON_ENTRY_BODY=../../probe-image/opt/andon/host/bootstrap bash ./bootstrap up) >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && [ "$(cat "$tmp/out")" = "ANDON_ENTRY=1 ARGS=up PWD=$PWD" ] && [ ! -s "$log" ] \
+  && pass "名指しの本体（打った場所からの相対パス）も ANDON_ENTRY=1 で、セルの repo の根で起動される" || fail "名指しの本体の起動: rc=$r $(cat "$tmp/out" "$tmp/err")"
+sandbox bash "$body" up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q '薄い入口）から打つ' "$tmp/err" && [ ! -s "$tmp/out" ] \
+  && pass "ANDON_ENTRY を渡さずに本体を直に打つと、入口から打つよう言って止まる" || fail "本体を直に打った: rc=$r $(cat "$tmp/out" "$tmp/err")"
+sed 's/^need_entry=1$/need_entry=2/' "$body" >"$tmp/body-need2"
+paste_line='docker run --rm andon-x:local andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
+sandbox ANDON_ENTRY_BODY="$tmp/body-need2" bash bin/bootstrap --dry-run up >"$tmp/out" 2>"$tmp/err"; r=$?
+grep -qx 'need_entry=2' "$tmp/body-need2" && [ "$r" = 1 ] && grep -qxF "$paste_line" "$tmp/err" && grep -q '入口 bin/bootstrap が古い' "$tmp/err" && [ ! -s "$tmp/out" ] \
+  && pass "要る番号を 2 にした本体は、番号 1 の入口から打つと止まり、入口を置き換える 1 行を出す" || fail "番号 2 の本体: rc=$r $(cat "$tmp/out" "$tmp/err")"
+mkdir -p "$tmp/outside"
+cp "$body" "$tmp/outside/bootstrap"
+sandbox ANDON_ENTRY=1 bash "$tmp/outside/bootstrap" --dry-run up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -q '^+ docker compose --project-name andon-x .* up -d$' "$tmp/out" \
+  && pass "セルの repo の外に置いた本体は、作業フォルダのセルの andon.toml を読む" || fail "外の本体: rc=$r $(cat "$tmp/out" "$tmp/err")"
+# 受け入れ条件 5: image が無ければ 1 回焼いてから取り出す。本体の無い image は 1 回だけ焼き直し、それでも無ければ案内して止まる
+xsandbox bash bin/bootstrap status >"$tmp/out" 2>"$tmp/err"; r=$?
+b=$(at "$(argv build -t andon-x:local "$PWD")") c=$(at "$(argv create andon-x:local)")
+[ "$r" = 0 ] && [ "$(grep -c '^\[build\]' "$log")" = 1 ] && [ -n "$b" ] && [ -n "$c" ] && [ "$b" -lt "$c" ] && cmp -s .andon/bootstrap "$body" && grep -q 'image が無い' "$tmp/err" \
+  && pass "image が無ければ、何のために焼くかを言って 1 回焼いてから本体を取り出す" || fail "image 無し: rc=$r $(cat "$tmp/err" "$log")"
+mkdir -p "$tmp/nobody-image/opt"
+cp -R "$img/opt/andon" "$tmp/nobody-image/opt/andon"
+rm "$tmp/nobody-image/opt/andon/host/bootstrap"
+for case_ in 'FAKE_HAS_IMAGE=1:image はあるが本体が無い' 'FAKE_UNUSED=1:image も本体も無い' 'FAKE_BUILD_FAIL=1:image が無く焼けない'; do
+  rm -rf .andon
+  xsandbox FAKE_IMAGE="$tmp/nobody-image" "${case_%%:*}" bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+  [ "$r" = 1 ] && [ "$(grep -c '^\[build\]' "$log")" = 1 ] && grep -q 'FROM を' "$tmp/err" && grep -q 'ANDON_ENTRY_BODY=' "$tmp/err" && ! grep -q '^\[compose\]' "$log" && ! leftover \
+    && pass "${case_#*:}: build は 1 回だけで、FROM を上げる手と ANDON_ENTRY_BODY を言って止まる" || fail "${case_#*:}: rc=$r $(cat "$tmp/err" "$log")"
+done
+# 受け入れ条件 6: 名指しの本体は、本体のための docker の create・cp・build を打たずに走り、名指しで動くことを 1 行出す。
+# image が無くても焼かない（本体の status が compose.yaml を取り出す create・cp は打つ）。無いファイルは止まる
+xsandbox ANDON_ENTRY_BODY="$body" bash bin/bootstrap status >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && ! grep -qF "$take_body" "$log" && ! grep -q '^\[build\]' "$log" \
+  && [ "$(grep -c "名指しの $body で動く" "$tmp/err")" = 1 ] && grep -q '^\[compose\].*\[ps\]$' "$log" && [ ! -e .andon/bootstrap ] \
+  && pass "名指しの本体は本体のための create・cp・build を打たずに走り、名指しで動くことを標準エラーに 1 行出す" || fail "名指しの本体: rc=$r $(cat "$tmp/err" "$log")"
+xsandbox ANDON_ENTRY_BODY="$tmp/no-such-body" bash bin/bootstrap up >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q "$tmp/no-such-body が無い" "$tmp/err" && [ ! -s "$log" ] \
+  && pass "名指しの本体が無ければ、理由を言って止まる" || fail "無い名指し: rc=$r $(cat "$tmp/err" "$log")"
+# 受け入れ条件 6・8: image が無くても、名指しの本体で rebuild --from が base の image を焼くところまで進み、作り直しは焼いた image の本体で行う
+rm -rf .andon
+xsandbox ANDON_ENTRY_BODY="$body" bash bin/bootstrap rebuild --from "$co" >"$tmp/out" 2>"$tmp/err"; r=$?
+base_at=$(at "$(argv build --file "$co/image/Dockerfile")") cell_at=$(at "$(argv build -t andon-x:local "$PWD")") p=$(at "$take_body") u=$(at "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)")
+first=$(grep -nE '^\[(create|cp|build)\]' "$log" | sed -n 1p | cut -d: -f1)
+[ "$r" = 0 ] && [ -n "$base_at" ] && [ "$first" = "$base_at" ] && [ -n "$cell_at" ] && [ -n "$p" ] && [ -n "$u" ] && [ "$base_at" -lt "$cell_at" ] && [ "$cell_at" -lt "$p" ] && [ "$p" -lt "$u" ] \
+  && [ "$(grep -c '名指しの' "$tmp/err")" = 1 ] && cmp -s .andon/bootstrap "$body" && [ "$(head -n 1 Dockerfile)" = "FROM $tag" ] \
+  && pass "image が無くても名指しの本体で rebuild --from が base を焼き、作り直しは焼いた image から取り出した本体で行う" || fail "名指しの rebuild --from: rc=$r $(cat "$tmp/err" "$log")"
+cp "$tmp/Dockerfile.orig" Dockerfile
+# 受け入れ条件 8: rebuild は焼いたあと入口から入り直し、もう一度取り出した本体で compose … up -d --force-recreate を打つ
+for args in rebuild "rebuild --from $co"; do
+  rm -rf .andon
+  # shellcheck disable=SC2086 # args は空白で割る（checkout の path に空白は無い）
+  xsandbox FAKE_HAS_IMAGE=1 bash bin/bootstrap $args >"$tmp/out" 2>"$tmp/err"; r=$?
+  b=$(grep -n '^\[build\].*\[-t\]\[andon-x:local\]' "$log" | sed -n 1p | cut -d: -f1)
+  ps_=$(grep -nF "$take_body" "$log" | sed -n 2p | cut -d: -f1)
+  u=$(at "$(argv compose --project-name andon-x --project-directory "$PWD" -f .andon/compose.yaml up -d --force-recreate)")
+  [ "$r" = 0 ] && [ "$(grep -cF "$take_body" "$log")" = 2 ] && [ -n "$b" ] && [ -n "$ps_" ] && [ -n "$u" ] && [ "$b" -lt "$ps_" ] && [ "$ps_" -lt "$u" ] && ! leftover \
+    && pass "$args は焼いたあと本体をもう一度取り出し、そのあとで up -d --force-recreate を打つ" || fail "$args の順: rc=$r $(cat "$tmp/err" "$log")"
+  cp "$tmp/Dockerfile.orig" Dockerfile
+done
+sandbox bash bin/bootstrap --help >"$tmp/out2" 2>&1
+! grep -q _recreate "$tmp/out2" && grep -q '_recreate)' "$body" && pass "_recreate は help に出ない" || fail "_recreate が help に出る"
+# 受け入れ条件 7: image が無い・docker に繋がらないときの --help は、焼かずに短い案内を出して 0 で終わる
+rm -rf .andon
+xsandbox bash bin/bootstrap --help >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -q '本体を読めない: andon-x:local が無い' "$tmp/out" && ! grep -qE '^\[(build|create|cp)\]' "$log" && [ ! -e .andon/bootstrap ] \
+  && pass "image が無いときの --help は焼かずに案内を出して rc 0" || fail "image 無しの --help: rc=$r $(cat "$tmp/out" "$tmp/err" "$log")"
+xsandbox FAKE_HAS_IMAGE=1 FAKE_IMAGE="$tmp/nobody-image" bash bin/bootstrap --help >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -q '本体を読めない: andon-x:local に本体が無い' "$tmp/out" && ! grep -q '^\[build\]' "$log" \
+  && pass "本体の無い image の --help は焼かずに案内を出して rc 0" || fail "本体無しの --help: rc=$r $(cat "$tmp/out" "$tmp/err" "$log")"
+env -i PATH="$tmp/path" HOME="$home" bash bin/bootstrap --help >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && grep -q '本体を読めない: docker に繋がらない' "$tmp/out" \
+  && pass "docker の無いホストの --help は案内を出して rc 0" || fail "docker 無しの --help: rc=$r $(cat "$tmp/out" "$tmp/err")"
+rm -rf .andon
+
+# 受け入れ条件 12: 薄い入口の中身の控え（ハッシュ）と番号。中身が変わって控えが前のままなら落ちる（ADR-0048 決めたこと 12）
+entry_num=1
+entry_sum=dd54000dc502fa702ae68ca7709ba37a2094144b5f46c0b0234d6021b4918000
+# check_entry <薄い入口のファイル>: 控えと合えば 0。合わなければ直し方を出して 1
+check_entry() {
+  local num sum
+  num=$(sed -n 's/^entry=\([0-9]*\)$/\1/p' "$1")
+  sum=$(sha256sum "$1" | cut -d' ' -f1)
+  if [ "$num" != "$entry_num" ] || [ "$sum" != "$entry_sum" ]; then
+    echo "薄い入口 init/bin/bootstrap が控えと違う（番号 $num・控え $entry_num、ハッシュ $sum）。動きが変わるなら entry の番号を上げ（package/host/bootstrap の need_entry も）、tests/andon-init.sh の entry_num と entry_sum を直す。動きが変わらないなら entry_sum だけを直す"
+    return 1
+  fi
+}
+need=$(sed -n 's/^need_entry=\([0-9]*\)$/\1/p' "$andon_root/package/host/bootstrap")
+check_entry "$andon_root/init/bin/bootstrap" >"$tmp/out" && [ "$need" = "$entry_num" ] \
+  && pass "薄い入口の中身は控えのハッシュと番号 $entry_num に合い、本体が要る番号も $entry_num" || fail "$(cat "$tmp/out") 本体の need_entry=$need"
+sed '2s/$/x/' "$andon_root/init/bin/bootstrap" >"$tmp/entry-broken"
+if check_entry "$tmp/entry-broken" >"$tmp/out"; then
+  fail "薄い入口を 1 字変えた写しでも控えの検査が通った"
+else
+  grep -q '番号を上げ' "$tmp/out" && grep -q 'entry_sum だけを直す' "$tmp/out" \
+    && pass "薄い入口を 1 字変えた写しは控えの検査で落ち、番号を上げるか控えを直すよう言う" || fail "壊した写しの言い方: $(cat "$tmp/out")"
+fi
 
 sed -i 's|^FROM .*|FROM ghcr.io/<owner>/andon:<バージョン>|' Dockerfile
 sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
