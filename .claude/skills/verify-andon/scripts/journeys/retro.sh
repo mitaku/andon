@@ -73,7 +73,8 @@ echo "  waiting: $(row "$i1") $(row "$i2")"
 # 数えた日数と一緒に出る。振り返りの課題 r を親に持つ直しの、マージの前後の数字が、後が 9 件なら出ず、10 件で出る
 bd='{"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 10, "tool_ms": 0, "blocked_ms": 0,
  "tokens": {"input": 11, "output": 0, "cache_read": 0, "cache_write": 0}, "errors": {"llm": 0, "tool": 0}, "tools": [],
- "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}'
+ "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0},
+ "knowledge": {"index_reads": 1, "pages": [{"path": "topics/tool-quirks.md", "reads": 2}]}}'
 mkdir -p "$tmp/project/kanban/issues/$e1/library" "$tmp/project/kanban/issues/$e2/library"
 echo "{\"result\": \"none\", \"worked_minutes\": 3, \"breakdown\": $bd}" >"$tmp/project/kanban/issues/$e1/library/outcome.json"
 echo '{"result": "none", "worked_minutes": 4, "breakdown": {"role": "worker"}}' >"$tmp/project/kanban/issues/$e2/library/outcome.json"
@@ -99,7 +100,7 @@ jq -c --arg e1 "$e1" --arg e2 "$e2" --arg fx "$fx" '{e1: (.issues[] | select(.id
 workers 1
 step "rt-collect: 担当の端末 tw が andon retro collect を打つ（マージの後が 10 件）" env HC_TERMINAL_ID=tw "$andon" retro collect
 jq -c --arg fx "$fx" '.fixes[] | select(.issue == $fx) | .before_after' "$tmp/step.out" 2>/dev/null | sed 's/^/  collect: /'
-jq -e --arg e1 "$e1" --arg e2 "$e2" --arg fx "$fx" '(.issues[] | select(.id == $e1) | .breakdown | .role == "worker" and .tokens.input == 11)
+jq -e --arg e1 "$e1" --arg e2 "$e2" --arg fx "$fx" '(.issues[] | select(.id == $e1) | .breakdown | .role == "worker" and .tokens.input == 11 and .knowledge.pages[0].path == "topics/tool-quirks.md")
   and (.issues[] | select(.id == $e2) | .breakdown == null)
   and ([.skipped[] | select((.source | endswith($e2 + "/library/outcome.json")) and (.reason | test("breakdown が schema")))] | length == 1)
   and .chief_of_staff == {"days": 1, "tokens": {"input": 5, "output": 6, "cache_read": 0, "cache_write": 0}}
@@ -108,7 +109,7 @@ jq -e --arg e1 "$e1" --arg e2 "$e2" --arg fx "$fx" '(.issues[] | select(.id == $
   "$tmp/collect-9.json" >/dev/null \
   && jq -e --arg fx "$fx" '.fixes[] | select(.issue == $fx) | .before_after | .short == null and .before.issues == 10 and .after.issues == 10
     and .before.numbers.tokens == {"count": 1, "median": 11} and .before.numbers.worked_minutes == {"count": 2, "median": 3.5} and .after.numbers.worked_minutes.count == 0' "$tmp/step.out" >/dev/null \
-  && ok "rt-collect: 課題 $e1 の束に内訳が写り、形の違う $e2 の内訳は null と飛ばした記録、Chief of Staff のトークンが 1 日分。直し $fx の前後の数字は、後が 9 件で出ず、10 件で出る" \
+  && ok "rt-collect: 課題 $e1 の束に内訳が wiki の読みごと写り、形の違う $e2 の内訳は null と飛ばした記録、Chief of Staff のトークンが 1 日分。直し $fx の前後の数字は、後が 9 件で出ず、10 件で出る" \
   || fail "rt-collect: 束の内訳、Chief of Staff のトークン、前後の数字のどれかが違う"
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"
