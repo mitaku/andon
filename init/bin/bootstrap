@@ -99,7 +99,7 @@ has_image() { docker image inspect "$image" >/dev/null 2>&1; }
 
 # .andon/ に書けないことを、本体が無いことと取り違えない（取り違えると焼き直して FROM の案内を出す）
 if ! mkdir -p .andon 2>/dev/null || [ ! -w .andon ]; then
-  die "$PWD/.andon/ に書けない（セルの repo を打つ利用者の持ち物にする。sudo で打ったなら持ち主を戻す）"
+  die "$PWD/.andon/ に書けない（セルの repo を打つ利用者の持ち物にする。sudo で打ったならオーナーを戻す）"
 fi
 
 # extract_body は image の本体を .andon/bootstrap に取り出す。打つたびに取り出し、前に取り出したものは走らせない。

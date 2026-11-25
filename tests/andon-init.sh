@@ -470,7 +470,7 @@ rm -rf .andon
 
 # 受け入れ条件 12: 薄い入口の中身の控え（ハッシュ）と番号。中身が変わって控えが前のままなら落ちる（ADR-0048 決めたこと 12）
 entry_num=1
-entry_sum=4c30be48fc864162149fb7ce59e9fad617146fef045a7cf09619a08c1914765a
+entry_sum=481bfa352a5fd9a6ab20c94aaa02cdcc87d04d127634bb3f7dd78916cc9a2da4
 # check_entry <薄い入口のファイル>: 控えと合えば 0。合わなければ直し方を出して 1
 check_entry() {
   local num sum
