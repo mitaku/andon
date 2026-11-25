@@ -105,6 +105,29 @@ func TestRunChecksWithoutManifest(t *testing.T) {
 }
 
 // 偽の mise が失敗するか上限を過ぎると、検査の command は 1 つも打たれず、runChecks は失敗を返す（判定しない。受け入れ条件 3）。
+// mise.toml があるのに mise が PATH に無いときも、検査の command を打たずに判定しない
+// （道具の無い環境の command not found を、PR の欠陥として返さない）
+func TestRunChecksRefusesWithoutMise(t *testing.T) {
+	with, _ := checksRepo(t)
+	bin := t.TempDir()
+	for _, n := range []string{"git", "bash", "sh", "printf"} {
+		if p, err := exec.LookPath(n); err == nil {
+			os.Symlink(p, filepath.Join(bin, n))
+		}
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("LOG", filepath.Join(t.TempDir(), "log"))
+	checks, err := runChecks("github.com/example/app", with, []string{checkCmd})
+	if err == nil || checks != nil || !strings.Contains(err.Error(), "mise が PATH に無い") {
+		t.Fatalf("checks=%+v err=%v", checks, err)
+	}
+	for _, l := range checkLog(t) {
+		if strings.HasPrefix(l, "check ") {
+			t.Errorf("mise が無いのに検査の command を打った: %q", l)
+		}
+	}
+}
+
 func TestRunChecksRefusesWhenDeclarationFails(t *testing.T) {
 	for _, mode := range []string{"fail", "slow"} {
 		t.Run(mode, func(t *testing.T) {

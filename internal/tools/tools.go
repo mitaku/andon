@@ -43,8 +43,8 @@ func HasManifest(root string) bool {
 	return err == nil && st.Mode().IsRegular()
 }
 
-// Install は root に mise.toml があり、mise が PATH にあれば、root を cwd にして mise install を打つ。
-// 無ければ何も打たずに (false, nil)。installed は何かを入れたか。Limit を過ぎたら mise install を止めずに ErrTimeout を返す
+// Install は root に mise.toml があれば、root を cwd にして mise install を打つ。
+// mise.toml が無ければ何も打たずに (false, nil)、mise が PATH に無ければ失敗を返す。installed は何かを入れたか。Limit を過ぎたら mise install を止めずに ErrTimeout を返す
 // （止めると入れかけが残る。手放した mise install はそのまま入れ終え、同時に打たれた別の mise install は終わるのを待つ）。
 // 出力は名前を消した一時のファイルに受ける。pipe に受けると、手放したあと呼び手が終わったときに書き先が閉じ、mise install が落ちる。
 func Install(root string) (installed bool, err error) {
@@ -53,7 +53,8 @@ func Install(root string) (installed bool, err error) {
 	}
 	mise, err := exec.LookPath("mise")
 	if err != nil {
-		return false, nil
+		// 宣言があるのに満たす手が無い: 黙って進むと、道具の無い環境の command not found を PR の欠陥と取り違える
+		return false, errors.New("mise が PATH に無い")
 	}
 	out, err := os.CreateTemp("", "andon-mise-install-")
 	if err != nil {

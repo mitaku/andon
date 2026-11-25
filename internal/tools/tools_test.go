@@ -79,12 +79,16 @@ func TestInstallSkipsWithoutManifest(t *testing.T) {
 	}
 }
 
-func TestInstallSkipsWithoutMise(t *testing.T) {
+// mise.toml があるのに mise が PATH に無いときは、宣言を満たせない失敗として返す（起動の口は警告し、gate は判定しない）
+func TestInstallFailsWithoutMise(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	root := t.TempDir()
 	toolstest.Manifest(t, root)
-	if installed, err := Install(root); err != nil || installed {
+	if installed, err := Install(root); err == nil || installed || !strings.Contains(err.Error(), "mise が PATH に無い") {
 		t.Fatalf("installed=%v err=%v", installed, err)
+	}
+	if line := Satisfy(root); !strings.Contains(line, "の道具を入れられない（起動は続ける）: mise が PATH に無い") {
+		t.Errorf("警告の 1 行 = %q", line)
 	}
 }
 
