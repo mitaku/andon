@@ -514,6 +514,11 @@ if [ "$self" = true ]; then
   grep -qF 'ok   ot-knowledge: 当てたあとに片付いた担当の課題の内訳に、読んだ wiki のページがある（B-0001(topics/tool-quirks.md×2)）' <<<"$bout" || die "ot-knowledge: ページを読んだ内訳で ok にならない: $bout"
   bout_of 100 102 -; bcheck
   grep -qF 'FAIL ot-knowledge:' <<<"$bout" && grep -qF 'knowledge のキーが無い' <<<"$bout" || die "ot-knowledge: knowledge のキーの無い内訳で落ちない: $bout"
+  # 置き場の記録が wiki のページを名指しているのに、内訳のページが空（数えていない）
+  echo "{\"resourceSpans\": [{\"scopeSpans\": [{\"spans\": [{\"name\": \"claude_code.tool\", \"attributes\": [{\"key\": \"file_path\", \"value\": {\"stringValue\": \"$c/ws/wiki/topics/tool-quirks.md\"}}]}]}]}]}" >"$btr"
+  bout_of 100 102; bcheck
+  grep -qF 'FAIL ot-knowledge:' <<<"$bout" && grep -qF 'wiki のページを名指しているのに' <<<"$bout" || die "ot-knowledge: 置き場の記録がページを名指すのに内訳のページが空で落ちない: $bout"
+  rm -f "$btr"
   bout_of 0 102 -; bcheck
   if grep -q 'FAIL ot-knowledge' <<<"$bout"; then die "ot-knowledge: モデルの呼び出しの無い内訳でキーを求めて落ちる: $bout"; fi
   bout_of 200 100; bcheck

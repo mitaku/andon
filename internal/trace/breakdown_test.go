@@ -185,6 +185,7 @@ func TestWikiRefs(t *testing.T) {
 		{"[x](wiki/topics/a.md)", "topics/a.md", false},
 		{"「wiki/topics/b.md」を読む", "topics/b.md", false},
 		{"/cell/wiki/topics/a.mdx と /cell/wiki/topics/.md", "", false},
+		{"/cell/wiki/topics/a.md.bak と /cell/wiki/topics/a.md-old と /cell/wiki/topics/.hidden.md", "", false},
 	} {
 		pages, index := WikiRefs(c.text, "/cell/wiki")
 		if strings.Join(pages, " ") != c.pages || index != c.index {

@@ -34,8 +34,8 @@ type PageRead struct {
 	Reads int    `json:"reads"`
 }
 
-// wikiPath は wiki の置き場からの相対パスになる文字の並び（.md で終わる。後ろが語の文字なら別の拡張子なので捨てる）。
-const wikiPath = `((?:[A-Za-z0-9_.@+-]+/)*[A-Za-z0-9_.@+-]+\.md)([A-Za-z0-9_]?)`
+// wikiPath は wiki の置き場からの相対パスになる文字の並び（.md で終わる。後ろがパスの文字なら別の名前〈a.md.bak・a.mdx〉なので捨てる）。
+const wikiPath = `((?:[A-Za-z0-9_.@+-]+/)*[A-Za-z0-9_.@+-]+\.md)([A-Za-z0-9_.@+-]?)`
 
 // relWiki は wiki/ から始まる相対パス（パスの文字でない文字のあと。docs/wiki/ のような別の置き場の wiki/ は数えない）。
 var relWiki = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.@+/~-])wiki/` + wikiPath)
@@ -83,8 +83,13 @@ func wikiKind(rel string) string {
 	case "overview.md":
 		return "page"
 	}
+	for _, seg := range strings.Split(rel, "/") {
+		if seg == "" || strings.HasPrefix(seg, ".") {
+			return "" // 隠しファイルと .. は数えない（schema の path の pattern と同じ線）
+		}
+	}
 	for _, d := range []string{"entities/", "topics/", "sources/"} {
-		if strings.HasPrefix(rel, d) && strings.HasSuffix(rel, ".md") && len(rel) > len(d)+len(".md") {
+		if strings.HasPrefix(rel, d) && strings.HasSuffix(rel, ".md") {
 			return "page"
 		}
 	}

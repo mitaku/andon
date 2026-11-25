@@ -552,7 +552,7 @@
         "path": {
           "description": "The page's path relative to the wiki store (topics/tool-quirks.md).",
           "type": "string",
-          "pattern": "^(?:overview\\.md|(?:entities|topics|sources)/[^/].*\\.md)$"
+          "pattern": "^(?:overview\\.md|(?:entities|topics|sources)/(?:[^/.][^/]*/)*[^/.][^/]*\\.md)$"
         },
         "reads": {
           "description": "Tool spans that read the page.",

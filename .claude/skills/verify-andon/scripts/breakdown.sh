@@ -9,11 +9,12 @@
 #   - breakdown が null なのに課題の置き場の traces.jsonl に行があれば fail（記録があるのに数えていない）。行が無ければ note（受け口が止まっていた）。
 #   - 内訳のトークンの合計（4 種の和）が sessions[].cost のトークンの合計の上下 5% に入らなければ fail、入れば ok に数える。
 #   - 内訳が null でなければ、知識の読み breakdown.knowledge（ot-knowledge。ADR-0061 受け入れ条件 13）を見る。キーが無ければ fail
-#     （当てた dispatcher が数えていない）。読んだページがあれば、その課題を ok に数える。
+#     （当てた dispatcher が数えていない）。読んだページがあれば、その課題を ok に数える。ページが空なのに課題の置き場の
+#     traces.jsonl が wiki のページ（<ANDON_WORKSPACE>/wiki/ の entities・topics・sources の下の .md）を名指していれば fail（数えていない）。
 # 比べた課題があれば ok、片付いた課題が無いか比べられなければ note（未確認）。ot-knowledge は、ページを読んだ課題があれば ok、
 # 無ければ note（wiki のページを読んだ担当の課題を Chief of Staff に 1 件片付けてもらってから打ち直す）。
 breakdown_check() {
-  local root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel grace=${BREAKDOWN_GRACE:-600} now kanban id slug o oat done_at bsum ssum tr kpages
+  local root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel grace=${BREAKDOWN_GRACE:-600} now kanban id slug o oat done_at bsum ssum tr kpages kraw
   local nb=0 ndone=0 bpairs=() nk=0 kread=()
   now=$(date -u +%s)
   while IFS=$'\t' read -r kanban id; do
@@ -57,7 +58,12 @@ breakdown_check() {
       nk=$((nk + 1))
       kpages=$(jq -r '[.breakdown.knowledge.pages[]? | "\(.path)×\(.reads)"] | join(",")' "$o" 2>/dev/null) || kpages=
       echo "  | $slug/$id: 知識の読み 目録 $(jq -r '.breakdown.knowledge.index_reads // 0' "$o" 2>/dev/null)・ページ ${kpages:-無し}"
-      [ -z "$kpages" ] || kread+=("$id($kpages)")
+      tr=$root/$slug/issues/$id/traces.jsonl
+      if [ -n "$kpages" ]; then
+        kread+=("$id($kpages)")
+      elif kraw=$(grep -o -m 1 -E "$ws/wiki/(entities|topics|sources)/[A-Za-z0-9_.@+/-]+\.md([^A-Za-z0-9_.@+/-]|$)" "$tr" 2>/dev/null); then
+        fail "ot-knowledge: $slug/$id は置き場 $tr の記録が wiki のページを名指しているのに（${kraw%%.md*}.md）、内訳のページが空（数えていない）"
+      fi
     fi
     if [ "${ssum:-null}" = null ] || [ "$ssum" = 0 ]; then
       echo "note ot-breakdown: $slug/$id はセッションの記録のトークンが無い（セッションの記録が読めない）。比べていない"
