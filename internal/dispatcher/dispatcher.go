@@ -115,7 +115,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if once {
 			return 0
 		}
-		// 待ちが無ければ1分ごと、待ちがあれば5秒ごと（dispatcher.md §2.1）
+		// 動いている課題も待ちも無ければ1分ごと、どちらかがあれば5秒ごと（dispatcher.md §2.1）
 		if busy {
 			time.Sleep(5 * time.Second)
 		} else {
