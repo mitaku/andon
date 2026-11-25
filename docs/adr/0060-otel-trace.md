@@ -19,9 +19,9 @@
 | 9 | 置き場は作り直しても残る volume にし、課題ごとのファイルに OTLP の JSON の行で書く | `internal/otel/otel.go`・`docs/contract.md` §30 | 生きている |
 | 10 | 生の記録の寿命は 30 日、合計の上限は 10 GB にし、片付けは dispatcher が 1 日に 1 回走らせる | `internal/otel/prune.go`・`internal/dispatcher/otel.go`・`docs/dispatcher.md` §2.14 | 生きている（値は `project.json` の `otel` で替えられる。決めたこと 11） |
 | 11 | 止める設定と寿命の設定は `project.json` の任意のキー `otel` に置き、既定は送る。読めないときは送らない | `schema/project.schema.json`・`internal/otel/env.go`・`internal/dispatcher/otel.go`・`docs/contract.md` §11 | 生きている |
-| 12 | 段は kanban の記録から導き、andon の command と dispatcher とフックは span を出さない | この ADR | まだ実装していない |
-| 13 | 流れの単位は課題にし、レビュアーの課題は親の課題の木に入れる | この ADR | まだ実装していない |
-| 14 | `andon trace <id>` を足し、1 本のトレースに縫い直した OTLP の JSON も出せるようにする | この ADR | まだ実装していない |
+| 12 | 段は kanban の記録から導き、andon の command と dispatcher とフックは span を出さない | `internal/trace/trace.go` | 生きている |
+| 13 | 流れの単位は課題にし、レビュアーの課題は親の課題の木に入れる | `internal/trace/trace.go`・`internal/trace/harness.go` | 生きている |
+| 14 | `andon trace <id>` を足し、1 本のトレースに縫い直した OTLP の JSON も出せるようにする | `internal/trace/output.go`・`internal/cli/leaves.go`・`docs/commands.md` | 生きている（command の名前は、葉の形の決まり〈ADR-0053 決めたこと 5〉に合わせて `andon issue trace <id>`） |
 | 15 | 結果の記録に課題ごとの内訳 `breakdown` を足し、生の記録が消えたあとも残す | この ADR | まだ実装していない |
 | 16 | `andon measure` に内訳の節とプロファイルごとの節を足す | この ADR | まだ実装していない |
 | 17 | 振り返りの入力に、課題ごとの内訳と、直しの前後の数字を足す | この ADR | まだ実装していない |
@@ -29,7 +29,7 @@
 | 19 | Codex は別の課題で取り込み、最初に実測する。Codex の既定の利用統計には触らない | `internal/otel/env.go`・`internal/otel/otel.go`・`package/templates/codex.md`・`package/templates/codex-review.md`・`docs/contract.md` §30 | 生きている（動かしての実測は当てたあとの検証。受け入れ条件 17） |
 | 20 | セッションの記録から数える今のトークンは、そのまま残す | この ADR | 生きている |
 | 21 | ダイジェストと通知には、このテーマで何も足さない | この ADR | 生きている |
-| 22 | トレースの閲覧器は常設しない | この ADR | 生きている |
+| 22 | トレースの閲覧器は常設しない | `docs/operate.md` §11 | 生きている（閲覧器は `otel-tui` をセルの `local/aqua.yaml` で入れる） |
 | 23 | このテーマでは statechart のモデルを書かない | この ADR | 生きている |
 | 24 | 改善のループの前提のうち、受け口と保存先と常駐の 3 つを、この範囲で改める | この ADR | まだ実装していない |
 

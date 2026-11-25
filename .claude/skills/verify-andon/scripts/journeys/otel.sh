@@ -99,7 +99,7 @@ lines=$(since "$ws"/projects/*/kanban/issues/*/library/launches.jsonl | jq -c 's
 n=$(grep -c . <<<"$lines" || true)
 echo "-- ot-records: 当てたあとに Claude Code で起動した課題の起動 $n 件"
 [ "$n" -gt 0 ] || { echo "note 当てたあとに Claude Code の担当もレビュアーも起動していない。Chief of Staff が次に課題を起動したあとで打ち直す"; exit 3; }
-seen=0
+seen=0 seenl=()
 while IFS=$'\t' read -r kanban id; do
   [ -n "$id" ] || continue
   slug=$(basename "$(dirname "$kanban")")
@@ -110,10 +110,45 @@ while IFS=$'\t' read -r kanban id; do
   email=$(grep -c '"user.email"' "$f" || true)
   echo "  | $slug/$id: claude_code.llm_request と andon.issue・andon.role を持つ行 $llm・user.email を持つ行 $email"
   [ "$email" = 0 ] || fail "ot-records: $f に user.email が残っている"
-  [ "$llm" -gt 0 ] && seen=$((seen + 1))
+  if [ "$llm" -gt 0 ]; then seen=$((seen + 1)); tk=$kanban tid=$id; seenl+=("$kanban"$'\t'"$id"); fi
 done < <(for f in "$ws"/projects/*/kanban/issues/*/library/launches.jsonl; do
   since "$f" | jq -r --arg k "${f%/issues/*}" 'select(.profile | test("codex") | not) | [$k, .issue] | @tsv'; done | sort -u)
 [ "$fails" = 0 ] || exit 1
 [ "$seen" -gt 0 ] || { echo "note 当てたあとに起動した課題のどれにも、まだ claude_code.llm_request の記録が無い。担当が 1 ターン以上動いたあとで打ち直す"; exit 3; }
 ok "ot-records: 当てたあとに起動した $seen 件の課題の記録に claude_code.llm_request と andon.issue・andon.role があり、user.email が無い"
+
+# ot-trace: ot-records が数えた課題の 1 つで、当てたパッケージの andon issue trace --otlp を打つ（読むだけ）。
+# span がどれも同じ traceId で、親の無い span が 1 つだけで、ハーネスの claude_code.llm_request が入っている。
+# 数えた課題のうち、レビュアーの課題（<id>-r<k>。issue.yaml があるもの）に dispatcher の控えの gone の項目がある課題を先に選び、
+# その項目の数だけ「端末が死んでいた」の段がレビューの段の下に出ることも見る（無ければ未確認の note）
+dstate=${XDG_STATE_HOME:-$HOME/.local/state}/andon/dispatcher
+rgone=0
+for p in "${seenl[@]}"; do
+  k=${p%%$'\t'*} i=${p#*$'\t'}
+  n=0
+  while IFS=$'\t' read -r rid rn; do
+    [ -n "$rid" ] && [ -f "$k/issues/$rid/issue.yaml" ] && n=$((n + rn))
+  done < <(jq -r --arg i "$i" '.gone // {} | to_entries[] | select(.key | startswith($i + "-r")) | [.key, (.value | length)] | @tsv' "$dstate/$(basename "$(dirname "$k")").json" 2>/dev/null)
+  if [ "$n" -gt 0 ]; then tk=$k tid=$i rgone=$n; break; fi
+done
+tout=$(cd "$(dirname "$tk")" && KANBAN_ROOT=$(dirname "$tk") "$pkg/bin/andon" issue trace "$tid" --otlp 2>&1) && trc=0 || trc=$?
+read -r ntrace nroot nllm nall < <(jq -r '[.resourceSpans[].scopeSpans[].spans[]]
+  | [(map(.traceId) | unique | length), (map(select((.parentSpanId // "") == "")) | length), (map(select(.name == "claude_code.llm_request")) | length), length] | @tsv' <<<"$tout" 2>/dev/null) || true
+# interaction の親（起動の span）の andon.session と interaction の session.id を突き合わせる。合う数・合わない数（session の合う起動が無く、時刻で入れたもの）
+read -r nsame ndiff < <(jq -r '[.resourceSpans[].scopeSpans[].spans[]] as $s
+  | ($s | map({key: .spanId, value: ((.attributes // []) | map(select(.key == "andon.session")) | .[0].value.stringValue // "")}) | from_entries) as $sess
+  | [$s[] | select(.name == "claude_code.interaction") | {p: ($sess[.parentSpanId] // ""), s: ((.attributes // []) | map(select(.key == "session.id")) | .[0].value.stringValue // "")} | select(.p != "")]
+  | [(map(select(.p == .s)) | length), (map(select(.p != .s)) | length)] | @tsv' <<<"$tout" 2>/dev/null) || true
+ngone=$(jq -r '[.resourceSpans[].scopeSpans[].spans[]] as $s | ($s | map({key: .spanId, value: .name}) | from_entries) as $n
+  | [$s[] | select((.name | startswith("端末が死んでいた")) and (($n[.parentSpanId] // "") | startswith("レビュー ")))] | length' <<<"$tout" 2>/dev/null) || ngone=
+echo "-- ot-trace: レビュアーの課題の dispatcher の控えの gone の項目 $rgone・レビューの段の下の「端末が死んでいた」の段 ${ngone:-読めない}"
+[ "$rgone" -gt 0 ] || echo "note ot-trace: 数えた課題のレビュアーの課題に、dispatcher の控えの gone の項目が無い。レビュアーの端末が死んでいた間をレビューの段の下に出すことは確かめていない"
+echo "-- ot-trace: $(basename "$(dirname "$tk")")/$tid の andon issue trace --otlp: 終了コード $trc・span ${nall:-読めない}・traceId ${ntrace:-?} 種・親の無い span ${nroot:-?}・claude_code.llm_request ${nllm:-?}・同じ session の起動の下の interaction ${nsame:-?}・session の合わない起動の下の interaction ${ndiff:-?}"
+[ "${ndiff:-0}" = 0 ] || echo "note ot-trace: session の合う起動が無く、時刻で前の起動の下に入れた interaction が ${ndiff} 個ある（起動の記録に session が無いか、記録の外で起動し直した）"
+if [ "$trc" = 0 ] && [ "${ntrace:-0}" = 1 ] && [ "${nroot:-0}" = 1 ] && [ "${nllm:-0}" -gt 0 ] && [ "${nsame:-0}" -gt 0 ] && { [ "$rgone" = 0 ] || [ "${ngone:-0}" = "$rgone" ]; }; then
+  ok "ot-trace: 課題 $tid の流れが 1 本のトレースになり、ハーネスのモデルの呼び出しが入り、interaction が同じ session の起動の下に入っている$([ "$rgone" = 0 ] || echo "。レビュアーの端末が死んでいた間 $rgone 件がレビューの段の下にある")"
+else
+  fail "ot-trace: andon issue trace $tid --otlp が 1 本のトレースにならないか、結び先が違う（出力の先頭: $(sed -n 1p <<<"$tout" | cut -c1-200)）"
+fi
+[ "$fails" = 0 ] || exit 1
 echo "note ot-restart（受け口を止めてから担当を起動する）はこの道では動かさない。features/otel.md の手順で、Chief of Staff の試しの課題で確かめる"

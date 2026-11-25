@@ -49,6 +49,7 @@ var unchecked = map[string]struct {
 	"internal/process/process.go":              {map[string]int{"json.Marshal": 1}, "流れと状態の定義の YAML を読むための変換（書かない）"},
 	"internal/retro/apply.go":                  {map[string]int{"contract.Marshal": 1, "contract.WriteState": 1}, "andon retro apply --dry-run の出力と retro-applied.json（schema の無い記録）"},
 	"internal/retro/retro.go":                  {map[string]int{"contract.Marshal": 2}, "秘密を伏せる前の形（伏せたあとの出力を Redacted が照らす）"},
+	"internal/trace/output.go":                 {map[string]int{"json.NewEncoder": 1}, "andon issue trace の --json（schema の無い見せる形）と --otlp（約束の外の、OpenTelemetry の OTLP の JSON）"},
 	"internal/triage/triage.go":                {map[string]int{"json.NewEncoder": 1}, "トリアージの出力（schema の無い形）"},
 }
 

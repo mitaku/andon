@@ -23,6 +23,7 @@ import (
 	"andon/internal/retro"
 	"andon/internal/schema"
 	"andon/internal/signal"
+	"andon/internal/trace"
 	"andon/internal/triage"
 	"andon/internal/waiting"
 )
@@ -123,6 +124,8 @@ var leaves = []leaf{
 		writes: true, project: true, run: gate.Main},
 	{name: "issue show", who: []who{role}, about: "予約キー・report.json・レビューの照合を JSON で出す",
 		usage: issue.ShowUsage, examples: []string{"issue show S-0012"}, project: true, json: true, run: issue.Show},
+	{name: "issue trace", who: []who{owner, role}, about: "課題 1 件の流れ（段・起動・プロンプト・モデルの呼び出しとツール）を 1 本の木にして出す（読むだけ）",
+		usage: trace.Usage, examples: []string{"issue trace S-0012", "issue trace S-0012 --otlp"}, project: true, json: true, run: issueTrace},
 	{name: "issue report", who: []who{role}, about: "report.json を書き、標準入力の Markdown で kanban に報告する",
 		usage: issue.ReportUsage, examples: []string{"issue report S-0012 --pr https://github.com/<owner>/sample-site/pull/7 < report.md"},
 		writes: true, project: true, run: issue.Report},
@@ -233,6 +236,11 @@ var oneWord = map[string]bool{"open": true, "help": true, "version": true, "boot
 
 // featured は andon help の先頭に例を出す、オーナーがよく打つ葉（決めたこと 12）。
 var featured = []string{"open", "waiting", "chief-engineer"}
+
+// issueTrace は andon issue trace。dispatcher の控えのパスをここで渡す（trace が dispatcher に依らないように）。
+func issueTrace(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return trace.Main(args, stdout, stderr, dispatcher.StatePath)
+}
 
 func waitingAnswer(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return waiting.Answer(args, stdout, stderr)

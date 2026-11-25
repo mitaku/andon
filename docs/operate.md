@@ -612,6 +612,29 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 
 控えは `~/.local/state/andon/dispatcher/<プロジェクト名>.json`（`XDG_STATE_HOME` があればその下）。待ちの通知は `pending`、フックで渡したものは `hook` に残る。通知は kanban と端末の状態から拾う（[dispatcher.md](dispatcher.md) §2.2・§2.3）。**通ったら見えるもの**: 10 の流れの各段（`review`・`ready`・`gate`・`merged`）が、Chief of Staff に `<news>` として1通にまとまって届く。
 
+### 課題 1 件の流れを見る（`andon issue trace`）
+
+役の起動は、Claude Code と Codex のトレースとログを、セルの中の受け口（`andon otel serve`。`127.0.0.1:4318`）へ送る。受け口は `~/.local/state/andon/otel/<プロジェクト名>/` に課題ごとに書く（[contract.md](contract.md) §30。[ADR-0060](adr/0060-otel-trace.md)）。`andon issue trace <id>` は、kanban の記録から導いた段（列・起動・走らせた command・問い・レビュー・gate・端末が死んでいた間・マージ）と、その下のハーネスの記録を、課題 1 件の木にして出す。レビュアーの課題の起動と記録は、レビューの段の下に入る。読むだけで、何も書かない。
+
+```bash
+cd /workspace/projects/andon
+andon issue trace A-0012          # 人が読む表。段と起動と、プロンプト 1 つ分までを 1 行ずつ
+andon issue trace A-0012 --json   # 木の全部（モデルの呼び出しとツールの span まで）
+andon issue trace A-0012 --otlp >/tmp/A-0012.otlp.jsonl   # 閲覧器に読ませる 1 本のトレース
+```
+
+- **通ったら見えるもの**: 表の最後に、課題ごとに `ハーネスの記録: <id> span N 件` が出る。受け口が止まっていた・送らない設定だった課題や、寿命で記録が消えた課題は、段だけが出て `ハーネスの記録が無い: <id>（置き場に issues/<id>/traces.jsonl が無い）` の 1 行が出る（終了コードは 0）。ファイルはあるが span が 1 つも無いときは `ハーネスの記録が 0 件`、権限などで読めないときは `ハーネスの記録が読めない` と出し、無いのと分ける。
+- **閲覧器で開く**: 閲覧器は常設しない（決めたこと 22）。見たいときだけ、端末の閲覧器 `otel-tui` をセルの `local/aqua.yaml` に足して入れる（`packages:` に `- name: ymtdzzz/otel-tui@<バージョン>` を書き、`aqua update-checksum -a` と `aqua i`）。`--otlp` の出力を `--from-json-file` で読ませる。otel-tui は既定で 4318 にも listen して受け口とぶつかるので、ポートを替えて `127.0.0.1` に限る:
+
+  ```bash
+  otel-tui --from-json-file /tmp/A-0012.otlp.jsonl --host 127.0.0.1 --http 14318 --grpc 14317
+  ```
+
+  課題 1 件が 1 本のトレースとして開く。根の span が課題で、その下に段、起動、プロンプト 1 つ分（`claude_code.interaction`）、モデルの呼び出しとツールの順に入る。トレースの id は課題から決まるので、同じ課題を何度出しても同じ id になる。見終わったら otel-tui を閉じる（常駐させない）。
+- **送るのを止める**: `project.json` に `"otel": {"enabled": false}` を書き、オーナーの名前で commit する（[contract.md](contract.md) §11）。そのあと起動した役から送らない。動いている役は、起動し直すまで送り続ける。受け口は止めなくてよい（送り手がいなければ何も書かない）。`project.json` が無い・読めないときも送らない。
+- **寿命**: 生の記録は、最後に書いてから 30 日で消え、プロジェクトの合計が 10 GB を超えたら古いものから消える。片付けは dispatcher が 1 日に 1 回走らせる（[dispatcher.md](dispatcher.md) §2.14）。日数と上限は `project.json` の `otel` の `days`・`max_gb` で替える。消えた課題は、`andon issue trace` で段だけが出る。
+- **落ちたら見る所**: 記録が無い — `curl -s 127.0.0.1:4318/` が `andon-otel` を返すか（受け口が動いているか）、その起動の記録（`issues/<id>/library/launches.jsonl`）の `command` に `andon otel env` があるか（この仕組みの前の template で起動した役は送らない）。記録を捨てた数は受け口の標準エラー（`andon.project` の無い記録などは書かずに捨てる）。表の最後の `読めずに飛ばした記録` は、書く途中で切れた行や形の違う記録で、ほかの行は読んでいる。
+
 ### 前の名前の係から移す（courier → dispatcher）
 
 常駐の係は 2026-11-06 に名前を dispatcher に改めた（[decisions.md](decisions.md)・[ADR-0002](adr/0002-herdr-spaces.md) 決めたこと 22）。前の名前を読む互換は無い。前のバージョンのセルを上げるときは次のとおり。
