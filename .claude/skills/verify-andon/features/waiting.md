@@ -14,7 +14,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 - `ow-ask-later` `andon issue ask --new` は、`--now` か `--later "<理由>"` のどちらも無ければ理由を言って断る。Chief of Staff の端末の `--later --until <日>` は課題に `later` と `later_until` を書き、`andon waiting --json` でその行が `call: false` になる。担当の端末の `--later` は断る。どの断りでも課題は増えない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/leaves.go`、`internal/ledger/ask.go`
-- `ow-pane` Herdr App のオーナー待ちのパネル（`package/host/waiting/`）に、オーナーの課題が判断の行として出て、選択肢で答えられる。見る道: オーナーが見る。
+- `ow-pane` Herdr App のオーナー待ちのパネル（`package/host/waiting/`）に、オーナーの課題が判断の行として出て、選択肢で答えられる。枠の行は、オーナー待ちが上限の数以上でも「Slots <working>/<limit> working · <waiting> waiting on you」の形のままで、「full」を出さず、色を変えない。見る道: オーナーが見る。
   - 見るファイル: `internal/waiting/answer.go`
 
 ## 辿り着き方（利用者から）
@@ -35,7 +35,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - **呼ぶか置いておくかを言い切らせる。** `ow-ask-later` の行に、旗なしの断り（「呼ぶか置いておくかを言い切る」）、担当の端末 `tw` の `--later` の断り（「Chief of Staff の端末だけ」）、`--later --until` で足した課題の `andon waiting --json` の行が出る。`ok   ow-ask-later` が3行見えれば動いた。
 - **オーナー待ちを読む。** `ow-waiting` の行に、`andon waiting --json` の枠と判断の行、人が読む出力が出る。`ok   ow-waiting` が2行見えれば動いた。
 - **置いておく。** `ow-later` の行に、印を書いたあとの `andon waiting --json` の行（`call`・`later`・`later_until`）が出る。印を書いた課題が置いてある行になり、先の日では置いたまま、来た日ではまた呼び、担当の端末 `tw` が書き直した印では呼ぶ。`ok   ow-later` が5行見えれば動いた。
-- **パネルを見る（`ow-pane`）。** 本物のオーナーの課題がオーナー待ちにある間に、オーナーが Herdr App のパネルで見る。報告の `acceptance[]` に `manual` と書き、見る場所（Herdr App のオーナー待ちのパネル）を `evidence` に書く。
+- **パネルを見る（`ow-pane`）。** 本物のオーナーの課題がオーナー待ちにある間に、オーナーが Herdr App のパネルで見る。`package/host/waiting/` を変えたときは、mod を置き直したあと、オーナー待ちの数が `andon waiting --json` の `slots.limit` 以上ある project でパネルを開き、枠の行に「full」が無く、待ちが上限より少ない project と同じ色であることも見る。報告の `acceptance[]` に `manual` と書き、見る場所（Herdr App のオーナー待ちのパネル）と、見た枠の行の文を `evidence` に書く。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
 ## 変えたら動かすパス
