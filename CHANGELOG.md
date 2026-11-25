@@ -85,7 +85,7 @@
   - `otel`: `{"enabled": false}` なら、役の起動が受け口へ送らない。`days`（既定 30）と `max_gb`（既定 10）で、生の記録の寿命と合計の上限を変える。
 - **v0.0.14 へ戻すとき**: image を下げる前に、次の順で戻す。mod と Stream Deck の plugin は戻さなくてよい。前の `andon` の出力（`call` の無い行、`andon issue board` が無いこと）でも、今までどおりに描く。
   1. `project.json` に `chief_of_staff.idle_minutes` か `otel` があれば、オーナーがキーごと消して commit する。残すと v0.0.14 は `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。
-  2. `andon issue hold` で止めている課題を探す（`grep -l '^hold:' /workspace/projects/*/kanban/issues/*/issue.yaml`）。v0.0.14 は `hold` を読まないので、止めた PR にも gate が回り、`merge: auto` ならマージされる。止めておきたい PR は、下げる前に理由の課題を片付けて `andon issue unhold` で外す。
+  2. `andon issue hold` で止めている課題を探す（`grep -l '^hold:' /workspace/projects/*/kanban/issues/*/issue.yaml`）。v0.0.14 は `hold` を読まないので、止めた PR にも gate が回り、`merge: auto` ならマージされる。下げたあとも止めておきたい PR は、下げる前に Chief of Staff が `kanban set <id> merge=person` に書き換える。v0.0.14 では、gate が通してもオーナーのマージ待ちになる。止めなくてよくなった PR だけ、理由の課題を片付けて `andon issue unhold` で外す。
   3. 置いておく印 `later` も v0.0.14 は読まないので、置いてあったオーナー待ちはまた呼び、行燈が灯る。印は消さなくてよい。上げ直せば、また効く。
   4. 片付いていない課題（`todo`・`doing`・`review`）で、`profile: claude-medium` のものは、Chief of Staff が `kanban set <id> profile=claude` で書き換える。v0.0.14 の image には template `claude-medium` が無く、`andon issue start` も起動し直しも断る。
   5. 片付いていない課題の `library/report.json` に `gaps` があれば（`grep -l '"gaps"' /workspace/projects/*/kanban/issues/*/library/report.json`）、下げる前にその課題を片付けるか、担当に `andon issue report <id> --data '{"gaps": []}'` で報告を書き直させる。v0.0.14 は知らないキーを持つ `report.json` を形が違うとして断るので、担当は報告も ready も打てず、gate はオーナーの判断待ちに倒れる。片付いた課題の報告は残してよい。
