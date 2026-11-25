@@ -128,6 +128,8 @@ case \$1 in
   label) echo "\$2 \$3" >> \$d/labels ;;
   run) n=\$(( \$(cat \$d/next 2>/dev/null || echo 9) )); echo \$((n + 1)) > \$d/next
        task=\$(printf '%s\n' "\$@" | sed -n 's/^issue=//p')
+       # 起動した時の課題の kanban の worktree（ADR-0063 受け入れ条件 5: レビュアーは hc run の前に書いてある）
+       [ -z "\$task" ] || kanban show "\$task" --json 2>/dev/null | jq -r '.issue.worktree // ""' > "\$d/wt-at-run-\$task" || :
        echo "t\$n \$task" >> \$d/live
        printf '{"address":"t%s","first_message":%s}\n' "\$n" "\$(cat \$d/first 2>/dev/null || echo '{"sent":true,"started":true}')" ;;
   send) [ "\$2" != --if ] || shift 2; [ ! -f "\$d/sendfail" ] || ! grep -qx "\$2" \$d/sendfail || exit 1
@@ -337,6 +339,8 @@ rwt=$ANDON_WORKSPACE/.worktrees/app/demo-$id-r1
 kanban show "$rev" --json | jq -e --arg w "$rwt" '.issue.worktree == $w and (.issue.branch // "") == ""' >/dev/null ||
     die "レビュアーの課題の worktree・branch が detached worktree でない（セルの本体を書いた）: $(kanban show "$rev" --json | jq -c '.issue | {worktree, branch}')"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(echo "$rev" | tr A-Z a-z) .*--cwd $L/issues/$rev codex-review" "$tmp/hc/log" || die "hc run の形が違う: $(grep ^run "$tmp/hc/log")"
+# hc run より前に、レビュアーの課題の kanban に worktree が書いてある（端末の andon tools env が cwd でなく worktree を引く。ADR-0063 受け入れ条件 5）
+[ "$(cat "$tmp/hc/wt-at-run-$rev" 2>/dev/null)" = "$rwt" ] || die "hc run の時にレビュアーの課題の kanban に worktree が無い: '$(cat "$tmp/hc/wt-at-run-$rev" 2>/dev/null)'"
 grep -q "hc send t7 " "$L/issues/$rev/brief.md" && grep -q 'Chief of Staff・dispatcher へは送らない' "$L/issues/$rev/brief.md" || die 'レビュアーの依頼書に宛先（担当 t7）が無い'
 grep -q "commit $head" "$L/issues/$rev/brief.md" && ! grep -q '## Report' "$L/issues/$rev/brief.md" || die 'レビュアーの依頼書に commit が無い・担当の報告が入った'
 recorded "$id" review-requested | jq -e --arg r "$rev" '.detail == {round: 1, reviewer: "codex-review", reviewer_issue: $r}' >/dev/null || die '通知 review-requested を記録していない'
@@ -356,7 +360,7 @@ lrec=$L/issues/$rev/library/launches.jsonl
   and .profile == "codex-review" and .template == "codex-review" and .terminal == $a and .session == null and .repo == {name: "github.com/example/app", path: $w, commit: $h, dirty: false}' "$lrec" >/dev/null \
   || die "レビュアーの起動の記録: $(cat "$lrec" 2>/dev/null)"
 emit "$lrec" launch-reviewer.json
-ok "review_request でレビュアーを起動する（kanban add --parent・by terminal:dispatcher・detached worktree〈kanban の worktree もそれ・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当・起動の記録）"
+ok "review_request でレビュアーを起動する（kanban add --parent・by terminal:dispatcher・detached worktree〈kanban の worktree もそれで、hc run の前に書く・branch 無し〉・hc run --no-notify・担当と同じ herdr.space・herdr.tab・依頼書の宛先は担当・起動の記録）"
 runs=$(grep -c '^run' "$tmp/hc/log")
 dispatcher
 [ "$(grep -c '^run' "$tmp/hc/log")" = "$runs" ] || die '同じ review_request で二度起動した'
