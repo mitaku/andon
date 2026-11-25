@@ -36,14 +36,14 @@
 | 通知そのものが `<id> impact: … の影響を集められなかった（…）`（dispatcher が3回打って諦めた） | 確かめる | `andon issue impact <id>` を手で打って JSON を読み、下の行で決める。また落ちれば理由（gh・fetch）をオーナーへ知らせる |
 | `error`（branch・worktree が読めない） | 確かめる | `kanban show <id>`・`git worktree list` で branch を確かめる（規約6）。直せなければオーナーへ知らせる |
 | マージした PR が、その課題の**前提**を変えた: `brief_refs` があるか、PR が ADR・設計書・約束（contract・schema）・skill を変えていて、依頼書の「なぜ」「入力」「完了条件」に関わる（PR と依頼書を読んで決める） | **一度止めて向きを確かめる** | 担当へ `hc send <agent> "<マージした id>（タイトル）が入り <PR> で <ファイル> が変わった。次の commit の前に手を止めて読み、依頼書の追記を待って"`。向きが変わらなければ「変わらない。そのまま続けて」、変われば依頼書に `## 追記（<日付>）` を足して「追記した。読んでから続けて」（`conflict` もあれば rebase も一緒に頼む）。向きを決めるのが決断（4種・委譲の外）ならオーナーへ1問（ask-one-by-one skill）。担当は止めたまま |
-| `conflict: true` | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、<conflict_files> でぶつかる。origin の main に rebase して衝突を解き、検査を通して push。review にいたら kanban start で戻してから。Review: on ならレビューを頼み直す"` |
-| `checks_moved` があって、`review` にいる | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、検査の置き場 <checks_moved> が変わった。origin の main に rebase して新しい検査で checks を通し直し、push。kanban start で戻してから。Review: on ならレビューを頼み直す"`。gate が通したあとでも頼む（古い base の checks のままマージされると main が赤になる） |
+| `conflict: true` | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、<conflict_files> でぶつかる。origin の main に rebase して衝突を解き、検査を通して push。review にいたら kanban start で戻してから。Review: on か、差分がレベル B・C ならレビューを頼み直す"` |
+| `checks_moved` があって、`review` にいる | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、検査の置き場 <checks_moved> が変わった。origin の main に rebase して新しい検査で checks を通し直し、push。kanban start で戻してから。Review: on か、差分がレベル B・C ならレビューを頼み直す"`。gate が通したあとでも頼む（古い base の checks のままマージされると main が赤になる） |
 | `overlap` だけ（衝突しない）で、`review` にいる | **rebase を頼む** | 同じ文（「ぶつからないが <overlap> が重なる。rebase して検査を通し直す」）。マージの前に新しい main で検査を通すため |
 | `overlap` だけで、`doing`（`checks_moved` があっても） | 影響なし（いまは） | 何もしない。担当は PR を出す前に main を取り直す（同じファイルの次のマージでまた届く。検査の置き場が古い base のまま ready すると gate が返す） |
 | 上のどれでもない | 影響なし | 何もしない |
 
 - 決めたことは、オーナーがいるターンならその返事で知らせる（`S-0011（…）に rebase を頼んだ。S-0012（…）は止めて、向きを確かめている。`）。影響なしだけなら `andon news ack` を打って文は書かない。
-- **rebase を頼むときは、`Review: on` の課題には「review-request を打ち直して ready」まで書く**。rebase で差分が変わると、最後のレビューが見た commit と食い違い、`andon issue ready` は stale で止まる。衝突の無い rebase で差分が同じなら、review-request は前のレビューを引き継いで頼まず、担当は報告を書き直して ready へ進む。回数が `review_rounds` を超えるなら、頼む前に `kanban set <id> review_rounds=<数>` で上げておく。
+- **rebase を頼むときは、`Review: on` の課題と、`Review: off` で差分がレベル B・C の課題（gate がレビューを求める）には「review-request を打ち直して ready」まで書く**。rebase で差分が変わると、最後のレビューが見た commit と食い違い、`andon issue ready` は stale で止まる。衝突の無い rebase で差分が同じなら、review-request は前のレビューを引き継いで頼まず、担当は報告を書き直して ready へ進む。回数が `review_rounds` を超えるなら、頼む前に `kanban set <id> review_rounds=<数>` で上げておく。
 - 同じ担当に同じマージで二度頼まない。rebase を頼んだ担当が `blocked`・答えないときは `blocked.md`・`watch.md` の表で扱う。
 - **ほかの「前提が変わった」も同じ口で担当へ届ける**: 動いている課題の依頼書に追記したら、そのターンで担当へ `hc send <agent> "依頼書に追記した（<要点>）。読んでから続けて"`（kanban の依頼書は担当の画面に届かない）。
   オーナーの答え（`blocked.md` の「オーナーに聞くこと」）が、問うた課題のほかに動いている課題の前提にも触れるなら、その担当にも同じく知らせる。
