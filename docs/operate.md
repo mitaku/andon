@@ -179,6 +179,30 @@ image/apply-main.sh revert          # イメージのバージョンへ戻す
 - **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
 - **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ（受け口はこの道でも止めて、当てたパッケージで起動し直す）。
 
+### 言語の道具の volume（`mise`）
+
+mise が入れた言語の道具（go・golangci-lint・node など）と shims は、セルの compose の volume `mise`（`~/.local/share/mise`）に置く（[ADR-0063](adr/0063-language-tools-on-volume.md)）。image は言語の道具のバージョンを持たない。バージョンの正は案件の repo の `mise.toml` で、Andon が担当・レビュアー・Chief Engineer の端末を起動する前と、gate の検査の前に、その worktree で `mise install` を打つ。
+
+- **volume はキャッシュ**: 正しさは `mise.toml` が決める。volume を消しても、次に役の端末を起動するときに入れ直す時間がかかるだけである。この volume を持つバージョンへ上げた最初の作り直しでは volume が空なので、もう一度だけ入れ直しが起きる。Andon が自動で入れるので、手は要らない。オーナーの対話のシェルで道具が無いと言われたら、repo の中で `mise install` を打つ。
+- **古いバージョンを消す**: 自動では消さない。go を 1 つ上げるごとに約 283MB、node を 1 つ上げるごとに約 230MB 増える。減らしたくなったら、セルの中で、どの `mise.toml` も名指していないバージョンを消す。先に `--dry-run` で消すものを見る。
+
+  ```bash
+  mise prune --dry-run    # 消すものだけを出す
+  mise prune              # 消す（mise が覚えている設定のどれも名指していないバージョン）
+  ```
+
+- **丸ごと消す**: ホストで、セルを止めてから volume を消す。次に役の端末を起動するときに入れ直す。
+
+  ```bash
+  cd ~/src/home-cell
+  bin/bootstrap down
+  docker volume rm andon-<slug>_mise    # <slug> はセルの名前
+  bin/bootstrap
+  ```
+
+- **volume `state` だけを消さない**: 入れかけの印（`~/.local/state/mise/incomplete-installs/`）は volume `state` にある。印だけが消えると、入れかけの道具を mise が入っていると見なし、引けないままになる。`state` を消すなら `mise` も消す。
+- **落ちたら見る所**: 担当の検査が `command not found` で落ちる — 担当の worktree で `mise install` を打つ（起動の口は、入れられなくても警告を出して起動を続ける）。`mise prune` のあとに道具が引けない — その道具を名指す `mise.toml` のある所で `mise install` を打つ。
+
 ## 4. ホストの道具を置く（`host-install`）
 
 ```bash

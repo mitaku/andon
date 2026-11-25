@@ -38,6 +38,9 @@ services:
       - ssh:/opt/andon-home/.ssh
       - portless:/opt/andon-home/.portless
       - state:/opt/andon-home/.local/state
+      # mise が入れた言語の道具と shims（ADR-0063 決めたこと 4・5）。消えてもよいキャッシュで、消しても次に役の端末を起動するときに入れ直す。
+      # バージョンの正は案件の repo の mise.toml。mise の cache（~/.cache/mise）は載せない
+      - mise:/opt/andon-home/.local/share/mise
 
 volumes:
   claude:
@@ -52,3 +55,4 @@ volumes:
   ssh:
   portless:
   state:
+  mise:
