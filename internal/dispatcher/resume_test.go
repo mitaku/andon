@@ -34,6 +34,7 @@ const resumeAndon = `#!/usr/bin/env bash
 d=$FAKE_HC
 echo "$*" >>"$d/andon"
 [ -e "$d/resume-rc" ] && { echo "起動できない" >&2; exit "$(cat "$d/resume-rc")"; }
+[ ! -e "$d/resume-warn" ] || cat "$d/resume-warn" >&2
 printf '{"issue":{"id":"%s","status":"doing","agent":"%s"}}\n' "$3" "$(cat "$d/next")" >"$d/show.json"
 `
 
@@ -178,6 +179,21 @@ func TestResumeOnceThenFinished(t *testing.T) {
 	f.p.st.Pending = []Notification{}
 	if got := f.round(); got != nil || len(f.p.st.Pending) != 0 {
 		t.Fatalf("同じ死にまた打った・知らせた: %q %q", got, f.pending())
+	}
+}
+
+// 起動できた resume の警告（道具を入れられない・入れた。ADR-0063 決めたこと 7）は、dispatcher のログに残す。
+// 捨てると、作り直しのあとの自動の resume で警告が誰にも届かない
+func TestResumeLogsWarnings(t *testing.T) {
+	f := newResume(t)
+	f.put("next", "t43")
+	warn := "andon issue: /wt の mise.toml の道具を入れられない（起動は続ける）: boom"
+	f.put("resume-warn", warn+"\n")
+	if got := f.round(); len(got) != 1 || got[0] != "issue resume S-7" {
+		t.Fatalf("resume を打たない: %q（%s）", got, f.log.String())
+	}
+	if !strings.Contains(f.log.String(), "S-7 の resume: "+warn) {
+		t.Errorf("resume の警告がログに無い: %q", f.log.String())
 	}
 }
 

@@ -409,6 +409,12 @@ func (p *project) reportPath(id string) string {
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05Z") }
 
 func run(dir string, env []string, stdin string, name string, args ...string) (string, int, error) {
+	out, _, code, err := runStderr(dir, env, stdin, name, args...)
+	return out, code, err
+}
+
+// runStderr は run と同じで、通った回の標準エラーも返す（起動できた resume の警告をログに残すため）。
+func runStderr(dir string, env []string, stdin string, name string, args ...string) (string, string, int, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), env...)
@@ -426,9 +432,9 @@ func run(dir string, env []string, stdin string, name string, args ...string) (s
 		if i := strings.IndexByte(msg, '\n'); i >= 0 {
 			msg = msg[:i]
 		}
-		return string(out), code, &runError{fmt.Sprintf("%s %s: %v %s", name, strings.Join(args[:min(2, len(args))], " "), err, msg), errb.String()}
+		return string(out), errb.String(), code, &runError{fmt.Sprintf("%s %s: %v %s", name, strings.Join(args[:min(2, len(args))], " "), err, msg), errb.String()}
 	}
-	return string(out), 0, nil
+	return string(out), errb.String(), 0, nil
 }
 
 type runError struct {
@@ -439,7 +445,13 @@ type runError struct {
 func (e *runError) Error() string { return e.msg }
 
 func (p *project) andon(stdin string, args ...string) (string, int, error) {
-	return run(p.l.Root, []string{"KANBAN_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
+	out, _, code, err := p.andonStderr(stdin, args...)
+	return out, code, err
+}
+
+// andonStderr は andon と同じで、通った回の標準エラーも返す。
+func (p *project) andonStderr(stdin string, args ...string) (string, string, int, error) {
+	return runStderr(p.l.Root, []string{"KANBAN_ROOT=" + p.l.Root, "HC_TERMINAL_ID=" + Name}, stdin, p.c.Andon, args...)
 }
 
 func prHead(pr string) (string, error) {

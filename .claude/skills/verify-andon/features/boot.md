@@ -51,6 +51,8 @@
 
 ## 落とし穴
 
+- `image/apply-main.sh` は、PATH に `go` が無いときだけ、`mise which go` の前に `mise install` を打つ。セルの PATH に mise の shims の go がある間は、この分岐は当てても走らず、`bt-ran` の ok はこの分岐を通った証拠にならない。この分岐は `tests/apply-main.sh` の場面 14 が見る。
+
 - boot は中身が変わらなければ控え（`boot.json`）を書き直さない。控えの時刻は、boot が走ったかの証拠にならない。
 - 検証の担当は `andon boot` を打たない。dispatcher を起動し直し、動いている見回りを止める。
 - オーナーが手で直したファイルは `bt-generated` で「控えと違う」と出る。壊れか手直しかを、そのファイルの中身と `git log` で書き分ける。

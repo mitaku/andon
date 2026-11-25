@@ -22,7 +22,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   - 見るファイル: `package/skills/worker/`
 
 - `wl-tools` worktree の根に `mise.toml` がある課題で、当てたあとに起動した担当とレビュアーの端末が、誰も `mise install` を打たずに `mise.toml` のバージョンの道具を引く。端末の環境の `MISE_SYSTEM_CONFIG_FILE` が自分の worktree の `mise.toml` を指し、一時の置き場でも同じバージョンを引く（ADR-0063 決めたこと 6・10）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
-  - 見るファイル: `internal/tools/tools.go`、`internal/tools/env.go`、`internal/cli/leaves.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/dispatcher/loop.go`、`package/templates/`
+  - 見るファイル: `internal/tools/tools.go`、`internal/tools/env.go`、`internal/cli/leaves.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/dispatcher/loop.go`、`internal/dispatcher/resume.go`、`package/templates/`
 
 ## 辿り着き方（利用者から）
 
@@ -59,6 +59,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   2. worktree の中の `go version` と、`cd "$(mktemp -d)" && go version` の両方が、`mise.toml` の go のバージョンを出す。
   3. 起動を打った Chief of Staff の出力か dispatcher の端末のログ（`hc read dispatcher`）に `mise install` の失敗の警告が無い。道具が消えたあとの最初の起動なら「道具を入れた」の1行がある。
   見たのが自分の端末なら、そう `evidence` に書く。
+  道具がもう入っているセルでは、1 と 2 は入れる手を通らなくても ok になる。入れる手（「道具を入れた」の1行と、入れられないときの警告）を通すには、試しの課題の branch の `mise.toml` に、セルにまだ入っていない小さな道具のバージョンを足してから起動してもらい、起動を打った Chief of Staff の出力か dispatcher の端末のログに「道具を入れた」の1行が出ることを見る。dispatcher が `andon issue resume` で起動し直した回の行は、dispatcher の端末のログに「<課題> の resume: 」を頭に付けて出る。行が無ければ、入れる手は未確認と書き、1 と 2 だけを ok にする。
 
 ## 変えたら動かすパス
 
@@ -90,6 +91,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `go test ./internal/issue/ ./internal/launch/`
 
 ## 落とし穴
+
+- `wl-tools` は担当とレビュアーの端末を見る。Chief Engineer の端末（`andon chief-engineer`）も同じ手で道具を入れるが、`internal/chiefengineer/` は地図が覆わないので、この機能では見ない。
 
 - `wl-wiki` の行は、目録の Entities と Topics の節にページの行があるときだけ付く。`andon init` の雛形のままのセルや、Sources にしか行が無いセルで行が無いのは正しい。行の有無は最初のメッセージを組んだときの目録で決まる。起動のあとに目録を直しても、届いた担当の最初のメッセージは変わらない（dispatcher が送り直すときは、送るときの目録で決まる）。
 - 当てる前から動いている担当は前のパッケージで動いている。`wl-record` は当てた時刻より後の行だけを見る。前の行を証拠にしない。
