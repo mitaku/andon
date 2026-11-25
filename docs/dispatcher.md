@@ -42,7 +42,7 @@ Andon ではこれに、ターンの切れ目で渡すフック（§3 の経路�
 
 ### 2.1 見回り
 
-- セルの各プロジェクトの kanban を回る。**待ちが無ければ1分ごと、待ちがあれば5秒ごと**（仮の値。設定で替えられる）。
+- セルの各プロジェクトの kanban を回る。**動いている課題（`doing`／`review`）も届ける待ちも無ければ1分ごと、どちらかがあれば5秒ごと**（仮の値。コードの定数で、設定では替えられない）。
 - プロジェクトの Chief of Staff（`config.yaml` の `chief_of_staff`）の端末が生きていない間（**留守**）も、その kanban は回す。止めるのは配る段（§2.1.1 の 4d・6）だけで、拾う・記録する・コマンドを打つ段（`kanban tick`・レビュアーの起動・gate とそのあとのマージと片付け〈委譲の範囲の中〉・オーナーのマージの拾い・影響・手直し・`andon signal collect`）は同じ判定で回し、届ける通知は `Pending` に積む（[ADR-0017](adr/0017-process-definitions.md) 決めたこと 8）。留守に入ったときはログへ1行（kanban・宛先・理由。同じ理由が続く間は繰り返さず、戻ってまた留守になったら出し直す）。
   - 留守の始まりは控えの `Away` に持つ（`since`。留守の間に積んだ通知の数を `count` に、**置き換えの前の数**で数える）。戻ったと見た巡で `until` を書く。留守の間に何も積まなかったら、戻った巡で消す。
   - 戻った最初の `<news>` は今と同じ1通で、先頭に「留守の間（`since`〜`until`）に N 件」の1行が付く（経路①②の `drain`。経路③の待ち役は合図だけなので、そのターンの終わりに①で付く）。付けたら `Away` を消す。要約はしない（Chief of Staff は起動したときに kanban を自分で読む）。
@@ -233,7 +233,7 @@ dispatcher は見回りで `review` と `doing` の課題（`report.json` に `p
 - **見るのは `review` か `doing` にいて `report.json` に `pr` がある課題だけ**。PR の repo が `issue.yaml` の `repo` と違えば見ない（ほかの repo の PR がマージされても、この課題は片付かない）。`review` にも `doing` にもいない課題は何もせず `state: skip` を返す。
 - **Chief Engineer の課題**（`profile: chief-engineer`）の文書の PR はオーナーがマージする。gate は回さない（検収は、Chief Engineer が出口で要点を見せ、オーナーが最後の確かめで「決めた」と言ったことで済んでいる。[ADR-0037](adr/0037-chief-engineer-autonomy.md) 決めたこと 6）が、オーナーがマージしたことは同じ道で拾う。片付けるのは `review` にいるときだけで、`doing` の間は片付けない（オーナーと話している途中の文書の PR をマージしても、Chief Engineer の端末を片付けない）。`doing` の間も PR を読んで印を揃え（`review` で付けた緑を赤に。ADR-0056 決めたこと 6）、マージされていれば記録して、`review` に入ったら GitHub に聞き直さずに片付ける。閉じたことは `doing` の間は知らせない。片付けた通知 `merged`（`by: person`）は届ける（§3.2。Chief Engineer の課題に影響〈§2.5〉は回らないので、片付いたことはこれだけで Chief of Staff に届く）。
 - **`doing` のうちにオーナーがマージした**（担当がまだ働いている・直しの途中）ときも、`review` のときと同じ道で片付ける（done・端末・worktree）。担当の問い（`ask`）が開いていれば下の「gate の外の問い」、commit していない変更があれば finish の失敗として、片付けずに `held` で知らせる。
-- **GitHub に聞くのは PR ごとに1分に1回**（`gh pr view <n> --repo <owner/repo> --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository`）。待ちがあると見回りは5秒ごとなので、打った時刻を settle の記録に持つ（gh の上限を食わない）。MERGED と分かったら、もう聞かない。CLOSED はオーナーが開き直してマージしうるので、OPEN と同じく1分に1回聞き続ける。
+- **GitHub に聞くのは PR ごとに1分に1回**（`gh pr view <n> --repo <owner/repo> --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository`）。`doing`／`review` の課題がある間は見回りが5秒ごとなので、打った時刻を settle の記録に持つ（gh の上限を食わない）。MERGED と分かったら、もう聞かない。CLOSED はオーナーが開き直してマージしうるので、OPEN と同じく1分に1回聞き続ける。
 - **印を揃える**（[ADR-0056](adr/0056-gate-required-before-merge.md) 決めたこと 5・6）: OPEN と聞いたとき、同じ読みの `statusCheckRollup` で今の head の印（commit status `andon/gate`）を読み、課題の状態から決まる印（contract.md §7 の「印」の表）と違えば書き直す（`gh api -X POST repos/<owner>/<repo>/statuses/<head>`）。`review` の課題は、その head を gate が判定した結果（`library/gate/<head>.json`）の印で、判定の無い head には書かない。`doing` に戻った課題は、緑が残っていれば赤（「作った側が直しています」）。Chief Engineer の課題は、`review` なら緑（「仕様・設計の文書です。メンテナーがマージします」）。前のバージョンが書いたオーナー待ちの赤い印も緑に直る。説明文は読めないので状態だけで比べる。閉じた PR とマージされた PR には書かない。書いた・書けなかったことは settle の出力の `log` に返し、dispatcher が自分のログに写す（書けなければ次に聞いたとき書き直す）。`review` の判定は、merge の記録が今の `review` 入りの行についてこの head の判定を持つときだけ使う（同じ head のまま入り直して今の回の gate がまだ決めていなければ、前の回の判定から書き戻さない。秒までの時刻では前の回と見分けられないので、行で照らす）。settle は課題の鍵の中で走るので、dispatcher が回す同じ課題の gate とは重ならない（手で打つ `andon gate` とは重なりうるが、次に聞いたとき揃え直す）。
 - **dispatcher が自分でマージした PR** は、gate の記録 `library/gate/<マージされた head>.json` の `merged` が `true` であることで見分ける（dispatcher の控えは読まない。同じ巡で finish が失敗してもオーナーのマージと誤報しない）。何もせず `state: auto` を返す（approve の道が片付ける）。
 - **MERGED**: その課題のまだ受け取られていない問いを見る（`kanban questions --json` と `library/questions/<n>.json` の `from`）。
@@ -399,7 +399,7 @@ Chief of Staff が受けて、すること（判断・オーナーへの1行・�
 
 - **記録だけの置き場**は控えの横の `~/.local/state/andon/dispatcher/<slug>.recorded.jsonl`（`XDG_STATE_HOME` があればその下）。1行1件・通知の JSON そのまま（contract.md §1・§6）。書き手は dispatcher だけで、追記だけ。書けなければ控えに残し、次の見回りで先に書く（記録から落とさない・順を保つ）。一部だけ書いて失敗したら書く前の大きさに戻し、書き直すときはファイルの末尾にもう在る行を飛ばす（控えを保存する前に落ちても二重に書かない）。読み手はボードと `andon measure`。
 - **届けた通知の記録**は同じ所の `<slug>.delivered.jsonl`（contract.md §17）。`drain` がフックで渡した `<news>` のターンの終わりを見たときに1行（時刻・`acked`・渡した通知の `issue` と `kind`）。追記だけで、書けなくても届けは止めない。`andon measure` が記録だけの置き場と合わせて、kind ごとの素通り（ack で終わった数）を数える（[決定](decisions/2026-11-12-measure-news-pass-through.md)）。
-- **10分**は dispatcher の時計で、merge の記録の `approved`（merge がマージに進み始めた時刻）から測る（見回りが1分ごとなので、merge queue の repo でも10巡は待つ）。仮の値で、ほかの間（§2.1）と同じくコードの定数（`approveWait`）。回し直した gate（マージの直前の読み直しか base の動きで次の巡に持ち越した approve）では merge が測り直さない。決まれば merge が `approved` を消すので届けない。`review` から出た課題は見ない。
+- **10分**は dispatcher の時計で、merge の記録の `approved`（merge がマージに進み始めた時刻）から測る（`review` の課題がある間は見回りが5秒ごとなので、巡の数ではなく時刻で測る）。仮の値で、ほかの間（§2.1）と同じくコードの定数（`approveWait`）。回し直した gate（マージの直前の読み直しか base の動きで次の巡に持ち越した approve）では merge が測り直さない。決まれば merge が `approved` を消すので届けない。`review` から出た課題は見ない。
 - 課題の見分けは今ある項目だけ（`gated`・`isReviewer`。新しいキーは足さない）。
 
 ---
