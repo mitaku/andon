@@ -18,6 +18,9 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `wl-wiki` セルの wiki の目録の Entities か Topics の節にページの行があるとき、当てたあとに起動した担当（`launch` が `start`）の最初のメッセージに、目録のパスを持つ1行があり、その担当が確認を求められずに目録を読める（ADR-0061 受け入れ条件 12）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/spawn/spawn.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`package/skills/worker/`、`package/settings.json`
 
+- `wl-rebuttal` 当てたあとに起動した担当が、1回目のレビューを頼む前の反論の段で、反論役のサブエージェントに repo の `REVIEW.md` のパスを渡し、その項目でも差分を壊させる（worker skill §4）。担当のセッションの記録の読み方は動かし方の `wl-rebuttal`。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `package/skills/worker/`
+
 ## 辿り着き方（利用者から）
 
 - Chief of Staff が `andon issue start <id>` を打つ。
@@ -45,6 +48,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   3. その読みで、確認を求める画面が出ていない。記録の結果が中身で、拒まれた・許可を待った跡が無く、画面に許可を問う枠が残っていない。
   確認を求められたら壊れとして `fail` に書き、報告の `## Next` に「ADR-0061 決めたこと 12 の `--add-dir` を足さない判断を見直す」と書く（受け入れ条件 12）。レビュアーの最初のメッセージにこの行が無いことは `go test ./internal/dispatcher/` が見ているので、画面では見ない。
   - 検証の担当自身の最初のメッセージにも、条件を満たせばこの行がある。ほかに起動した担当が無ければ、自分の端末と自分のセッションの記録で確かめ、見たのが自分だと `evidence` に書く。
+
+- **反論の段の渡すものを読む（`wl-rebuttal`）。** 当てたあとに Chief of Staff が起動した Claude Code の担当（`role` が `worker`、`launch` が `start`）のうち、`<kanban>/issues/<id>/report.md` に `反論: サブエージェントで` で始まる行があり、PR の repo に `REVIEW.md` があるものを選ぶ。その担当のセッションの記録（`issue.yaml` の `session` の id の `<CLAUDE_CONFIG_DIR>/projects/*/<session>.jsonl`）で、サブエージェントを起動する道具の呼び出し（`name` が `Agent`）の `input.prompt` に `REVIEW.md` の文字があれば動いた（`jq -c 'select(.message.content[]? | .type == "tool_use" and .name == "Agent" and (.input.prompt | test("REVIEW\\.md")))'`）。サブエージェントの呼び出しがあるのに `REVIEW.md` が無ければ壊れとして `fail` に書く。そうした担当が無い（反論の段がまだ走っていない・Codex で自分で通した・`REVIEW.md` の無い repo）なら未確認と書き、報告の `## Next` に「`Review: on` か差分がレベル B・C の課題の担当が1回目のレビューを頼んだあとで打ち直す」と書く。
 
 ## 変えたら動かすパス
 
