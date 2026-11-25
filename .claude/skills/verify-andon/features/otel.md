@@ -14,7 +14,7 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
   - 見るファイル: `internal/otel/env.go`、`internal/otel/otel.go`、`package/templates/codex.md`、`package/templates/codex-review.md`
 - `ot-restart` 受け口を止めてから担当を起動すると、起動が通り、起動のあと受け口が listen している。その担当の端末を片付けたあとも listen している。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/otel/env.go`、`internal/otel/serve.go`、`package/templates/`
-- `ot-trace` `ot-records` が記録を数えた課題の 1 つで、当てたパッケージの `andon issue trace <id> --otlp` が終了コード 0 で、出力の span がどれも同じ traceId を持ち、親の無い span が 1 つだけで、ハーネスの `claude_code.llm_request` の span が入っている。見る道: 検証の担当だけ。
+- `ot-trace` `ot-records` が記録を数えた課題の 1 つで、当てたパッケージの `andon issue trace <id> --otlp` が終了コード 0 で、出力の span がどれも同じ traceId を持ち、親の無い span が 1 つだけで、ハーネスの `claude_code.llm_request` の span が入り、`claude_code.interaction` の 1 つ以上が同じ session の起動の span の下に入っている。見る道: 検証の担当だけ。
   - 見るファイル: `internal/trace/trace.go`、`internal/trace/harness.go`、`internal/trace/output.go`
 
 ## 辿り着き方（利用者から）

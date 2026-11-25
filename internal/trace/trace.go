@@ -90,7 +90,7 @@ type Tokens struct {
 type Harness struct {
 	Issue string `json:"issue"`
 	File  string `json:"file"`  // 置き場の根からの相対パス
-	State string `json:"state"` // none（ファイルが無い）・empty（span が 0）・ok
+	State string `json:"state"` // none（ファイルが無い）・unreadable（あるが読めない）・empty（span が 0）・ok
 	Spans int    `json:"spans"`
 }
 
@@ -158,14 +158,27 @@ func (r *reader) read(path string) ([]byte, bool) {
 	return nil, false
 }
 
-// lines は JSON Lines のファイルを 1 行ずつ渡す（空の行は飛ばす）。無ければ ok が false。
-func (r *reader) lines(path string, f func(n int, b []byte)) bool {
+// ファイルの読み方の結果。
+const (
+	fileMissing    = iota // ファイルが無い
+	fileRead              // 読んだ（途中の誤りは飛ばした所に出す）
+	fileUnreadable        // あるが読めない（権限・フォルダ・読み切れない）
+)
+
+// lines は JSON Lines のファイルを 1 行ずつ渡す（空の行は飛ばす）。
+func (r *reader) lines(path string, f func(n int, b []byte)) int {
 	fh, err := os.Open(path)
 	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			r.skip(path, 0, "読めない")
+		if errors.Is(err, fs.ErrNotExist) {
+			return fileMissing
 		}
-		return false
+		why := "読み取りの誤り"
+		var pe *fs.PathError
+		if errors.As(err, &pe) {
+			why = pe.Err.Error()
+		}
+		r.skip(path, 0, "読めない（%s）", why)
+		return fileUnreadable
 	}
 	defer fh.Close() //nolint:errcheck // 読むだけのファイル
 	s := bufio.NewScanner(fh)
@@ -180,8 +193,9 @@ func (r *reader) lines(path string, f func(n int, b []byte)) bool {
 	}
 	if s.Err() != nil {
 		r.skip(path, n+1, "読み切れない（%v）", s.Err())
+		return fileUnreadable
 	}
-	return true
+	return fileRead
 }
 
 func parseAt(s string) (time.Time, bool) {
@@ -341,11 +355,19 @@ func sortNodes(ns []*Node) {
 	})
 }
 
+// log は kanban の log.jsonl を読む。JSON として読めない行（書き足しの途中で切れた最後の行など）は、飛ばした所に出す。
 func (r *reader) log() []ledger.Row {
-	rows, err := ledger.At(r.o.Root).ReadLog()
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		r.skip(filepath.Join(r.dir, "log.jsonl"), 0, "読み切れない（%v）", err)
-	}
+	var rows []ledger.Row
+	path := filepath.Join(r.dir, "log.jsonl")
+	r.lines(path, func(n int, b []byte) {
+		var row ledger.Row
+		if json.Unmarshal(b, &row) != nil {
+			r.skip(path, n, "JSON として読めない。この行の出来事は段に入っていない")
+			return
+		}
+		row.ID = ledger.CanonID(row.ID)
+		rows = append(rows, row)
+	})
 	return rows
 }
 
@@ -763,7 +785,8 @@ func (r *reader) review(d *issueDoc, rows []ledger.Row) (*Node, Harness) {
 			node.Start = tp(at)
 			continue
 		}
-		if s := statusOf(row); node.Start != nil && node.End == nil && (s == "review" || s == "done") {
+		// 足した行が無い課題（ルーチンが足した課題・行が読めなかった課題）でも、最初の review か done の行で終える
+		if s := statusOf(row); node.End == nil && (s == "review" || s == "done") && (node.Start == nil || !at.Before(*node.Start)) {
 			node.End = tp(at)
 		}
 	}
@@ -771,6 +794,9 @@ func (r *reader) review(d *issueDoc, rows []ledger.Row) (*Node, Harness) {
 		if t, ok := parseAt(d.Created); ok {
 			node.Start = &t
 		}
+	}
+	if node.Start != nil && node.End != nil && node.End.Before(*node.Start) {
+		node.End = tp(*node.Start)
 	}
 	path := filepath.Join(r.dir, "issues", d.ID, "library", "findings.json")
 	if b, ok := r.read(path); ok {
@@ -796,6 +822,7 @@ func (r *reader) review(d *issueDoc, rows []ledger.Row) (*Node, Harness) {
 	launches := r.launches(d.ID, node.End)
 	extra, h := r.attach(d.ID, launches)
 	node.Children = append(launches, extra...)
+	node.Children = append(node.Children, goneStages(rows, d.ID, r.gone(d.ID), node.End)...)
 	sortNodes(node.Children)
 	return node, h
 }

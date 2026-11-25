@@ -498,3 +498,72 @@ func TestTraceUsage(t *testing.T) {
 		t.Errorf("無い課題: %d %s", code, errs)
 	}
 }
+
+// 壊れた・欠けた・読めない記録: 黙って誤った区間や「記録が無い」を出さず、飛ばした所を出す。
+// レビュアーの課題の端末が死んでいた間も、レビューの段の下に入る（決めたこと 12 の段を、レビュアーの側でも欠かさない）。
+func TestTraceBrokenRecords(t *testing.T) {
+	f := newFixture(t, true)
+	k := filepath.Join(f.root, "kanban")
+	b, err := os.ReadFile(filepath.Join(k, "log.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []string
+	for i, l := range strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") {
+		if strings.Contains(l, `"S-0001-r1","change":{"add"`) {
+			continue // レビュアーの課題の足した行が無い（ルーチンが足した課題など）
+		}
+		rows = append(rows, l)
+		if i == 1 {
+			rows = append(rows, `{"at":"2026-11-01T01:00:30Z","by":"terminal:t1","id":"S-0001","chan`) // 書き足しの途中で切れた行
+		}
+	}
+	put(t, filepath.Join(k, "log.jsonl"), strings.Join(rows, "\n")+"\n")
+	put(t, f.state, fmt.Sprintf(`{"gone": {"S-0001": [{"agent": "t1", "at": %d}], "S-0001-r1": [{"agent": "r1", "at": %d}]}}`,
+		at("02:00:00").UnixMilli(), at("01:45:00").UnixMilli()))
+
+	js, errs, code := run(t, f, "S-0001", "--json")
+	if code != 0 {
+		t.Fatalf("終了コード %d: %s", code, errs)
+	}
+	tr := decode(t, js)
+	var logSkip bool
+	for _, s := range tr.Skipped {
+		if s.File == "kanban/log.jsonl" && s.Line == 3 {
+			logSkip = true
+		}
+	}
+	if !logSkip {
+		t.Errorf("log.jsonl の切れた行を飛ばした記録に出さない: %+v", tr.Skipped)
+	}
+	rv := find(tr.Tree.Children, KindReview)
+	if len(rv) != 1 || rv[0].End == nil || !rv[0].End.Equal(at("01:50:00")) {
+		t.Fatalf("足した行の無いレビュアーの課題のレビューが、review の行で終わらない: %+v", rv)
+	}
+	if g := find(rv[0].Children, KindGone); len(g) != 1 || !g[0].Start.Equal(at("01:45:00")) || g[0].End == nil || !g[0].End.Equal(at("01:50:00")) {
+		t.Errorf("レビュアーの端末が死んでいた間がレビューの段の下に無い: %+v", rv[0].Children)
+	}
+
+	// 置き場のファイルはあるが読めない: 「記録が無い」と出さない
+	rf := filepath.Join(f.otel, "issues", "S-0001-r1", "traces.jsonl")
+	if os.Geteuid() != 0 {
+		if err := os.Chmod(rf, 0); err != nil {
+			t.Fatal(err)
+		}
+		out, _, code := run(t, f, "S-0001")
+		if code != 0 || !strings.Contains(out, "ハーネスの記録が読めない: S-0001-r1") || strings.Contains(out, "ハーネスの記録が無い: S-0001-r1") {
+			t.Errorf("読めないファイルを「記録が無い」と出す:\n%s", out)
+		}
+		_ = os.Chmod(rf, 0o644)
+	}
+	if err := os.Remove(rf); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(rf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	js, _, _ = run(t, f, "S-0001", "--json")
+	if tr := decode(t, js); tr.Harness[1].State != "unreadable" {
+		t.Errorf("ファイルの代わりにフォルダがあるのを 0 件か無いと出す: %+v", tr.Harness[1])
+	}
+}

@@ -150,6 +150,8 @@ func Table(w io.Writer, t *Trace) {
 			fmt.Fprintf(w, "ハーネスの記録が無い: %s（置き場に %s が無い）\n", h.Issue, h.File)
 		case "empty":
 			fmt.Fprintf(w, "ハーネスの記録が 0 件: %s（%s に span が無い）\n", h.Issue, h.File)
+		case "unreadable":
+			fmt.Fprintf(w, "ハーネスの記録が読めない: %s（置き場の %s はあるが読めない。理由は飛ばした記録の行）\n", h.Issue, h.File)
 		default:
 			fmt.Fprintf(w, "ハーネスの記録: %s span %d 件\n", h.Issue, h.Spans)
 		}

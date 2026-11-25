@@ -122,9 +122,15 @@ ok "ot-records: 当てたあとに起動した $seen 件の課題の記録に cl
 tout=$(cd "$(dirname "$tk")" && KANBAN_ROOT=$(dirname "$tk") "$pkg/bin/andon" issue trace "$tid" --otlp 2>&1) && trc=0 || trc=$?
 read -r ntrace nroot nllm nall < <(jq -r '[.resourceSpans[].scopeSpans[].spans[]]
   | [(map(.traceId) | unique | length), (map(select((.parentSpanId // "") == "")) | length), (map(select(.name == "claude_code.llm_request")) | length), length] | @tsv' <<<"$tout" 2>/dev/null) || true
-echo "-- ot-trace: $(basename "$(dirname "$tk")")/$tid の andon issue trace --otlp: 終了コード $trc・span ${nall:-読めない}・traceId ${ntrace:-?} 種・親の無い span ${nroot:-?}・claude_code.llm_request ${nllm:-?}"
-if [ "$trc" = 0 ] && [ "${ntrace:-0}" = 1 ] && [ "${nroot:-0}" = 1 ] && [ "${nllm:-0}" -gt 0 ]; then
-  ok "ot-trace: 課題 $tid の流れが 1 本のトレースになり、ハーネスのモデルの呼び出しが入っている"
+# interaction の親（起動の span）の andon.session と interaction の session.id を突き合わせる。合う数・合わない数（session の合う起動が無く、時刻で入れたもの）
+read -r nsame ndiff < <(jq -r '[.resourceSpans[].scopeSpans[].spans[]] as $s
+  | ($s | map({key: .spanId, value: ((.attributes // []) | map(select(.key == "andon.session")) | .[0].value.stringValue // "")}) | from_entries) as $sess
+  | [$s[] | select(.name == "claude_code.interaction") | {p: ($sess[.parentSpanId] // ""), s: ((.attributes // []) | map(select(.key == "session.id")) | .[0].value.stringValue // "")} | select(.p != "")]
+  | [(map(select(.p == .s)) | length), (map(select(.p != .s)) | length)] | @tsv' <<<"$tout" 2>/dev/null) || true
+echo "-- ot-trace: $(basename "$(dirname "$tk")")/$tid の andon issue trace --otlp: 終了コード $trc・span ${nall:-読めない}・traceId ${ntrace:-?} 種・親の無い span ${nroot:-?}・claude_code.llm_request ${nllm:-?}・同じ session の起動の下の interaction ${nsame:-?}・session の合わない起動の下の interaction ${ndiff:-?}"
+[ "${ndiff:-0}" = 0 ] || echo "note ot-trace: session の合う起動が無く、時刻で前の起動の下に入れた interaction が ${ndiff} 個ある（起動の記録に session が無いか、記録の外で起動し直した）"
+if [ "$trc" = 0 ] && [ "${ntrace:-0}" = 1 ] && [ "${nroot:-0}" = 1 ] && [ "${nllm:-0}" -gt 0 ] && [ "${nsame:-0}" -gt 0 ]; then
+  ok "ot-trace: 課題 $tid の流れが 1 本のトレースになり、ハーネスのモデルの呼び出しが入り、interaction が同じ session の起動の下に入っている"
 else
   fail "ot-trace: andon issue trace $tid --otlp が 1 本のトレースにならない（出力の先頭: $(sed -n 1p <<<"$tout" | cut -c1-200)）"
 fi

@@ -53,8 +53,12 @@ func (r *reader) attach(id string, launches []*Node) ([]*Node, Harness) {
 	if r.o.Otel == "" {
 		return nil, h
 	}
-	spans, ok := r.spans(filepath.Join(r.o.Otel, "issues", id, "traces.jsonl"))
-	if !ok {
+	spans, st := r.spans(filepath.Join(r.o.Otel, "issues", id, "traces.jsonl"))
+	switch st {
+	case fileMissing:
+		return nil, h
+	case fileUnreadable:
+		h.State = "unreadable"
 		return nil, h
 	}
 	h.Spans = len(spans)
@@ -131,11 +135,11 @@ func pick(launches []*Node, root *Node) *Node {
 }
 
 // spans は置き場の traces.jsonl を読む。同じ span（trace と span の id が同じ）が 2 度あれば 1 つにする。
-// JSON として読めない行（書く途中で切れた最後の行など）と、id の無い span は飛ばす。ファイルが無ければ ok が false。
-func (r *reader) spans(path string) ([]*span, bool) {
+// JSON として読めない行（書く途中で切れた最後の行など）と、id の無い span は飛ばす。返す値の 2 つ目は lines の結果。
+func (r *reader) spans(path string) ([]*span, int) {
 	var spans []*span
 	seen := map[string]bool{}
-	ok := r.lines(path, func(n int, b []byte) {
+	st := r.lines(path, func(n int, b []byte) {
 		dec := json.NewDecoder(bytes.NewReader(b))
 		dec.UseNumber()
 		var line struct {
@@ -172,7 +176,7 @@ func (r *reader) spans(path string) ([]*span, bool) {
 			}
 		}
 	})
-	return spans, ok
+	return spans, st
 }
 
 func parseSpan(raw map[string]any, resAttrs map[string]any) (*span, string) {
