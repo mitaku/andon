@@ -45,6 +45,7 @@ case "\$*" in
       commits: {nodes: [{commit: {oid: \$v[0].headRefOid, statusCheckRollup: (if length == 0 then null else
         {contexts: {pageInfo: {hasNextPage: (length > \$off + 100), endCursor: ((\$off + 100) | tostring)}, nodes: .[\$off:\$off + 100]}} end)}}]}}}}}' \$d/rollup.json ;;
   "pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
+  "pr view https://github.com/example/app/pull/7 --json headRefName -q .headRefName") jq -r .headRefName \$d/view.json ;;   # andon issue report が新しい pr の branch を照らす
   "api --paginate --slurp repos/example/app/pulls/7/files") cat \$d/files.json ;;
   "pr diff 7 --repo example/app") cat \$d/diff ;;
   "api repos/example/app/compare/"*) # PR の分かれ目より後の既定ブランチの変更（compare.json が無ければ進んでいない）

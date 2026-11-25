@@ -349,14 +349,15 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if json.Unmarshal(b, &pv) != nil || !contract.IsSHA(pv.HeadRefOid) {
 		return nil, "", errors.New("PR が読めない")
 	}
+	if pv.HeadRefName != t.Str("branch") {
+		// この課題の PR でない（ほかの課題の PR を report.json に書いた）。記録も PR の印とコメントも書かない（ほかの課題の PR に書き込まない）
+		return nil, fmt.Sprintf("PR の branch（%s）が issue.yaml の branch（%s）と違う。この課題の PR でないので gate は PR に書かない（andon issue report --pr にこの課題の PR を書く）", pv.HeadRefName, t.Str("branch")), nil
+	}
 	head := pv.HeadRefOid
 	rec := &Record{ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
 	facts := Facts{PROpen: pv.State == "OPEN" && !pv.IsDraft}
 	if t.Str("status") != "review" {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("kanban の課題が review でない（%s）", t.Str("status")))
-	}
-	if pv.HeadRefName != t.Str("branch") {
-		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("PR の branch（%s）が issue.yaml の branch と違う", pv.HeadRefName))
 	}
 	if rep.Commit != head {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")

@@ -50,6 +50,7 @@ esac
 case "\$*" in
   "api rate_limit") cat \$d/rate_limit.json ;;
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
+  "pr view https://github.com/example/app/pull/7 --json headRefName -q .headRefName") jq -r .headRefName \$d/view.json ;;   # andon issue report が新しい pr の branch を照らす
   "pr view 7 --repo example/"*" --json state,mergeCommit")   # dispatcher がマージしたあとの読み直し。打った回数を states に
     echo x >> \$d/states
     if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
@@ -1109,6 +1110,63 @@ jq -e --arg t "$sid" 'has($t) | not' "$mergerec" >/dev/null || die "照合が外
 [ "$(pending "$sid" report)" != null ] || die "照合が外れた調べる課題が返ったことが Chief of Staff に届かない: $(jq -c .pending "$state")"
 kanban config set chief_of_staff=t5 >/dev/null
 ok 'deliverable: candidates の照合が外れていても（Chief of Staff の起き直しのあと）、gate を回さず返ったことを Chief of Staff に届ける'
+
+# 5d. PR を出さない課題（検証・マージ後のレビュー）が、自分の commit を持たず、PR 無しで kanban review で返した: gate を回さず、
+#     担当に push を求める fix を送らず、返ったことを Chief of Staff に届ける（PR が無いので通知は report）。
+#     ほかの課題の PR（branch が違う）を報告に書こうとすると断る（書くと gate がその PR に書き、settle がマージ済みと読む）
+nid=$(newtask 'マージ後のレビュー（PR を出さない）' person)
+[ "$(jq -r .headRefName "$tmp/gh/view.json")" != "demo/$nid" ] || die 'PR 7 がこの課題の branch を指している（前提）'
+r=0; as_worker "$nid" report --pr https://github.com/example/app/pull/7 2>"$tmp/g1" || r=$?
+[ "$r" = 1 ] && grep -q 'この課題の PR でない' "$tmp/g1" && [ ! -e "$L/issues/$nid/library/report.json" ] ||
+    die "ほかの課題の PR を報告に書いた: rc=$r $(cat "$tmp/g1")"
+as_worker "$nid" report
+jq -e '.pr == null and (.commit | length) == 40' "$L/issues/$nid/library/report.json" >/dev/null || die "PR の無い報告の形が違う: $(cat "$L/issues/$nid/library/report.json")"
+sends=$(nsent); posted=$(grep -c . "$tmp/gh/posted")
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$nid" && HC_TERMINAL_ID=t7 kanban review "$nid" >/dev/null)
+dispatcher
+[ ! -e "$L/issues/$nid/library/gate" ] && [ "$(grep -c . "$tmp/gh/posted")" = "$posted" ] || die '自分の commit の無い PR 無しの課題に gate を回した'
+jq -e --arg t "$nid" 'has($t) | not' "$mergerec" >/dev/null || die "自分の commit の無い PR 無しの課題の gate を merge の記録に書いた: $(cat "$mergerec")"
+[ "$(nsent)" = "$sends" ] || die "自分の commit の無い PR 無しの課題の担当に何か送った: $(tail -n 1 "$tmp/hc/sent")"
+[ "$(pending "$nid" report)" != null ] || die "PR 無しで返ったことが Chief of Staff に届かない: $(jq -c .pending "$state")"
+[ "$(kanban show "$nid" --json | jq -r .issue.status)" = review ] || die 'PR 無しの課題が review から動いた'
+HC_TERMINAL_ID=t5 kanban done "$nid" >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"   # あとの場面が数える動いている課題に残さない
+ok 'PR を出さない課題（自分の commit が無い）は、PR 無しで返っても gate を回さず fix を送らず、通知 report で Chief of Staff に届く。ほかの課題の PR は報告に書けない'
+# 前提の確かめ: 課題の branch の PR は報告に書ける（上の断りが、何でも断る形でないこと）
+nid=$(newtask '自分の PR を書く' person)
+work "$nid" docs/g.md
+as_worker "$nid" report --pr https://github.com/example/app/pull/7 || die '課題の branch の PR を報告に書けない'
+HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
+
+# 5e. PR を出すはずの課題（自分の commit がある）が PR 無しで kanban review で返したら、これまでどおり gate が fix を担当へ送る
+nid=$(newtask 'PR を出し忘れた' person)
+work "$nid" docs/e.md
+as_worker "$nid" report
+sends=$(nsent)
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$nid" && HC_TERMINAL_ID=t7 kanban review "$nid" >/dev/null)
+dispatcher
+[ "$(nsent)" = "$((sends + 1))" ] && grep -q "^t7"$'\t'".*$nid.*gate が fix を返した。理由: report.json に pr が無い" <<<"$(tail -n 1 "$tmp/hc/sent")" ||
+    die "自分の commit がある PR 無しの課題に fix を送らない: $(tail -n 1 "$tmp/hc/sent" 2>/dev/null)"
+HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
+ok 'PR を出すはずの課題（自分の commit がある）が PR 無しで返ったら、gate は「report.json に pr が無い」の fix を担当へ送る'
+
+# 5f. 自分の commit がある課題でも、ほかの課題の branch の PR は報告に書けない。この直しの前に書かれた報告に入っていたら、
+#     gate は記録も PR の印もコメントも書かず、理由の fix を担当へ送る
+nid=$(newtask 'ほかの課題の PR を書いた' person)
+work "$nid" docs/f.md
+jq '.headRefName = "demo/D-9999"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+r=0; as_worker "$nid" report --pr https://github.com/example/app/pull/7 2>"$tmp/g1" || r=$?
+[ "$r" = 1 ] && grep -q 'この課題の PR でない' "$tmp/g1" && [ ! -e "$L/issues/$nid/library/report.json" ] ||
+    die "自分の commit がある課題の報告に、ほかの課題の PR を書いた: rc=$r $(cat "$tmp/g1")"
+as_worker "$nid" report
+jq '.pr = "https://github.com/example/app/pull/7"' "$L/issues/$nid/library/report.json" > "$tmp/rep.new" && mv "$tmp/rep.new" "$L/issues/$nid/library/report.json"   # 直しの前に書かれた報告
+sends=$(nsent); posted=$(grep -c . "$tmp/gh/posted")
+(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$nid" && HC_TERMINAL_ID=t7 kanban review "$nid" >/dev/null)
+dispatcher
+[ ! -e "$L/issues/$nid/library/gate" ] && [ "$(grep -c . "$tmp/gh/posted")" = "$posted" ] || die "ほかの課題の PR に gate が書いた: $(tail -n 2 "$tmp/gh/posted")"
+[ "$(nsent)" = "$((sends + 1))" ] && grep -q "^t7"$'\t'".*$nid.*この課題の PR でない" <<<"$(tail -n 1 "$tmp/hc/sent")" ||
+    die "ほかの課題の PR を書いた担当に理由の fix を送らない: $(tail -n 1 "$tmp/hc/sent" 2>/dev/null)"
+HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
+ok 'ほかの課題の branch の PR を報告に書いた課題には、gate は PR に何も書かず、理由の fix を担当へ送る'
 
 # 6. andon issue finish（オーナーがマージしたあと Chief of Staff が打つ）はレビュアーの子課題と detached worktree も片付ける
 revs=$(kanban list --all --json | jq -r --arg p "$id" '[.[] | select(.parent == $p and .status != "done")] | length')

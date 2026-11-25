@@ -54,6 +54,7 @@
 ## 落とし穴
 
 - `gate` は `andon gate` を本物の課題に打つと、その課題の記録と GitHub の status を書く。検証の担当は打たない。読むだけにする。
+- gate が回っても記録（`library/gate/<head>.json`）を書かない回がある。`report.json` に `pr` が無い回と、PR の branch が課題の `branch` と違う回で、gate は理由の `fix` を担当へ送るが、記録も PR の印も書かない。PR が無く、報告の `commit` が既定の branch に入っている課題（検証・マージ後のレビューのように PR を出さない課題）には、gate を回さない（merge の記録 `<slug>.merge.json` にも残らない）。記録が無いことを、gate が回っていない証拠にしない。kanban の `log.jsonl`（`review` に入った行のあとの `doing` の行）、dispatcher のログ、担当の画面（`[gate]` の印の付いた fix）も読み、報告には「gate は回ったが記録が無い」と書き分ける。
 - dispatcher が問いを閉じるのは2つの場合だけ。1つは、gate がオーナーへ回した PR の head が動いたとき（答えは「PR の head が動いた（前 → 今）」で始まる）。もう1つは、オーナーが手でマージしたとき（答えは「オーナーがマージした」で始まる）。どちらも起きなければ `gt-answer` は未確認になる。オーナーが先に答えていた問いは、dispatcher が受け取るだけで答えを上書きしないので、答えた端末はオーナーのまま。
 - 同じ head の gate は記録を上書きする。`at` が当てた時刻より後でも、判定は最後の1回のもの。
 - `needs_human` の多くは条件表どおりのレベル C（オーナーがマージ）で、壊れではない。`tier_reasons` を読んで書き分ける。

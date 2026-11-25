@@ -85,6 +85,18 @@ func (c *ctx) head() (string, error) {
 	return sha, nil
 }
 
+// onDefaultBranch は commit が origin の既定の branch（refs/remotes/origin/HEAD）に既に入っているか。入っていれば、課題の
+// branch には PR にする自分の commit が無い（PR を出さない課題: 検証・マージ後のレビュー）。worktree・commit・origin/HEAD が
+// 無いなど確かめられないときは false（PR を出す課題として扱う）。
+func (c *ctx) onDefaultBranch(commit string) bool {
+	dir := c.issue.Path("worktree")
+	if dir == "" || !contract.IsSHA(commit) {
+		return false
+	}
+	_, err := git(dir, "merge-base", "--is-ancestor", commit, "refs/remotes/origin/HEAD")
+	return err == nil
+}
+
 func prHead(pr string) (string, error) {
 	var errb bytes.Buffer
 	c := exec.Command("gh", "pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid")
@@ -95,6 +107,19 @@ func prHead(pr string) (string, error) {
 		return "", fail("PR の head が読めない: %s %s", pr, strings.TrimSpace(errb.String()))
 	}
 	return sha, nil
+}
+
+// prBranch は PR の head の branch の名前。
+func prBranch(pr string) (string, error) {
+	var errb bytes.Buffer
+	c := exec.Command("gh", "pr", "view", pr, "--json", "headRefName", "-q", ".headRefName")
+	c.Stderr = &errb
+	out, err := c.Output()
+	name := strings.TrimSpace(string(out))
+	if err != nil || name == "" {
+		return "", fail("PR の branch が読めない: %s %s", pr, strings.TrimSpace(errb.String()))
+	}
+	return name, nil
 }
 
 // prHeadTries と prHeadWait は、PR の head が HEAD に追いつくのを待つ回数と間隔（検査は短くする）。
@@ -236,6 +261,18 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 	}
 	if err := c.samePRRepo(r.PR); err != nil {
 		return err
+	}
+	// 新しく書く pr は、PR の branch が課題の branch（issue.yaml の branch）と同じときだけ受ける。ほかの課題の PR を書くと、
+	// gate がその PR に印とコメントを書き、settle がマージ済みと読んで片付け、結果と手直しの記録に混ざる。
+	// 引き継ぐ pr は書いたときに確かめたので、GitHub に聞き直さない。branch の無い課題は照らせないので確かめない
+	if branch := c.issue.Str("branch"); r.PR != "" && branch != "" && (prev == nil || r.PR != prev.PR) {
+		got, err := prBranch(r.PR)
+		if err != nil {
+			return err
+		}
+		if got != branch {
+			return fail("PR の branch（%s）が課題の branch（%s）と違う。この課題の PR でないので pr に書かない（PR を出さない課題なら --pr を付けない）: %s", got, branch, r.PR)
+		}
 	}
 	return c.write(r, md, stdout)
 }

@@ -98,6 +98,12 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	if row == 0 || err != nil || rep == nil {
 		return nil
 	}
+	if rep.PR == "" && c.onDefaultBranch(rep.Commit) {
+		// PR を出さない課題（検証・マージ後のレビュー）: PR が無く、報告の commit が既定の branch に入っていて push するものが無い。
+		// gate を回さず、担当に push を求める fix を送らない。返ったことは dispatcher の collect が通知 report で Chief of Staff に届ける。
+		// 自分の commit があるのに PR が無い課題は、これまでどおり gate が fix を返す
+		return nil
+	}
 	if reason, held, err := c.l.Hold(rows, logErr, c.issue); err != nil || held {
 		if w.Row != row {
 			w = contract.Merging{Row: row}
