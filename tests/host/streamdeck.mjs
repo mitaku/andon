@@ -348,6 +348,28 @@ await check('16 Working: 無音と子の終わりで ?、30 秒後に起動し�
     d.event('willAppear', 'w1', WORKING);
     assert.deepEqual([d.hcRuns().length, wtexts(d)], [3, ['?']], '見え直したキーで起動し直さないか、前の数を出した');
   });
+  // A page switch: the key goes and comes back. The old child's exit comes after the new child started.
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.event('willDisappear', 'w1', WORKING);
+    d.event('willAppear', 'w1', WORKING);
+    d.line(list(FIRST));
+    d.hcRuns()[0].child.emit('exit', null, 'SIGTERM');
+    d.hcRuns()[0].child.emit('error', new Error('late'));
+    assert.deepEqual([d.hcRuns().length, d.hcRuns()[1].killed, wtexts(d)], [2, false, ['2', 'working']], '古い子の終わりで新しい子を止めた');
+  });
+  // Two Working keys, one goes: the child stays and the other key follows the count.
+  await withDeck({ ends: live() }, async (d) => {
+    d.event('willAppear', 'w1', WORKING);
+    d.event('willAppear', 'w2', WORKING);
+    d.line(list(FIRST));
+    d.event('willDisappear', 'w2', WORKING);
+    assert.equal(d.hcRuns()[0].killed, false, '残ったキーがあるのに子を止めた');
+    d.line(ev('t4', 'status', { status: { state: 'working' } }));
+    assert.deepEqual(wtexts(d), ['3', 'working'], '残ったキーの数が変わらない');
+    d.line(ev('t4', 'lost', {}));
+    assert.deepEqual(wtexts(d), ['2', 'working'], 'プログラムを失った端末を数えた');
+  });
   await withDeck({ ends: live(), env: { HERDR_APP_HOME: '/nowhere', HC_BIN: '/srv/hc' } }, async (d) => {
     d.event('willAppear', 'w1', WORKING);
     assert.deepEqual(d.hcRuns().map((r) => r.bin), ['/srv/hc'], 'HC_BIN を起動しない');

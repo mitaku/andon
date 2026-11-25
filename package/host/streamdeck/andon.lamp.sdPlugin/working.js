@@ -84,6 +84,8 @@ export function follower({ env, home, spawn, timers, now, show }) {
         else if (type === "status") t.status = data?.status ?? null;
         else if (type === "labels") t.labels = data?.labels ?? {};
         else if (type === "finished") t.state = "finished";
+        else if (type === "lost") t.status = null; // its program is gone; a new one says its own status
+
         else return;
       } else if (m?.method === "missed") {
         known = false; // until the fresh list
