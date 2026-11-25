@@ -20,7 +20,7 @@
    読めない・合わないなら、担当に `hc send` で戻す（`andon retro patterns` から打ち直させる）。
 4. **当てる**: 自分の端末で `andon retro apply <id>`（オーナーの課題に置いておく印を書くので、ほかの端末では何も書かずに断る）。終了コード 1 は理由を読んで担当に戻す。記録は `library/retro-applied.json`（途中で落ちても、打ち直せば残りから続ける）。
    当てたら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
-5. **続ける**: `apply` が足した直す課題（`parent` が振り返りの課題）は、予約キーを既定（`review=off`・`merge=person`・`estimate=medium` など）で持って足される。`profile` を書き、既定から変える Settings だけ書き直してから（`brief.md`・`cut.md`。Andon のパッケージと `AGENTS.md` に触れる直しは、既定の条件表でレベル C。委譲の `merge` が C でなければオーナーがマージ）、`start.md` の手順で起動する。依頼書の本文は `apply` が書いたものを書き換えない。足りなければ追記する。
+5. **続ける**: `apply` が足した直す課題（`parent` が振り返りの課題）は、予約キーを既定（`review=off`・`merge=person`・`estimate=medium` など）で持って足される。`profile` を書き、既定から変える Settings だけ書き直してから（`brief.md`・`cut.md`。Andon のパッケージと `AGENTS.md` に触れる直しは、既定の条件表でレベル C。委譲の `merge` が C でなければオーナーがマージ）、`start.md` の手順で起動する。依頼書の本文は `apply` が書いたものを書き換えない。足りなければ追記する。差分はレベル B・C になるので、`review=off` のままでも gate がレビューを求める。依頼書に「レビュー: 差分はレベル B・C なので、Review: off でも worker skill の §4 を Review: on と同じに通す」と追記する（`verify.md` の雛形の `レビュー:` の行と同じ）。
    オーナーの課題（タイトルが「Andon へ伝えるか: …」。このプロジェクトが Andon の repo を持たないとき）は、`apply` が決まった理由の印 `later` を書くので、置いてある行になって行燈を灯さない。返事で1問ずつ聞かない（ask-one-by-one §5。オーナーが「今見る」と言えば印を消して聞く）。
    改善の PR のラベル `retro` が repo に無ければ、最初の1回に `gh label create retro --repo <owner>/<repo>` で作る。
 6. **オーナーへ**: 知らせる（オーナーがいるターンならその返事で。いなければ kanban の問いとボードで足りる）。「振り返りでパターンを a 件見つけた。直す課題を b 件、オーナーの課題を c 件切った。d 件は捨てた。」。捨てたものはオーナーが `retro.json` で見て戻せる（戻す＝課題に切る）。空きで dispatcher が撃った回も同じ返事に 1 文にまとめる（`idle.md` の「オーナーへ」）。
