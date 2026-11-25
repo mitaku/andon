@@ -580,4 +580,17 @@ got=$(gate "$id" --dry-run); expect 1 fix 'runs/9.json'
 [ -s "$tmp/gh/calls" ] || die 'Chief of Staff が外したのに GitHub を読まない'
 ok 'hold を最後に消したのが担当の端末なら止めているものとして wait、Chief of Staff の端末が消したら判定に進む（ADR-0056 決めたこと 10）'
 
+# 14. report.json の PR がこの課題の PR でない（branch の名前が違う・同じ名前の branch を持つ fork の PR）: gate は記録も PR の印も
+#     コメントも書かずに理由の fix を返す（ほかの PR に書き込まない）
+cp "$tmp/gh/view.json" "$tmp/view.bak"
+nrec=$(ls "$lib/gate" | wc -l); rm -f "$tmp/gh/posted"
+for c in 'headRefName = "other"|branch（other）' 'isCrossRepository = true|fork から出ている'; do
+    jq ".${c%%|*}" "$tmp/view.bak" > "$tmp/gh/view.json"
+    got=$(gate "$id"); expect 1 fix "${c#*|}"
+    [ ! -e "$tmp/gh/posted" ] && [ "$(ls "$lib/gate" | wc -l)" = "$nrec" ] || die "この課題の PR でない PR に gate が書いた（${c%%|*}）: $(cat "$tmp/gh/posted" 2>/dev/null)"
+done
+cp "$tmp/view.bak" "$tmp/gh/view.json"
+got=$(gate "$id"); [ "$got" != 1 ] || ! grep -q 'この課題の PR でない' "$tmp/out" || die 'この課題の PR を、この課題の PR でないと読んだ'
+ok 'この課題の PR でない PR（branch の名前が違う・同じ名前の branch の fork）には、gate は記録も印もコメントも書かずに fix を返す'
+
 echo "all passed ($pass)"
