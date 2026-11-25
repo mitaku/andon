@@ -629,6 +629,32 @@ if [ "$self" = true ]; then
   [ "$jrc" = 0 ] && grep -qF 'note gt-answer' <<<"$jout" || die "gate: dispatcher が閉じた問いが無いのに note gt-answer が出ない（$jrc）: $jout"
   ok "verify-andon: gate の gt-answer は、gate の外の問いを閉じたか、答えが名指す gate の記録が無いと落ち、閉じた問いが無ければ note を出す"
 
+  # gate の gt-skip: 自分の commit の無い課題（報告の commit が既定の branch に入っている）が PR 無しで review に入ったら、
+  # 担当がそのあと doing に戻していない（gate の fix を受けていない）。偽のセルに repo の clone（.ghq）を置き、本物の kanban の CLI で返す
+  r=$c/ws/.ghq/github.com/example/sample-site
+  rm -rf "$r" && git init -q "$r" && git -C "$r" commit -q --allow-empty -m one && git -C "$r" update-ref refs/remotes/origin/main HEAD \
+    && git -C "$r" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main || die "gt-skip の場面の repo が作れない"
+  ssetup() { # ssetup <review のあとに担当が doing に戻すか true/false>: kanban を作り直し、PR 無しの課題を review に入れる
+    rm -rf "$g" && mkdir -p "$g" && (cd "$g" && "$kanban" init --prefix G --repo github.com/example/sample-site >/dev/null) || die "gt-skip の場面の kanban が作れない"
+    local id
+    id=$(KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" add "検証" --repo github.com/example/sample-site)
+    KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null
+    mkdir -p "$g/kanban/issues/$id/library"
+    echo "{\"commit\": \"$(git -C "$r" rev-parse HEAD)\"}" >"$g/kanban/issues/$id/library/report.json"
+    KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" report "$id" <<<"## Report" >/dev/null
+    KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" review "$id" >/dev/null || die "gt-skip の場面の課題を review にできない"
+    if [ "$1" = true ]; then KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null; fi
+  }
+  # gate の記録が無い場面なので、gt-record・gt-route は未確認で、道の終了コードは 3（gt-skip の ok・note は終了コードを変えない）
+  ssetup false; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'ok   gt-skip' <<<"$jout" || die "gate: PR 無しの課題が review のままなのに gt-skip が ok でない（$jrc）: $jout"
+  ssetup true; journey gate
+  [ "$jrc" = 1 ] && grep -qF 'FAIL gt-skip' <<<"$jout" || die "gate: PR 無しの課題を review のあと担当が doing に戻したのに gt-skip が落ちない（$jrc）: $jout"
+  git -C "$r" commit -q --allow-empty -m mine && git -C "$r" update-ref refs/remotes/origin/main HEAD~1 || die "gt-skip の場面の自分の commit が作れない"
+  ssetup true; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'note gt-skip' <<<"$jout" || die "gate: 自分の commit のある課題の fix を gt-skip が数えた（$jrc）: $jout"
+  ok "verify-andon: gate の gt-skip は、自分の commit の無い PR 無しの課題を review のあと担当が doing に戻すと落ち、review のままなら ok、自分の commit のある課題は数えない"
+
   # drive.sh は検証する commit を省けない。検証の途中で次の commit が当たったあと、省いて打つと新しい commit の間を読み、
   # 検証する commit の出来事を見ずに未確認や誤りになっていた。偽のセルで、drive.sh を利用者と同じく通しで打つ
   old=c0ffee0000000000000000000000000000000000 new=beef020000000000000000000000000000000000
