@@ -61,6 +61,12 @@ hum() { jq -cn --arg u "$1" --arg at "$2" --arg cwd "$root" --arg text "$3" \
 { hum b0 "$(ago '5 days')" '起動'; hum b1 "$(ago '4 days')" '前にも言ったがタイトルに番号'; } \
   >"$CLAUDE_CONFIG_DIR/projects/-sample-site/c0c0c0c0-0000-4000-8000-000000000002.jsonl"
 
+# Chief of Staff の生の記録: 今日の 1 日分（入力 5・出力 6）。patterns が retro.json に残す
+cos=$XDG_STATE_HOME/andon/otel/sample-site/roles/chief-of-staff
+mkdir -p "$cos"
+echo '{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"t","spanId":"s","name":"claude_code.llm_request","attributes":[{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}}]}]}]}]}' \
+  >"$cos/$(date -u +%F).traces.jsonl"
+
 KANBAN_ROOT=$root "$andon" retro collect >"$tmp/in.json"
 jq -e '[.typed[].id] == ["h-b1", "h-a1", "h-a2"] and .previous_retro.issue == "S-0010"' "$tmp/in.json" >/dev/null \
   || die "検査の前提: 入力 $(jq -c '{typed: [.typed[].id], previous_retro}' "$tmp/in.json")"
@@ -126,7 +132,7 @@ good=$(p '["S-0012", "h-a2"]' '.patterns += [
   (.patterns[0] + {id: "p6", summary: "lint の指摘が残り、2回直した", evidence: ["S-0012", "S-0013"], target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/lint.sh"]}})]')
 HC_TERMINAL_ID=t9 "$andon" retro patterns S-0020 - <<<"$good" >"$tmp/ok" 2>"$tmp/err" || die "正しい一覧を断った: $(cat "$tmp/err")"
 emit "$out" patterns.json
-jq -e '.retro == "S-0020" and .days == 7 and .previous_retro.issue == "S-0010" and ([.patterns[].id] == ["p1", "p2", "p3", "p4", "p5", "p6"]) and .chief_of_staff == {days: 0, tokens: null}' "$out" >/dev/null || die "retro.json: $(jq -c . "$out")"
+jq -e '.retro == "S-0020" and .days == 7 and .previous_retro.issue == "S-0010" and ([.patterns[].id] == ["p1", "p2", "p3", "p4", "p5", "p6"]) and .chief_of_staff == {days: 1, tokens: {input: 5, output: 6, cache_read: 0, cache_write: 0}}' "$out" >/dev/null || die "retro.json: $(jq -c . "$out")"
 grep -q 'パターン 6 件、fix 5 件・drop 1 件' "$tmp/ok" || die "書いた行: $(cat "$tmp/ok")"
 cp "$out" "$tmp/good.json"
 

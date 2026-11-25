@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"andon"
 	"andon/internal/contract"
+	"andon/internal/ledger"
 	"andon/internal/ledger/ledgertest"
 )
 
@@ -333,6 +335,9 @@ func TestRetroBreakdownSchemaIsOutcomeCopy(t *testing.T) {
 // andon retro patterns は、期間の Chief of Staff のトークンを retro.json に残す（collect の出力は保存しないので、
 // 生の記録が 30 日で消えたあとも、この数を振り返りの課題のフォルダから引けるように。ADR-0060 決めたこと 17）。
 func TestPatternsKeepsChiefOfStaffTokens(t *testing.T) {
+	if _, err := exec.LookPath(ledger.CLI); err != nil {
+		t.Skipf("%s が無い（CI の go の job。tests/andon-retro-apply.sh が同じことを見る）", ledger.CLI)
+	}
 	root, _ := baKanban(t, 0, 0)
 	k := filepath.Join(root, "kanban")
 	write(t, filepath.Join(k, "issues", "A-0900", "issue.yaml"), issueYAML("A-0900", "doing", "profile: claude\nroutine: retro\nagent: t9\n"))
