@@ -8,6 +8,9 @@ git init -q "$tmp/wt" && echo one >"$tmp/wt/f" && git -C "$tmp/wt" add f && git 
 head=$(git -C "$tmp/wt" rev-parse HEAD)
 pr=https://github.com/example/sample-site/pull/7
 echo "$head" >"$tmp/gh/head"
+# PR の branch（report --pr が課題の branch と照らす）。初めはほかの課題の branch にして、rr-report が断られることを見る
+branch=verify/$run
+echo other/branch >"$tmp/gh/branch"
 # PR のファイルと差分（ready が gate と同じ関数でレビューが要るかを決めるのに読む）。文書1行だけのレベル A にして、review: off で通す
 echo '[[{"filename":"docs/verify.md","additions":1,"deletions":0}]]' >"$tmp/gh/files"
 printf '%s\n' 'diff --git a/docs/verify.md b/docs/verify.md' 'new file mode 100644' '--- /dev/null' '+++ b/docs/verify.md' '@@ -0,0 +1 @@' '+verify' >"$tmp/gh/diff"
@@ -15,7 +18,7 @@ printf '%s\n' 'diff --git a/docs/verify.md b/docs/verify.md' 'new file mode 1006
 ledger_init V
 id=$(HC_TERMINAL_ID=tc "$kanban" add "$run の報告と ready" --profile claude)
 HC_TERMINAL_ID=tc "$kanban" set "$id" status=doing review=off must_fix=major merge=person \
-  "worktree=$tmp/wt" repo=github.com/example/sample-site >/dev/null
+  "worktree=$tmp/wt" repo=github.com/example/sample-site "branch=$branch" >/dev/null
 lib=$tmp/project/kanban/issues/$id/library
 export HC_TERMINAL_ID=tw
 echo "{\"labels\":{\"issue\":\"$id\"}}" >"$tmp/hc/tw.json"
@@ -34,6 +37,20 @@ step "rr-ready-refuse: 報告の前に ready を打つ" "$andon" issue ready "$i
   || { [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
     && ok "rr-ready-refuse: 報告が無ければ断り、課題は doing のまま" || fail "rr-ready-refuse: 断ったのに status が動いた"; }
 
+# rr-report: PR の branch が課題の branch と違えば（ほかの課題の PR）、report --pr は書かずに断る。課題の branch の PR なら書く
+step "rr-report: ほかの branch の PR を報告に書く" "$andon" issue report "$id" --pr "$pr" <<<"## Report" \
+  && fail "rr-report: PR の branch（other/branch）が課題の branch（$branch）と違うのに report --pr が通った" \
+  || { grep -q 'この課題の PR でない' "$tmp/step.out" && [ ! -e "$lib/report.json" ] \
+    && ok "rr-report: PR の branch が課題の branch と違えば、report.json を書かずに断る" \
+    || fail "rr-report: 断る理由が「この課題の PR でない」でないか、report.json を書いた"; }
+# rr-report: 前の report.json の pr がほかの課題の PR（この直しより前に書かれたもの）なら、--pr を付けずに書き直すと引き継がずに外す
+step "rr-report: 報告を書く（pr 無し）" "$andon" issue report "$id" <<<"## Report" >/dev/null
+jq --arg pr "$pr" '.pr = $pr' "$lib/report.json" >"$tmp/rep.new" && mv "$tmp/rep.new" "$lib/report.json"
+step "rr-report: ほかの課題の PR が入った報告を、--pr を付けずに書き直す" "$andon" issue report "$id" <<<"## Report" \
+  && grep -q 'この課題の PR でないので引き継がない' "$tmp/step.out" && jq -e '(.pr // "") == ""' "$lib/report.json" >/dev/null \
+  && ok "rr-report: 前の報告のほかの課題の PR は、書き直すと引き継がずに外す" \
+  || fail "rr-report: 前の報告のほかの課題の PR を引き継いだか、外したことを書かない"
+echo "$branch" >"$tmp/gh/branch"
 # rr-report: 報告が report.json と report.md になる
 data='{"acceptance":[{"id":"A1","result":"pass","evidence":"git log -1（記録 runs/1.json）","run":1}],"next":[{"to":"chief-of-staff","text":"検証の跡を片付ける"}]}'
 step "rr-report: 報告を書く" "$andon" issue report "$id" --pr "$pr" --data "$data" <<<"## Report

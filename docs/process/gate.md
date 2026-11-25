@@ -20,6 +20,7 @@ stateDiagram-v2
   state "マージした" as s_merged
   state "片付けた" as s_finished
   [*] --> s_waiting: review に入った
+  s_waiting --> [*]: PR を出さない課題だった（report.json に pr が無く、commit が既定の branch に入っている。gate を回さず fix も送らない。返ったことは collect が通知 report で届ける）
   s_waiting --> s_approved: gate を回す（approve・merge auto・委譲の範囲内。§7.2 #4）
   s_waiting --> s_held: gate を回す（approve・merge person か委譲の外。§7.2 #4）
   s_waiting --> s_fix: gate を回す（fix。理由を担当へ hc send。§7.2 #4）
@@ -74,6 +75,7 @@ stateDiagram-v2
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
 | （始まり・終わり） | `waiting` | review に入った | 機械 |  |  |
+| `waiting` | （始まり・終わり） | PR を出さない課題だった（report.json に pr が無く、commit が既定の branch に入っている。gate を回さず fix も送らない。返ったことは collect が通知 report で届ける） | 機械 | `andon issue merge` |  |
 | `waiting` | `approved` | gate を回す（approve・merge auto・委譲の範囲内。§7.2 #4） | 機械 | `andon issue merge` | はい |
 | `waiting` | `held` | gate を回す（approve・merge person か委譲の外。§7.2 #4） | 機械 | `andon issue merge` | はい |
 | `waiting` | `fix` | gate を回す（fix。理由を担当へ hc send。§7.2 #4） | 機械 | `andon issue merge` | はい |

@@ -104,9 +104,20 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 			return &w, nil
 		}
 		w.At = now.UTC().Format("2006-01-02T15:04:05Z")
-		state, head, sha, mark, err := prState(number, owner+"/"+name)
+		v, err := prState(number, owner+"/"+name)
 		if err != nil {
 			return &w, fail("%s の PR の状態が読めない（次に打ったとき聞き直す）: %v", c.id, err)
+		}
+		state, head, sha, mark := v.State, v.Head, v.Sha, v.Mark
+		// この課題の PR でない（ほかの課題の PR か fork の PR が、この直しより前の report.json に入っていた）なら、マージされていても
+		// この課題を片付けない（ほかの課題のマージを、この課題の結果と手直しの記録に混ぜない）。理由はログに1度だけ書き、見続ける
+		if branch := c.issue.Str("branch"); branch != "" && state == "MERGED" && (v.Branch != branch || v.Cross) {
+			why := fmt.Sprintf("%s の report.json の PR %s はこの課題の PR でない（PR の branch %s・課題の branch %s・fork %t）。マージされているが片付けない", c.id, rep.PR, v.Branch, branch, v.Cross)
+			if w.Held != why {
+				res.Log = append(res.Log, why)
+				w.Held = why
+			}
+			return &w, nil
 		}
 		switch state {
 		case "MERGED":
@@ -344,37 +355,49 @@ func orNone(s string) string {
 	return s
 }
 
-func prState(number, slug string) (state, head, sha string, mark gate.Mark, err error) {
-	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid,statusCheckRollup")
+// prView は settle が読む PR の状態。Branch と Cross は、report.json の PR がこの課題の PR かを照らす（PR の branch・fork から出ているか）
+type prView struct {
+	State, Head, Sha, Branch string
+	Cross                    bool
+	Mark                     gate.Mark
+}
+
+func prState(number, slug string) (prView, error) {
+	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")
 	var errb strings.Builder
 	cmd.Stderr = &errb
 	out, err := cmd.Output()
 	if err != nil {
-		return "", "", "", gate.Mark{}, fmt.Errorf("gh pr view: %v %s", err, firstLine(errb.String()))
+		return prView{}, fmt.Errorf("gh pr view: %v %s", err, firstLine(errb.String()))
 	}
 	var view struct {
 		State       string `json:"state"`
 		HeadRefOid  string `json:"headRefOid"`
+		HeadRefName string `json:"headRefName"`
+		Cross       bool   `json:"isCrossRepository"`
 		MergeCommit *struct {
 			Oid string `json:"oid"`
 		} `json:"mergeCommit"`
 		Rollup []gate.CheckItem `json:"statusCheckRollup"`
 	}
 	if json.Unmarshal(out, &view) != nil {
-		return "", "", "", gate.Mark{}, fmt.Errorf("gh pr view の返事が読めない")
+		return prView{}, fmt.Errorf("gh pr view の返事が読めない")
 	}
+	v := prView{State: view.State, Branch: view.HeadRefName, Cross: view.Cross}
 	switch view.State {
 	case "MERGED":
 		if view.MergeCommit == nil || !contract.IsSHA(view.MergeCommit.Oid) {
-			return "", "", "", gate.Mark{}, fmt.Errorf("MERGED だがマージの commit が読めない")
+			return prView{}, fmt.Errorf("MERGED だがマージの commit が読めない")
 		}
-		return view.State, view.HeadRefOid, view.MergeCommit.Oid, gate.Mark{}, nil
+		v.Head, v.Sha = view.HeadRefOid, view.MergeCommit.Oid
+		return v, nil
 	case "OPEN":
-		return view.State, view.HeadRefOid, "", gate.GateMark(view.Rollup), nil
+		v.Head, v.Mark = view.HeadRefOid, gate.GateMark(view.Rollup)
+		return v, nil
 	case "CLOSED":
-		return view.State, "", "", gate.Mark{}, nil
+		return v, nil
 	}
-	return "", "", "", gate.Mark{}, fmt.Errorf("PR の state が知らない値: %q", view.State)
+	return prView{}, fmt.Errorf("PR の state が知らない値: %q", view.State)
 }
 
 func firstLine(s string) string {

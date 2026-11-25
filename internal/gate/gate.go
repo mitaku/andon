@@ -349,14 +349,19 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if json.Unmarshal(b, &pv) != nil || !contract.IsSHA(pv.HeadRefOid) {
 		return nil, "", errors.New("PR が読めない")
 	}
+	// この課題の PR でない（ほかの課題の PR か、同じ名前の branch を持つ fork の PR を report.json に書いた）。
+	// 記録も PR の印とコメントも書かない（ほかの PR に書き込まない）。担当は課題の branch を origin に push するので、fork の PR は課題の PR でない
+	switch {
+	case pv.HeadRefName != t.Str("branch"):
+		return nil, fmt.Sprintf("PR の branch（%s）が issue.yaml の branch（%s）と違う。この課題の PR でないので gate は PR に書かない（andon issue report --pr にこの課題の PR を書く）", pv.HeadRefName, t.Str("branch")), nil
+	case pv.IsCrossRepository:
+		return nil, "PR が fork から出ている。この課題の PR でないので gate は PR に書かない（andon issue report --pr にこの課題の PR を書く）", nil
+	}
 	head := pv.HeadRefOid
 	rec := &Record{ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
 	facts := Facts{PROpen: pv.State == "OPEN" && !pv.IsDraft}
 	if t.Str("status") != "review" {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("kanban の課題が review でない（%s）", t.Str("status")))
-	}
-	if pv.HeadRefName != t.Str("branch") {
-		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("PR の branch（%s）が issue.yaml の branch と違う", pv.HeadRefName))
 	}
 	if rep.Commit != head {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
@@ -377,9 +382,6 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	// 衝突と重なったときに DIRTY が返る順の決まりは GitHub の文書に無い（ADR-0056 決めたこと 13）
 	if pv.MergeStateStatus == "DIRTY" || pv.Mergeable == "CONFLICTING" {
 		facts.Blockers = append(facts.Blockers, "conflict")
-	}
-	if pv.IsCrossRepository {
-		facts.Blockers = append(facts.Blockers, "fork の PR")
 	}
 
 	// 予約キーは Chief of Staff が書いたものだけを信じる（log.jsonl の by）

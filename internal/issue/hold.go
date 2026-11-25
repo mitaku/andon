@@ -102,10 +102,11 @@ func (c *ctx) holdMark() (string, error) {
 		return "report.json の pr がこの課題の repo の PR でないので印は書かない", nil
 	}
 	slug := owner + "/" + name
-	state, head, _, have, err := prState(number, slug)
+	v, err := prState(number, slug)
 	if err != nil {
 		return "", fmt.Errorf("PR を読めない（%v）", err)
 	}
+	state, head, have := v.State, v.Head, v.Mark
 	if state == "MERGED" {
 		return "", fmt.Errorf("PR はもうマージされている（止められない）")
 	}

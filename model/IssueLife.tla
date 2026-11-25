@@ -217,6 +217,8 @@ Regate ==
 \* 理由（internal/gate/decide.go Decide）は CI の失敗・レビューの stale や Must fix・受け入れ条件など。直しは担当に直すことを渡すが、
 \* 照合が古いレビューを読んでいる（stale）ときは、stale だけが理由のこともあり、直すことがあるとは限らない。
 \* PR が閉じていれば fix（internal/gate/decide.go Decide の「PR が open でない」）。回し直しは Regate
+\* PR の無い review（pr = "none"）はモデルに無い（WorkerReady が PR を求める）。コードでは、PR を出さない repo の課題（検証・マージ後のレビュー。
+\* 報告の commit が既定の branch に入っている）に gate を回さず fix も送らない（internal/issue/merge.go mergeOne）。PR の無い課題はモデルの外（ADR-0025 やらないこと 5）
 GateSaysFix ==
     /\ ~hold /\ mark' = "red" /\ rel' = FALSE
     /\ status = "review"

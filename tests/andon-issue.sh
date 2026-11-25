@@ -1115,12 +1115,12 @@ emit "$(launches "$ce")" launch-chief-engineer.json
 ok 'andon chief-engineer: Chief Engineer の課題に起動の記録が1件（役 chief-engineer・session・worktree の commit。ADR-0028 受け入れ条件 2）'
 
 # 止める口（ADR-0056 決めたこと 7・8。受け入れ条件 A5）: andon issue hold・unhold。偽の gh を止めの場面のものに替える:
-# pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup は $tmp/hold-view を返し、
+# pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository は $tmp/hold-view を返し、
 # api -X POST …/statuses/<sha> は引数を $tmp/hold-gh に1行で足す（$tmp/hold-fail があれば落ちる）
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 case "\$1 \$2" in
-  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup ] || { echo "unexpected gh \$*" >&2; exit 99; }
+  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository ] || { echo "unexpected gh \$*" >&2; exit 99; }
     cat "$tmp/hold-view" ;;
   "api -X") echo "\$*" >> "$tmp/hold-gh"; [ ! -e "$tmp/hold-fail" ] || { echo "HTTP 502" >&2; exit 1; } ;;
   *) echo "unexpected gh \$*" >&2; exit 99 ;;

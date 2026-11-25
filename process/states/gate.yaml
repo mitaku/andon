@@ -33,6 +33,7 @@ states:
 positions: [merge:Sha, merge:Decision, merge:Retries, merge:Polled]
 transitions:
   - { from: "[*]", to: waiting, on: "review に入った", by: machine }
+  - { from: waiting, to: "[*]", on: "PR を出さない課題だった（report.json に pr が無く、commit が既定の branch に入っている。gate を回さず fix も送らない。返ったことは collect が通知 report で届ける）", by: machine, command: andon issue merge }
   - { from: waiting, to: approved, on: "gate を回す（approve・merge auto・委譲の範囲内。§7.2 #4）", by: machine, command: andon issue merge, once: true }
   - { from: waiting, to: held, on: "gate を回す（approve・merge person か委譲の外。§7.2 #4）", by: machine, command: andon issue merge, once: true }
   - { from: waiting, to: fix, on: "gate を回す（fix。理由を担当へ hc send。§7.2 #4）", by: machine, command: andon issue merge, once: true }
