@@ -551,7 +551,7 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 	if _, err := gh("pr", "merge", number, "--repo", slug, "--"+method, "--match-head-commit", gr.Head); err != nil {
 		// オーナーが先にマージしていた（gate が判定した head のまま MERGED）なら誤報の問いを出さず、オーナーがマージしたときの道（§2.7）へ渡す。
 		// 同じ巡の andon issue settle が片付ける。gate の記録の merged は書かない（dispatcher がマージした印）
-		out, verr := gh("pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid")
+		out, verr := ghReread("pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid")
 		if sha, ok := MergedBefore(out, gr.Head); verr == nil && ok {
 			logf("の PR %s は gh pr merge の前に同じ head でマージされていた（%s）。問いを出さずオーナーのマージとして片付ける", rep.PR, short12(sha))
 			return false
@@ -568,14 +568,19 @@ func (c *ctx) approve(rep *contract.Report, gr gateResult, record string, w *con
 		stop("gh pr merge に失敗: " + err.Error())
 		return false
 	}
-	out, err := gh("pr", "view", number, "--repo", slug, "--json", "state,mergeCommit")
+	// gh pr merge は通った。読み直しの gh pr view が一時に落ちただけで問いにしない（ghReread が読み直す）。MERGED を確かめずに片付けない
+	out, err := ghReread("pr", "view", number, "--repo", slug, "--json", "state,mergeCommit")
 	var view struct {
 		State       string `json:"state"`
 		MergeCommit struct {
 			Oid string `json:"oid"`
 		} `json:"mergeCommit"`
 	}
-	if err != nil || json.Unmarshal([]byte(out), &view) != nil || view.State != "MERGED" || !contract.IsSHA(view.MergeCommit.Oid) {
+	if err != nil {
+		stop(fmt.Sprintf("マージを打ったが PR を読み直せない（%d 回）: %v", ghRereads, err))
+		return false
+	}
+	if json.Unmarshal([]byte(out), &view) != nil || view.State != "MERGED" || !contract.IsSHA(view.MergeCommit.Oid) {
 		stop(fmt.Sprintf("マージを打ったが PR が MERGED にならない（%s）", view.State))
 		return false
 	}
@@ -729,6 +734,23 @@ func markMerged(record string) error {
 	}
 	m["merged"] = true
 	return contract.Write(record, contract.SchemaGate, m)
+}
+
+// ghRereads は、マージの前後に PR を読み直す gh pr view を、一時の失敗（502 など）で打ち直す回数の上限（初めの1回を含む）。
+// 間は ghRereadWait。読めなければ最後の失敗を返し、呼び手は今までどおり問いにする（dispatcher.md §7.2 #5）。
+const (
+	ghRereads    = 3
+	ghRereadWait = 2 * time.Second
+)
+
+// ghReread は gh を打ち、失敗したら ghRereadWait おいて ghRereads 回まで打ち直す（読むだけの gh pr view に使う）。
+func ghReread(args ...string) (string, error) {
+	out, err := gh(args...)
+	for i := 1; i < ghRereads && err != nil; i++ {
+		time.Sleep(ghRereadWait)
+		out, err = gh(args...)
+	}
+	return out, err
 }
 
 func gh(args ...string) (string, error) {
