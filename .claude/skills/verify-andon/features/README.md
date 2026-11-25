@@ -91,7 +91,7 @@ Verify-features: wl-resume, wl-record
 - `package/compose.yaml`。セルを起動し直す口で、動いているセルの中からは打ち直せない。`tests/image.sh` が docker のある CI で見ている。
 - `package/bin/`。焼いた andon を置く場所で、repo には空の印しか無い。
 - `internal/triage/unsorted.go`（トリアージの溜まった数）。dispatcher がトリアージのルーチンを撃つかを決める数え方で、`triage` の道は通らない。撃つところは `dispatcher-news` の `dn-idle` が見る。`go test ./internal/triage/` が見ている。
-- `internal/board/`・`internal/chiefofstaff/`・`internal/chiefengineer/`・`internal/open/`（ボードと、Chief of Staff・Chief Engineer を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。
+- `internal/board/`・`internal/chiefofstaff/`・`internal/open/`（ボードと、Chief of Staff を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。Chief Engineer を起動する口（`internal/chiefengineer/`）は、起動の前に道具を入れる手を担当の起動の `wl-tools` が見る。
 - `internal/plantinit/`（`andon init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
 - `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
 - `cmd/kanban/migrate.go`・`cmd/kanban/dispatcherstate.go`（`kanban migrate`）。前の形の kanban を移す口で、どの機能の道も打たない。`go test ./cmd/kanban/` と `tests/kanban.sh` が見ている。

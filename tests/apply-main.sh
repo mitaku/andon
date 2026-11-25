@@ -8,6 +8,7 @@
 #   5 状態（当てる前・当てたあと・main が2つ進んだあと）  6 戻す（6a 2回当ててから・6b andon と kanban を壊してから）
 #   7 置き換えのあとに boot と dispatcher の片付けが1回ずつ（7a）・鍵を取らない前のバージョンの dispatcher は止めない（7b）  10 道具が package/ の下に無い（以上 S1）
 #   13 ハーネスの受け口（<根>/bin/andon otel serve）を boot の前に止める（当てる・戻す）。ほかの実行ファイルの受け口は止めない。動いていなければ何もしない
+#   14 PATH に go が無く mise があるときは、mise which go の前に Andon の checkout で mise install を打つ（偽の mise。ADR-0063 受け入れ条件 7）
 #   8 当てる前から動いている端末の一覧を出し、止めない（8a）・hc ls が失敗したら警告して当てる（8b）  9 image/ が変わっていない間は警告が無い（9a）・変わっていたら警告して当てる・状態にも出す（9b）（S2）
 #   P0-1 当てたあと andon version が commit と食い違いを返す（ADR-0028）
 #   11 試しの repo はこの repo の作業ツリーを写す（commit していない変更を見落とさない）
@@ -513,6 +514,44 @@ else
   fail "決めたこと 5: $(cat "$tmp/out")"
 fi
 run revert || fail "決めたこと 5 のあとの revert: $(cat "$tmp/out")"
+
+# === 14. PATH に go が無く mise があるときは、mise which go の前に Andon の checkout で mise install を打つ（ADR-0063 決めたこと 8・受け入れ条件 7） ===
+# 偽の mise は呼ばれた引数と cwd を控え、which go に本物の go の場所を答える（本物の mise install は打たない）。
+# PATH は偽の mise を先頭に置き、go を持つフォルダ（mise の shims・本物の go の置き場）を外す
+nogo=$tmp/nogo
+mkdir -p "$nogo"
+printf '#!/usr/bin/env bash\necho "mise $* | cwd=$PWD" >>"$CALLS"\n[ "$1 $2" != "which go" ] || echo %q\n' "$gobin" >"$nogo/mise"
+chmod 755 "$nogo/mise"
+nogo_path=$nogo
+IFS=: read -ra path_dirs <<<"$PATH"
+# go のあるフォルダは丸ごと外さず、go だけを除いた写し（symlink）に替える（CI では go が bash と同じ /usr/bin にある）
+n=0
+for d in "${path_dirs[@]}"; do
+  if [ -x "$d/go" ]; then
+    n=$((n + 1))
+    mkdir -p "$tmp/nogo-$n"
+    for f in "$d"/*; do
+      if [ "${f##*/}" != go ]; then ln -s "$f" "$tmp/nogo-$n/"; fi
+    done
+    nogo_path=$nogo_path:$tmp/nogo-$n
+  else
+    nogo_path=$nogo_path:$d
+  fi
+done
+# go がある PATH では mise を呼ばない（検査が当たる場合があること: 次の場面と PATH の違いだけで分かれる）
+: >"$CALLS"
+if PATH=$nogo:$PATH run apply && grep -q 'を当てた' "$tmp/out" && ! grep -q '^mise ' "$CALLS"; then
+  pass "14 PATH に go があれば mise を呼ばない"
+else
+  fail "14 go があるのに mise を呼んだ: $(grep '^mise ' "$CALLS" | tr '\n' ' ') / $(cat "$tmp/out")"
+fi
+: >"$CALLS"
+if ! PATH=$nogo_path bash -c 'command -v go' >/dev/null && PATH=$nogo_path run apply && grep -q 'を当てた' "$tmp/out" \
+  && [ "$(grep '^mise ' "$CALLS")" = "$(printf 'mise install | cwd=%s\nmise which go | cwd=%s' "$ANDON_APPLY_REPO" "$ANDON_APPLY_REPO")" ]; then
+  pass "14 PATH に go が無いときは、mise which go の前に Andon の checkout で mise install を打つ"
+else
+  fail "14 mise install と mise which go の順: $(grep '^mise ' "$CALLS" | tr '\n' ' ') / $(cat "$tmp/out")"
+fi
 
 # === go の道具を一時の HOME に取り直さない（mise の shim が HOME の下に go を入れ直すと、遅くなり、網が無いと落ちる） ===
 if [ ! -e "$HOME/.local/share/mise" ]; then

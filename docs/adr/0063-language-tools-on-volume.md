@@ -14,13 +14,13 @@
 | 3 | base image が持つのは、mise 本体と、PATH に入れた shims の置き場までにする | この ADR | まだ実装していない |
 | 4 | 入れた道具は compose の volume に置き、消えてもよいキャッシュとして扱う | この ADR | まだ実装していない |
 | 5 | volume の名前は `mise` で、`~/.local/share/mise` を丸ごと載せる。mise の cache は載せない | この ADR | まだ実装していない |
-| 6 | 宣言を満たす手は、Andon が担当・レビュアー・Chief Engineer の端末を起動する直前に、その worktree で打つ | この ADR | まだ実装していない |
-| 7 | 宣言を満たせなくても起動は止めず、警告を出して続ける。待つ上限は 60 秒で、過ぎても入れる手は止めない | この ADR | まだ実装していない |
-| 8 | gate の検査と `image/apply-main.sh` も、道具を使う前に宣言を満たす。gate は、満たせなければ判定しない | この ADR | まだ実装していない |
+| 6 | 宣言を満たす手は、Andon が担当・レビュアー・Chief Engineer の端末を起動する直前に、その worktree で打つ | `internal/tools/tools.go` と起動の口（`internal/issue/start.go`・`internal/issue/resume.go`・`internal/chiefengineer/chiefengineer.go`・`internal/dispatcher/loop.go`） | 生きている |
+| 7 | 宣言を満たせなくても起動は止めず、警告を出して続ける。待つ上限は 60 秒で、過ぎても入れる手は止めない | `internal/tools/tools.go` | 生きている |
+| 8 | gate の検査と `image/apply-main.sh` も、道具を使う前に宣言を満たす。gate は、満たせなければ判定しない | `internal/gate/gate.go`・`image/apply-main.sh` | 生きている |
 | 9 | image の mise の既定の go の設定をやめる | この ADR | まだ実装していない |
-| 10 | `mise.toml` の無い所では、役の端末と gate の検査だけが、自分の worktree の `mise.toml` をいちばん弱い既定として引く。端末へは `andon tools env` が渡す | この ADR | まだ実装していない |
+| 10 | `mise.toml` の無い所では、役の端末と gate の検査だけが、自分の worktree の `mise.toml` をいちばん弱い既定として引く。端末へは `andon tools env` が渡す | `internal/tools/env.go`・`package/templates/`・`internal/gate/gate.go` | 生きている |
 | 11 | 古いバージョンの掃除は自動でしない。手で打つ command を運用の手引きに書く | この ADR | まだ実装していない |
-| 12 | 実装は 2 本に分け、端末の起動で宣言を満たす変更を先に入れる | この ADR | まだ実装していない |
+| 12 | 実装は 2 本に分け、端末の起動で宣言を満たす変更を先に入れる | この ADR | 生きている（端末の起動で宣言を満たす 1 本目を入れた。image の既定の go をやめる 2 本目はまだ） |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 

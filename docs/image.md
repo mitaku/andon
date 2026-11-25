@@ -54,6 +54,12 @@ Claude Code には、配布するプロファイル（パッケージの `templa
 
 `tests/image.sh` が、セルの claude と codex を `/workspace` の下の新しい dir で起動しても信頼の画面が出ないこと（対照に `/tmp` の新しい repo では出ること）を確かめる。Claude Code か Codex のバージョンを上げたら同じ表を測り直す。
 
+## プロファイルの起動の行
+
+配布するプロファイル（パッケージの `templates/`）の `command:`・`resume:` の行は、役のプログラムを `env` で起動し、2 つの葉が出す環境変数を渡す。Claude Code の行は `env $(andon otel env) $(andon tools env) CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude …`、Codex の行は `env $(andon otel env --codex-env) $(andon tools env) codex …` の形である。`andon otel env` はトレースとログを送る設定を出す（[contract.md](contract.md) §30）。`andon tools env` は、端末の課題の worktree の根に `mise.toml` があれば `MISE_SYSTEM_CONFIG_FILE=<根>/mise.toml` を出す。mise はこの設定をいちばん弱い既定として読むので、役が repo の外（一時の置き場・repo の外へ展開した検査）で打つ道具も、自分の worktree の `mise.toml` のバージョンを引く（[ADR-0063](adr/0063-language-tools-on-volume.md) 決めたこと 10）。`go test ./...` の `internal/tools` と `internal/otel` の検査が、行の形を字面で見る。
+
+セルが自分で足したプロファイル（セルの repo の `templates.local/`）には、この句が届かない。役のプログラムを起動する `env` に、同じ `$(andon tools env)` を写す。写さないと、その端末の役が repo の外で打つ道具は、セルの既定（`~/.config/mise/config.toml`）が無ければバージョンが決まらずに落ちる。
+
 ## Codex の承認と sandbox
 
 セル（コンテナ）が信頼の境界なので、Codex を承認の確認で止めない。boot が毎起動、`~/.codex/config.toml` の top-level に無いキーだけを先頭（BOM があればその後ろ）に足す。キーの有無は TOML のパーサで読み、あるキーは値が何でもそのまま、TOML として読めなければ書かない:
@@ -191,7 +197,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `apply-main.sh` | `image/apply-main.sh`・`cmd/andon`・`cmd/kanban`・`internal/cli`・`internal/pkgversion` と、`cmd/kanban` が import する `internal/ledger`・`delegate`・`spawn`・`contract`、`contract` が import する root の `embed.go` |
 | `schema.sh` | `schema/` の直下の `*.schema.json`・`schema/ledger/` の `*.schema.json`・`docs/contract.md`・`package/lib/andon/schema_check.py`・照合に打つ `andon schema` の Go の package（`cmd/andon`・`internal/cli`・`internal/schema`・`internal/contract`・root の `embed.go`） |
 
-andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate`・`board` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`retro`・`ghpr`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`・`redact`・`waiting`・`otel`・`trace`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`・`schema/` の直下の `*.schema.json`。たとえば `internal/measure/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
+andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`internal/cli` と、`internal/issue`・`dispatcher`・`gate`・`board` とそれが import するもの（`boot`・`chiefengineer`・`process`・`triage`・`retro`・`ghpr`・`signal`・`launch`・`sessionlog`・`pkgversion`・`ledger`・`flock`・`delegate`・`spawn`・`contract`・`redact`・`waiting`・`otel`・`trace`・`tools`）、root の `embed.go` と、それが埋め込む `init/`・`process/states/issue.yaml`・`schema/` の直下の `*.schema.json`。たとえば `internal/measure/` だけを変えたら、重い検査は1本も走らない。skill の文（`package/skills/`）だけを変えたときも同じ。
 
 ### 検査の隔離
 

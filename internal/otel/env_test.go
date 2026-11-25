@@ -268,6 +268,7 @@ var codexRe = regexp.MustCompile(`(^|[ /])codex `)
 
 // 決めたこと 5・19: Claude Code を起動する template の行（command・resume）は、どれも andon otel env を env に渡す。
 // Codex を起動する行は、resource 属性を env に、-c の並びを codex の引数に渡す。
+// どちらの行も、隣で andon tools env を env に渡す（ADR-0063 決めたこと 10。行の形は字面で見る）。
 func TestTemplatesPassOtelEnv(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "package", "templates", "*.md"))
 	if err != nil || len(files) == 0 {
@@ -284,7 +285,7 @@ func TestTemplatesPassOtelEnv(t *testing.T) {
 				continue
 			}
 			claude := claudeRe.MatchString(l)
-			passes := strings.Contains(l, "env $(andon otel env) CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude ")
+			passes := strings.Contains(l, "env $(andon otel env) $(andon tools env) CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude ")
 			// 渡す設定は claude を起動する env の中だけで効く（別の command の env や注釈に書いても効かない）
 			if claude != passes {
 				t.Errorf("%s: Claude Code の行が andon otel env を渡さないか、Claude Code でない行が渡す: %s", filepath.Base(f), l)
@@ -293,7 +294,7 @@ func TestTemplatesPassOtelEnv(t *testing.T) {
 				n++
 			}
 			codex := codexRe.MatchString(l)
-			passesCodex := strings.Contains(l, "env $(andon otel env --codex-env) codex $(andon otel env --codex) ")
+			passesCodex := strings.Contains(l, "env $(andon otel env --codex-env) $(andon tools env) codex $(andon otel env --codex) ")
 			if codex != passesCodex {
 				t.Errorf("%s: Codex の行が andon otel env --codex-env・--codex を渡さないか、Codex でない行が渡す: %s", filepath.Base(f), l)
 			}

@@ -1,6 +1,8 @@
 package dispatcher
 
 import (
+	"strings"
+
 	"andon/internal/ledger"
 )
 
@@ -47,9 +49,16 @@ func (p *project) resumeGone(t ledger.Issue, agent string) bool {
 		p.logf("%s の担当 %s は Gone。resume を打たない（控えを書けない。次の見回りで）: %v", id, agent, err)
 		return true
 	}
-	if _, _, err := p.andon("", "issue", "resume", id); err != nil {
+	_, warn, _, err := p.andonStderr("", "issue", "resume", id)
+	if err != nil {
 		p.logf("%s の担当 %s は Gone。resume で起動できない（finished で知らせる）: %v", id, agent, err)
 		return false
+	}
+	// 起動できた回の警告（道具を入れられない・入れた。ADR-0063 決めたこと 7）は、ほかに届く所が無いのでログに残す
+	for _, line := range strings.Split(strings.TrimSpace(warn), "\n") {
+		if line != "" {
+			p.logf("%s の resume: %s", id, line)
+		}
 	}
 	now, err := p.l.Show(id)
 	next := ""

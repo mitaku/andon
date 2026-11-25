@@ -10,6 +10,8 @@
   - 見るファイル: `internal/issue/merge.go`、`internal/issue/finish.go`、`internal/issue/writeback.go`、`internal/dispatcher/route.go`、`internal/contract/merge.go`、`internal/delegate/delegate.go`、`process/states/gate.yaml`
 - `gt-answer` dispatcher が閉じた問いは gate の問い（`from: gate`）だけで、dispatcher が書いた答えは印が `machine`、「決め直した」の答えが名指す gate の記録が在る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/settle.go`、`internal/contract/settle.go`、`internal/dispatcher/humanmerge.go`、`process/states/human-merge.yaml`
+- `gt-tools` セルの条件表（`gate.local.json`）に検査の command がある repo で、PR の head に `mise.toml` があるとき、当てたあとの gate が検査の command の前に一時の worktree で `mise install` を打ち、検査が道具の無いことで落ちない（gate の記録の `checks` が `command not found` の失敗を持たない）。入れられなければ判定せず、dispatcher の端末のログ（`hc read dispatcher`）に理由が出る（ADR-0063 決めたこと 8）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/gate/gate.go`、`internal/tools/tools.go`
 - `gt-skip` 当てたあとに PR 無しで `review` に入った課題（検証・マージ後のレビュー）のうち、報告の commit が既定の branch に入っているもの（自分の commit が無い）に、gate が fix を返していない（kanban の履歴で、`review` に入った行の次の status の行が同じ担当の端末の `doing` でない。`<slug>.merge.json` にその行の分が残っていれば、`decision` が `fix` でない）。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/merge.go`、`process/states/gate.yaml`
 
@@ -35,6 +37,7 @@
 ## 変えたら動かすパス
 
 - `internal/gate/`
+- `internal/tools/tools.go`
 - `internal/delegate/`
 - `package/gate.json`
 - `internal/issue/merge.go`
@@ -55,6 +58,8 @@
 - `go test ./internal/gate/`
 
 ## 落とし穴
+
+- `gt-tools` は、道具がもう入っているセルでは入れる手を通らなくても ok になる。判定しない回は、道具を入れられない PR（`mise.toml` にありもしないバージョンを書いた試しの PR）でしか起きない。作れなければ、判定しない回は未確認と書く。判定しない回は今、オーナーの判断を求める gate の問いになる（次の見回りで打ち直されない）。
 
 - `gate` は `andon gate` を本物の課題に打つと、その課題の記録と GitHub の status を書く。検証の担当は打たない。読むだけにする。
 - gate が回っても記録（`library/gate/<head>.json`）を書かない回がある。`report.json` に `pr` が無い回と、PR の branch が課題の `branch` と違う回で、gate は理由の `fix` を担当へ送るが、記録も PR の印も書かない。PR が無く、報告の `commit` が既定の branch に入っている課題（検証・マージ後のレビューのように PR を出さない課題）には、gate を回さない（merge の記録 `<slug>.merge.json` にも残らない）。記録が無いことを、gate が回っていない証拠にしない。kanban の `log.jsonl`（`review` に入った行のあとの `doing` の行）、dispatcher のログ、担当の画面（`[gate]` の印の付いた fix）も読み、報告には「gate は回ったが記録が無い」と書き分ける。

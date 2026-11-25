@@ -223,6 +223,9 @@ gobin() {
   if command -v go >/dev/null; then
     command -v go
   elif command -v mise >/dev/null; then
+    # 宣言を満たす: mise which go の前に、Andon の checkout の mise.toml の道具を入れる（ADR-0063 決めたこと 8。作り直しで道具が消えたあと）。
+    # 出力は標準エラーへ（標準出力は go の場所として読まれる）。入れられなくても、mise which go が取れれば続ける
+    (cd "$repo" && mise install >&2) || echo "[apply-main] 警告: $repo の mise install が失敗した" >&2
     (cd "$repo" && mise which go) || die "go が無い（mise の go も取れない）"
   else
     die "go が無い"

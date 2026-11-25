@@ -33,6 +33,7 @@ import (
 	"andon/internal/launch"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
+	"andon/internal/tools"
 )
 
 const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<タイトル>\"\n" +
@@ -175,6 +176,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	labels := append(Labels(slug, id, title), spawn.SessionLabel+"="+session)
 	rec := launch.Gather(launch.Spec{Role: launch.RoleChiefEngineer, Launch: launch.LaunchStart, Issue: id, Profile: Profile, Template: Profile,
 		Command: &command, Session: session, Repo: repo, RepoPath: wt.Path, Brand: ledger.Brand(Profile)})
+	// 宣言を満たす: worktree の mise.toml の道具を、hc run の前に入れる（ADR-0063 決めたこと 6・7。満たせなくても起動は続ける）
+	tools.Warn(stderr, "andon chief-engineer", wt.Path)
 	run, err := spawn.Run(name, labels, cwd, Profile, msg)
 	if err != nil {
 		undo()
