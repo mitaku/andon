@@ -7,7 +7,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/dispatcher.go`、`internal/dispatcher/state.go`、`internal/dispatcher/terminal.go`、`internal/flock/flock.go`、`internal/dispatcher/otel.go`、`internal/otel/prune.go`、`internal/otel/otel.go`
 - `dn-delivered` 当てたあとに Chief of Staff へ通知を届けた記録がある。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/dispatcher/pickup.go`、`internal/dispatcher/deliver.go`、`internal/dispatcher/delivered.go`、`internal/dispatcher/route.go`、`internal/dispatcher/abandoned.go`、`internal/dispatcher/estimate.go`、`internal/dispatcher/impact.go`、`internal/dispatcher/memory.go`、`internal/issue/impact.go`、`internal/contract/impact.go`、`schema/notification.schema.json`、`process/states/delivery.yaml`、`process/states/estimate.yaml`、`process/states/memory.yaml`
+  - 見るファイル: `internal/dispatcher/pickup.go`、`internal/dispatcher/deliver.go`、`internal/dispatcher/delivered.go`、`internal/dispatcher/route.go`、`internal/dispatcher/abandoned.go`、`internal/dispatcher/estimate.go`、`internal/dispatcher/impact.go`、`internal/dispatcher/memory.go`、`internal/issue/impact.go`、`internal/contract/impact.go`、`schema/notification.schema.json`、`schema/delivered.schema.json`、`process/states/delivery.yaml`、`process/states/estimate.yaml`、`process/states/memory.yaml`
 - `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを線の上で、`idle_hours` を持つルーチンを時間の上で撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/idle.go`、`internal/dispatcher/retro.go`、`cmd/kanban/routines.go`、`process/states/idle.yaml`
 - `dn-corrections` 当てたあとに片付いた課題の手直しの記録（`library/corrections.json`）を、当てた dispatcher が書いた。見る道: 検証の担当だけ。
@@ -43,6 +43,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 
 - `internal/dispatcher/`
 - `schema/notification.schema.json`
+- `schema/delivered.schema.json`
 - `process/states/`
 - `package/hooks/`
 - `internal/flock/`
@@ -74,4 +75,5 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - 空きで撃つのは、`paused` でなく、片付いていない課題を持たないルーチンだけ。dispatcher は `paused` が無いか真偽値の false のときだけ撃ち、`true`・引用符の文字列・空の値では撃たない。道も YAML と同じく注釈（前に空白のある `#` から後）を外して読む。`idle_hours` はルーチンのファイルに Andon が読む欄で、1 以上の整数でない値は欄が無いものとして扱う。書いたルーチンが kanban に無ければ、`idle_hours` で撃つところは見られない。履歴の `fired` の行は、空きで撃ったか `schedule` で撃ったかを区別しない。どちらで撃ったかは dispatcher の端末のログ（`hc read dispatcher`）の行で読む。
 - dispatcher は巡ごとにハーネスの生の記録の片付け（`internal/dispatcher/otel.go`・`internal/otel/prune.go`）を呼ぶ。片付けは置き場（`~/.local/state/andon/otel/<slug>/`）が無ければ何もせず、失敗してもログに1行書くだけで巡を止めない。`dn-live` が見るのは、当てた dispatcher が片付けを含む巡を回し続けていることだけで、記録を消したことは見ない。消したかは dispatcher の端末のログ（`hc read dispatcher`）の「ハーネスの生の記録を N 本消した」の行と、置き場の `.pruned` の時刻で読む。受け口（`andon otel serve`。boot と役の起動が起動する。機能の地図の `otel`）がまだ何も書いていないセルでは置き場ができず、その行も `.pruned` も現れない。そのときは片付けを未確認と書く。寿命と上限は `project.json` の `otel` から読むので、消えた本数は既定の 30 日と 10 GB と違うことがある。`internal/otel/otel.go` の受け口の本体（属性を落とす・秘密を伏せる・書く）も `dn-live` では動かないので、その部分を変えた差分で `dn-live` が ok でも、受け口を確かめたとは書かない。消し方と受け口は `go test ./internal/otel/` が見ている。
 - 通知 `idle` は課題を持たない。`dn-delivered` の行では課題が `-` になる。
+- 通知 `answered`・`hold` を渡したターンも届けた記録に1行残り、`dn-delivered` の行に `<課題> answered`・`<課題> hold` と出る。記録が持てる種類は `schema/delivered.schema.json` の一覧で、通知の一覧とのずれは `go test ./internal/contract/` が見ている。当てたあとにこの2つを渡したターンが無ければ、行に出ないことは壊れではない。
 - 次の commit が当たると dispatcher は起動し直し、枠の空きの見回りは最初の回からやり直しになる。当てる間が `idle_minutes` の2倍より短い間は、ルーチンを撃つところは見られない。dn-idle の撃つところは未確認と書く。
