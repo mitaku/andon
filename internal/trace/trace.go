@@ -237,8 +237,15 @@ func (r *reader) issue(id string) (*issueDoc, bool) {
 
 // reviewers は parent が id でプロファイルがレビュアーの課題（id の順。頼み直しも全部）。
 func (r *reader) reviewers(id string) []*issueDoc {
-	ents, err := os.ReadDir(filepath.Join(r.dir, "issues"))
+	dir := filepath.Join(r.dir, "issues")
+	ents, err := os.ReadDir(dir)
 	if err != nil {
+		why := "読み取りの誤り"
+		var pe *fs.PathError
+		if errors.As(err, &pe) {
+			why = pe.Err.Error()
+		}
+		r.skip(dir, 0, "一覧できない（%s）。レビュアーの課題を木に入れていない", why)
 		return nil
 	}
 	var out []*issueDoc

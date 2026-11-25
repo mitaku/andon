@@ -567,3 +567,30 @@ func TestTraceBrokenRecords(t *testing.T) {
 		t.Errorf("ファイルの代わりにフォルダがあるのを 0 件か無いと出す: %+v", tr.Harness[1])
 	}
 }
+
+// kanban の issues を一覧できない（実行の権限だけ）: 課題は読めるが、レビュアーの課題を探せないことを飛ばした記録に出す。
+func TestTraceIssuesNotListable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root は権限を無視して一覧できる")
+	}
+	f := newFixture(t, false)
+	dir := filepath.Join(f.root, "kanban", "issues")
+	if err := os.Chmod(dir, 0o111); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	js, errs, code := run(t, f, "S-0001", "--json")
+	if code != 0 {
+		t.Fatalf("終了コード %d: %s", code, errs)
+	}
+	tr := decode(t, js)
+	var hit bool
+	for _, s := range tr.Skipped {
+		if s.File == "kanban/issues" && strings.Contains(s.Reason, "レビュアーの課題") {
+			hit = true
+		}
+	}
+	if !hit || len(find(tr.Tree.Children, KindReview)) != 0 {
+		t.Errorf("一覧できない issues を黙ってレビュアー無しにする: %+v", tr.Skipped)
+	}
+}
