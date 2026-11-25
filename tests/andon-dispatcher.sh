@@ -52,12 +52,14 @@ case "\$*" in
   "pr view 7 --repo example/app --json headRefOid -q .headRefOid"|"pr view https://github.com/example/app/pull/7 --json headRefOid -q .headRefOid") jq -r .headRefOid \$d/view.json ;;
   "pr view https://github.com/example/app/pull/7 --json headRefName -q .headRefName") jq -r .headRefName \$d/view.json ;;   # andon issue report が新しい pr の branch を照らす
   "pr view 7 --repo example/"*" --json state,mergeCommit")   # dispatcher がマージしたあとの読み直し。打った回数を states に
-    echo x >> \$d/states
-    if [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
+    echo x >> \$d/states                                     # viewfail があれば1回だけ、その文を stderr に出して落ちる（一時の失敗）
+    if [ -f \$d/viewfail ]; then cat \$d/viewfail >&2; rm \$d/viewfail; exit 1
+    elif [ -f \$d/closed ]; then echo '{"state":"CLOSED","mergeCommit":null}'
     elif [ -f \$d/merged ]; then jq -n --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o}}'; else echo '{"state":"OPEN","mergeCommit":null}'; fi ;;
   "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid")   # andon issue settle と gh pr merge が失敗したあとの読み直し。
     echo x >> \$d/states                                                  # 打った回数を states に（オーナーのマージを見る間隔）。closed があれば閉じた PR
-    if [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
+    if [ -f \$d/rereadfail ]; then cat \$d/rereadfail >&2; rm \$d/rereadfail; exit 1   # rereadfail があれば1回だけ落ちる（一時の失敗）
+    elif [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
     elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
     else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
   "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")   # andon issue settle。打った回数を states に（上と同じ）。
@@ -784,6 +786,43 @@ jq -e --arg t "$hm" '[.pending[] | select(.issue == $t and (.kind == "asked" or 
 jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 2)) ] || die "読み直しと settle のほかに同じ PR を聞いた: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
 ok 'merge: auto でもオーナーが先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（gate の記録の merged は書かない）'
+
+# 4d-3. merge: auto の gh pr merge は通ったが、そのあとの読み直し（gh pr view --json state,mergeCommit）が一時に落ちた →
+#     問い（「MERGED にならない」の誤報）を出さず、読み直して MERGED を確かめ、dispatcher がマージしたときの道で片付ける
+hm=$(newtask 'マージのあとの読み直しが一時に落ちる' auto)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+as_worker "$hm" review-request
+dispatcher
+review_by "$hm-r1" '[]'
+as_worker "$hm" ready
+echo 'HTTP 502: Bad Gateway' > "$tmp/gh/viewfail"; watch_due "$hm"
+dispatcher
+[ ! -e "$tmp/gh/viewfail" ] && [ -e "$tmp/gh/merged" ] || die "前提: マージして読み直しを打っていない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+! grep -q " $hm をマージしない" "$tmp/dispatcher.log" && [ ! -e "$L/issues/$hm/library/questions" ] && [ "$(pending "$hm" asked)" = null ] ||
+    die "マージのあとの読み直しが一時に落ちただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "読み直しが一時に落ちたあと片付けない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+jq -e '.decision == "approve" and .merged == true' "$L/issues/$hm/library/gate/$head.json" >/dev/null || die "gate の記録に merged を書いていない: $(cat "$L/issues/$hm/library/gate/$head.json")"
+recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h}' >/dev/null || die "通知 merged（dispatcher のマージ）を記録していない: $(recorded "$hm" merged)"
+ok 'merge: auto のマージのあと読み直しが一時に落ちても問いにせず、読み直して MERGED を確かめてから片付ける'
+
+# 4d-4. 4d-2 と同じにオーナーが先にマージしていて、gh pr merge の失敗のあとの読み直しが一時に落ちた → 読み直して MERGED・同じ head を
+#     確かめ、問いを出さずオーナーがマージしたときの道（§2.7）で片付ける
+hm=$(newtask 'オーナーが先にマージして読み直しが一時に落ちる' auto)
+work "$hm" docs/a.md
+as_worker "$hm" report --pr https://github.com/example/app/pull/7
+as_worker "$hm" review-request
+dispatcher
+review_by "$hm-r1" '[]'
+as_worker "$hm" ready
+touch "$tmp/gh/race"; echo 'HTTP 502: Bad Gateway' > "$tmp/gh/rereadfail"; watch_due "$hm"
+dispatcher
+[ ! -e "$tmp/gh/race" ] && [ ! -e "$tmp/gh/rereadfail" ] || die "前提: gh pr merge の失敗のあとの読み直しを打っていない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+! grep -q " $hm をマージしない" "$tmp/dispatcher.log" && [ ! -e "$L/issues/$hm/library/questions" ] && [ "$(pending "$hm" asked)" = null ] ||
+    die "gh pr merge の失敗のあとの読み直しが一時に落ちただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "読み直しが一時に落ちたあと片付けない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
+recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
+ok 'gh pr merge の失敗のあとの読み直しが一時に落ちても、読み直して MERGED・同じ head を確かめ、問いにせず §2.7 の道で片付ける'
 
 # merge: auto でマージしたあと、受け取られていない担当の問いで finish が断られても、片付けかけ（review のまま worktree・端末が消える）を残さない
 # （A-0002・A-0001 の repro-b3）。finish は何も消さずに止まり、dispatcher は「片付けに失敗した」を問いにする
