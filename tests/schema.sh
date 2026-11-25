@@ -281,7 +281,7 @@ measure|.tokens[0]|issue source usage
 measure|.tokens[0].usage|input output cache_read cache_write
 measure|.breakdown|issues none waits roles tools chief_of_staff
 measure|.breakdown.waits|issues question_ms review_ms ci_ms gone_ms
-measure|.breakdown.roles[0]|role issues tokens cache_read_rate errors
+measure|.breakdown.roles[0]|role issues token_issues tokens cache_read_rate errors
 measure|.breakdown.roles[0].tokens|input output cache_read cache_write
 measure|.breakdown.roles[0].errors|llm tool
 measure|.breakdown.tools[0]|name argv0 count ms errors

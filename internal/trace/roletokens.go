@@ -86,8 +86,12 @@ func eachLine(path string, f func(n int, b []byte)) error {
 		}
 		f(n, s.Bytes())
 	}
-	if s.Err() != nil {
-		return errors.New("読み切れない（" + s.Err().Error() + "）")
+	if err := s.Err(); err != nil {
+		var pe *fs.PathError
+		if errors.As(err, &pe) {
+			err = pe.Err // 理由にファイルの絶対パスを書かない
+		}
+		return errors.New("読み切れない（" + err.Error() + "）")
 	}
 	return nil
 }

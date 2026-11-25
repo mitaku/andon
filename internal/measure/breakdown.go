@@ -8,8 +8,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"andon"
+	"andon/internal/contract"
 	"andon/internal/ledger"
 	"andon/internal/trace"
 )
@@ -41,6 +44,7 @@ type WorkerWaits struct {
 type RoleUse struct {
 	Role          *string              `json:"role"` // 内訳の role（null の内訳は null の行に）
 	Issues        int                  `json:"issues"`
+	TokenIssues   int                  `json:"token_issues"` // そのうちモデルの呼び出しの記録があり、トークンを数えた内訳
 	Tokens        trace.Tokens         `json:"tokens"`
 	CacheReadRate *float64             `json:"cache_read_rate"` // キャッシュ読み ÷（入力＋キャッシュ読み＋キャッシュ書き）
 	Errors        trace.BreakdownError `json:"errors"`
@@ -88,15 +92,66 @@ func (r *reader) outcomeBreakdowns(ids []string, byID map[string]*issue, doneAt 
 			continue
 		}
 		var v struct {
-			Breakdown *trace.Breakdown `json:"breakdown"`
+			Breakdown json.RawMessage `json:"breakdown"`
 		}
 		if json.Unmarshal(b, &v) != nil {
 			r.skip(r.rel(path), 0, "JSON の object でない。この課題は内訳の無い課題に数えた")
 			continue
 		}
-		out[id] = v.Breakdown
+		if len(v.Breakdown) == 0 || string(v.Breakdown) == "null" {
+			continue
+		}
+		// dispatcher は schema を通して書くが、手で直した記録や前のバージョンの記録を、黙って 0 に数えない（止まりもしない）
+		if err := checkBreakdown(v.Breakdown); err != nil {
+			r.skip(r.rel(path), 0, "breakdown が schema/outcome.schema.json の形でない（%v）。この課題は内訳の無い課題に数えた", oneLine(err))
+			continue
+		}
+		var bd trace.Breakdown
+		if json.Unmarshal(v.Breakdown, &bd) != nil {
+			r.skip(r.rel(path), 0, "breakdown が読めない。この課題は内訳の無い課題に数えた")
+			continue
+		}
+		out[id] = &bd
 	}
 	return out
+}
+
+// breakdownChecker は schema/outcome.schema.json の breakdown だけを確かめる検査器（埋め込んだ schema から 1 度だけ組む）。
+var breakdownChecker = sync.OnceValues(func() (*contract.Checker, error) {
+	b, err := andon.Schemas.ReadFile(contract.SchemaOutcome.File())
+	if err != nil {
+		return nil, err
+	}
+	var o struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Defs       json.RawMessage            `json:"$defs"`
+	}
+	if err := json.Unmarshal(b, &o); err != nil || o.Properties["breakdown"] == nil {
+		return nil, fmt.Errorf("%s に breakdown が無い", contract.SchemaOutcome.File())
+	}
+	sub := `{"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["breakdown"],` +
+		`"properties": {"breakdown": ` + string(o.Properties["breakdown"]) + `}, "$defs": ` + string(o.Defs) + `}`
+	return contract.Compile(contract.SchemaOutcome.File()+" の breakdown", []byte(sub))
+})
+
+// checkBreakdown は outcome.json の breakdown の値 raw が schema の形かを確かめる。
+func checkBreakdown(raw json.RawMessage) error {
+	c, err := breakdownChecker()
+	if err != nil {
+		return err
+	}
+	return c.Check([]byte(`{"breakdown": ` + string(raw) + `}`))
+}
+
+// oneLine は誤りを 1 行にする（飛ばした記録の理由は 1 行）。
+func oneLine(err error) string {
+	return strings.Join(strings.Fields(err.Error()), " ")
+}
+
+// hasModelCalls は内訳がモデルの呼び出しの記録を持つか。受け口は claude_code. の span だけをトークンに数えるので、
+// Codex の課題の内訳はトークンも呼び出しの時間も 0 になる。それを「トークン 0」と数えない。
+func hasModelCalls(b *trace.Breakdown) bool {
+	return total(b.Tokens) > 0 || b.LLMMs > 0
 }
 
 // breakdownSection は内訳の節を組む。cos は Chief of Staff の生の記録の数え（無ければ nil と 0）。
@@ -128,7 +183,10 @@ func breakdownSection(bs map[string]*trace.Breakdown, cos *trace.Tokens, cosDays
 			roles[key] = ru
 		}
 		ru.Issues++
-		addTokens(&ru.Tokens, b.Tokens)
+		if hasModelCalls(b) {
+			ru.TokenIssues++
+			addTokens(&ru.Tokens, b.Tokens)
+		}
 		ru.Errors.LLM += b.Errors.LLM
 		ru.Errors.Tool += b.Errors.Tool
 		if key == "worker" {
@@ -210,7 +268,7 @@ func argv0Key(t trace.ToolUse) string {
 }
 
 // profiles はプロファイルごとの節: 期間に閉じた担当の課題（issues[] と同じ顔ぶれ）を issue.yaml の profile で分ける。
-// 実働は issues[] の worked_minutes、トークンは内訳の tokens の 4 つの和（内訳の無い課題は数えない）、gate の差し戻しの率は
+// 実働は issues[] の worked_minutes、トークンは内訳の tokens の 4 つの和（内訳の無い課題と、モデルの呼び出しの記録の無い内訳は数えない）、gate の差し戻しの率は
 // その課題の gate の記録の全部、レビューの周回はその課題を親に持つレビュアーの課題の数（0 も数える）。
 func profiles(xs []Issue, byID map[string]*issue, ids []string, bs map[string]*trace.Breakdown) []Profile {
 	rounds := map[string]int{}
@@ -244,7 +302,7 @@ func profiles(xs []Issue, byID map[string]*issue, ids []string, bs map[string]*t
 		}
 		g.p.Issues++
 		g.worked = append(g.worked, float64(x.WorkedMinutes))
-		if b := bs[x.Issue]; b != nil {
+		if b := bs[x.Issue]; b != nil && hasModelCalls(b) {
 			g.tokens = append(g.tokens, float64(total(b.Tokens)))
 		}
 		g.rounds = append(g.rounds, float64(rounds[x.Issue]))
@@ -329,7 +387,8 @@ func breakdownTable(w io.Writer, s BreakdownSection) {
 		if ru.CacheReadRate != nil {
 			cache = fmt.Sprintf("%.0f%%", *ru.CacheReadRate*100)
 		}
-		fmt.Fprintf(w, "  %s %d件 %s（キャッシュ読み %s）・失敗 モデル %d・ツール %d\n", pad(name, 14), ru.Issues, tokenLine(ru.Tokens), cache, ru.Errors.LLM, ru.Errors.Tool)
+		fmt.Fprintf(w, "  %s %d件（トークンの記録 %d件）%s（キャッシュ読み %s）・失敗 モデル %d・ツール %d\n", pad(name, 14), ru.Issues, ru.TokenIssues,
+			tokenLine(ru.Tokens), cache, ru.Errors.LLM, ru.Errors.Tool)
 	}
 	c := s.ChiefOfStaff
 	if c.Tokens == nil {

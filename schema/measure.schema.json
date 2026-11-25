@@ -240,7 +240,7 @@
       "additionalProperties": false,
       "properties": {
         "issues": { "description": "Issues that moved into the last column in the period, owner issues left out.", "$ref": "#/$defs/count" },
-        "none": { "description": "Of those, issues with no breakdown: no outcome.json, breakdown missing or null, or outcome.json unreadable (listed in skipped).", "$ref": "#/$defs/count" },
+        "none": { "description": "Of those, issues with no breakdown: no outcome.json, breakdown missing or null, or outcome.json unreadable or its breakdown not of the shape of schema/outcome.schema.json (both listed in skipped).", "$ref": "#/$defs/count" },
         "waits": {
           "description": "Waits of the breakdowns whose role is worker, summed, in milliseconds (kinds may overlap).",
           "type": "object",
@@ -305,12 +305,13 @@
     "role": {
       "description": "The breakdowns of one role, summed.",
       "type": "object",
-      "required": ["role", "issues", "tokens", "cache_read_rate", "errors"],
+      "required": ["role", "issues", "token_issues", "tokens", "cache_read_rate", "errors"],
       "additionalProperties": false,
       "properties": {
         "role": { "description": "The breakdown's role, or null for the breakdowns whose role is null.", "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
         "issues": { "description": "Breakdowns summed.", "$ref": "#/$defs/count" },
-        "tokens": { "description": "The breakdowns' tokens, summed.", "$ref": "#/$defs/usage" },
+        "token_issues": { "description": "Of those, breakdowns with a record of model calls (tokens or llm_ms above 0), the only ones whose tokens are summed. A breakdown without one (a Codex issue: the receiver counts only claude_code spans) is not counted as 0 tokens.", "$ref": "#/$defs/count" },
+        "tokens": { "description": "The tokens of the breakdowns counted in token_issues, summed.", "$ref": "#/$defs/usage" },
         "cache_read_rate": { "description": "cache_read / (input + cache_read + cache_write), two decimals; null when that is 0.", "$ref": "#/$defs/rate" },
         "errors": {
           "description": "Failed spans, summed.",
@@ -356,7 +357,7 @@
         "profile": { "description": "issue.yaml profile, or null when the issue has none.", "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
         "issues": { "description": "Issues of issues[] with this profile.", "$ref": "#/$defs/count" },
         "worked_minutes": { "description": "Median of their worked_minutes in issues[].", "$ref": "#/$defs/median" },
-        "tokens": { "description": "Median of input + output + cache_read + cache_write of their outcome.json breakdown; issues with no breakdown are not counted.", "$ref": "#/$defs/median" },
+        "tokens": { "description": "Median of input + output + cache_read + cache_write of their outcome.json breakdown; issues with no breakdown, or with a breakdown without a record of model calls, are not counted.", "$ref": "#/$defs/median" },
         "gate": {
           "description": "All the gate records of these issues, and the send-back rate.",
           "type": "object",

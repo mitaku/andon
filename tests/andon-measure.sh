@@ -91,7 +91,7 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
   and .estimate == {count: 0, within: 0, rate: null, none: 1} and (.issues | map(.issue)) == ["S-0001"] and .issues[0].estimate_minutes == null
   and .breakdown.issues == 1 and .breakdown.none == 0
   and .breakdown.waits == {issues: 1, question_ms: 600000, review_ms: 0, ci_ms: 120000, gone_ms: 0}
-  and .breakdown.roles == [{role: "worker", issues: 1, tokens: {input: 10, output: 20, cache_read: 60, cache_write: 10}, cache_read_rate: 0.75, errors: {llm: 0, tool: 1}}]
+  and .breakdown.roles == [{role: "worker", issues: 1, token_issues: 1, tokens: {input: 10, output: 20, cache_read: 60, cache_write: 10}, cache_read_rate: 0.75, errors: {llm: 0, tool: 1}}]
   and .breakdown.chief_of_staff == {days: 2, tokens: {input: 2, output: 4, cache_read: 6, cache_write: 8}, share: 0.17}
   and .profiles == [{profile: null, issues: 1, worked_minutes: {count: 1, median: 360}, tokens: {count: 1, median: 100},
     gate: {records: 1, fix: 0, needs_human: 0, rate: 0}, review_rounds: {count: 1, median: 0}}]' "$tmp/out.json" >/dev/null

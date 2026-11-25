@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -128,8 +129,8 @@ func TestBreakdownSectionMatchesHandCount(t *testing.T) {
 	  "issues": 5, "none": 3,
 	  "waits": {"issues": 1, "question_ms": 0, "review_ms": 1800000, "ci_ms": 600000, "gone_ms": 0},
 	  "roles": [
-	    {"role": "worker", "issues": 1, "tokens": {"input": 1000, "output": 500, "cache_read": 8000, "cache_write": 500}, "cache_read_rate": 0.84, "errors": {"llm": 1, "tool": 2}},
-	    {"role": "reviewer", "issues": 1, "tokens": {"input": 200, "output": 100, "cache_read": 1500, "cache_write": 200}, "cache_read_rate": 0.79, "errors": {"llm": 0, "tool": 1}}],
+	    {"role": "worker", "issues": 1, "token_issues": 1, "tokens": {"input": 1000, "output": 500, "cache_read": 8000, "cache_write": 500}, "cache_read_rate": 0.84, "errors": {"llm": 1, "tool": 2}},
+	    {"role": "reviewer", "issues": 1, "token_issues": 1, "tokens": {"input": 200, "output": 100, "cache_read": 1500, "cache_write": 200}, "cache_read_rate": 0.79, "errors": {"llm": 0, "tool": 1}}],
 	  "tools": [
 	    {"name": "Bash", "argv0": "go", "count": 6, "ms": 700, "errors": 1},
 	    {"name": "Read", "argv0": null, "count": 9, "ms": 90, "errors": 0},
@@ -211,8 +212,8 @@ func TestBreakdownTable(t *testing.T) {
 	for _, line := range []string{
 		"  片付いた課題                   5件・内訳の無い課題 3件\n",
 		"  担当の待ち（合計。1件）        問い 0.0 時間・レビュー 0.5 時間・CI 0.2 時間・端末が死んでいた間 0.0 時間\n",
-		"  worker         1件 入力 1000・出力 500・キャッシュ読み 8000・キャッシュ書き 500（キャッシュ読み 84%）・失敗 モデル 1・ツール 2\n",
-		"  reviewer       1件 入力 200・出力 100・キャッシュ読み 1500・キャッシュ書き 200（キャッシュ読み 79%）・失敗 モデル 0・ツール 1\n",
+		"  worker         1件（トークンの記録 1件）入力 1000・出力 500・キャッシュ読み 8000・キャッシュ書き 500（キャッシュ読み 84%）・失敗 モデル 1・ツール 2\n",
+		"  reviewer       1件（トークンの記録 1件）入力 200・出力 100・キャッシュ読み 1500・キャッシュ書き 200（キャッシュ読み 79%）・失敗 モデル 0・ツール 1\n",
 		"  chief-of-staff 2日分 入力 11・出力 22・キャッシュ読み 330・キャッシュ書き 44（全体の 3%）\n",
 		"    Bash go              6回・0.0 時間・失敗 1\n",
 		"  claude         2件・実働 90（2件）・トークン 10000（1件）・gate の差し戻し 50%（1 / 2）・レビューの周回 0.5（2件）\n",
@@ -242,4 +243,119 @@ func emptyRoot(t *testing.T) string {
 	root := filepath.Join(t.TempDir(), "empty")
 	put(t, filepath.Join(root, "kanban", "config.yaml"), "version: 3\n")
 	return root
+}
+
+// 読み切れない Chief of Staff の記録（ファイルの代わりにフォルダ）は飛ばした記録に出し、理由にも絶対パスを書かない。
+func TestBreakdownUnreadableRoleRecordHasNoAbsolutePath(t *testing.T) {
+	root, otel := breakdownLedger(t)
+	if err := os.MkdirAll(filepath.Join(otel, "roles", "chief-of-staff", "2026-11-01.traces.jsonl.d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(otel, "roles", "chief-of-staff", "2026-11-01.traces.jsonl")
+	if err := os.Remove(bad); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(bad, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Measure(breakdownOpts(root, otel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range res.Skipped {
+		if s.Source == "otel/roles/chief-of-staff/2026-11-01.traces.jsonl" {
+			found = true
+		}
+		if strings.Contains(s.Source, otel) || strings.Contains(s.Reason, otel) || strings.Contains(s.Reason, "/") {
+			t.Errorf("飛ばした記録に絶対パスがある: %+v", s)
+		}
+	}
+	if !found {
+		t.Errorf("読めない Chief of Staff の記録が飛ばした記録に無い: %+v", res.Skipped)
+	}
+	if c := res.Breakdown.ChiefOfStaff; c.Days != 1 {
+		t.Errorf("読めた日だけを数える（11-02 の 1 日）: %+v", c)
+	}
+}
+
+// 形の合わない breakdown（schema/outcome.schema.json を通らない）は合わせず、飛ばした記録に出して内訳の無い課題に数える。
+// 出力全体は schema を通る（1 件の記録のせいで measure が止まらない）。
+func TestBreakdownMalformedIsSkippedNotZero(t *testing.T) {
+	for name, b := range map[string]string{
+		"空の役":       `{"role": "", "tokens": {"input": 1}}`,
+		"欠けた内訳":     `{"role": "worker"}`,
+		"空の object": `{}`,
+		"名前の無いツール": `{"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 1, "tool_ms": 1, "blocked_ms": 0,
+		  "tokens": {"input": 1, "output": 1, "cache_read": 1, "cache_write": 1}, "errors": {"llm": 0, "tool": 0},
+		  "tools": [{"name": "", "argv0": null, "count": 1, "ms": 1, "errors": 0}],
+		  "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, otel := breakdownLedger(t)
+			put(t, filepath.Join(root, "kanban/issues/S-0003/library/outcome.json"),
+				`{"at": "2026-11-01T06:00:00Z", "issue": "S-0003", "result": "none", "pr": null, "merge_commit": null, "merged_at": null,
+				  "gates": [], "reviewers": 0, "worked_minutes": 60, "sessions": null, "breakdown": `+b+`}`)
+			res, err := Measure(breakdownOpts(root, otel))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := contract.Encode(contract.SchemaMeasure, res); err != nil {
+				t.Fatalf("1 件の壊れた内訳で出力が schema を通らない: %v", err)
+			}
+			if res.Breakdown.None != 3 || len(res.Breakdown.Roles) != 2 || res.Breakdown.Roles[0].Issues != 1 {
+				t.Errorf("壊れた内訳は内訳の無い課題に数える: none %d, roles %+v", res.Breakdown.None, res.Breakdown.Roles)
+			}
+			if _, ok := skippedSources(res)["kanban/issues/S-0003/library/outcome.json"]; !ok {
+				t.Errorf("壊れた内訳が飛ばした記録に無い: %+v", res.Skipped)
+			}
+		})
+	}
+}
+
+// モデルの呼び出しの記録が無い内訳（Codex の課題。受け口は Codex の span をトークンに数えない）は、課題の数には入れるが、
+// トークンの数え（役のトークンの課題の数・プロファイルのトークンの中央値）には 0 として入れない。
+func TestBreakdownWithoutModelCallsIsNotZeroTokens(t *testing.T) {
+	root, otel := breakdownLedger(t)
+	codex := `{"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 0, "llm_ms": 0, "tool_ms": 0, "blocked_ms": 0,
+	  "tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}, "errors": {"llm": 0, "tool": 0}, "tools": [],
+	  "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}`
+	put(t, filepath.Join(root, "kanban/issues/S-0002/library/outcome.json"), `{"issue": "S-0002", "breakdown": `+codex+`}`)
+	res, err := Measure(breakdownOpts(root, otel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := res.Breakdown.Roles[0]
+	if w.Issues != 2 || w.TokenIssues != 1 {
+		t.Errorf("担当の行は課題 2・トークンを数えた課題 1: %+v", w)
+	}
+	for _, p := range res.Profiles {
+		if p.Profile != nil && *p.Profile == "codex" && (p.Tokens.Count != 0 || p.Tokens.Median != nil) {
+			t.Errorf("モデルの呼び出しの記録の無い codex の課題をトークン 0 と数えた: %+v", p.Tokens)
+		}
+	}
+}
+
+// 時間を使ったツールは上から 10 個で切る。Chief of Staff の記録は期間の終わりの日の翌日のものを数えない。
+func TestBreakdownToolsTopTenAndPeriodEnd(t *testing.T) {
+	root, otel := breakdownLedger(t)
+	var tools []string
+	for i := 1; i <= 12; i++ {
+		tools = append(tools, fmt.Sprintf(`{"name": "T%02d", "argv0": null, "count": 1, "ms": %d, "errors": 0}`, i, 1000+i))
+	}
+	put(t, filepath.Join(root, "kanban/issues/S-0003/library/outcome.json"), `{"issue": "S-0003", "breakdown": {"role": "worker",
+	  "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 1, "tool_ms": 1, "blocked_ms": 0,
+	  "tokens": {"input": 1, "output": 1, "cache_read": 1, "cache_write": 1}, "errors": {"llm": 0, "tool": 0},
+	  "tools": [`+strings.Join(tools, ",")+`], "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}}`)
+	put(t, filepath.Join(otel, "roles", "chief-of-staff", "2026-11-03.traces.jsonl"), cosSpan("c", "1", 7000, 7000, 7000, 7000)+"\n")
+	res, err := Measure(breakdownOpts(root, otel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(res.Breakdown.Tools); n != 10 || res.Breakdown.Tools[0].Name != "T12" || res.Breakdown.Tools[9].Name != "T03" {
+		t.Errorf("ツールは時間の長い順に上から 10 個: %d 個 %+v", n, res.Breakdown.Tools)
+	}
+	if c := res.Breakdown.ChiefOfStaff; c.Days != 2 || c.Tokens == nil || c.Tokens.Input != 11 {
+		t.Errorf("期間の翌日（11-03）の Chief of Staff の記録を数えた: %+v %+v", c, c.Tokens)
+	}
 }

@@ -27,9 +27,12 @@ mkdir -p "$tmp/project/kanban/issues/$done_id/library"
 cat >"$tmp/project/kanban/issues/$done_id/library/outcome.json" <<EOF
 {"issue": "$done_id", "breakdown": {"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 100, "tool_ms": 50, "blocked_ms": 0,
  "tokens": {"input": 1, "output": 2, "cache_read": 3, "cache_write": 4}, "errors": {"llm": 0, "tool": 0},
- "tools": [{"name": "Bash", "argv0": "go", "count": 1, "ms": 50, "errors": 0}],
- "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}}
+ "tools": [{"name": "Bash", "argv0": "go", "count": 1, "ms": 50, "errors": 0}, {"name": "Read", "argv0": null, "count": 3, "ms": 20, "errors": 0}],
+ "waits": {"question_ms": 1000, "review_ms": 2000, "ci_ms": 3000, "gone_ms": 4000}}}
 EOF
+# 片付いた課題のレビュアーの課題（結果の記録が無い）。流れにもプロファイルにも数えないが、内訳の無い課題に数え、親の周回になる
+rev_id=$(HC_TERMINAL_ID=tc "$kanban" add "$run のレビュー" --profile codex-review --parent "$done_id" --round 1)
+for s in doing review done; do HC_TERMINAL_ID=tc "$kanban" set "$rev_id" "status=$s" >/dev/null; done
 otel=$HOME/.local/state/andon/otel/project/roles/chief-of-staff
 mkdir -p "$otel"
 echo '{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[{"traceId":"v","spanId":"1","name":"claude_code.llm_request","startTimeUnixNano":"1","endTimeUnixNano":"2","attributes":[{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}},{"key":"cache_read_tokens","value":{"intValue":"7"}},{"key":"cache_creation_tokens","value":{"intValue":"8"}}]}]}]}]}' \
@@ -63,17 +66,22 @@ jq -e --arg d "$done_id" --arg w "$wip_id" \
 # ms-breakdown: 内訳の節が片付いた課題の outcome.json の breakdown を役ごとに合わせ、Chief of Staff の分を役ごとの生の記録から数える。
 # プロファイルごとの節に片付いた担当の課題が出る
 jq -c '{breakdown, profiles}' "$tmp/step.out" 2>/dev/null | sed 's/^/  breakdown: /'
-jq -e '.breakdown.issues == 1 and .breakdown.none == 0
-  and .breakdown.roles == [{"role": "worker", "issues": 1, "tokens": {"input": 1, "output": 2, "cache_read": 3, "cache_write": 4}, "cache_read_rate": 0.38, "errors": {"llm": 0, "tool": 0}}]
+jq -e '.breakdown.issues == 2 and .breakdown.none == 1
+  and .breakdown.waits == {"issues": 1, "question_ms": 1000, "review_ms": 2000, "ci_ms": 3000, "gone_ms": 4000}
+  and .breakdown.roles == [{"role": "worker", "issues": 1, "token_issues": 1, "tokens": {"input": 1, "output": 2, "cache_read": 3, "cache_write": 4}, "cache_read_rate": 0.38, "errors": {"llm": 0, "tool": 0}}]
+  and (.breakdown.tools | map(.name)) == ["Bash", "Read"]
   and .breakdown.chief_of_staff == {"days": 1, "tokens": {"input": 5, "output": 6, "cache_read": 7, "cache_write": 8}, "share": 0.72}
-  and (.profiles | map({profile, issues})) == [{"profile": "claude", "issues": 1}]' "$tmp/step.out" >/dev/null \
-  && ok "ms-breakdown: $done_id の内訳を担当の行に合わせ、Chief of Staff の 1 日分を数え、プロファイル claude に 1 件を出す" \
+  and (.profiles | map({profile, issues, tokens, review_rounds})) == [{"profile": "claude", "issues": 1, "tokens": {"count": 1, "median": 10}, "review_rounds": {"count": 1, "median": 1}}]' \
+  "$tmp/step.out" >/dev/null \
+  && ok "ms-breakdown: $done_id の内訳を担当の行と待ちとツールに合わせ、結果の記録の無い $rev_id を内訳の無い課題に数え、Chief of Staff の 1 日分を数え、プロファイル claude に 1 件（周回 1）を出す" \
   || fail "ms-breakdown: 内訳の節かプロファイルごとの節の数が置いた記録と違う"
 
 # ms-table: 人向けの表は価値の行で始まる
 step "ms-table: andon measure を打つ" "$andon" measure \
   && sed -n 1p "$tmp/step.out" | grep -q '^価値: ' \
-  && ok "ms-table: 人向けの表が「価値:」の行で始まる" || fail "ms-table: 表が出ないか、先頭が価値の行でない"
+  && grep -q '^内訳（' "$tmp/step.out" && grep -q '^  片付いた課題  *2件・内訳の無い課題 1件$' "$tmp/step.out" \
+  && grep -q '^  chief-of-staff 1日分 ' "$tmp/step.out" && grep -q '^プロファイル（' "$tmp/step.out" && grep -q '^  claude  *1件・実働 ' "$tmp/step.out" \
+  && ok "ms-table: 人向けの表が「価値:」の行で始まり、内訳の節とプロファイルの節が出る" || fail "ms-table: 表が出ないか、先頭が価値の行でないか、内訳かプロファイルの節が無い"
 
 # ms-readonly: 打つ前と後で、kanban とセッションの記録が1バイトも変わらない
 [ "$before" = "$(sums)" ] && ok "ms-readonly: measure の前後で kanban とセッションの記録が変わらない" \
