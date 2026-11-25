@@ -3,6 +3,7 @@ package retro
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -183,6 +184,26 @@ func TestBeforeAfterSkipsMissing(t *testing.T) {
 	}
 }
 
+// gate の記録の置き場が読めないとき、記録 0 件と黙って数えず、飛ばした記録に出す（差し戻しの率が黙って変わらない）。
+func TestBeforeAfterUnreadableGates(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root は権限の無い置き場も読める")
+	}
+	root, _ := baKanban(t, 10, 10)
+	dir := filepath.Join(root, "kanban", "issues", "A-0201", "library", "gate")
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	in, _ := collectFix(t, root)
+	for _, s := range in.Skipped {
+		if strings.HasSuffix(s.Source, filepath.Join("A-0201", "library", "gate")) && strings.Contains(s.Reason, "読めない") {
+			return
+		}
+	}
+	t.Fatalf("読めない gate の置き場が飛ばした記録に出ない: %+v", in.Skipped)
+}
+
 // 全文の束に、結果の記録の内訳をそのまま写す。無ければ null、形が違えば null と飛ばした記録の 1 行。
 func TestBundleBreakdown(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "sample-site")
@@ -306,5 +327,51 @@ func TestRetroBreakdownSchemaIsOutcomeCopy(t *testing.T) {
 		if json.Unmarshal(r[k], &a) != nil || json.Unmarshal(o[k], &b) != nil || !reflect.DeepEqual(a, b) {
 			t.Errorf("schema/retro.schema.json の $defs.%s が schema/outcome.schema.json の写しでない", k)
 		}
+	}
+}
+
+// andon retro patterns は、期間の Chief of Staff のトークンを retro.json に残す（collect の出力は保存しないので、
+// 生の記録が 30 日で消えたあとも、この数を振り返りの課題のフォルダから引けるように。ADR-0060 決めたこと 17）。
+func TestPatternsKeepsChiefOfStaffTokens(t *testing.T) {
+	root, _ := baKanban(t, 0, 0)
+	k := filepath.Join(root, "kanban")
+	write(t, filepath.Join(k, "issues", "A-0900", "issue.yaml"), issueYAML("A-0900", "doing", "profile: claude\nroutine: retro\nagent: t9\n"))
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	t.Setenv("HC_TERMINAL_ID", "t9")
+	day0 := time.Now().UTC().Format("2006-01-02")
+	write(t, filepath.Join(state, "andon", "otel", "sample-site", "roles", "chief-of-staff", day0+".traces.jsonl"),
+		`{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"t1","spanId":"s1","name":"claude_code.llm_request","attributes":[`+
+			`{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}}]}]}]}]}`+"\n")
+	in := `{"patterns": [], "fixes": [{"issue": "A-0101", "recurred": 0, "view": "前後の件数が足りず、数字は無い。残す"}]}`
+	var out strings.Builder
+	if err := runPatterns(root, "A-0900", 7, "-", strings.NewReader(in), &out); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(k, "issues", "A-0900", "library", retroFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		ChiefOfStaff *ChiefOfStaff `json:"chief_of_staff"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		t.Fatal(err)
+	}
+	if c := v.ChiefOfStaff; c == nil || c.Days != 1 || c.Tokens == nil || c.Tokens.Input != 5 || c.Tokens.Output != 6 {
+		t.Fatalf("retro.json に Chief of Staff のトークン（1 日分・入力 5・出力 6）が無い: %s", b)
+	}
+	if _, err := ParsePatterns(b); err != nil {
+		t.Fatalf("書いた retro.json を読み直せない: %v", err)
+	}
+	// 前のバージョンが書いた retro.json（chief_of_staff が無い）も読める
+	var old map[string]any
+	if err := json.Unmarshal(b, &old); err != nil {
+		t.Fatal(err)
+	}
+	delete(old, "chief_of_staff")
+	ob, _ := json.Marshal(old)
+	if p, err := ParsePatterns(ob); err != nil || p.ChiefOfStaff != nil {
+		t.Fatalf("chief_of_staff の無い retro.json を読めない: %v", err)
 	}
 }

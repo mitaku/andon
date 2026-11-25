@@ -30,6 +30,7 @@ EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 export ANDON_HOME=$tmp/pkg CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex
+export XDG_STATE_HOME=$tmp/state   # patterns が読む Chief of Staff の生の記録（otel の置き場）をセルの本物から読まない
 mkdir -p "$ANDON_HOME"
 
 # kanban: S-0010 は前の振り返り（2日前に片付いた）。S-0011 はその前、S-0012・S-0013 は後に片付いた担当の課題。S-0020 が今回の振り返り
@@ -125,7 +126,7 @@ good=$(p '["S-0012", "h-a2"]' '.patterns += [
   (.patterns[0] + {id: "p6", summary: "lint の指摘が残り、2回直した", evidence: ["S-0012", "S-0013"], target: {kind: "project", repo: "github.com/example/sample-site", paths: ["tests/lint.sh"]}})]')
 HC_TERMINAL_ID=t9 "$andon" retro patterns S-0020 - <<<"$good" >"$tmp/ok" 2>"$tmp/err" || die "正しい一覧を断った: $(cat "$tmp/err")"
 emit "$out" patterns.json
-jq -e '.retro == "S-0020" and .days == 7 and .previous_retro.issue == "S-0010" and ([.patterns[].id] == ["p1", "p2", "p3", "p4", "p5", "p6"])' "$out" >/dev/null || die "retro.json: $(jq -c . "$out")"
+jq -e '.retro == "S-0020" and .days == 7 and .previous_retro.issue == "S-0010" and ([.patterns[].id] == ["p1", "p2", "p3", "p4", "p5", "p6"]) and .chief_of_staff == {days: 0, tokens: null}' "$out" >/dev/null || die "retro.json: $(jq -c . "$out")"
 grep -q 'パターン 6 件、fix 5 件・drop 1 件' "$tmp/ok" || die "書いた行: $(cat "$tmp/ok")"
 cp "$out" "$tmp/good.json"
 

@@ -1006,7 +1006,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `questions[]` | 期間に聞かれた問い。どの課題の問いも読み、`questions.yaml`（kanban の問い）の `asked` が期間の中のもの。聞いた時刻の順。問いの JSON（§5 の `library/questions/<n>.json`）の `from` が `gate` の問いと、`kind` が `scope` の問いは入れない。問いの JSON が無い・読めない問いは、gate の問いかを決められないので入れず、`skipped` に1行。1 件は `issue`（問いの載る課題）・`n`（kanban の問いの番号）・`from`（聞いた役。問いの JSON に無ければ `null`）・`kind`・`question`（問いの JSON の1行）・`options`（問いの JSON の選択肢の写し。`pick` は推奨案）・`answer`（kanban の答え。答えていなければ `null`）・`asked_at`。振り返りの担当は、同じことを聞いた問いが別々に2件あれば、自分の報告の `gaps[]` に `missing` として書く（パターンには書かない）。問いはパターンの根拠に指せない（[ADR-0061](adr/0061-knowledge-factory.md) 決めたこと 10）。足してもバージョンは上げない（原則4） |
 | `fixes[]` | 前の振り返りが切った直し（`parent` が振り返りの課題の、`done` の課題）のうち、PR のマージ（GitHub の `mergedAt`。読めなければ `outcome.json` の `merged_at`）が打った時刻から 14 日以内のもの。`issues_after` は、マージのあとに `done` になった担当の課題の数（期間に限らない）。`recurred_before` は前の振り返りが数えた再発の数（その `retro.json` の `fixes[].recurred`）。前の振り返りが数えていなくてマージが境目より後なら `0`（境目より前に数える出来事が無い）、どちらでもなければ `null`（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 6） |
 | `fixes[].before_after` | 直しのマージの前と後の数字（[ADR-0060](adr/0060-otel-trace.md) 決めたこと 17）。`before` はマージの時刻より前に、`after` は後に片付いた担当の課題（`issues_after` と同じ顔ぶれ。期間に限らない。マージと同じ時刻の課題はどちらにも入れない）の、マージに近いほうから 30 件まで。`issues` はその数。`numbers` は `andon measure` のプロファイルごとの節（§13）と同じ数え方で、`worked_minutes` は `outcome.json` の `worked_minutes` の中央値（無い課題は数えない）、`tokens` は内訳の `tokens` の 4 つの和の中央値（内訳の無い課題と、モデルの呼び出しの記録の無い内訳は数えない）、`gate` は課題の gate の記録（§7）の全部と差し戻しの率（`fix` と `needs_human` の和 ÷ 記録）、`review_rounds` は課題を親に持つレビュアーの課題の数の中央値（0 も数える）。中央値は小数 2 桁で、件数が 0 なら `null`。前か後が 10 件に満たないときは、どちらの `numbers` も `null` にし、`short` に件数が足りないと書く（ほかは `null`）。数字は前後の課題の違いも拾うので、振り返りの担当は直しの見立ての材料として読み、数字だけで直しを戻す判定はしない。足してもバージョンは上げない（原則4） |
-| `chief_of_staff` | 振り返りの期間の Chief of Staff のトークンの合計（[ADR-0060](adr/0060-otel-trace.md) 決めたこと 17）。Chief of Staff には課題が無く `outcome.json` が無いので、ハーネスの役ごとの生の記録（§30 の `roles/chief-of-staff/<日付>.traces.jsonl`）のうち、期間が掛かる UTC の日付のファイルから、`andon measure` の内訳の節（§13）と同じに数える。`days` は1行以上読めた日付のファイルの数、`tokens` はその合計で、`days` が 0 なら `null`（記録が無いのと 0 を分ける）。生の記録は 30 日で消えるので、数えられるのは残っている日の分だけ。この出力は保存しないので、振り返りの担当が報告に写し、振り返りの課題のフォルダに残す。読めないファイルと行は `skipped` に1行ずつ。`--issue` では数えない（`days` が 0）。足してもバージョンは上げない（原則4） |
+| `chief_of_staff` | 振り返りの期間の Chief of Staff のトークンの合計（[ADR-0060](adr/0060-otel-trace.md) 決めたこと 17）。Chief of Staff には課題が無く `outcome.json` が無いので、ハーネスの役ごとの生の記録（§30 の `roles/chief-of-staff/<日付>.traces.jsonl`）のうち、期間が掛かる UTC の日付のファイルから、`andon measure` の内訳の節（§13）と同じに数える。`days` は1行以上読めた日付のファイルの数、`tokens` はその合計で、`days` が 0 なら `null`（記録が無いのと 0 を分ける）。生の記録は 30 日で消えるので、数えられるのは残っている日の分だけ。この出力は保存しないので、`andon retro patterns` が集め直した同じ数を `retro.json`（§21）に書いて、振り返りの課題のフォルダに残す。読めないファイルと行は `skipped` に1行ずつ。`--issue` では数えない（`days` が 0）。足してもバージョンは上げない（原則4） |
 | `redacted` | 秘密の形に合って伏せた数 |
 | `skipped` | 読めなかったもの（読めない記録・GitHub）。集めるのは止めない |
 
@@ -1021,7 +1021,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 
 ## 21. パターンの一覧（`retro.json`）
 
-振り返りの課題の `library/retro.json`。振り返りの担当が、振り返りの入力（§20）から拾った繰り返し（パターン）と、前の直しごとの再発の数と見立てを書く（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8 の「判定を書く」）。担当は手で書かず、`andon retro patterns <id> [--days N] <json|->` で書く（打てるのはその課題の担当の端末〈`agent` ＝ `HC_TERMINAL_ID`〉で、課題が `doing` のときだけ）。入力は `patterns` と `fixes` の2つだけで、残りの欄（`retro`・`at`・`since`・`until`・`days`・`previous_retro`）は command が書く。command は打った時刻から `--days`（既定 7。collect と同じ値を渡す）の入力を集め直し（GitHub も読む）、下の検査を全部通したときだけ書く。断るときは書かずに終了コード 1 と理由1行で、前の一覧はそのまま。書き直すたびに全体を書く。
+振り返りの課題の `library/retro.json`。振り返りの担当が、振り返りの入力（§20）から拾った繰り返し（パターン）と、前の直しごとの再発の数と見立てを書く（[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8 の「判定を書く」）。担当は手で書かず、`andon retro patterns <id> [--days N] <json|->` で書く（打てるのはその課題の担当の端末〈`agent` ＝ `HC_TERMINAL_ID`〉で、課題が `doing` のときだけ）。入力は `patterns` と `fixes` の2つだけで、残りの欄（`retro`・`at`・`since`・`until`・`days`・`previous_retro`・`chief_of_staff`）は command が書く。command は打った時刻から `--days`（既定 7。collect と同じ値を渡す）の入力を集め直し（GitHub も読む）、下の検査を全部通したときだけ書く。断るときは書かずに終了コード 1 と理由1行で、前の一覧はそのまま。書き直すたびに全体を書く。
 
 ```json
 {"retro": "S-0050", "at": "2026-11-19T12:00:00Z", "since": "2026-11-12T12:00:00Z", "until": "2026-11-19T12:00:00Z", "days": 7,
@@ -1034,7 +1034,8 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
     "level": "skill", "action": "change", "target": {"kind": "andon", "repo": "github.com/example/andon", "paths": ["package/skills/worker/SKILL.md"]},
     "not_upstream": "見送りの理由は文で、機械が確かめる値が無い", "effect": "報告の見送りに理由が付く", "risk": "worker skill が長くなる",
     "decision": "drop", "reason": "前の直しが2日前にマージされたばかりで、まだ効き目が分からない"}],
- "fixes": [{"issue": "S-0041", "recurred": 0, "view": "マージのあと 6 件片付き、再発は無い。残す"}]}
+ "fixes": [{"issue": "S-0041", "recurred": 0, "view": "マージのあと 6 件片付き、再発は無い。残す"}],
+ "chief_of_staff": {"days": 7, "tokens": {"input": 9000, "output": 410000, "cache_read": 52000000, "cache_write": 2100000}}}
 ```
 
 | キー | 意味 |
@@ -1051,6 +1052,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `patterns[].effect`・`risk` | 期待する効果（何が起きなくなるか）とリスク。1行ずつ |
 | `patterns[].decision`・`reason` | `fix`（直す課題に切る）か `drop`（捨てる。持ち越さない）と、その理由の1行。`drop` の理由は中身だけで、数の都合を書かない。`fix` のパターンは優先の順に並べる（[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 3） |
 | `fixes[]` | 入力の `fixes[]`（前の振り返りが切った直しのうちマージから 14 日以内のもの）の全部に1件ずつ、過不足なく。`recurred` はマージのあとに同じパターンが起きた数で、入力の `recurred_before` に全文の束で見つけた再発を足したもの（`recurred_before` が `null` なら要約の束でも数える。[ADR-0039](adr/0039-retro-scale-with-flow.md) 決めたこと 6）、`view` は見立ての1行（残す・効き目の確かな段へ振り分け直す・効かなかった文を削る候補にする）。再発したものは、文を足さずに上の段か削る候補をパターンに出す（決めたこと 6） |
+| `chief_of_staff` | command が書く。集め直した期間の Chief of Staff のトークン（§20 の `chief_of_staff` と同じ形と数え方）。collect の出力は保存しないので、生の記録（30 日で消える）が消えたあとも振り返りの課題のフォルダに数を残すために書く（[ADR-0060](adr/0060-otel-trace.md) 決めたこと 17）。任意のキーで、前のバージョンが書いた `retro.json` には無い。前のバージョンの andon は、このキーを持つ `retro.json` を読めず、境目を片付いた時刻にする。足してもバージョンは上げない（原則4） |
 
 command が断ること（`andon retro patterns` と `andon retro apply` の両方。[ADR-0028](adr/0028-improvement-loop.md) 決めたこと 8）:
 

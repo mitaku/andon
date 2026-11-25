@@ -24,7 +24,7 @@
 | 14 | `andon trace <id>` を足し、1 本のトレースに縫い直した OTLP の JSON も出せるようにする | `internal/trace/output.go`・`internal/cli/leaves.go`・`docs/commands.md` | 生きている（command の名前は、葉の形の決まり〈ADR-0053 決めたこと 5〉に合わせて `andon issue trace <id>`） |
 | 15 | 結果の記録に課題ごとの内訳 `breakdown` を足し、生の記録が消えたあとも残す | `internal/trace/breakdown.go`・`internal/dispatcher/outcome.go`・`schema/outcome.schema.json`・`docs/contract.md` §19 | 生きている（待ちのうち問いの分は `question_ms` の名前にした。セルの本物でトークンの合計を比べる確かめは受け入れ条件 16） |
 | 16 | `andon measure` に内訳の節とプロファイルごとの節を足す | `internal/measure/breakdown.go`・`internal/trace/roletokens.go`・`schema/measure.schema.json`・`docs/contract.md` §13 | 生きている |
-| 17 | 振り返りの入力に、課題ごとの内訳と、直しの前後の数字を足す | `internal/retro/numbers.go`・`internal/retro/retro.go`・`docs/contract.md` §20・`package/skills/retro/SKILL.md` | 生きている（collect の出力は保存しないので、Chief of Staff のトークンは振り返りの担当が報告に写して課題のフォルダに残す） |
+| 17 | 振り返りの入力に、課題ごとの内訳と、直しの前後の数字を足す | `internal/retro/numbers.go`・`internal/retro/retro.go`・`internal/retro/apply.go`・`docs/contract.md` §20・§21・`package/skills/retro/SKILL.md` | 生きている（collect の出力は保存しないので、Chief of Staff のトークンは `andon retro patterns` が `retro.json` に書いて課題のフォルダに残す） |
 | 18 | 比べる形はバージョンごとの表にせず、プロファイルごとと直しの前後にする | `internal/measure/breakdown.go`（プロファイルごと）・`internal/retro/numbers.go`（直しの前後）・`docs/contract.md` §13・§20 | 生きている |
 | 19 | Codex は別の課題で取り込み、最初に実測する。Codex の既定の利用統計には触らない | `internal/otel/env.go`・`internal/otel/otel.go`・`package/templates/codex.md`・`package/templates/codex-review.md`・`docs/contract.md` §30 | 生きている（動かしての実測は当てたあとの検証。受け入れ条件 17） |
 | 20 | セッションの記録から数える今のトークンは、そのまま残す | この ADR | 生きている |

@@ -356,6 +356,8 @@ patterns|.previous_retro|issue done_at
 patterns|.patterns[0]|id summary evidence level action target effect risk decision reason
 patterns|.patterns[0].target|kind paths
 patterns|.fixes[0]|issue recurred view
+patterns|.chief_of_staff|days tokens
+patterns|.chief_of_staff.tokens|input output cache_read cache_write
 waiting|.slots|limit working waiting free waiting_full
 waiting|.items[0]|kind id title since holds
 waiting|.items[1].ask|kind question options
@@ -922,6 +924,9 @@ fail|retro|del(.fixes[0].before_after)|前の直しに前後の数字が無い
 pass|retro|.chief_of_staff = {"days": 0, "tokens": null}|Chief of Staff の記録が無い
 fail|retro|.chief_of_staff.tokens.output = -1|Chief of Staff のトークンが負
 pass|patterns|.previous_retro = null|前の振り返りが無い
+pass|patterns|del(.chief_of_staff)|前のバージョンが書いた一覧（Chief of Staff のトークンが無い）
+pass|patterns|.chief_of_staff = {"days": 0, "tokens": null}|Chief of Staff の記録が無い
+fail|patterns|.chief_of_staff.days = -1|Chief of Staff の日数が負
 pass|patterns|. + {"patterns": [], "fixes": []}|パターンも前の直しも無い
 pass|patterns|.patterns[0].target = {"kind": "andon", "paths": ["package/skills/worker/SKILL.md"]}|Andon の直しで repo を持たない
 fail|patterns|del(.patterns[1].not_upstream)|skill の段なのに上の段で止められない理由が無い

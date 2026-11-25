@@ -32,7 +32,7 @@ andon retro collect [--days N] > /tmp/retro-<自分の id>.json     # 既定 7 �
   - 全文の束の `gaps` は担当の知識の欠けの申告の写し（種類 `kind`・先 `where`・本文 `text`・直し方 `proposal`）。要約の束の `gaps` は申告ごとの種類と先だけ。
   - 全文の束の `breakdown` は、その課題の結果の記録の内訳（どの待ちとどのツールに時間を使ったか、トークン、モデルの呼び出しとツールの失敗の数）。無ければ `null`。パターンの根拠の課題で、何に時間とトークンを使ったかを引く。
 - `typed[]` はオーナーが打った文（期間の全部）、`questions[]` は期間に聞かれた問い（gate の問いと範囲の問いは入らない。§2 の「問いの繰り返しを申告に書く」）、`fixes[]` は前の振り返りが切った直しのうちマージから 14 日以内のもの（マージの前後の数字 `before_after` つき。§4）、`previous_retro` は前の振り返り。
-- `chief_of_staff` は期間の Chief of Staff のトークンの合計と、数えられた日数 `days`。この数は生の記録が消えると引けなくなるので、報告に写す（§7）。
+- `chief_of_staff` は期間の Chief of Staff のトークンの合計と、数えられた日数 `days`。`andon retro patterns` が同じ数を `retro.json` に書いて残す。報告にも1行で写す（§7）。
 - 要約の束の全文が要るときは id で引く: `andon retro collect [--days N] --issue <id>`（`issues[]` の1件と同じ形）。引くのは、全文の束で拾ったパターンと突き合わせる束だけにする。
 - 根拠として指せる id は、束の id（`issues[].id` と `summaries[].id`）と `typed[].id`（`h-…`）の2種類だけ。問いと申告は根拠に指せない（指すと `andon retro patterns` が断る）。
 - 秘密は `[REDACTED:…]` に伏せてある。伏せた値を当て推量で埋め戻さない。

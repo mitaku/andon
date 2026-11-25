@@ -60,8 +60,8 @@ type GateStats struct {
 
 // ChiefOfStaff は振り返りの期間の Chief of Staff のトークン（役ごとの生の記録から。残っている日の分だけ）。
 type ChiefOfStaff struct {
-	Days   int           `json:"days"`   // 記録の読めた日付のファイルの数
-	Tokens *trace.Tokens `json:"tokens"` // 記録が無ければ null（0 と分ける）
+	Days   int           `json:"days"`                    // 記録の読めた日付のファイルの数
+	Tokens *trace.Tokens `json:"tokens" andon:"nullable"` // 記録が無ければ null（0 と分ける）
 }
 
 // breakdown は課題のフォルダ lib の outcome.json の breakdown。無い・null・読めないなら nil。

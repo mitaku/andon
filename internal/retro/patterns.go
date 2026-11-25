@@ -54,6 +54,9 @@ type Patterns struct {
 	PreviousRetro *PrevRetro `json:"previous_retro" andon:"nullable"`
 	Patterns      []Pattern  `json:"patterns"`
 	Fixes         []FixView  `json:"fixes"`
+	// ChiefOfStaff は集め直した期間の Chief of Staff のトークン（ADR-0060 決めたこと 17）。collect の出力は保存しないので、
+	// 生の記録が消えたあとも振り返りの課題のフォルダに残すため、command が書く。前のバージョンが書いた retro.json には無い（nil）。
+	ChiefOfStaff *ChiefOfStaff `json:"chief_of_staff,omitempty"`
 }
 
 type Pattern struct {

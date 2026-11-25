@@ -877,7 +877,18 @@ func (r *reader) launches(path string) []map[string]any {
 
 func (r *reader) gates(dir string) []Gate {
 	out := []Gate{}
-	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	// filepath.Glob は読めない置き場を空と返すので、置き場を読んで、無いのと読めないのを分ける
+	// （読めない置き場を記録 0 件と黙って数えると、前後の数字の差し戻しの率が黙って変わる）
+	ents, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		r.skip(r.rel(dir), "置き場が読めない。gate の記録は 0 件として数えた")
+	}
+	var files []string
+	for _, e := range ents {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+			files = append(files, filepath.Join(dir, e.Name()))
+		}
+	}
 	for _, f := range files {
 		v := r.object(f)
 		if v == nil {
