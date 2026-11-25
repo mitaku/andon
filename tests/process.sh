@@ -231,9 +231,15 @@ any(.steps[]; (.input // []) | index("report.plan"))@手順の入るものに re
 any(.steps[]; .by == "ai" and ((.decides // []) as $d | ["途中報告を書かせる", "分ける", "起動し直す", "延長する"] | all(. as $x | $d | index($x))))@AI の手順の decides に 途中報告を書かせる・分ける・起動し直す・延長する
 any(.counts[]; startswith("flow.wait."))@数えるものに状態ごとの時間（flow.wait.<status>）
 WATCH
+# 仕分けと振り返りも PR の無い課題なので、報告は通知 report で届く（review の通知は来ない）
+report_check='any(.triggers[]; .kind == "notification" and .notification == "report" and .start == "check") and (any(.triggers[]; .notification == "review") | not)'
 "$andon" process json process/workstreams/triage.yaml >"$tmp/ws.json"
-jq -e 'any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")' "$tmp/ws.json" >/dev/null &&
-  ok "仕分け: 通知 review から check（仕分けを確かめる）が始まる" || ng "仕分けに 通知 review → check のきっかけが無い"
+jq -e "$report_check" "$tmp/ws.json" >/dev/null &&
+  ok "仕分け: 通知 report から check（仕分けを確かめる）が始まり、通知 review のきっかけが無い" || ng "仕分けに 通知 report → check のきっかけが無いか、通知 review のきっかけが残る"
+jq '(.triggers[] | select(.start == "check")).notification = "review"' "$tmp/ws.json" >"$tmp/bad.json"
+! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: 仕分けのきっかけが review" || ng "review の通知で仕分けを確かめる定義が通る"
+jq '.triggers += [{"name": "review", "kind": "notification", "notification": "review", "start": "check"}]' "$tmp/ws.json" >"$tmp/bad.json"
+! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: 仕分けに report と review のきっかけが並ぶ" || ng "report と review のきっかけが並ぶ仕分けの定義が通る"
 while IFS='@' read -r filter desc; do
   [ -n "$filter" ] || continue
   jq -e "$filter" "$tmp/ws.json" >/dev/null && ok "仕分け: $desc" || ng "仕分けに無い: $desc"
@@ -261,12 +267,16 @@ printf '%s\n' '    input: [notification.ready, kanban(並行の上限)]' | grep 
 while IFS='@' read -r filter desc; do
   [ -n "$filter" ] || continue
   jq -e "$filter" "$tmp/retro.json" >/dev/null && ok "ふりかえり: $desc" || ng "ふりかえりに無い: $desc"
-done <<'RETRO'
-any(.triggers[]; .kind == "notification" and .notification == "review" and .start == "check")@通知 review から check（検収）が始まる
+done <<RETRO
+$report_check@通知 report から check（検収）が始まる
 [.steps[] | select(.by == "machine") | .command] == ["andon retro collect", "andon retro patterns", "andon retro apply", "andon issue finish"]@機械の手順が collect → patterns → apply → finish
 any(.steps[]; .command == "andon retro apply" and .once == true and .record == "library/retro-applied.json")@当てる手順は1回だけで、記録は library/retro-applied.json
 any(.steps[]; .by == "ai" and ((.skill | if type == "array" then . else [.] end) | index("retro#3")))@AI の手順が retro skill の直す先の段（§3）を指す
 RETRO
+jq '(.triggers[] | select(.start == "check")).notification = "review"' "$tmp/retro.json" >"$tmp/bad.json"
+! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: ふりかえりのきっかけが review" || ng "review の通知で検収する定義が通る"
+jq '.triggers += [{"name": "review", "kind": "notification", "notification": "review", "start": "check"}]' "$tmp/retro.json" >"$tmp/bad.json"
+! jq -e "$report_check" "$tmp/bad.json" >/dev/null && ok "壊した定義は落ちる: ふりかえりに report と review のきっかけが並ぶ" || ng "report と review のきっかけが並ぶふりかえりの定義が通る"
 # ダイジェスト（ADR-0044 決めたこと 3・4）: PR の無い課題なので、報告は通知 report で届く
 "$andon" process json process/workstreams/digest.yaml >"$tmp/digest.json"
 digest_report='any(.triggers[]; .kind == "notification" and .notification == "report" and .start == "check")'

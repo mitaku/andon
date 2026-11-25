@@ -1,5 +1,5 @@
 ---
-読む時: 振り返りの課題を起動する・`review` を受ける・`andon retro apply` を打つとき（オーナーが振り返りを頼んだときも）と、振り返りが切った課題を起動するとき
+読む時: 振り返りの課題を起動する・報告（通知 `<id> report`）を受ける・`andon retro apply` を打つとき（オーナーが振り返りを頼んだときも）と、振り返りが切った課題を起動するとき
 消す条件: 足す・起動する・当てる・続けるの段は「`andon retro apply` が当てたあと finish と足した課題の起動まで回し、オーナーへの1行を出すようになったら」
 ---
 
@@ -12,7 +12,7 @@
    枠が空いたままのときは、ルーチンが足した課題を除いた片付いた担当の課題が `retro_every` の半分以上で、片付いていない振り返りが無ければ、dispatcher が同じルーチンを撃つ（`idle.md`。ADR-0047 決めたこと 8）。
    オーナーが頼んだら `kanban routine run retro`（`routine: retro` が付き、前の振り返りとして数えられる。`open` と `paused` はそのまま効く）。
 2. **起動する**: オーナーに聞かずに `andon issue start <id>`（`start.md`。枠〈`andon waiting` の `slots.free`〉とぶつかりは守る）。
-3. **`review` が来たら**: 報告の表と `issues/<id>/library/retro.json` を読み、`andon retro apply <id> --dry-run` を打つ。検収で見ること:
+3. **報告が届いたら**: 通知は `<id> report`（PR の無い課題なので `review` の通知は来ない。報告を書いたときと `review` に入ったときの2度届きうる）。課題が `doing` のままなら待つ。`review` に入っていれば、報告の表と `issues/<id>/library/retro.json` を読み、`andon retro apply <id> --dry-run` を打つ。検収で見ること:
    - パターンが根拠の課題で本当に起きたか（command は根拠の数と実在と新しさしか確かめない）。直すパターンごとに、根拠の課題の記録を1件以上開いて読む（現地現物。`fix` の数に上限は無く、検収が量を抑える最後の段）。
    - 段が上から選ばれているか。`skill`・`text` の `not_upstream` が具体的か。
    - `summary` と依頼書に、オーナーが打った文の本文・オーナーの名前が入っていないか（PR の要約の元になる）。

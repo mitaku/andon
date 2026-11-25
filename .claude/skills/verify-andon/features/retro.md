@@ -12,6 +12,8 @@
   - 見るファイル: `internal/retro/apply.go`
 - `rt-old-owner` 前のバージョンの apply が `who: person` だけ書いて落ちた課題（呼ぶ行）を、打ち直しで足し直さずに使い、印 `later` と問いを書いて置いてある行にする。見る道: 検証の担当だけ。
   - 見るファイル: `internal/retro/apply.go`
+- `rt-report` PR の無い振り返りの課題が `review` に入ると、dispatcher は Chief of Staff へ通知 `<id> report` を届け（`review` ではない）、Chief of Staff は手引きの 3 のとおり課題が `review` なのを読んで `andon retro apply <id> --dry-run` を打つ。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `package/skills/chief-of-staff/playbooks/retro.md`、`process/workstreams/retrospective.yaml`
 
 ## 辿り着き方（利用者から）
 
@@ -31,10 +33,13 @@
 - **前のバージョンの形を作る。** `tc` が、2つ目のパターンの「Andon へ伝えるか」の課題を振り返りの課題の下に足し、`who: person` だけを書く。`rt-old-owner` の行に、打ち直しの前の `andon waiting --json` の行（`call: true`）が出る。
 - **置いておく。** `rt-later`・`rt-old-owner` の行に、`tc` の apply の出力と、2つのオーナーの課題の `who`・`parent`・`later` と問い、`andon waiting --json` の行（`call`・`later`）が出る。`ok   rt-later` が1行と `ok   rt-old-owner` が2行見えれば動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
+- **報告を受ける（`rt-report`）。** 本物の振り返りの課題が `review` に入ったあと、`~/.local/state/andon/dispatcher/<slug>.delivered.jsonl` にその課題の `report` の行があり、`review` の行が無いことを読む。`hc read <Chief of Staff の address>` で、その通知を `<news>` で読んだ turn が `andon retro apply <id> --dry-run` を打ったかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
 
 ## 変えたら動かすパス
 
 - `internal/retro/`
+- `package/skills/chief-of-staff/playbooks/retro.md`
+- `process/workstreams/retrospective.yaml`
 
 ## 既に見ている検査
 

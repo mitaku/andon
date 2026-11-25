@@ -14,6 +14,8 @@
   - 見るファイル: `internal/triage/apply.go`
 - `tr-old-shape` `later` の無い前の形の `person` は、Chief of Staff の端末でも `later` が無いと言って断り、課題も記録も増やさない。`person` の無い前の形の判定（`keep` だけ）は、印を書かないので担当の端末でも当たる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/decisions.go`、`internal/triage/apply.go`
+- `tr-report` PR の無いトリアージの課題が `review` に入ると、dispatcher は Chief of Staff へ通知 `<id> report` を届け（`review` ではない）、Chief of Staff は手引きの 3 のとおり課題が `review` なのを読んで `andon triage apply <id> --dry-run` を打つ。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `package/skills/chief-of-staff/playbooks/triage.md`、`process/workstreams/triage.yaml`
 
 ## 辿り着き方（利用者から）
 
@@ -33,10 +35,13 @@
 - **Chief of Staff でない端末を断る。** `tr-not-cos` の行に、`tw` の apply の断り（「later で置いておく印を書くのは Chief of Staff の端末だけ」）が出る。`ok   tr-not-cos` が見えれば動いた。
 - **置いておく・呼ぶ。** `tr-later`・`tr-call` の行に、`tc` の apply の記録の表と、足したオーナーの課題の `who`・`only_owner`・`later`・`later_until` と、`andon waiting --json` の行（`kind`・`call`・`later`）が出る。`ok   tr-later` が2行と `ok   tr-call` が1行見えれば動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
+- **報告を受ける（`tr-report`）。** 本物のトリアージの課題が `review` に入ったあと、`~/.local/state/andon/dispatcher/<slug>.delivered.jsonl` にその課題の `report` の行があり、`review` の行が無いことを読む。`hc read <Chief of Staff の address>` で、その通知を `<news>` で読んだ turn が `andon triage apply <id> --dry-run` を打ったかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
 
 ## 変えたら動かすパス
 
 - `internal/triage/`
+- `package/skills/chief-of-staff/playbooks/triage.md`
+- `process/workstreams/triage.yaml`
 
 ## 既に見ている検査
 
