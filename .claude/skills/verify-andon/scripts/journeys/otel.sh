@@ -152,38 +152,8 @@ else
 fi
 [ "$fails" = 0 ] || exit 1
 
-# ot-breakdown: 当てたあとに Claude Code の担当として起動した課題のうち、当てたあとに dispatcher が結果の記録（outcome.json）を
-# 書いたものごとに、内訳 breakdown のトークンの合計（4 種の和）と sessions[].cost のトークンの合計を比べる（ADR-0060 受け入れ条件 16）。
-# 上下 5% に入れば ok。breakdown のキーが無ければ当てた dispatcher が書いていないので fail。片付いた課題がまだ無ければ note（未確認）。
-nb=0 bpairs=()
-while IFS=$'\t' read -r kanban id; do
-  [ -n "$id" ] || continue
-  o=$kanban/issues/$id/library/outcome.json
-  [ -f "$o" ] || continue
-  oat=$(jq -r '.at // ""' "$o" 2>/dev/null) || oat=
-  [[ "$oat" < "$a_at" ]] && continue
-  if [ "$(jq -r 'has("breakdown")' "$o" 2>/dev/null)" != true ]; then
-    fail "ot-breakdown: $o に breakdown のキーが無い（当てた dispatcher が書いていない）"
-    continue
-  fi
-  read -r bsum ssum < <(jq -r '[([.breakdown.tokens // {} | .[]] | add // "null"), ([.sessions // [] | .[].cost.tokens // {} | .[]] | add // "null")] | @tsv' "$o" 2>/dev/null) || true
-  echo "  | $(basename "$(dirname "$kanban")")/$id: 内訳のトークン ${bsum:-?}・セッションの記録のトークン ${ssum:-?}"
-  if [ "${bsum:-null}" = null ] || [ "${ssum:-null}" = null ] || [ "$ssum" = 0 ]; then
-    echo "note ot-breakdown: $id は内訳か、セッションの記録のトークンが無い（受け口が止まっていたか、セッションの記録が読めない）。比べていない"
-    continue
-  fi
-  nb=$((nb + 1))
-  if awk -v b="$bsum" -v s="$ssum" 'BEGIN { d = (b - s) / s; if (d < 0) d = -d; exit !(d <= 0.05) }'; then
-    bpairs+=("$id")
-  else
-    fail "ot-breakdown: $id の内訳のトークン $bsum がセッションの記録のトークン $ssum の上下 5% に入らない。端末を片付けるときに最後の分が送られ切っていないかを調べる"
-  fi
-done < <(for f in "$ws"/projects/*/kanban/issues/*/library/launches.jsonl; do
-  since "$f" | jq -r --arg k "${f%/issues/*}" 'select(.role == "worker" and (.profile | test("codex") | not)) | [$k, .issue] | @tsv'; done | sort -u)
+# ot-breakdown: 当てたあとに片付いた Claude Code の担当の課題の結果の記録の内訳を比べる（ADR-0060 受け入れ条件 16。判定は scripts/breakdown.sh）
+. "$(dirname "$0")/../breakdown.sh"
+breakdown_check
 [ "$fails" = 0 ] || exit 1
-if [ "$nb" -gt 0 ]; then
-  ok "ot-breakdown: 当てたあとに片付いた担当の課題 $nb 件の結果の記録に内訳があり、トークンの合計がセッションの記録の上下 5% に入る（${bpairs[*]}）"
-else
-  echo "note ot-breakdown: 当てたあとに片付いた Claude Code の担当の課題の結果の記録がまだ無い。Chief of Staff に試しの課題を 1 件片付けてもらってから打ち直す"
-fi
 echo "note ot-restart（受け口を止めてから担当を起動する）はこの道では動かさない。features/otel.md の手順で、Chief of Staff の試しの課題で確かめる"
