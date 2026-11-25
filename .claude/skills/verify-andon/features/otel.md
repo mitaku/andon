@@ -49,6 +49,9 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 - `internal/trace/`
 - `package/templates/`
 - `image/apply-main.sh`
+- `internal/dispatcher/outcome.go`
+- `internal/ledger/worked.go`
+- `schema/outcome.schema.json`
 
 ## 既に見ている検査
 
