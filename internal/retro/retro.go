@@ -31,20 +31,23 @@ import (
 	"andon/internal/contract"
 	"andon/internal/launch"
 	"andon/internal/ledger"
+	"andon/internal/otel"
 	"andon/internal/pkgversion"
 	"andon/internal/redact"
 	"andon/internal/sessionlog"
+	"andon/internal/trace"
 )
 
 const (
 	where        = "projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
 	CollectUsage = "usage: andon retro collect [--days N] [--issue <id>]\n" +
 		"振り返りの入力を JSON に集めて出す（読むだけ。docs/contract.md §20）。\n" +
-		"直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録・gate の判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
+		"直近 N 日（既定 7）に片付いた担当の課題ごとに、起動の記録・結果の記録と内訳・gate の判定と理由・レビュアーの指摘（子の課題を親に束ねる）・\n" +
 		"見送り・オーナーの手直し・見込みと実働・Remember・For AGENTS.md・日報・マージ後のこと（GitHub から）・当て直しの印を1件にまとめる。\n" +
 		"前の振り返りが集めたあとに片付いた束は全文（新しい順に 100 件まで）、それより前の束は要約（タイトル・PR・つまずきの跡の見出し）で出す。\n" +
 		"加えて、期間にオーナーが端末で打った文（Claude Code のセッションログから）と、前の振り返りが切った直しのうちマージから 14 日以内のもの\n" +
-		"（前の振り返りが書いた再発の数つき）を出す。--issue は期間の束1件を全文で出す。秘密の形に合う文字列は伏せてから出す。\n" + where
+		"（前の振り返りが書いた再発の数と、マージの前後に片付いた担当の課題の数字つき）と、期間の Chief of Staff のトークン\n" +
+		"（ハーネスの役ごとの生の記録から）を出す。--issue は期間の束1件を全文で出す。秘密の形に合う文字列は伏せてから出す。\n" + where
 	PatternsUsage = "usage: andon retro patterns <id> [--days N] <patterns.json|->\n" +
 		"パターンの一覧を検査して library/retro.json に書く（振り返りの担当。docs/contract.md §21）。\n" +
 		"collect と同じ入力を集め直し、根拠が別々の2件以上か・入力にあるか・前の振り返りより後のものがあるか・\n" +
@@ -82,6 +85,9 @@ type Options struct {
 	Exclude string
 	// Issue があれば、期間の束のうちその課題だけを全文で集める（--issue）。オーナーが打った文と前の直しは集めない。
 	Issue string
+	// Otel はハーネスの記録のプロジェクトの置き場（~/.local/state/andon/otel/<slug>。docs/contract.md §30）。
+	// Chief of Staff の役ごとの生の記録だけを読む。空なら読まない（Chief of Staff のトークンは null）。
+	Otel string
 }
 
 // Input は andon retro collect の出力（schema/retro.schema.json）。
@@ -98,6 +104,7 @@ type Input struct {
 	Typed         []Typed      `json:"typed"`
 	Questions     []Question   `json:"questions"`
 	Fixes         []Fix        `json:"fixes"`
+	ChiefOfStaff  ChiefOfStaff `json:"chief_of_staff"`
 	Redacted      int          `json:"redacted"`
 	Skipped       []Skip       `json:"skipped"`
 }
@@ -161,29 +168,30 @@ type Cost struct {
 }
 
 type Bundle struct {
-	ID               string       `json:"id"`
-	Title            string       `json:"title"`
-	Profile          string       `json:"profile"`
-	Repo             *string      `json:"repo"`
-	DoneAt           string       `json:"done_at"`
-	Library          string       `json:"library"`
-	Estimate         *string      `json:"estimate"`
-	AgentEstimate    *string      `json:"agent_estimate"`
-	WorkedMinutes    *int         `json:"worked_minutes"`
-	PR               *string      `json:"pr"`
-	Launches         []Launch     `json:"launches"`
-	Outcome          *OutcomeView `json:"outcome"`
-	Gates            []Gate       `json:"gates"`
-	Reviews          []Review     `json:"reviews"`
-	Waived           []any        `json:"waived"`
-	Corrections      []any        `json:"corrections"`
-	Remember         []string     `json:"remember"`
-	AgentsMD         []string     `json:"agents_md"`
-	Gaps             []any        `json:"gaps"`
-	Journal          *string      `json:"journal"`
-	AfterMerge       *AfterMerge  `json:"after_merge"`
-	Reapplied        *bool        `json:"reapplied"`
-	ReappliedReasons []string     `json:"reapplied_reasons"`
+	ID               string           `json:"id"`
+	Title            string           `json:"title"`
+	Profile          string           `json:"profile"`
+	Repo             *string          `json:"repo"`
+	DoneAt           string           `json:"done_at"`
+	Library          string           `json:"library"`
+	Estimate         *string          `json:"estimate"`
+	AgentEstimate    *string          `json:"agent_estimate"`
+	WorkedMinutes    *int             `json:"worked_minutes"`
+	PR               *string          `json:"pr"`
+	Launches         []Launch         `json:"launches"`
+	Outcome          *OutcomeView     `json:"outcome"`
+	Breakdown        *trace.Breakdown `json:"breakdown"`
+	Gates            []Gate           `json:"gates"`
+	Reviews          []Review         `json:"reviews"`
+	Waived           []any            `json:"waived"`
+	Corrections      []any            `json:"corrections"`
+	Remember         []string         `json:"remember"`
+	AgentsMD         []string         `json:"agents_md"`
+	Gaps             []any            `json:"gaps"`
+	Journal          *string          `json:"journal"`
+	AfterMerge       *AfterMerge      `json:"after_merge"`
+	Reapplied        *bool            `json:"reapplied"`
+	ReappliedReasons []string         `json:"reapplied_reasons"`
 
 	mergeCommit string // outcome.json の merge_commit（GitHub がマージ commit を返さないとき、マージ後のことに使う）
 }
@@ -220,6 +228,8 @@ type Fix struct {
 	// RecurredBefore は前の振り返りが書いた再発の数（その retro.json の fixes[].recurred）。マージが境目より後なら 0
 	// （境目より前に数える出来事が無い）。どちらでもなければ nil で、担当は要約の束でも数える（ADR-0039 決めたこと 6 の細部）。
 	RecurredBefore *int `json:"recurred_before"`
+	// BeforeAfter はマージの前と後の数字（ADR-0060 決めたこと 17）。振り返りの担当が見立てを書く材料で、判定の入力にしない。
+	BeforeAfter BeforeAfter `json:"before_after"`
 }
 
 type task struct {
@@ -241,8 +251,12 @@ type reader struct {
 	skipped []Skip
 }
 
+// skip は読めなかったものを 1 行足す。同じ記録を束と前後の数字の両方で読むので、同じ行は 1 つにする。
 func (r *reader) skip(src, format string, a ...any) {
-	r.skipped = append(r.skipped, Skip{Source: src, Reason: fmt.Sprintf(format, a...)})
+	s := Skip{Source: src, Reason: fmt.Sprintf(format, a...)}
+	if !slices.Contains(r.skipped, s) {
+		r.skipped = append(r.skipped, s)
+	}
 }
 
 func (r *reader) rel(p string) string {
@@ -330,6 +344,7 @@ func Collect(o Options) (*Input, error) {
 	}
 
 	if o.Issue == "" {
+		ns := r.nums(tasks)
 		for _, t := range tasks {
 			if !retros[t.parent] || t.reviewer() || t.status != "done" {
 				continue
@@ -339,11 +354,22 @@ func Collect(o Options) (*Input, error) {
 				continue
 			}
 			merged := mustTime(f.MergedAt)
+			var workers []doneTask // 前後の数字に数える担当の課題（片付いた時刻の順）
 			for _, x := range tasks {
-				if at, ok := done[x.id]; ok && x.status == "done" && x.worker() && !retros[x.id] && x.id != t.id && at.After(merged) {
-					f.IssuesAfter++
+				if at, ok := done[x.id]; ok && x.status == "done" && x.worker() && !retros[x.id] && x.id != t.id {
+					workers = append(workers, doneTask{id: x.id, at: at})
+					if at.After(merged) {
+						f.IssuesAfter++
+					}
 				}
 			}
+			sort.SliceStable(workers, func(i, j int) bool {
+				if !workers[i].at.Equal(workers[j].at) {
+					return workers[i].at.Before(workers[j].at)
+				}
+				return workers[i].id < workers[j].id
+			})
+			f.BeforeAfter = ns.beforeAfter(workers, merged)
 			if n, ok := recurred[f.Issue]; ok {
 				f.RecurredBefore = &n
 			} else if prev == nil || !merged.Before(boundary) {
@@ -357,6 +383,13 @@ func Collect(o Options) (*Input, error) {
 		if o.ClaudeDir != "" {
 			in.Typed = r.typed(tasks, since, until)
 		}
+		in.ChiefOfStaff.Tokens, in.ChiefOfStaff.Days = trace.RoleTokens(o.Otel, "chief-of-staff", since, until, func(file string, line int, reason string) {
+			src := "otel/" + file
+			if line > 0 {
+				src += ":" + strconv.Itoa(line)
+			}
+			r.skip(src, "%s", reason)
+		})
 		in.Questions = r.questions(tasks, since, until)
 	}
 	in.Skipped = r.skipped
@@ -549,6 +582,7 @@ func (r *reader) bundle(t *task, doneAt time.Time, tasks []*task) (Bundle, []map
 		b.Outcome = outcomeView(o)
 		b.mergeCommit, _ = o["merge_commit"].(string)
 		b.WorkedMinutes = b.Outcome.WorkedMinutes
+		b.Breakdown = r.breakdown(lib)
 	}
 	b.Gates = r.gates(filepath.Join(lib, "gate"))
 	if rep := r.object(filepath.Join(lib, "report.json")); rep != nil {
@@ -843,7 +877,18 @@ func (r *reader) launches(path string) []map[string]any {
 
 func (r *reader) gates(dir string) []Gate {
 	out := []Gate{}
-	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	// filepath.Glob は読めない置き場を空と返すので、置き場を読んで、無いのと読めないのを分ける
+	// （読めない置き場を記録 0 件と黙って数えると、前後の数字の差し戻しの率が黙って変わる）
+	ents, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		r.skip(r.rel(dir), "置き場が読めない。gate の記録は 0 件として数えた")
+	}
+	var files []string
+	for _, e := range ents {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+			files = append(files, filepath.Join(dir, e.Name()))
+		}
+	}
 	for _, f := range files {
 		v := r.object(f)
 		if v == nil {
@@ -1126,7 +1171,8 @@ func run(cmd string, args []string, stdin io.Reader, stdout, stderr io.Writer) i
 }
 
 func runCollect(root string, days int, issue string, stdout, stderr io.Writer) error {
-	o := Options{Root: root, Now: time.Now(), Days: days, GH: GH, Package: pkgversion.Home(), Issue: issue}
+	o := Options{Root: root, Now: time.Now(), Days: days, GH: GH, Package: pkgversion.Home(), Issue: issue,
+		Otel: filepath.Join(otel.Root(), filepath.Base(root))}
 	if issue == "" {
 		o.ClaudeDir = sessionlog.ClaudeDir()
 	}

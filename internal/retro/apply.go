@@ -16,6 +16,7 @@ import (
 	"andon/internal/contract"
 	"andon/internal/flock"
 	"andon/internal/ledger"
+	"andon/internal/otel"
 	"andon/internal/pkgversion"
 	"andon/internal/sessionlog"
 )
@@ -75,7 +76,7 @@ func runPatterns(root, id string, days int, src string, stdin io.Reader, stdout 
 		return fmt.Errorf("パターンの一覧の形が違う: %v", err)
 	}
 	col, err := Collect(Options{Root: root, Now: time.Now(), Days: days, GH: GH,
-		ClaudeDir: sessionlog.ClaudeDir(), Package: pkgversion.Home(), Exclude: id})
+		ClaudeDir: sessionlog.ClaudeDir(), Package: pkgversion.Home(), Exclude: id, Otel: filepath.Join(otel.Root(), filepath.Base(root))})
 	if err != nil {
 		return err
 	}
@@ -87,7 +88,7 @@ func runPatterns(root, id string, days int, src string, stdin io.Reader, stdout 
 		prev = &PrevRetro{Issue: col.PreviousRetro.Issue, DoneAt: col.PreviousRetro.DoneAt}
 	}
 	p := Patterns{Retro: id, At: col.At, Since: col.Since, Until: col.Until, Days: days, PreviousRetro: prev,
-		Patterns: in.Patterns, Fixes: in.Fixes}
+		Patterns: in.Patterns, Fixes: in.Fixes, ChiefOfStaff: &col.ChiefOfStaff}
 	if err := os.MkdirAll(l.Library(id), 0o755); err != nil {
 		return err
 	}

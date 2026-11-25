@@ -11,7 +11,7 @@
 - `ms-tokens` 課題の担当のセッションの記録（Claude Code）から、トークンを入力・出力・キャッシュの読み書きに分けて数える。記録の無い課題は `null`。見る道: 検証の担当だけ。
   - 見るファイル: `internal/measure/tokens.go`、`internal/sessionlog/sessionlog.go`
 - `ms-breakdown` 内訳の節が、期間に片付いた課題の結果の記録（`library/outcome.json`）の `breakdown` を役ごとに合わせ、Chief of Staff のトークンをハーネスの役ごとの生の記録（`~/.local/state/andon/otel/<slug>/roles/chief-of-staff/<日付>.traces.jsonl`）から数えた日数と一緒に出す。プロファイルごとの節に、片付いた担当の課題がプロファイルごとに出る。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/measure/breakdown.go`、`internal/measure/measure.go`、`internal/trace/roletokens.go`、`schema/measure.schema.json`
+  - 見るファイル: `internal/measure/breakdown.go`、`internal/measure/measure.go`、`internal/trace/roletokens.go`、`internal/trace/check.go`、`schema/measure.schema.json`
 - `ms-table` 人向けの表が「価値:」の行で始まる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/measure/measure.go`
 - `ms-readonly` 打つ前と後で、kanban とセッションの記録が変わらない。見る道: 検証の担当だけ。
@@ -46,6 +46,7 @@
 - `internal/waiting/waiting.go`
 - `schema/measure.schema.json`
 - `internal/trace/roletokens.go`
+- `internal/trace/check.go`
 
 ## 既に見ている検査
 

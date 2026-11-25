@@ -28,8 +28,8 @@ jq -n --argjson p1 "$(pat p1 "$s1" fix)" --argjson p2 "$(pat p2 "$s2" fix)" --ar
 
 # rt-patterns: 振り返りの担当が一覧を書く
 step "rt-patterns: 担当の端末 tw が andon retro patterns を打つ" env HC_TERMINAL_ID=tw "$andon" retro patterns "$r" - <"$tmp/patterns.json"
-[ -f "$lib/retro.json" ] && jq -e --arg r "$r" '.retro == $r and ([.patterns[] | [.id, .decision]] == [["p1", "fix"], ["p2", "fix"], ["p3", "drop"]])' "$lib/retro.json" >/dev/null \
-  && ok "rt-patterns: $r/library/retro.json に、fix 2 件と drop 1 件のパターンの一覧が置かれる" \
+[ -f "$lib/retro.json" ] && jq -e --arg r "$r" '.retro == $r and ([.patterns[] | [.id, .decision]] == [["p1", "fix"], ["p2", "fix"], ["p3", "drop"]]) and .chief_of_staff == {"days": 0, "tokens": null}' "$lib/retro.json" >/dev/null \
+  && ok "rt-patterns: $r/library/retro.json に、fix 2 件と drop 1 件のパターンの一覧と、Chief of Staff のトークン（記録が無いので 0 日）が置かれる" \
   || fail "rt-patterns: retro.json が無いか、形が違う"
 
 # 読めなければ毎回違う値を返し、「課題の数が変わらない」の比べが素通りしない
@@ -68,6 +68,48 @@ echo "  waiting: $(row "$i1") $(row "$i2")"
   && jq -e --arg id "$old" --arg w "$why" '[.items[] | select(.id == $id)] | length == 1 and .[0].call == false and .[0].later == $w' "$tmp/step.out" >/dev/null \
   && ok "rt-old-owner: 前のバージョンが who: person だけ書いた課題 $old を足し直さずに使い、印 later と問いを書いて置いてある行にする" \
   || fail "rt-old-owner: 前のバージョンの課題に印が無いか、課題を足し直した（p2: ${i2:-無い}・前の課題: $old）"
+
+# rt-collect: 全文の束に結果の記録の内訳が写り（形の違う内訳は null と飛ばした記録）、期間の Chief of Staff のトークンが
+# 数えた日数と一緒に出る。振り返りの課題 r を親に持つ直しの、マージの前後の数字が、後が 9 件なら出ず、10 件で出る
+bd='{"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 10, "tool_ms": 0, "blocked_ms": 0,
+ "tokens": {"input": 11, "output": 0, "cache_read": 0, "cache_write": 0}, "errors": {"llm": 0, "tool": 0}, "tools": [],
+ "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}'
+mkdir -p "$tmp/project/kanban/issues/$e1/library" "$tmp/project/kanban/issues/$e2/library"
+echo "{\"result\": \"none\", \"worked_minutes\": 3, \"breakdown\": $bd}" >"$tmp/project/kanban/issues/$e1/library/outcome.json"
+echo '{"result": "none", "worked_minutes": 4, "breakdown": {"role": "worker"}}' >"$tmp/project/kanban/issues/$e2/library/outcome.json"
+otel=$HOME/.local/state/andon/otel/project/roles/chief-of-staff
+mkdir -p "$otel"
+{ echo '{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[{"traceId":"v","spanId":"1","name":"claude_code.llm_request","attributes":[{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}}]}]}]}]}'
+  echo '{壊れた行'; } >"$otel/$(date -u +%F).traces.jsonl"
+workers() { # workers <数>: 片付いた担当の課題を足す
+  local i x
+  for ((i = 0; i < $1; i++)); do x=$("$kanban" add "$run の担当の課題 $i" --profile claude) && "$kanban" done "$x" >/dev/null; done
+}
+workers 8   # マージの前は e1・e2 と合わせて 10 件
+sleep 1; merged=$(date -u +%FT%TZ); sleep 1
+fx=$("$kanban" add "$run の直し" --profile claude --parent "$r")
+"$kanban" done "$fx" >/dev/null
+mkdir -p "$tmp/project/kanban/issues/$fx/library"
+echo "{\"result\": \"merged\", \"pr\": \"https://github.com/example/sample-site/pull/1\", \"merged_at\": \"$merged\"}" >"$tmp/project/kanban/issues/$fx/library/outcome.json"
+workers 9
+step "rt-collect: 担当の端末 tw が andon retro collect を打つ（マージの後が 9 件）" env HC_TERMINAL_ID=tw "$andon" retro collect
+cp "$tmp/step.out" "$tmp/collect-9.json"
+jq -c --arg e1 "$e1" --arg e2 "$e2" --arg fx "$fx" '{e1: (.issues[] | select(.id == $e1) | .breakdown | {role, tokens}), e2: (.issues[] | select(.id == $e2) | .breakdown),
+  chief_of_staff, before_after: (.fixes[] | select(.issue == $fx) | .before_after), skipped: [.skipped[] | select(.source | test("otel|outcome"))]}' "$tmp/collect-9.json" 2>/dev/null | sed 's/^/  collect: /'
+workers 1
+step "rt-collect: 担当の端末 tw が andon retro collect を打つ（マージの後が 10 件）" env HC_TERMINAL_ID=tw "$andon" retro collect
+jq -c --arg fx "$fx" '.fixes[] | select(.issue == $fx) | .before_after' "$tmp/step.out" 2>/dev/null | sed 's/^/  collect: /'
+jq -e --arg e1 "$e1" --arg e2 "$e2" --arg fx "$fx" '(.issues[] | select(.id == $e1) | .breakdown | .role == "worker" and .tokens.input == 11)
+  and (.issues[] | select(.id == $e2) | .breakdown == null)
+  and ([.skipped[] | select((.source | endswith($e2 + "/library/outcome.json")) and (.reason | test("breakdown が schema")))] | length == 1)
+  and .chief_of_staff == {"days": 1, "tokens": {"input": 5, "output": 6, "cache_read": 0, "cache_write": 0}}
+  and ([.skipped[] | select(.source | test("^otel/roles/chief-of-staff/.*:2$"))] | length == 1)
+  and (.fixes[] | select(.issue == $fx) | .before_after | .before.issues == 10 and .after.issues == 9 and .before.numbers == null and .after.numbers == null and (.short | test("後が 9 件")))' \
+  "$tmp/collect-9.json" >/dev/null \
+  && jq -e --arg fx "$fx" '.fixes[] | select(.issue == $fx) | .before_after | .short == null and .before.issues == 10 and .after.issues == 10
+    and .before.numbers.tokens == {"count": 1, "median": 11} and .before.numbers.worked_minutes == {"count": 2, "median": 3.5} and .after.numbers.worked_minutes.count == 0' "$tmp/step.out" >/dev/null \
+  && ok "rt-collect: 課題 $e1 の束に内訳が写り、形の違う $e2 の内訳は null と飛ばした記録、Chief of Staff のトークンが 1 日分。直し $fx の前後の数字は、後が 9 件で出ず、10 件で出る" \
+  || fail "rt-collect: 束の内訳、Chief of Staff のトークン、前後の数字のどれかが違う"
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"

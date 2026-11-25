@@ -4,7 +4,16 @@
   "title": "RetroPatterns",
   "description": "library/retro.json of a retro issue: the patterns the retro worker found in the retro input (docs/contract.md section 20) and the view on each previous fix. Written only by andon retro patterns, which checks it against a fresh collect (evidence is at least two separate units, every id is in the input, at least one is newer than the previous retro, skill and text fixes say why no upper level can stop it, the retro does not fix itself, every pattern is judged; the number of fixes is not limited); read by andon retro apply, which checks it again over the same window. Only these keys.",
   "type": "object",
-  "required": ["retro", "at", "since", "until", "days", "previous_retro", "patterns", "fixes"],
+  "required": [
+    "retro",
+    "at",
+    "since",
+    "until",
+    "days",
+    "previous_retro",
+    "patterns",
+    "fixes"
+  ],
   "additionalProperties": false,
   "properties": {
     "retro": {
@@ -34,27 +43,73 @@
         {
           "description": "The last retro issue that was done by until.",
           "type": "object",
-          "required": ["issue", "done_at"],
+          "required": [
+            "issue",
+            "done_at"
+          ],
           "additionalProperties": false,
           "properties": {
-            "issue": { "description": "The retro issue.", "$ref": "#/$defs/id" },
-            "done_at": { "description": "When it was last set done.", "$ref": "#/$defs/time" }
+            "issue": {
+              "description": "The retro issue.",
+              "$ref": "#/$defs/id"
+            },
+            "done_at": {
+              "description": "When it was last set done.",
+              "$ref": "#/$defs/time"
+            }
           }
         },
-        { "type": "null" }
+        {
+          "type": "null"
+        }
       ]
     },
     "patterns": {
       "description": "The patterns, each judged fix or drop, with the fix patterns in priority order (andon retro apply cuts the fix issues in this order). The number of fixes is not limited.",
       "type": "array",
-      "items": { "$ref": "#/$defs/pattern" },
-      "uniqueKeys": ["id"]
+      "items": {
+        "$ref": "#/$defs/pattern"
+      },
+      "uniqueKeys": [
+        "id"
+      ]
     },
     "fixes": {
       "description": "One view for every previous fix in the collected input (fixes[] there), and no other.",
       "type": "array",
-      "items": { "$ref": "#/$defs/fix" },
-      "uniqueKeys": ["issue"]
+      "items": {
+        "$ref": "#/$defs/fix"
+      },
+      "uniqueKeys": [
+        "issue"
+      ]
+    },
+    "chief_of_staff": {
+      "description": "Chief of Staff tokens over the window the command collected again (the same as chief_of_staff of docs/contract.md section 20), written by andon retro patterns so the number stays in the retro issue folder after the raw records (kept 30 days) are gone. Optional: retro.json written by an earlier version has none.",
+      "type": "object",
+      "required": [
+        "days",
+        "tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many date files had at least one readable line."
+        },
+        "tokens": {
+          "description": "Summed tokens of the claude_code.llm_request spans; null when days is 0 (no record, not zero).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/tokens"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   },
   "$defs": {
@@ -67,7 +122,12 @@
       "description": "A ledger issue id: no /, \\ or :, and not . or ...",
       "type": "string",
       "pattern": "^[^/\\\\:]+$",
-      "not": { "enum": [".", ".."] }
+      "not": {
+        "enum": [
+          ".",
+          ".."
+        ]
+      }
     },
     "line": {
       "description": "One line of text: not only white space, no line break.",
@@ -82,7 +142,18 @@
     "pattern": {
       "description": "One pattern: something that happened at least twice, where to stop it and the judgement.",
       "type": "object",
-      "required": ["id", "summary", "evidence", "level", "action", "target", "effect", "risk", "decision", "reason"],
+      "required": [
+        "id",
+        "summary",
+        "evidence",
+        "level",
+        "action",
+        "target",
+        "effect",
+        "risk",
+        "decision",
+        "reason"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -92,31 +163,59 @@
         },
         "summary": {
           "description": "What happened how many times, one line. Also the title of the fix issue, so it does not start with '-'.",
-          "allOf": [{ "$ref": "#/$defs/line" }, { "not": { "pattern": "^-" } }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/line"
+            },
+            {
+              "not": {
+                "pattern": "^-"
+              }
+            }
+          ]
         },
         "evidence": {
           "description": "Evidence ids from the retro input: an issue id (issues[].id or summaries[].id) or the id of text a person typed (typed[].id, h-...). The command counts two ids of the same issue (a reviewer's issue counts as its parent) or of the same Chief of Staff session as one.",
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "level": {
           "description": "Where to stop it, surest first: design (schema, command check, states), test (test, lint, gate table), check (hook or a check inside a command), skill (skill, profile, playbook, AGENTS.md, REVIEW.md), text (wording, the last resort).",
-          "enum": ["design", "test", "check", "skill", "text"]
+          "enum": [
+            "design",
+            "test",
+            "check",
+            "skill",
+            "text"
+          ]
         },
         "action": {
           "description": "Add, change, or remove (removing an instruction that does not work is a fix too).",
-          "enum": ["add", "change", "remove"]
+          "enum": [
+            "add",
+            "change",
+            "remove"
+          ]
         },
         "target": {
           "description": "What to change.",
           "type": "object",
-          "required": ["kind", "paths"],
+          "required": [
+            "kind",
+            "paths"
+          ],
           "additionalProperties": false,
           "properties": {
             "kind": {
               "description": "andon: the Andon package (skills, profiles, hooks, settings, the gate table). project: a project repository's tests, AGENTS.md, REVIEW.md and the like.",
-              "enum": ["andon", "project"]
+              "enum": [
+                "andon",
+                "project"
+              ]
             },
             "repo": {
               "description": "The repository to change. Required for kind project (one of the project's repos). For kind andon, the Andon repository when the project has it; when it is missing or not one of the project's repos, apply makes a person's issue instead of a fix issue.",
@@ -126,41 +225,132 @@
               "description": "Files or folders in the repository, relative. Not package/skills/retro or internal/retro (the retro does not fix itself).",
               "type": "array",
               "minItems": 1,
-              "items": { "type": "string", "minLength": 1, "not": { "pattern": "^/" } }
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "not": {
+                  "pattern": "^/"
+                }
+              }
             }
           },
           "allOf": [
-            { "if": { "properties": { "kind": { "const": "project" } } }, "then": { "required": ["repo"] } }
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "project"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "repo"
+                ]
+              }
+            }
           ]
         },
         "not_upstream": {
           "description": "Why design, test and check cannot stop it. Required when level is skill or text.",
           "$ref": "#/$defs/line"
         },
-        "effect": { "description": "What stops happening, one line.", "$ref": "#/$defs/line" },
-        "risk": { "description": "What could go wrong, one line.", "$ref": "#/$defs/line" },
+        "effect": {
+          "description": "What stops happening, one line.",
+          "$ref": "#/$defs/line"
+        },
+        "risk": {
+          "description": "What could go wrong, one line.",
+          "$ref": "#/$defs/line"
+        },
         "decision": {
           "description": "fix: cut one fix issue. drop: throw away (no carry-over list).",
-          "enum": ["fix", "drop"]
+          "enum": [
+            "fix",
+            "drop"
+          ]
         },
-        "reason": { "description": "Why fix or drop, one line.", "$ref": "#/$defs/line" }
+        "reason": {
+          "description": "Why fix or drop, one line.",
+          "$ref": "#/$defs/line"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "level": { "enum": ["skill", "text"] } } },
-          "then": { "required": ["not_upstream"] }
+          "if": {
+            "properties": {
+              "level": {
+                "enum": [
+                  "skill",
+                  "text"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "not_upstream"
+            ]
+          }
         }
       ]
     },
     "fix": {
       "description": "The view on one previous fix (a fix issue of an earlier retro merged in the last 14 days).",
       "type": "object",
-      "required": ["issue", "recurred", "view"],
+      "required": [
+        "issue",
+        "recurred",
+        "view"
+      ],
       "additionalProperties": false,
       "properties": {
-        "issue": { "description": "The fix issue (fixes[].issue in the input).", "$ref": "#/$defs/id" },
-        "recurred": { "description": "How many times the same pattern happened after the merge.", "type": "integer", "minimum": 0 },
-        "view": { "description": "The view: kept, or move it to a surer level, or remove the text that did not work. One line.", "$ref": "#/$defs/line" }
+        "issue": {
+          "description": "The fix issue (fixes[].issue in the input).",
+          "$ref": "#/$defs/id"
+        },
+        "recurred": {
+          "description": "How many times the same pattern happened after the merge.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "view": {
+          "description": "The view: kept, or move it to a surer level, or remove the text that did not work. One line.",
+          "$ref": "#/$defs/line"
+        }
+      }
+    },
+    "tokens": {
+      "description": "Tokens summed.",
+      "type": "object",
+      "required": [
+        "input",
+        "output",
+        "cache_read",
+        "cache_write"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input tokens neither read from nor written to the cache."
+        },
+        "output": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Output tokens."
+        },
+        "cache_read": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input tokens read from the cache."
+        },
+        "cache_write": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input tokens written to the cache."
+        }
       }
     }
   }
