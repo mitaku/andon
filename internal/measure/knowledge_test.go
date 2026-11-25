@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -254,5 +255,21 @@ func TestKnowledgeUnreadableReportSkippedOnce(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("読めない report.json が飛ばした記録に %d 行出た: %+v", n, res.Skipped)
+	}
+}
+
+// 日本語の名前のページも、読まれなかったページに並べて schema に通る（wiki のページの名前は ASCII に限らない）。
+func TestKnowledgeUnreadNonASCIIPagePassesSchema(t *testing.T) {
+	root, wiki := knowledgeLedger(t)
+	put(t, filepath.Join(wiki, "topics", "セットアップ.md"), "# x\n")
+	res, err := Measure(knowledgeOpts(root, wiki))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(res.Knowledge.Unread, "topics/セットアップ.md") {
+		t.Fatalf("日本語の名前のページが一覧に無い: %v", res.Knowledge.Unread)
+	}
+	if _, err := contract.Encode(contract.SchemaMeasure, res); err != nil {
+		t.Fatalf("schema/measure.schema.json に通らない: %v", err)
 	}
 }
