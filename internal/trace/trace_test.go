@@ -456,6 +456,57 @@ func TestTraceNoHarness(t *testing.T) {
 	}
 }
 
+// ADR-0061 決めたこと 16: 段の表の 2 行。依頼書に載った wiki のページは課題を足した時刻の点の段、知識の欠けの申告は
+// log.jsonl の最後に報告を書いた時刻の点の段になる。依頼書が目録だけを名指すときと、申告が無いときは段が無い。
+func TestTraceKnowledgeStages(t *testing.T) {
+	f := newFixture(t, false)
+	k := filepath.Join(f.root, "kanban")
+	wiki := filepath.Join(os.Getenv("ANDON_WORKSPACE"), "wiki")
+	issue := filepath.Join(k, "issues", "S-0001")
+	logPath := filepath.Join(k, "log.jsonl")
+	old, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, logPath, string(old)+
+		`{"at":"2026-11-01T02:20:00Z","by":"terminal:t2","id":"S-0001","change":{"report":"r"}}`+"\n"+
+		`{"at":"2026-11-01T02:29:00Z","by":"terminal:t2","id":"S-0001","change":{"report":"r"}}`+"\n"+
+		`{"at":"2026-11-01T02:35:00Z","by":"terminal:r1","id":"S-0001-r1","change":{"report":"r"}}`+"\n")
+	put(t, filepath.Join(issue, "brief.md"), "返事の下書きボタンを足す。\n\n## 読むもの\n- `"+wiki+"/topics/tool-quirks.md`\n- wiki/entities/owner.md と目録 "+wiki+"/index.md\n")
+	put(t, filepath.Join(issue, "library", "report.json"),
+		`{"commit":"`+head+`","gaps":[{"kind":"wrong","where":"topics/tool-quirks.md","text":"古い"},{"kind":"missing","where":"unknown","text":"無い"}]}`)
+	js, errs, code := run(t, f, "S-0001", "--json")
+	if code != 0 {
+		t.Fatalf("終了コード %d: %s", code, errs)
+	}
+	tr := decode(t, js)
+	bw := find(tr.Tree.Children, KindBriefWiki)
+	if len(bw) != 1 || bw[0].Name != "依頼書に載った wiki のページ 2 枚" || !bw[0].Start.Equal(at("00:50:00")) || !bw[0].End.Equal(at("00:50:00")) ||
+		fmt.Sprint(bw[0].Attrs["pages"]) != "[entities/owner.md topics/tool-quirks.md]" {
+		t.Errorf("依頼書に載った wiki のページの段が違う: %+v", bw)
+	}
+	gp := find(tr.Tree.Children, KindGaps)
+	if len(gp) != 1 || gp[0].Name != "知識の欠けの申告 2 件" || !gp[0].Start.Equal(at("02:29:00")) || !gp[0].End.Equal(at("02:29:00")) {
+		t.Errorf("知識の欠けの申告の段が違う（時刻はこの課題の最後の報告の行）: %+v", gp)
+	} else if g, _ := json.Marshal(gp[0].Attrs["gaps"]); !strings.Contains(string(g), `"where":"topics/tool-quirks.md"`) {
+		t.Errorf("申告の中身が段に無い: %s", g)
+	}
+	out, _, _ := run(t, f, "S-0001")
+	for _, s := range []string{"依頼書に載った wiki のページ 2 枚", "知識の欠けの申告 2 件"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("表に %q が無い:\n%s", s, out)
+		}
+	}
+
+	// 目録だけの依頼書・空の申告は段にしない
+	put(t, filepath.Join(issue, "brief.md"), "目録 "+wiki+"/index.md を読む。docs/wiki/topics/a.md は別の置き場。\n")
+	put(t, filepath.Join(issue, "library", "report.json"), `{"commit":"`+head+`","gaps":[]}`)
+	tr = decode(t, func() string { s, _, _ := run(t, f, "S-0001", "--json"); return s }())
+	if n := len(find(tr.Tree.Children, KindBriefWiki)) + len(find(tr.Tree.Children, KindGaps)); n != 0 {
+		t.Errorf("目録だけの依頼書か空の申告が段になった: %d", n)
+	}
+}
+
 // 送り手の誤りで span の親子が輪になっても止まらず、全部の span を出し、--otlp の親の無い span は 1 つのまま。
 func TestTraceSpanCycle(t *testing.T) {
 	f := newFixture(t, false)

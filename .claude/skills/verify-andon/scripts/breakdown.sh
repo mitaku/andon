@@ -8,10 +8,13 @@
 #   - outcome.json に breakdown のキーが無ければ fail（当てた dispatcher が書いていない）。
 #   - breakdown が null なのに課題の置き場の traces.jsonl に行があれば fail（記録があるのに数えていない）。行が無ければ note（受け口が止まっていた）。
 #   - 内訳のトークンの合計（4 種の和）が sessions[].cost のトークンの合計の上下 5% に入らなければ fail、入れば ok に数える。
-# 比べた課題があれば ok、片付いた課題が無いか比べられなければ note（未確認）。
+#   - 内訳が null でなければ、知識の読み breakdown.knowledge（ot-knowledge。ADR-0061 受け入れ条件 13）を見る。キーが無ければ fail
+#     （当てた dispatcher が数えていない）。読んだページがあれば、その課題を ok に数える。
+# 比べた課題があれば ok、片付いた課題が無いか比べられなければ note（未確認）。ot-knowledge は、ページを読んだ課題があれば ok、
+# 無ければ note（wiki のページを読んだ担当の課題を Chief of Staff に 1 件片付けてもらってから打ち直す）。
 breakdown_check() {
-  local root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel grace=${BREAKDOWN_GRACE:-600} now kanban id slug o oat done_at bsum ssum tr
-  local nb=0 ndone=0 bpairs=()
+  local root=${XDG_STATE_HOME:-$HOME/.local/state}/andon/otel grace=${BREAKDOWN_GRACE:-600} now kanban id slug o oat done_at bsum ssum tr kpages
+  local nb=0 ndone=0 bpairs=() nk=0 kread=()
   now=$(date -u +%s)
   while IFS=$'\t' read -r kanban id; do
     [ -n "$id" ] || continue
@@ -46,6 +49,16 @@ breakdown_check() {
       fi
       continue
     fi
+    if [ "$bsum" = 0 ]; then
+      : # モデルの呼び出しの span が無い内訳（Claude Code の span が無ければ knowledge も無い）は知識の読みを見ない
+    elif [ "$(jq -r '.breakdown | has("knowledge")' "$o" 2>/dev/null)" != true ]; then
+      fail "ot-knowledge: $o の内訳に knowledge のキーが無い（当てた dispatcher が知識の読みを数えていない）"
+    else
+      nk=$((nk + 1))
+      kpages=$(jq -r '[.breakdown.knowledge.pages[]? | "\(.path)×\(.reads)"] | join(",")' "$o" 2>/dev/null) || kpages=
+      echo "  | $slug/$id: 知識の読み 目録 $(jq -r '.breakdown.knowledge.index_reads // 0' "$o" 2>/dev/null)・ページ ${kpages:-無し}"
+      [ -z "$kpages" ] || kread+=("$id($kpages)")
+    fi
     if [ "${ssum:-null}" = null ] || [ "$ssum" = 0 ]; then
       echo "note ot-breakdown: $slug/$id はセッションの記録のトークンが無い（セッションの記録が読めない）。比べていない"
       continue
@@ -64,5 +77,10 @@ breakdown_check() {
     echo "note ot-breakdown: 当てたあとに起動した Claude Code の担当の課題が、まだ片付いていない。Chief of Staff に試しの課題を 1 件片付けてもらってから打ち直す"
   else
     echo "note ot-breakdown: 当てたあとに片付いた担当の課題 $ndone 件は、どれも比べられなかった（上の note）"
+  fi
+  if [ "${#kread[@]}" -gt 0 ]; then
+    ok "ot-knowledge: 当てたあとに片付いた担当の課題の内訳に、読んだ wiki のページがある（${kread[*]}）"
+  else
+    echo "note ot-knowledge: 当てたあとに片付いた担当の課題 $nk 件の内訳に、読んだ wiki のページが無い。wiki のページを読んだ担当の課題を Chief of Staff に 1 件片付けてもらってから打ち直す"
   fi
 }

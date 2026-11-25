@@ -17,7 +17,7 @@ import (
 )
 
 const Usage = "usage: andon issue trace <id> [--json | --otlp]\n" +
-	"課題 1 件の流れを、kanban の記録から導いた段（列・起動・走らせた command・問い・レビュー・gate・端末が死んでいた間・マージ）と、\n" +
+	"課題 1 件の流れを、kanban の記録から導いた段（列・起動・走らせた command・問い・レビュー・gate・端末が死んでいた間・マージ・依頼書に載った wiki のページ・知識の欠けの申告）と、\n" +
 	"その下のハーネスのトレース（受け口の置き場の記録。プロンプト 1 つ分・モデルの呼び出し・ツール）の 1 本の木にして出す。\n" +
 	"レビュアーの課題の起動と記録は、レビューの段の下に入る。読むだけで、何も書かない。\n" +
 	"既定は人が読む表で、プロンプト 1 つ分までを 1 行ずつ出す。--json は木の全部を出す。\n" +
@@ -57,7 +57,7 @@ func Main(args []string, stdout, stderr io.Writer, statePath func(slug string) s
 		root = l.Root
 	}
 	slug := filepath.Base(root)
-	o := Options{Root: root, Otel: filepath.Join(otel.Root(), slug), Now: time.Now().UTC()}
+	o := Options{Root: root, Otel: filepath.Join(otel.Root(), slug), Now: time.Now().UTC(), Wiki: WikiDir()}
 	if statePath != nil {
 		o.State = statePath(slug)
 	}
@@ -209,7 +209,7 @@ func length(n *Node) string {
 		return "-"
 	case n.End == nil:
 		return "続いている"
-	case n.End.Equal(*n.Start) && (n.Kind == KindGate || n.Kind == KindMerge || n.Kind == KindColumn):
+	case n.End.Equal(*n.Start) && (n.Kind == KindGate || n.Kind == KindMerge || n.Kind == KindColumn || n.Kind == KindBriefWiki || n.Kind == KindGaps):
 		return "点"
 	}
 	d := n.End.Sub(*n.Start)

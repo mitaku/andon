@@ -468,6 +468,29 @@
               "minimum": 0
             }
           }
+        },
+        "knowledge": {
+          "description": "Wiki reads (ADR-0061): the cell wiki's pages and index the issue's sessions read, counted from claude_code.tool spans: a Read span's file_path, and the paths a Bash span's full_command names (under the wiki store's absolute path, or wiki/ after a word break). One tool span counts a page once. Pages are the .md files under entities/, topics/ and sources/, and overview.md; log.md and raw/ are not counted. Absent when the breakdown has no claude_code span (a Codex record carries no paths: no record, not zero reads), and in records written before this key existed.",
+          "type": "object",
+          "required": [
+            "index_reads",
+            "pages"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "index_reads": {
+              "description": "Tool spans that read the wiki index (index.md), kept apart from the pages.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "pages": {
+              "description": "Pages read at least once, most reads first, then by path.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/page_read"
+              }
+            }
+          }
         }
       }
     },
@@ -514,6 +537,27 @@
           "description": "Failed spans.",
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "page_read": {
+      "description": "One wiki page's reads.",
+      "type": "object",
+      "required": [
+        "path",
+        "reads"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "The page's path relative to the wiki store (topics/tool-quirks.md).",
+          "type": "string",
+          "pattern": "^(?:overview\\.md|(?:entities|topics|sources)/[^/].*\\.md)$"
+        },
+        "reads": {
+          "description": "Tool spans that read the page.",
+          "type": "integer",
+          "minimum": 1
         }
       }
     }

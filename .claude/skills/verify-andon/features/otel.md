@@ -15,9 +15,11 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 - `ot-restart` 受け口を止めてから担当を起動すると、起動が通り、起動のあと受け口が listen している。その担当の端末を片付けたあとも listen している。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/otel/env.go`、`internal/otel/serve.go`、`package/templates/`
 - `ot-trace` `ot-records` が記録を数えた課題の 1 つで、当てたパッケージの `andon issue trace <id> --otlp` が終了コード 0 で、出力の span がどれも同じ traceId を持ち、親の無い span が 1 つだけで、ハーネスの `claude_code.llm_request` の span が入り、`claude_code.interaction` の 1 つ以上が同じ session の起動の span の下に入っている。数えた課題のレビュアーの課題に dispatcher の控えの `gone` の項目があれば、その課題を選び、項目の数だけ「端末が死んでいた」の段がレビューの段の下に出る（そういう課題が無ければ note を出し、その部分は未確認）。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/trace/trace.go`、`internal/trace/harness.go`、`internal/trace/output.go`
+  - 見るファイル: `internal/trace/trace.go`、`internal/trace/harness.go`、`internal/trace/output.go`、`internal/trace/knowledge.go`
 - `ot-breakdown` 当てたあとに当てた dispatcher が書いた、Claude Code の担当の課題の結果の記録（`library/outcome.json`）に `breakdown` があり、そのトークンの合計（4 種の和）が同じ記録の `sessions[].cost` のトークンの合計の上下 5% に入る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/trace/breakdown.go`、`internal/dispatcher/outcome.go`、`internal/ledger/worked.go`、`schema/outcome.schema.json`
+- `ot-knowledge` `ot-breakdown` が読んだ結果の記録のうち、内訳にモデルの呼び出しの記録がある課題ごとに、内訳に知識の読み `knowledge` のキーがある。そのうち 1 件以上に、読んだ wiki のページ（`pages`）がある（ADR-0061 受け入れ条件 13 の前半）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/trace/knowledge.go`、`internal/trace/breakdown.go`、`internal/dispatcher/outcome.go`、`schema/outcome.schema.json`
 
 ## 辿り着き方（利用者から）
 
@@ -40,6 +42,7 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 - **記録を読む（`ot-records`。ADR-0060 受け入れ条件 14）。** 記録は、Chief of Staff が起動した担当が 1 ターン以上動いたあとに読む。当てたあとの起動ごとに、課題の `traces.jsonl` の数が出る。`ok   ot-records` が見えれば、`claude_code.llm_request` と `andon.issue`・`andon.role` が載り、`user.email` が落ちている。証拠には、同じ置き場に打った `jq -c 'select(.resourceSpans[0].scopeSpans[].spans[].name == "claude_code.llm_request") | .resourceSpans[0].resource.attributes | map(select(.key | startswith("andon."))) ' ~/.local/state/andon/otel/<slug>/issues/<id>/traces.jsonl | sort -u` の出力と、`grep -c '"user.email"' <同じファイル>` が 0 であることを添える。
 - **課題 1 件の流れを出す（`ot-trace`。ADR-0060 受け入れ条件 8〜10 のセルの本物での確かめ）。** `ot-records` が ok になった回だけ動く。`ok   ot-trace` が見えれば、本物の kanban と置き場から 1 本のトレースが出て、ハーネスの記録が起動の下に結ばれている。`note ot-trace` が出たら、レビュアーの端末が死んでいた間は確かめていないと報告に書く。表の形は `cd <プロジェクトの置き場> && andon issue trace <id>` で読み、証拠に添える。
 - **結果の記録の内訳を読む（`ot-breakdown`。ADR-0060 受け入れ条件 16）。** `ot-records` が ok になった回だけ動く。当てた時刻より後に dispatcher が書いた（`at` が当てた時刻より後の）Claude Code の担当の課題の `outcome.json` ごとに、`breakdown` のトークンの合計と `sessions[].cost` のトークンの合計と、その差の割合が出る。`ok   ot-breakdown` が見えれば、内訳が書かれ、2 つの合計が上下 5% に入る。片付いた課題がまだ無ければ `note` が出て未確認になる（道の終了コードは変わらない）。done になって 10 分を過ぎても結果の記録が無い課題、置き場に記録があるのに内訳が `null` の課題、`breakdown` のキーが無い課題は `FAIL` になる（判定は `scripts/breakdown.sh`）。Chief of Staff に、試しの課題を 1 件片付けてもらってから打ち直す。`FAIL` なら、端末を片付けるときに最後の分が受け口へ送られ切っていないか（その課題の `traces.jsonl` の最後の行の時刻と、`log.jsonl` の done の行の時刻を比べる）を調べ、結果を報告に書く。証拠には、`jq -c '{issue, b: ([.breakdown.tokens[]] | add), s: ([.sessions[].cost.tokens // {} | .[]] | add)}' <その outcome.json>` の出力を添える。
+- **結果の記録の知識の読みを読む（`ot-knowledge`。ADR-0061 受け入れ条件 13 の前半）。** `ot-breakdown` と同じ結果の記録を読み、課題ごとに目録の読みの数と読んだページが出る。`ok   ot-knowledge` が見えれば、wiki のページを読んだ担当の課題の内訳に、そのページが数えられている。読んだページのある課題がまだ無ければ `note` が出て未確認になる。Chief of Staff に、wiki のページを読む担当の課題を 1 件片付けてもらってから打ち直す。内訳にモデルの呼び出しの記録があるのに `knowledge` のキーが無ければ `FAIL` になる（判定は `scripts/breakdown.sh`）。受け入れ条件 13 の後半（申告を 1 件書いた課題を片付けたあとの `andon triage collect` に種類 `gap` の項目がある）は、この道では見ない。検証の担当が `andon triage collect` を打って読み、報告に書く。証拠には、`jq -c '{issue, k: .breakdown.knowledge}' <その outcome.json>` の出力を添える。
 - **Codex の記録を読む（`ot-codex`。ADR-0060 受け入れ条件 17）。** 記録は、当てたあとに Codex のプロファイルで起動したレビュアー（か担当）が 1 ターン以上動いたあとに読む。Codex の起動ごとに、課題の `traces.jsonl` と `logs.jsonl` の行の数が出る。`ok   ot-codex` が見えれば、Codex の記録が課題に結ばれて書かれ、個人の属性とツールの出力の写しが落ちている。記録が無いときは `note` が出て、道の終了コードは変わらない（受け入れ条件 17 は、無いこと自体を報告に書く条件）。そのときは、`hc read <その起動の端末>` で Codex が立ち上がったかと、受け口のログ（`/tmp/andon-otel.log` の「書かずに捨てた」の行）を読み、どちらの欠けかを報告に書く。証拠には、`jq -c '(.resourceSpans // .resourceLogs)[0].resource.attributes | map(select(.key | startswith("andon.")))' ~/.local/state/andon/otel/<slug>/issues/<id>/*.jsonl | sort -u` の出力と、`grep -c '"user.email"' <同じファイル>` が 0 であることを添える。
 - **受け口が止まっていても起動が通ることを読む（`ot-restart`。ADR-0060 受け入れ条件 15）。** 検証の担当は自分で担当を起動しない。報告の `## Next` に「受け口を止めてから試しの課題を 1 件起動する」と書き、Chief of Staff に頼む。止め方は、`ss -ltnp 'sport = :4318'` で受け口の PID を引いて `kill <PID>` する（`pkill -f` は使わない）。止めたあと `curl -s -m 2 http://127.0.0.1:4318/` が返らないことを確かめる。Chief of Staff が起動した担当の端末を `hc read <address>` で読み、Claude Code が立ち上がったことを確かめる。起動のあと `curl -s -m 2 http://127.0.0.1:4318/` が `andon-otel` を返すこと、その担当の端末が片付いたあと（`hc get <address>` が見つからない）にも同じく返すことを確かめ、打った command と出力を報告に書く。
 
@@ -60,6 +63,7 @@ Claude Code と Codex で起動した担当・レビュアー・Chief of Staff�
 - `go test ./internal/delegate/`（`project.json` の `otel` の形）
 - `go test ./internal/trace/`（`andon issue trace` の段の導き方・起動への結び方・`--otlp` の 1 本のトレース・記録が無いときの 1 行。内訳の数え方。偽の kanban と偽の置き場で）
 - `go test ./internal/dispatcher/` の `TestOutcomeBreakdown`（受け口に見本を POST した置き場から、結果の記録に内訳が入り、レビュアーの課題の分が親に入らず、記録の無い課題は `null`）
+- `go test ./internal/dispatcher/` の `TestOutcomeBreakdownKnowledge`（受け口に wiki のページと目録を読むツールの span を POST した置き場から、結果の記録の内訳に知識の読みが入り、wiki の外のファイルは数えない）
 
 ## 落とし穴
 
