@@ -127,6 +127,12 @@ func (p *project) outcome(id string) bool {
 	if err == nil {
 		if err = os.MkdirAll(filepath.Dir(path), 0o755); err == nil {
 			err = contract.Write(path, contract.SchemaOutcome, o)
+			if err != nil && o.Breakdown != nil {
+				// 内訳は送り手の記録から数えるので、schema の外の値が混ざりうる。内訳のために結果の記録を止めない
+				p.logf("%s の内訳が schema を通らない（breakdown は null で書く）: %v", id, err)
+				o.Breakdown = nil
+				err = contract.Write(path, contract.SchemaOutcome, o)
+			}
 		}
 	}
 	if err == nil {

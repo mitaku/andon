@@ -3,6 +3,7 @@ package trace
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -281,10 +282,10 @@ func count(spans []*span) *Breakdown {
 			b.Interactions++
 		case "claude_code.llm_request":
 			b.LLMMs += d
-			b.Tokens.Input += intAttr(sp.attrs, "input_tokens")
-			b.Tokens.Output += intAttr(sp.attrs, "output_tokens")
-			b.Tokens.CacheRead += intAttr(sp.attrs, "cache_read_tokens")
-			b.Tokens.CacheWrite += intAttr(sp.attrs, "cache_creation_tokens")
+			add(&b.Tokens.Input, intAttr(sp.attrs, "input_tokens"))
+			add(&b.Tokens.Output, intAttr(sp.attrs, "output_tokens"))
+			add(&b.Tokens.CacheRead, intAttr(sp.attrs, "cache_read_tokens"))
+			add(&b.Tokens.CacheWrite, intAttr(sp.attrs, "cache_creation_tokens"))
 			if failed(sp) {
 				b.Errors.LLM++
 			}
@@ -343,6 +344,18 @@ func argv(t ToolUse) string {
 		return ""
 	}
 	return "\x00" + *t.Argv0 // nil を "" の argv0 より前にする
+}
+
+// add は送り手の数を足す。負の値（送り手の誤り）は数えに入れず、和は int64 の上限で止める（内訳は schema の 0 以上を守る）。
+func add(sum *int64, v int64) {
+	if v <= 0 {
+		return
+	}
+	if *sum > math.MaxInt64-v {
+		*sum = math.MaxInt64
+		return
+	}
+	*sum += v
 }
 
 // toolName はツールの名前と、Bash なら最初の語（bash_argv0、無ければ full_command の最初の語）。

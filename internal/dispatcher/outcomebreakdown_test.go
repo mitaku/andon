@@ -168,3 +168,54 @@ func TestOutcomeBreakdown(t *testing.T) {
 		t.Errorf("記録の無い課題の breakdown が null でない: %s", rawn)
 	}
 }
+
+// 生の記録の値が schema の外（負のトークン・足すと int64 を越える数）でも、結果の記録は書く。
+// 数えるほうは負の値を数えに入れず、和を上限で止める。それでも schema を通らない内訳は null にしてログに 1 行残す。
+func TestOutcomeBreakdownBadValues(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	const neg, big = "D-0003", "D-0004"
+	p := outcomeProject(t,
+		statusRow(neg, "2026-11-19T09:00:00Z", "doing"), statusRow(neg, "2026-11-19T09:10:00Z", "done"),
+		statusRow(big, "2026-11-19T09:00:00Z", "doing"), statusRow(big, "2026-11-19T09:10:00Z", "done"),
+	)
+	p.l.Slug = "demo"
+	p.tasks = []ledger.Issue{{"id": neg, "profile": "claude"}, {"id": big, "profile": "claude"}}
+	span := func(id, tokens string) string {
+		return `{"traceId":"c43ee97f7dd8f491fa3848a4438c5d81","spanId":"` + id + `","name":"claude_code.llm_request",` +
+			`"startTimeUnixNano":"1763542800000000000","endTimeUnixNano":"1763542801000000000","attributes":[` +
+			`{"key":"input_tokens","value":{"intValue":"` + tokens + `"}},{"key":"output_tokens","value":{"intValue":"7"}}]}`
+	}
+	put := func(id string, spans ...string) {
+		writeFile(t, filepath.Join(otel.Root(), "demo", "issues", id, "traces.jsonl"),
+			`{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[`+strings.Join(spans, ",")+`]}]}]}`+"\n")
+	}
+	put(neg, span("a1", "-5"), span("a2", "3"))
+	put(big, span("b1", "9223372036854775807"), span("b2", "9223372036854775807"))
+	p.st.Outcomes.Add(neg)
+	p.st.Outcomes.Add(big)
+	p.outcomes()
+	for id, want := range map[string]string{neg: `{"input":3,"output":14,"cache_read":0,"cache_write":0}`,
+		big: `{"input":9223372036854775807,"output":14,"cache_read":0,"cache_write":0}`} {
+		b, err := os.ReadFile(filepath.Join(p.l.Library(id), outcomeFile))
+		if err != nil {
+			t.Fatalf("%s の値の外れた記録で outcome.json を書いていない: %v", id, err)
+		}
+		var v struct {
+			Breakdown *struct {
+				Tokens json.RawMessage `json:"tokens"`
+			} `json:"breakdown"`
+		}
+		if err := json.Unmarshal(b, &v); err != nil || v.Breakdown == nil || compactJSON(t, v.Breakdown.Tokens) != want {
+			t.Errorf("%s の内訳のトークンが %s でない: %s", id, want, b)
+		}
+	}
+}
+
+func compactJSON(t *testing.T, raw []byte) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := json.Compact(&b, raw); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
+}
