@@ -1,10 +1,12 @@
 package trace
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -69,6 +71,8 @@ type BreakdownWaits struct {
 // sessions は起動の記録のセッション（outcome.json の sessions[] と同じ並び。id の決まらないものは ""）、role は起動の記録の役
 // （無ければ ""。そのときは記録の resource 属性 andon.role が起動の記録の役のどれかなら、それを使う）。
 // 生の記録が 1 行も無ければ nil（breakdown は null）。ファイルがあるのに読めなければ誤り。JSON として読めない行は飛ばす。
+// 同じ span（traceId と spanId が同じ）は 1 つに数える。dispatcher の見回りの中で読むので、数えに使う属性だけを持って読む
+// （Codex のレビュアーの記録は 1 本で数十 MB になる）。
 func BreakdownOf(dir, id string, sessions []string, role string) (*Breakdown, error) {
 	r := &reader{o: Options{Otel: dir}}
 	base := filepath.Join(dir, "issues", id)
@@ -76,35 +80,68 @@ func BreakdownOf(dir, id string, sessions []string, role string) (*Breakdown, er
 	if r.lines(filepath.Join(base, "logs.jsonl"), func(int, []byte) { nlogs++ }) == fileUnreadable {
 		return nil, fmt.Errorf("ハーネスの記録 %s が読めない", r.skipped[len(r.skipped)-1].File)
 	}
-	ntraces := 0
-	path := filepath.Join(base, "traces.jsonl")
-	if r.lines(path, func(int, []byte) { ntraces++ }) == fileUnreadable {
+	var (
+		spans    []*span
+		seen     = map[string]bool{} // 数える span（trace/span の id）
+		sessSeen = map[string]bool{} // span が運んだセッションの id
+		resRole  string
+		ntraces  int
+	)
+	st := r.lines(filepath.Join(base, "traces.jsonl"), func(n int, b []byte) {
+		ntraces++
+		var line lightLine
+		if json.Unmarshal(b, &line) != nil {
+			return
+		}
+		for _, rs := range line.ResourceSpans {
+			res := rs.Resource.attrs()
+			if s, _ := res["andon.role"].(string); resRole == "" && launchRoles[s] {
+				resRole = s
+			}
+			for _, ss := range rs.ScopeSpans {
+				for _, x := range ss.Spans {
+					attrs := attrsLight(x.Attributes)
+					if _, ok := attrs["session.id"]; !ok {
+						if v, ok := res["session.id"]; ok {
+							attrs["session.id"] = v
+						}
+					}
+					for _, k := range sessionKeys {
+						if v, ok := attrs[k].(string); ok && v != "" {
+							sessSeen[v] = true
+						}
+					}
+					if !strings.HasPrefix(x.Name, "claude_code.") || x.TraceID == "" || x.SpanID == "" {
+						continue
+					}
+					start, ok1 := lightNanos(x.Start)
+					end, ok2 := lightNanos(x.End)
+					if !ok1 || !ok2 || seen[x.TraceID+"/"+x.SpanID] {
+						continue
+					}
+					seen[x.TraceID+"/"+x.SpanID] = true
+					code, _ := lightInt(x.Status.Code)
+					spans = append(spans, &span{trace: x.TraceID, id: x.SpanID, parent: x.Parent, name: x.Name,
+						start: start, end: end, attrs: attrs, status: int(code)})
+				}
+			}
+		}
+	})
+	if st == fileUnreadable {
 		return nil, fmt.Errorf("ハーネスの記録 %s が読めない", r.skipped[len(r.skipped)-1].File)
 	}
 	if nlogs == 0 && ntraces == 0 {
 		return nil, nil
 	}
-	spans, st := r.spans(path)
-	if st == fileUnreadable {
-		return nil, fmt.Errorf("ハーネスの記録 %s が読めない", r.skipped[len(r.skipped)-1].File)
-	}
 	b := count(spans)
 	b.Coverage.Sessions = len(sessions)
-	seen := map[string]bool{}
-	for _, sp := range spans {
-		for _, k := range sessionKeys {
-			if s, ok := sp.attrs[k].(string); ok && s != "" {
-				seen[s] = true
-			}
-		}
-	}
 	for _, s := range sessions {
-		if s != "" && seen[s] {
+		if s != "" && sessSeen[s] {
 			b.Coverage.Traced++
 		}
 	}
 	if role == "" {
-		role = resourceRole(spans)
+		role = resRole
 	}
 	if role != "" {
 		b.Role = &role
@@ -115,15 +152,86 @@ func BreakdownOf(dir, id string, sessions []string, role string) (*Breakdown, er
 // sessionKeys は span がセッションの id を運ぶ属性（Claude Code は session.id、Codex は conversation.id）。
 var sessionKeys = []string{"session.id", "gen_ai.conversation.id", "conversation.id"}
 
-// resourceRole は記録の resource 属性 andon.role のうち、起動の記録の役のどれかであるもの（最初に出たもの）。
-func resourceRole(spans []*span) string {
-	for _, sp := range spans {
-		attrs := attrsOf(sp.group.resource)
-		if s, _ := attrs["andon.role"].(string); launchRoles[s] {
-			return s
+// keptAttrs は内訳の数えに使う属性（ほかは持たない）。
+var keptAttrs = map[string]bool{
+	"session.id": true, "gen_ai.conversation.id": true, "conversation.id": true, "andon.role": true,
+	"tool_name": true, "gen_ai.tool.name": true, "bash_argv0": true, "full_command": true, "success": true,
+	"input_tokens": true, "output_tokens": true, "cache_read_tokens": true, "cache_creation_tokens": true,
+}
+
+// lightLine は置き場の traces.jsonl の 1 行のうち、内訳に使う所。
+type lightLine struct {
+	ResourceSpans []struct {
+		Resource   lightAttrs `json:"resource"`
+		ScopeSpans []struct {
+			Spans []struct {
+				TraceID    string          `json:"traceId"`
+				SpanID     string          `json:"spanId"`
+				Parent     string          `json:"parentSpanId"`
+				Name       string          `json:"name"`
+				Start      json.RawMessage `json:"startTimeUnixNano"`
+				End        json.RawMessage `json:"endTimeUnixNano"`
+				Attributes []lightAttr     `json:"attributes"`
+				Status     struct {
+					Code json.RawMessage `json:"code"`
+				} `json:"status"`
+			} `json:"spans"`
+		} `json:"scopeSpans"`
+	} `json:"resourceSpans"`
+}
+
+type lightAttrs struct {
+	Attributes []lightAttr `json:"attributes"`
+}
+
+func (a lightAttrs) attrs() map[string]any { return attrsLight(a.Attributes) }
+
+type lightAttr struct {
+	Key   string `json:"key"`
+	Value struct {
+		String *string         `json:"stringValue"`
+		Int    json.RawMessage `json:"intValue"`
+		Bool   *bool           `json:"boolValue"`
+	} `json:"value"`
+}
+
+// attrsLight は属性の並びのうち keptAttrs のものを、文字列・int64・真偽値の値で返す。
+func attrsLight(list []lightAttr) map[string]any {
+	out := map[string]any{}
+	for _, a := range list {
+		if !keptAttrs[a.Key] {
+			continue
+		}
+		switch {
+		case a.Value.String != nil:
+			out[a.Key] = *a.Value.String
+		case a.Value.Bool != nil:
+			out[a.Key] = *a.Value.Bool
+		case len(a.Value.Int) > 0:
+			if n, ok := lightInt(a.Value.Int); ok {
+				out[a.Key] = n
+			}
 		}
 	}
-	return ""
+	return out
+}
+
+// lightInt は OTLP の JSON の 64 ビットの整数（文字列か数）を読む。
+func lightInt(raw json.RawMessage) (int64, bool) {
+	s := strings.Trim(string(raw), `"`)
+	if s == "" || s == "null" {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	return n, err == nil
+}
+
+func lightNanos(raw json.RawMessage) (time.Time, bool) {
+	n, ok := lightInt(raw)
+	if !ok || n <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(0, n).UTC(), true
 }
 
 // count は span を数える。サブエージェントの span は親のセッションの span の下に入るので、同じ課題の数に入る。
