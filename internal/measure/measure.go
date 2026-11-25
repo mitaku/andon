@@ -5,7 +5,8 @@
 // questions.yaml・library/report.json・library/gate/<sha>.json・library/corrections.json と、
 // GitHub のマージされた PR の一覧（gh pr list。repo ごとに1回）と、dispatcher の記録だけの通知
 // （<slug>.recorded.jsonl）・届けた通知の記録（<slug>.delivered.jsonl）と、担当とレビュアーのセッションの記録
-// （Claude Code・Codex。トークン数だけ。tokens.go）。Markdown は読まない。
+// （Claude Code・Codex。トークン数だけ。tokens.go）と、片付いた課題の outcome.json の breakdown と、ハーネスの Chief of Staff の
+// 役ごとの生の記録（内訳の節とプロファイルごとの節。breakdown.go）。Markdown は読まない。
 // 読めない記録は止まらずに飛ばし、飛ばした件数と理由を出す（黙って 0 に数えない）。
 package measure
 
@@ -31,13 +32,16 @@ import (
 	"andon/internal/dispatcher"
 	"andon/internal/ghpr"
 	"andon/internal/ledger"
+	"andon/internal/otel"
+	"andon/internal/trace"
 	"andon/internal/waiting"
 )
 
 const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
 	"kanban（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
 	"gate の差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
-	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）を数える。\n" +
+	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）と、片付いた課題の内訳（outcome.json の breakdown を\n" +
+	"役ごとに合わせたものと、Chief of Staff の分〈ハーネスの生の記録から〉）と、プロファイルごとの数を数える。\n" +
 	"読むだけで、何も書かない。\n" +
 	"期間は UTC の日付で両端を含む。既定は --until が今日、--since がその6日前（7日間）。--json は docs/contract.md §13 の形。\n"
 
@@ -54,6 +58,9 @@ type Options struct {
 	Recorded, Delivered string
 	// ClaudeDir は Claude Code の設定の置き場（projects/ の親）、CodexSessions は Codex の記録の置き場（sessions）。空なら読まない。
 	ClaudeDir, CodexSessions string
+	// Otel はハーネスの記録のプロジェクトの置き場（~/.local/state/andon/otel/<slug>。docs/contract.md §30）。
+	// Chief of Staff の役ごとの生の記録だけを読む。空なら読まない。
+	Otel string
 }
 
 // Stat は件数と平均か中央値（件数が 0 なら null）。
@@ -70,20 +77,22 @@ type Rate struct {
 
 // Result は andon measure --json の出力（schema/measure.schema.json）。
 type Result struct {
-	Project    string     `json:"project"`
-	Since      string     `json:"since"`
-	Until      string     `json:"until"`
-	Days       int        `json:"days"`
-	Value      Value      `json:"value"`
-	Flow       Flow       `json:"flow"`
-	Efficiency Efficiency `json:"efficiency"`
-	Counter    Counter    `json:"counter"`
-	News       News       `json:"news"`
-	PRs        []PR       `json:"prs"`
-	Estimate   Estimate   `json:"estimate"`
-	Issues     []Issue    `json:"issues"`
-	Tokens     []Tokens   `json:"tokens"`
-	Skipped    []Skip     `json:"skipped"`
+	Project    string           `json:"project"`
+	Since      string           `json:"since"`
+	Until      string           `json:"until"`
+	Days       int              `json:"days"`
+	Value      Value            `json:"value"`
+	Flow       Flow             `json:"flow"`
+	Efficiency Efficiency       `json:"efficiency"`
+	Counter    Counter          `json:"counter"`
+	News       News             `json:"news"`
+	PRs        []PR             `json:"prs"`
+	Estimate   Estimate         `json:"estimate"`
+	Issues     []Issue          `json:"issues"`
+	Tokens     []Tokens         `json:"tokens"`
+	Breakdown  BreakdownSection `json:"breakdown"`
+	Profiles   []Profile        `json:"profiles"`
+	Skipped    []Skip           `json:"skipped"`
 }
 
 // Value は価値（ADR-0011 決めたこと 18）。観察の課題の報告 `observation` と Chief Engineer の課題から導く。
@@ -684,6 +693,12 @@ func Measure(o Options) (*Result, error) {
 	res.Estimate, res.Issues = r.estimates(o, last, ids, byID, doneAt, in)
 	res.News = r.news(o, in)
 	res.Tokens = r.tokens(o, ids, byID, active(rows, in))
+	bs := r.outcomeBreakdowns(ids, byID, doneAt, in)
+	cos, cosDays := trace.RoleTokens(o.Otel, "chief-of-staff", start, o.Until, func(file string, line int, reason string) {
+		r.skip("otel/"+file, line, "%s", reason)
+	})
+	res.Breakdown = breakdownSection(bs, cos, cosDays)
+	res.Profiles = profiles(res.Issues, byID, ids, bs)
 
 	sort.SliceStable(r.skipped, func(i, j int) bool {
 		if r.skipped[i].Source != r.skipped[j].Source {
@@ -1282,7 +1297,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	slug := filepath.Base(root)
 	res, err := Measure(Options{Root: root, Since: since, Until: until, Now: now, GH: GH,
 		State: dispatcher.StatePath(slug), Recorded: dispatcher.RecordedPath(slug), Delivered: dispatcher.DeliveredPath(slug),
-		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions()})
+		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions(), Otel: filepath.Join(otel.Root(), slug)})
 	if err != nil {
 		fmt.Fprintf(stderr, "andon measure: %v\n", err)
 		return 1
@@ -1395,6 +1410,8 @@ func Table(w io.Writer, res *Result, states []string) {
 	fmt.Fprintf(w, "  gate の差し戻し率             %s\n", gate)
 	estimateTable(w, res.Estimate, res.Issues)
 	tokensTable(w, res.Tokens)
+	breakdownTable(w, res.Breakdown)
+	profilesTable(w, res.Profiles)
 	newsTable(w, res.News)
 	if len(res.Skipped) == 0 {
 		return

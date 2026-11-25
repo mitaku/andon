@@ -4,7 +4,7 @@
   "title": "Measure",
   "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
-  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "estimate", "issues", "tokens", "skipped"],
+  "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "estimate", "issues", "tokens", "breakdown", "profiles", "skipped"],
   "additionalProperties": false,
   "properties": {
     "project": { "description": "The project's slug (the folder that holds kanban/).", "type": "string", "minLength": 1 },
@@ -233,6 +233,55 @@
       "type": "array",
       "items": { "$ref": "#/$defs/tokens" }
     },
+    "breakdown": {
+      "description": "Breakdown section (ADR-0060 decision 16): the breakdown of library/outcome.json (the dispatcher writes it when an issue is cleaned up) of the issues that moved into the last column in the period (owner issues left out; reviewer and Chief Engineer issues included), summed by its role. The raw harness records are not read for issues. The Chief of Staff has no outcome.json, so its share alone is counted from the raw records of its role, for the days still kept.",
+      "type": "object",
+      "required": ["issues", "none", "waits", "roles", "tools", "chief_of_staff"],
+      "additionalProperties": false,
+      "properties": {
+        "issues": { "description": "Issues that moved into the last column in the period, owner issues left out.", "$ref": "#/$defs/count" },
+        "none": { "description": "Of those, issues with no breakdown: no outcome.json, breakdown missing or null, or outcome.json unreadable or its breakdown not of the shape of schema/outcome.schema.json (both listed in skipped).", "$ref": "#/$defs/count" },
+        "waits": {
+          "description": "Waits of the breakdowns whose role is worker, summed, in milliseconds (kinds may overlap).",
+          "type": "object",
+          "required": ["issues", "question_ms", "review_ms", "ci_ms", "gone_ms"],
+          "additionalProperties": false,
+          "properties": {
+            "issues": { "description": "Breakdowns summed.", "$ref": "#/$defs/count" },
+            "question_ms": { "description": "The issues' own questions open.", "$ref": "#/$defs/count" },
+            "review_ms": { "description": "Waiting for reviewer child issues.", "$ref": "#/$defs/count" },
+            "ci_ms": { "description": "Waiting for the pull request checks.", "$ref": "#/$defs/count" },
+            "gone_ms": { "description": "The issue's terminal dead.", "$ref": "#/$defs/count" }
+          }
+        },
+        "roles": {
+          "description": "One row per breakdown role: worker, reviewer, chief-engineer, other roles by name, then null.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/role" }
+        },
+        "tools": {
+          "description": "The tools of all the breakdowns (each keeps its own 10 longest) summed by name and first word; the 10 longest, longest first.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/tool" }
+        },
+        "chief_of_staff": {
+          "description": "The Chief of Staff's tokens in the period, from the raw records of its role (roles/chief-of-staff/<date>.traces.jsonl; claude_code.llm_request spans, each span once). The raw records are kept 30 days, so only the days still kept are counted.",
+          "type": "object",
+          "required": ["days", "tokens", "share"],
+          "additionalProperties": false,
+          "properties": {
+            "days": { "description": "Days of the period with a record that could be read.", "$ref": "#/$defs/count" },
+            "tokens": { "description": "Token counts, or null when days is 0 (not the same as 0).", "anyOf": [{ "$ref": "#/$defs/usage" }, { "type": "null" }] },
+            "share": { "description": "The four kinds summed, divided by that sum plus the sum of every role row; null when tokens is null or the sum is 0.", "$ref": "#/$defs/rate" }
+          }
+        }
+      }
+    },
+    "profiles": {
+      "description": "Profile section (ADR-0060 decisions 16 and 18): the agents' issues of issues[] grouped by issue.yaml profile, by name, the issues with no profile last.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/profile" }
+    },
     "skipped": {
       "description": "Records not counted because they could not be read: a log.jsonl line, a line of the dispatcher's notification records, a line or file of a session record, a file, or a repository whose merged pull requests could not be listed.",
       "type": "array",
@@ -241,6 +290,89 @@
   },
   "$defs": {
     "date": { "description": "UTC date, YYYY-MM-DD.", "type": "string", "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$" },
+    "usage": {
+      "description": "Token counts: input, output, cache read and cache write.",
+      "type": "object",
+      "required": ["input", "output", "cache_read", "cache_write"],
+      "additionalProperties": false,
+      "properties": {
+        "input": { "description": "Input tokens neither read from nor written to the cache.", "$ref": "#/$defs/count" },
+        "output": { "description": "Output tokens.", "$ref": "#/$defs/count" },
+        "cache_read": { "description": "Input tokens read from the cache.", "$ref": "#/$defs/count" },
+        "cache_write": { "description": "Input tokens written to the cache.", "$ref": "#/$defs/count" }
+      }
+    },
+    "role": {
+      "description": "The breakdowns of one role, summed.",
+      "type": "object",
+      "required": ["role", "issues", "token_issues", "tokens", "cache_read_rate", "errors"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "description": "The breakdown's role, or null for the breakdowns whose role is null.", "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+        "issues": { "description": "Breakdowns summed.", "$ref": "#/$defs/count" },
+        "token_issues": { "description": "Of those, breakdowns with a record of model calls (tokens or llm_ms above 0), the only ones whose tokens are summed. A breakdown without one (a Codex issue: the receiver counts only claude_code spans) is not counted as 0 tokens.", "$ref": "#/$defs/count" },
+        "tokens": { "description": "The tokens of the breakdowns counted in token_issues, summed.", "$ref": "#/$defs/usage" },
+        "cache_read_rate": { "description": "cache_read / (input + cache_read + cache_write), two decimals; null when that is 0.", "$ref": "#/$defs/rate" },
+        "errors": {
+          "description": "Failed spans, summed.",
+          "type": "object",
+          "required": ["llm", "tool"],
+          "additionalProperties": false,
+          "properties": {
+            "llm": { "description": "Failed model calls.", "$ref": "#/$defs/count" },
+            "tool": { "description": "Failed tools.", "$ref": "#/$defs/count" }
+          }
+        }
+      }
+    },
+    "tool": {
+      "description": "One tool's count, summed over the breakdowns.",
+      "type": "object",
+      "required": ["name", "argv0", "count", "ms", "errors"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "description": "Tool name.", "type": "string", "minLength": 1 },
+        "argv0": { "description": "First word of the Bash command; null for other tools or when unknown.", "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+        "count": { "description": "Spans.", "$ref": "#/$defs/count" },
+        "ms": { "description": "Time, milliseconds.", "$ref": "#/$defs/count" },
+        "errors": { "description": "Failed spans.", "$ref": "#/$defs/count" }
+      }
+    },
+    "median": {
+      "description": "How many were counted and their median, two decimals (null when count is 0).",
+      "type": "object",
+      "required": ["count", "median"],
+      "additionalProperties": false,
+      "properties": {
+        "count": { "description": "How many were counted.", "$ref": "#/$defs/count" },
+        "median": { "description": "Median, or null when count is 0.", "$ref": "#/$defs/rate" }
+      }
+    },
+    "profile": {
+      "description": "One profile of the profile section.",
+      "type": "object",
+      "required": ["profile", "issues", "worked_minutes", "tokens", "gate", "review_rounds"],
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "description": "issue.yaml profile, or null when the issue has none.", "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+        "issues": { "description": "Issues of issues[] with this profile.", "$ref": "#/$defs/count" },
+        "worked_minutes": { "description": "Median of their worked_minutes in issues[].", "$ref": "#/$defs/median" },
+        "tokens": { "description": "Median of input + output + cache_read + cache_write of their outcome.json breakdown; issues with no breakdown, or with a breakdown without a record of model calls, are not counted.", "$ref": "#/$defs/median" },
+        "gate": {
+          "description": "All the gate records of these issues, and the send-back rate.",
+          "type": "object",
+          "required": ["records", "fix", "needs_human", "rate"],
+          "additionalProperties": false,
+          "properties": {
+            "records": { "description": "Gate records.", "$ref": "#/$defs/count" },
+            "fix": { "description": "Records with decision fix.", "$ref": "#/$defs/count" },
+            "needs_human": { "description": "Records with decision needs_human.", "$ref": "#/$defs/count" },
+            "rate": { "description": "(fix + needs_human) / records; null when none.", "$ref": "#/$defs/rate" }
+          }
+        },
+        "review_rounds": { "description": "Median of the reviewer issues whose parent is the issue (0 counted).", "$ref": "#/$defs/median" }
+      }
+    },
     "count": { "description": "A count, 0 or more.", "type": "integer", "minimum": 0 },
     "rate": { "description": "Two decimals, or null when the denominator is 0.", "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
     "stat": {
@@ -316,7 +448,7 @@
       "required": ["source", "reason"],
       "additionalProperties": false,
       "properties": {
-        "source": { "description": "Path relative to the project (kanban/log.jsonl, kanban/issues/<id>/...), github.com/<owner>/<repo>, dispatcher/<file>, claude/<session>.jsonl (or claude/<session>/<file> for a subagent), or codex/<rollout file>.", "type": "string", "minLength": 1 },
+        "source": { "description": "Path relative to the project (kanban/log.jsonl, kanban/issues/<id>/...), github.com/<owner>/<repo>, dispatcher/<file>, claude/<session>.jsonl (or claude/<session>/<file> for a subagent), or codex/<rollout file>, or otel/roles/<role>/<date>.traces.jsonl.", "type": "string", "minLength": 1 },
         "line": { "description": "Line number in a log.jsonl, 1 or more.", "type": "integer", "minimum": 1 },
         "reason": { "description": "Why, one line.", "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" }
       }

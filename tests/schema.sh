@@ -168,7 +168,7 @@ declare -A required=(
   [gate-record]="at id pr head tier tier_reasons changed_lines checks github_checks review acceptance delegation decision reasons merged"
   [project]="version project repos"
   [candidates]="candidates"
-  [measure]="project since until days value flow efficiency counter news prs estimate issues tokens skipped"
+  [measure]="project since until days value flow efficiency counter news prs estimate issues tokens breakdown profiles skipped"
   [corrections]="at corrections"
   [signal]="signals"
   [delivered]="at project acked news"
@@ -279,6 +279,17 @@ measure|.estimate|count within rate none
 measure|.issues[0]|issue estimate_minutes agent_estimate_minutes worked_minutes ratio
 measure|.tokens[0]|issue source usage
 measure|.tokens[0].usage|input output cache_read cache_write
+measure|.breakdown|issues none waits roles tools chief_of_staff
+measure|.breakdown.waits|issues question_ms review_ms ci_ms gone_ms
+measure|.breakdown.roles[0]|role issues token_issues tokens cache_read_rate errors
+measure|.breakdown.roles[0].tokens|input output cache_read cache_write
+measure|.breakdown.roles[0].errors|llm tool
+measure|.breakdown.tools[0]|name argv0 count ms errors
+measure|.breakdown.chief_of_staff|days tokens share
+measure|.breakdown.chief_of_staff.tokens|input output cache_read cache_write
+measure|.profiles[0]|profile issues worked_minutes tokens gate review_rounds
+measure|.profiles[0].worked_minutes|count median
+measure|.profiles[0].gate|records fix needs_human rate
 delivered|.news[0]|kind
 corrections|.corrections[0]|kind question decision_kind recommended picked
 corrections|.corrections[1]|kind comments human_commits
@@ -719,6 +730,24 @@ fail|measure|.tokens[0].usage.output = -1|トークン数が負
 fail|measure|.tokens[0].usage.input = 1.5|トークン数が整数でない
 fail|measure|.tokens[0].source = "none"|source が claude/codex でない
 fail|measure|.tokens[0] += {"dollars": 1}|ドルの欄を足す
+pass|measure|.breakdown.chief_of_staff = {days: 0, tokens: null, share: null}|Chief of Staff の記録が無い（0 日・null）
+fail|measure|.breakdown.chief_of_staff.tokens = 0|Chief of Staff の記録が無いのを 0 と書く
+fail|measure|.breakdown.chief_of_staff.days = -1|数えた日数が負
+pass|measure|.breakdown.roles[1].role = null|役が null の内訳の行
+fail|measure|.breakdown.roles[0].role = ""|役が空の文字列
+fail|measure|.breakdown.roles[0].tokens.cache_read = -1|役のトークンが負
+fail|measure|.breakdown.roles[0].cache_read_rate = "93%"|キャッシュ読みの割合が文字列
+fail|measure|.breakdown.waits.ci_ms = 1.5|待ちのミリ秒が整数でない
+pass|measure|.breakdown.tools[0].argv0 = null|ツールの最初の語が無い
+fail|measure|.breakdown.tools[0] += {"dollars": 1}|ツールにドルの欄を足す
+fail|measure|.breakdown.none = -1|内訳の無い課題の数が負
+pass|measure|.breakdown.roles = [] | .breakdown.tools = []|内訳のある課題が無い
+pass|measure|.profiles = []|期間に閉じた担当の課題が無い
+pass|measure|.profiles[0].tokens = {count: 0, median: null}|内訳の無いプロファイル（中央値が null）
+fail|measure|.profiles[0].tokens.median = "1"|中央値が文字列
+fail|measure|.profiles[0].profile = ""|プロファイルが空の文字列
+fail|measure|.profiles[0].review_rounds = 1|周回が {count, median} でない
+fail|measure|.profiles[0] += {"version": "1"}|プロファイルの行にバージョンの欄を足す（バージョンごとの表にしない）
 pass|delivered|.acked = false|ack の無いターン
 pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
 pass|delivered|.news = [{kind: "estimate", issue: "S-0001"}, {kind: "memory"}]|見込みとのズレと memory の量の通知（notification の kind は全部通る）

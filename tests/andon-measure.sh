@@ -60,7 +60,21 @@ export CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/-sample"
 u='{"type":"assistant","requestId":"req_1","message":{"id":"msg_1","usage":{"input_tokens":3,"output_tokens":40,"cache_read_input_tokens":500,"cache_creation_input_tokens":60}}}'
 printf '%s\n%s\n' "$u" "$u" >"$CLAUDE_CONFIG_DIR/projects/-sample/11111111-0000-4000-8000-000000000001.jsonl"
-records=$(find "$tmp/claude" -type f -exec sha1sum {} + | sort)
+# 内訳（ADR-0060 決めたこと 16）: S-0001 の outcome.json の breakdown（担当）と、Chief of Staff の役ごとの生の記録 2 日分
+cat >"$k/issues/S-0001/library/outcome.json" <<'EOF'
+{"issue": "S-0001", "breakdown": {"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 2, "llm_ms": 900, "tool_ms": 300, "blocked_ms": 0,
+ "tokens": {"input": 10, "output": 20, "cache_read": 60, "cache_write": 10}, "errors": {"llm": 0, "tool": 1},
+ "tools": [{"name": "Bash", "argv0": "go", "count": 3, "ms": 300, "errors": 1}],
+ "waits": {"question_ms": 600000, "review_ms": 0, "ci_ms": 120000, "gone_ms": 0}}}
+EOF
+o=$XDG_STATE_HOME/andon/otel/sample-site/roles/chief-of-staff
+mkdir -p "$o"
+span() { # 1 日分の claude_code.llm_request の span（入力・出力・キャッシュ読み・キャッシュ書き が 1・2・3・4）
+  printf '{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[{"traceId":"t","spanId":"%s","name":"claude_code.llm_request","startTimeUnixNano":"1","endTimeUnixNano":"2","attributes":[{"key":"input_tokens","value":{"intValue":"1"}},{"key":"output_tokens","value":{"intValue":"2"}},{"key":"cache_read_tokens","value":{"intValue":"3"}},{"key":"cache_creation_tokens","value":{"intValue":"4"}}]}]}]}]}\n' "$1"
+}
+span s1 >"$o/2026-11-01.traces.jsonl"
+span s2 >"$o/2026-11-02.traces.jsonl"
+records=$(find "$tmp/claude" "$XDG_STATE_HOME/andon/otel" -type f -exec sha1sum {} + | sort)
 before=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 export KANBAN_ROOT=$tmp/sample-site
 "$andon" measure --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
@@ -74,9 +88,15 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
   and .news.kinds == [{kind: "merged", delivered: 0, acked: 0, rate: null, recorded: 1}, {kind: "report", delivered: 2, acked: 2, rate: 1, recorded: 0}]
   and .news.candidates == ["report"]
   and .tokens == [{issue: "S-0001", source: "claude", usage: {input: 3, output: 40, cache_read: 500, cache_write: 60}}, {issue: "S-0002", source: "claude", usage: null}]
-  and .estimate == {count: 0, within: 0, rate: null, none: 1} and (.issues | map(.issue)) == ["S-0001"] and .issues[0].estimate_minutes == null' "$tmp/out.json" >/dev/null
+  and .estimate == {count: 0, within: 0, rate: null, none: 1} and (.issues | map(.issue)) == ["S-0001"] and .issues[0].estimate_minutes == null
+  and .breakdown.issues == 1 and .breakdown.none == 0
+  and .breakdown.waits == {issues: 1, question_ms: 600000, review_ms: 0, ci_ms: 120000, gone_ms: 0}
+  and .breakdown.roles == [{role: "worker", issues: 1, token_issues: 1, tokens: {input: 10, output: 20, cache_read: 60, cache_write: 10}, cache_read_rate: 0.75, errors: {llm: 0, tool: 1}}]
+  and .breakdown.chief_of_staff == {days: 2, tokens: {input: 2, output: 4, cache_read: 6, cache_write: 8}, share: 0.17}
+  and .profiles == [{profile: null, issues: 1, worked_minutes: {count: 1, median: 360}, tokens: {count: 1, median: 100},
+    gate: {records: 1, fix: 0, needs_human: 0, rate: 0}, review_rounds: {count: 1, median: 0}}]' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
-echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）'
+echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）・内訳・Chief of Staff の 2 日分・プロファイル'
 "$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
 head -1 "$tmp/table" | grep -q '^価値: 仮説を確かめた数 記録なし'
 grep -q '^  オーナーの手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
@@ -86,12 +106,14 @@ grep -q '^  記録だけへ移す候補.*  report$' "$tmp/table"
 grep -q '^  S-0001  *claude 入力 3・出力 40・キャッシュ読み 500・キャッシュ書き 60$' "$tmp/table"
 grep -q '^  PR あたりのオーナーの介在回数  *3\.00（3回 / 1本。マージ 0・判断 2・オーナーの課題 1）$' "$tmp/table"
 grep -q '^  答えを決めた者  *オーナー 2・Chief of Staff 1・command 0・印なし 1$' "$tmp/table"
+grep -q '^  chief-of-staff 2日分 入力 2・出力 4・キャッシュ読み 6・キャッシュ書き 8（全体の 17%）$' "$tmp/table"
+grep -q '^  プロファイル無し 1件・実働 360（1件）' "$tmp/table"
 echo 'ok 表: 介在の内訳と、答えを決めた者の行'
 echo 'ok 表: 価値の行が先頭・自動マージ率の行に対抗の指標・飛ばした行・記録だけへ移す候補'
 after=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 [ "$before" = "$after" ]
-[ "$records" = "$(find "$tmp/claude" -type f -exec sha1sum {} + | sort)" ]
-echo 'ok kanban にもセッションの記録にも何も書かない'
+[ "$records" = "$(find "$tmp/claude" "$XDG_STATE_HOME/andon/otel" -type f -exec sha1sum {} + | sort)" ]
+echo 'ok kanban にもセッションの記録にもハーネスの記録にも何も書かない'
 
 # 記録が1件も無いプロジェクト: 0 と「記録なし」で終了コード 0（gh は打たない）
 mkdir -p "$tmp/empty/kanban"
@@ -102,7 +124,9 @@ export KANBAN_ROOT=$tmp/empty
 jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .flow.closed.count == 0
   and .efficiency.human_touches == {total: 0, per_pr: null, merge: 0, decision: 0, task: 0}
   and .efficiency.answers == {owner: 0, chief_of_staff: 0, machine: 0, unmarked: 0}
-  and .prs == [] and .issues == [] and .estimate == {count: 0, within: 0, rate: null, none: 0} and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}' "$tmp/empty.json" >/dev/null
+  and .prs == [] and .issues == [] and .estimate == {count: 0, within: 0, rate: null, none: 0} and .tokens == [] and .skipped == [] and .news == {threshold: 0.8, kinds: [], candidates: []}
+  and .breakdown == {issues: 0, none: 0, waits: {issues: 0, question_ms: 0, review_ms: 0, ci_ms: 0, gone_ms: 0}, roles: [], tools: [], chief_of_staff: {days: 0, tokens: null, share: null}}
+  and .profiles == []' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
 "$andon" measure >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'
