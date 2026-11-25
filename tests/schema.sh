@@ -717,6 +717,7 @@ pass|delivered|.acked = false|ack の無いターン
 pass|delivered|.news = [{kind: "ready"}]|課題の無い通知だけ
 pass|delivered|.news = [{kind: "estimate", issue: "S-0001"}, {kind: "memory"}]|見込みとのズレと memory の量の通知（notification の kind は全部通る）
 pass|delivered|.news = [{kind: "idle"}]|枠の空きの通知
+pass|delivered|.news = [{kind: "answered", issue: "S-0001"}, {kind: "hold", issue: "S-0002"}]|ペインの答えと止めた PR の理由が片付いた通知
 fail|delivered|.news = []|渡した通知が無い
 fail|delivered|.news[0].kind = "nope"|知らない kind
 fail|delivered|.acked = "true"|acked が文字列

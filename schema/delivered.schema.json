@@ -46,6 +46,7 @@
               "report",
               "review",
               "asked",
+              "answered",
               "ready",
               "review-requested",
               "gate",
@@ -61,7 +62,8 @@
               "resumed",
               "estimate",
               "memory",
-              "idle"
+              "idle",
+              "hold"
             ]
           }
         }

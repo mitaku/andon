@@ -299,3 +299,37 @@ func TestKeywordsMatchLint(t *testing.T) {
 		t.Fatalf("schema_check.py の lint %v と検査器の Keywords %v が違う", lint, want)
 	}
 }
+
+// TestDeliveredKindsMatchNotification は、届けた通知の記録（delivered）の kind の一覧が、通知（notification）の kind の一覧と
+// 同じ顔ぶれかを見る。記録は届けた通知の kind をそのまま写すので、通知に足して記録に足さないと、その kind を渡したターンが
+// 一緒に渡したほかの通知ごと記録から落ちる。
+func TestDeliveredKindsMatchNotification(t *testing.T) {
+	kinds := func(s Schema, path ...string) []string {
+		b, err := fs.ReadFile(andon.Schemas, s.File())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var v any
+		if err := json.Unmarshal(b, &v); err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range path {
+			m, _ := v.(map[string]any)
+			v = m[k]
+		}
+		var out []string
+		for _, e := range asList(v) {
+			out = append(out, e.(string))
+		}
+		if len(out) == 0 {
+			t.Fatalf("%s の %v に kind の一覧が無い", s.File(), path)
+		}
+		slices.Sort(out)
+		return out
+	}
+	n := kinds(SchemaNotification, "properties", "kind", "enum")
+	d := kinds(SchemaDelivered, "properties", "news", "items", "properties", "kind", "enum")
+	if !slices.Equal(n, d) {
+		t.Fatalf("notification の kind %v と delivered の kind %v が違う", n, d)
+	}
+}
