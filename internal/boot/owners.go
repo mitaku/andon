@@ -15,6 +15,7 @@ import (
 var HomeVolumes = []string{
 	".claude", ".local/share/claude", ".codex", ".agents", ".config/gh", ".config/andon/signals", ".config/andon/digest", ".config/herdr",
 	".config/herdr-core", ".ssh", ".portless", ".local/state",
+	".local/share/mise",
 }
 
 func fixOwners(e Env) error {

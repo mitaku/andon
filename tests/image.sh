@@ -16,12 +16,23 @@ if [ "$img_go" != "$mise_go" ]; then
   exit 1
 fi
 
-# image の mise の既定の go（mise.toml の無い所で引かれる go）も mise.toml の go に揃える
-def_go=$(sed -n 's/^ARG DEFAULT_GO_VERSION=\([0-9.]*\)$/\1/p' image/Dockerfile)
-if [ "$def_go" != "$mise_go" ]; then
-  echo "FAIL image: image/Dockerfile の DEFAULT_GO_VERSION（${def_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
+# image は mise の既定の go の設定を持たない（ADR-0063 決めたこと 9）: 注釈でない行に、既定のバージョンの ARG と
+# ~/.config/mise/config.toml を書く行が無い。当たる場合があることを、消した形の行と注釈の行で先に確かめる
+default_go_lines() { grep -vE '^[[:space:]]*#' | grep -E 'DEFAULT_GO_VERSION|\.config/mise/config\.toml' || true; }
+probe=$(printf '%s\n' '# 注釈の DEFAULT_GO_VERSION は当たらない' 'ARG DEFAULT_GO_VERSION=1.27.3' \
+  " && printf '[tools]\\ngo = \"%s\"\\n' \"\${DEFAULT}\" >\"\${HOME}/.config/mise/config.toml\"" | default_go_lines)
+if [ "$(wc -l <<<"$probe")" != 2 ] || [[ "$probe" == *注釈* ]]; then
+  printf '%s\n' "$probe" >&2
+  echo "FAIL image: 既定の go の行を探す検査が、消した形の 2 行に当たらない（か、注釈に当たる）" >&2
   exit 1
 fi
+hits=$(default_go_lines <image/Dockerfile)
+if [ -n "$hits" ]; then
+  printf '%s\n' "$hits" >&2
+  echo "FAIL image: image/Dockerfile が mise の既定の go を持つ（言語の道具のバージョンの正は案件の repo の mise.toml）" >&2
+  exit 1
+fi
+echo 'ok   image: image/Dockerfile に mise の既定の go（DEFAULT_GO_VERSION・~/.config/mise/config.toml）が無い（消した形の 2 行には当たる）'
 
 if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
   if [ "${CI:-false}" = true ]; then
@@ -136,7 +147,8 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
 # ~/.bashrc を読まない非対話のシェル（担当・レビュアーの道具の呼び出し）でも、repo の mise.toml の go が PATH で引ける（ENV の PATH の mise の shims）。
 # shims が aqua の bin/mise（argv[0] で道具を選ぶ proxy）を指すと go を aqua の道具として探して落ちるので、その形も落ちる。
 # network none なので go は取らず、バージョンを名乗るだけの go を mise link で mise.toml のバージョンに登録する。
-# mise.toml の無い所でも同じ go が引けることも見る（image の mise の既定の go が mise.toml とずれると、登録していないバージョンを探して落ちる）
+# mise.toml の無い所では、image に既定が無いので go が引けず、MISE_SYSTEM_CONFIG_FILE に mise.toml を渡すと同じ go が引ける
+# （役の端末と gate の検査が repo の外で道具を引く形。ADR-0063 決めたこと 9・10・受け入れ条件 12）
 docker run --rm --network none \
   --mount "type=bind,source=$PWD/mise.toml,target=/tmp/proj/mise.toml,readonly" \
   -e MISE_GO="$mise_go" andon:test bash -euc '
@@ -148,10 +160,16 @@ docker run --rm --network none \
     mise reshim
     out=$(bash --norc --noprofile -c "cd /tmp/proj && go version") || { echo "FAIL image: 非対話のシェルで mise.toml の go が引けない" >&2; exit 1; }
     test "$out" = "go version go$MISE_GO linux/fake" || { echo "FAIL image: 非対話のシェルの go が mise.toml のバージョンでない（$out）" >&2; exit 1; }
-    # mise.toml の無い所（一時の置き場・repo の外へ展開した検査）でも、image の mise の既定の go が mise.toml のバージョンで引ける
+    # mise.toml の無い所（一時の置き場・repo の外へ展開した検査）。image は既定の go を持たないので、そのままでは引けない
     bare=$(mktemp -d)
-    out=$(bash --norc --noprofile -c "cd \"$bare\" && go version") || { echo "FAIL image: mise.toml の無い所の非対話のシェルで go が引けない（image に mise の既定の go が無い）" >&2; exit 1; }
-    test "$out" = "go version go$MISE_GO linux/fake" || { echo "FAIL image: mise.toml の無い所の go が mise.toml のバージョンでない（$out）" >&2; exit 1; }
+    if out=$(bash --norc --noprofile -c "cd \"$bare\" && go version" 2>&1); then
+      echo "FAIL image: mise.toml の無い所で既定の go が引けた（image が mise の既定の go を持つ。$out）" >&2; exit 1
+    fi
+    out=$(MISE_SYSTEM_CONFIG_FILE=/tmp/proj/mise.toml bash --norc --noprofile -c "cd \"$bare\" && go version") ||
+      { echo "FAIL image: mise.toml の無い所で、MISE_SYSTEM_CONFIG_FILE に渡した mise.toml の go が引けない" >&2; exit 1; }
+    test "$out" = "go version go$MISE_GO linux/fake" ||
+      { echo "FAIL image: MISE_SYSTEM_CONFIG_FILE で引いた go が mise.toml のバージョンでない（$out）" >&2; exit 1; }
+    echo "ok   image: 非対話のシェルで mise.toml の go が引け、mise.toml の無い所では MISE_SYSTEM_CONFIG_FILE で同じ go が引ける（既定は無い）"
   '
 # .github/workflows/ の全部を image の中の actionlint・ghalint・pinact に通す（ADR-0034 決めたこと 8）。
 # ファイルの名前は書かない（workflow を足せば、その workflow も見る）。actionlint は git の repo の外では
@@ -438,6 +456,20 @@ fi
 hostkey_fp() { dc exec -T dev bash -euc 'ssh-keyscan -t ed25519 127.0.0.1 2>/dev/null | ssh-keygen -lf - | cut -d" " -f2'; }
 fp1=$(hostkey_fp)
 vol_fp=$(dc exec -T dev ssh-keygen -lf /opt/andon-home/.ssh/ssh_host_ed25519_key.pub | cut -d' ' -f2)
+# 道具の volume（ADR-0063 決めたこと 5・受け入れ条件 13）: ~/.local/share/mise は volume で andon の持ち物。volume の中（installs/ の下）に
+# 本体を置いた偽の go を、作り直しのあとも非対話のシェルから引ける。mise link（volume の外への symlink）は使わない。
+# mise.toml は作り直しで残るセルの repo（/workspace）の下に置く
+dc exec -T -e MISE_GO="$mise_go" dev bash -euc '
+  d="$HOME/.local/share/mise"
+  test "$(stat -c %u:%g "$d")" = 1000:1000 || { echo "FAIL image: ~/.local/share/mise が andon の持ち物でない（$(stat -c %u:%g "$d")）" >&2; exit 1; }
+  grep -qF " $d " /proc/self/mountinfo || { echo "FAIL image: ~/.local/share/mise が volume でない" >&2; exit 1; }
+  mkdir -p "$d/installs/go/$MISE_GO/bin" /workspace/mise-probe
+  printf "#!/bin/sh\necho go version go%s linux/fake\n" "$MISE_GO" >"$d/installs/go/$MISE_GO/bin/go"
+  chmod 755 "$d/installs/go/$MISE_GO/bin/go"
+  printf "[tools]\ngo = \"%s\"\n" "$MISE_GO" >/workspace/mise-probe/mise.toml
+  mise trust /workspace/mise-probe/mise.toml
+  mise reshim
+'
 dc down --remove-orphans >/dev/null
 BUILDX_BUILDER=default "$plant/bin/bootstrap" up
 fp2=$(hostkey_fp)
@@ -445,4 +477,11 @@ if [ -z "$fp1" ] || [ "$fp1" != "$vol_fp" ] || [ "$fp1" != "$fp2" ]; then
   echo "FAIL image: sshd のホスト鍵が volume のものでない、または作り直しで変わった（$fp1 / $vol_fp / $fp2）" >&2
   exit 1
 fi
+mise_out=$(dc exec -T dev bash --norc --noprofile -c 'cd /workspace/mise-probe && go version' 2>&1) || true
+if [ "$mise_out" != "go version go$mise_go linux/fake" ]; then
+  printf '%s\n' "$mise_out" >&2
+  echo 'FAIL image: 作り直しのあと、volume mise に置いた go が非対話のシェルから引けない' >&2
+  exit 1
+fi
+echo 'ok   image: ~/.local/share/mise は andon の持ち物の volume で、中に置いた go が作り直しのあとも非対話のシェルから引ける'
 echo 'ok   image: build, offline runtime, workflow policy checks and plant boot (init → bootstrap up → boot → ssh env → herdr-core in ~/.local/bin)'

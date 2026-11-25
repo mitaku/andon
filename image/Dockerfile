@@ -79,14 +79,13 @@ RUN curl -fsSL -o /tmp/aqua-installer "https://raw.githubusercontent.com/aquapro
  && rm /tmp/aqua-installer
 COPY --chown=andon:andon image/aqua/ /opt/andon-aqua/
 # mise は shims を PATH で最初に見つかる mise へ向ける。aqua の bin/mise は argv[0] で道具を選ぶ proxy なので、shims がそこを指すと
-# go を aqua の道具として探して落ちる。本物の mise へのリンクを aqua の bin より先の ~/.local/bin に置く（tests/image.sh が見る）
-# mise の既定の go（~/.config/mise/config.toml）を repo の mise.toml と同じバージョンにする。mise.toml の無い所（一時の置き場・
-# repo の外へ展開した検査）でも、非対話のシェルの shims が go を引ける。値は mise.toml の go に揃える（tests/image.sh が見る）
-ARG DEFAULT_GO_VERSION=1.27.3
+# go を aqua の道具として探して落ちる。本物の mise へのリンクを aqua の bin より先の ~/.local/bin に置く（tests/image.sh が見る）。
+# volume mise の中の shims はこのパスを指すので、変えるときは宣言を満たす手に mise reshim を足す（ADR-0063 決めたこと 3）。
+# image は言語の道具のバージョンも、mise の既定の設定も持たない。バージョンの正は案件の repo の mise.toml で、mise.toml の無い所では
+# 役の端末と gate の検査だけが、自分の worktree の mise.toml を MISE_SYSTEM_CONFIG_FILE で引く（ADR-0063 決めたこと 9・10。tests/image.sh が見る）
 RUN aqua install --all \
- && mkdir -p "${HOME}/.local/bin" "${HOME}/.config/mise" \
- && ln -s "$(aqua which mise)" "${HOME}/.local/bin/mise" \
- && printf '[tools]\ngo = "%s"\n' "${DEFAULT_GO_VERSION}" >"${HOME}/.config/mise/config.toml"
+ && mkdir -p "${HOME}/.local/bin" \
+ && ln -s "$(aqua which mise)" "${HOME}/.local/bin/mise"
 
 ARG PLAYWRIGHT_VERSION=1.62.1
 ARG PORTLESS_VERSION=0.15.5
@@ -156,6 +155,7 @@ RUN case "$(dpkg --print-architecture)" in \
 # （無い場所に volume を重ねると root の持ち物になり、andon が書けない）
 RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.config/gh" "${HOME}/.config/herdr" \
       "${HOME}/.config/herdr-core" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
+      "${HOME}/.local/share/mise" \
  && chmod 700 "${HOME}/.ssh" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest"
 COPY package/ /opt/andon/
 # skill が形の正として指す schema（andon は同じものを埋め込んで照らす。置き場で照らすなら andon schema check /opt/andon/schema/<名前>.schema.json）
