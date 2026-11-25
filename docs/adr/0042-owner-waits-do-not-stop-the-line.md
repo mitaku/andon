@@ -16,8 +16,8 @@
 | 6 | 1 回の返事で聞くのは 1 問のままにし、答えは待っている問いのどれからでも受ける | `package/skills/ask-one-by-one/SKILL.md` | 生きている。§5 をペインを指す 1 行に替えるのは、ペインを足すときにする |
 | 7 | Chief Engineer の問いの出し方は変えない | `package/skills/chief-engineer/SKILL.md` | 生きている |
 | 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/glossary/SKILL.md` | 覆された → ADR-0057（手作業の定義と、オーナーの課題の問いを数える条件。3 種に分けることと、今の head について決め終えたものだけを数えることは生きている） |
-| 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている。答えを書く口（決めたこと 17）は同じ command の `andon waiting answer` |
-| 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 生きている |
+| 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている。答えを書く口（決めたこと 17）は同じ command の `andon waiting answer`。出力の `slots.waiting_full` と `free` の式は、ADR-0065 決めたこと 4・5 が改めた |
+| 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 覆された → ADR-0065（後半の、オーナー待ちが上限の数に達したら新しい課題を起動しないこと。前半の、枠にオーナー待ちの課題を数えないことは生きている） |
 | 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
 | 12 | オーナー待ちは、右のパネルのペインに出す | `package/host/waiting/`・`package/host/layouts/andon.json`・`package/host/inbox/main.js` | 生きている（右のパネルの 3 つ目の画面を開く App の操作は、オーナーの手元の App で確かめる） |
 | 13 | ボードに 3 つ目の表示として、ガントチャートの形の Flow を足す | `package/host/kanban-board/main.js`・`package/host/kanban-board/README.md` | 生きている |
@@ -153,12 +153,14 @@
    - オーナーがマージしてから dispatcher が片付けるまでの 1 分ほどは、一覧に残る。
    - 速さ: 課題 500 件の kanban で 1 秒以内に返す。`andon measure` の道（事実 16）は使わない。
    - `--json` を付けない出力は、同じ中身を人が読む行で出す。
+   → 2026-11-25 に、[ADR-0065](0065-owner-waits-never-stop-launch.md) 決めたこと 4・5 が、この細部のうち `slots` の形と `free` の式を改めた。`slots.waiting_full` をキーごと消し、`free` は `limit` から `working` を引いた数だけで決める。出力のバージョンは 1 のままである。
    捨てた案: 新しい command を足さず、skill の文で数え方を決め、mod は自分で `questions.yaml` と gate の記録を読む（数える式が、Chief of Staff の読み方と mod の JavaScript の 2 か所になる。mod が読むファイルは、課題ごとに 3 種類に増える）／dispatcher が見回りのたびに一覧のファイルを書き、mod と Chief of Staff が読む（dispatcher は kanban のファイルを直接書かないと決めてある。書き手が 1 つ増え、一覧の新しさが見回りの間隔になる）／`kanban` の CLI に足す（gate の記録と自動マージの判定は Andon のもので、kanban の形式の外にある）。
 10. **2026-11-21 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない（オーナーが決めた）。** Chief of Staff は、起動の前に `andon waiting --json` を読み、`slots.free` が 1 以上なら起動する。オーナーが 2026-11-20 に決めた「並行の上限は `doing` と `review` の担当の数」の数え方を変える。上限の値は変えない。
     理由: 上限の理由は CPU の負荷で、オーナーを待っている担当は CPU を使わない（事実 11）。今の数え方だと、オーナーが離れてマージ待ちの PR が上限の数たまった所で、全部の枠が埋まり、ラインが止まる。平均でも、枠の 3 分の 1 がマージ待ちだった（事実 5）。
     受け入れること: マージされていない PR が、今より多くたまる。最後の起動のとき、オーナー待ちは上限より 1 つ少なく、動いている課題は上限の数までいる。その全部がオーナー待ちに変わると、上限が 4 なら 7 件になる。たまった PR は、ほかの PR が先に入るたびに rebase が要り、レビューのやり直しになることがある。2 つ目の線は、このたまり方に天井を置く。オーナーが待ちの PR を差し戻すと、担当が動き出し、動いている課題が一時だけ上限を超えることがある。そのときは、上限を下回るまで起動しない。
     細部: 直すのは、手引き `start.md` の 1 と、上限に触れるほかの手引きの文と、`process/workstreams/` の起動の流れの定義である。`docs/process/` は作り直す。Andon を開発するセルでは、オーナーが `project.json` に `chief_of_staff.parallel` を書く（事実 11）。書くまでは、上限が既定の 2 で数えられる。
     捨てた案: 今のまま数える（上の理由）／2 つ目の線を上限の半分に置く（たまる PR は少ないが、オーナーの離席が長いと早く止まる。オーナーが上限と同じ数を選んだ）／オーナー待ちを数えず、2 つ目の線も置かない（オーナーが長く離れると、マージされていない PR が際限なくたまる）／2 つ目の線を、オーナーのマージになる見込みの課題（`merge: person`）だけに引く（gate の問いの 4 割は `merge: auto` の課題に出ていて、起動の前には見分けられない。事実 12）／上限の値を上げる（CPU の負荷の理由に反する。待ちが無いときに、動く担当が増える）。
+    → 2026-11-25 に、[ADR-0065](0065-owner-waits-never-stop-launch.md) 決めたこと 1・4 が、この決定の後半を覆した。オーナー待ちの数を理由に、新しい課題の起動を止めない。空きの数は、上限から動いている課題の数を引いた数だけで決める。枠にオーナー待ちの課題を数えないことは変わらない（オーナーが決めた）。価値の仮説 5・6 の読み替えは、ADR-0065 決めたこと 10 にある。
 11. **2026-11-21 マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す（Chief Engineer が決めた）。** `after` で待つ課題を、前の課題がマージされる前に起動する道は作らない。代わりに、オーナー待ちの 1 件ごとに、後ろで待っている課題を `holds` で数え、一覧をその多い順に並べる。Chief of Staff がオーナーに問いを出す順も、この並びにする。
     理由: `after` は、同じ場所を触る課題がぶつからないように並べるのに使われている。前の PR が入る前に後ろを起動すると、ぶつかる変更が 2 本動き、rebase が増える。どのマージが何件を止めているかが見えれば、オーナーはそこから片付けられる。
     細部: `ask-one-by-one` skill の §3 の「出す順」の 1 番目「止めている作業が多いもの」を、`andon waiting` の並びで読むと書く。
