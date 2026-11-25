@@ -56,8 +56,9 @@ const ps = (script, ...args) =>
 const REPO = /^[^/]+\/[^/]+\/[^/]+$/;
 // Flow (ADR-0042 decision 13): owner waits come from `andon waiting --json` (decision 14), which alone
 // counts them; the board draws its mark and nothing else. Another version is not guessed at.
+// A wait the output leaves for later (`call` false) is marked "Later", not amber (ADR-0062 decision 8).
 const WAITING_VERSION = 1;
-const WAIT_LABEL = { merge: "Merge", decision: "Decision", task: "Your task" };
+const WAIT_LABEL = { merge: "Merge", decision: "Decision", task: "Your task", later: "Later" };
 const AMBER = "#F0A202";            // the logo's amber, as the inbox lights what waits on you
 const TREE_W = 400;
 const STAGE_W = 128;
@@ -161,7 +162,8 @@ function readConfig(text) {
 }
 
 // What `andon waiting --json` says about one project, run in the cell with the project's folder as
-// the working folder: issue id → kind of owner wait. null when the command is missing, fails or
+// the working folder: issue id → kind of owner wait, or "later" when every wait of the issue is left for
+// later (`call` false; an item without `call` calls). null when the command is missing, fails or
 // prints another version: Flow then shows no marks and the board works as before (decision 14).
 export async function readWaiting(root, on) {
   if (local(on)) return null;
@@ -172,7 +174,10 @@ export async function readWaiting(root, on) {
     if (out?.version !== WAITING_VERSION || !Array.isArray(out.items)) return null;
     const marks = new Map();
     for (const it of out.items) {
-      if (it && typeof it.id === "string" && WAIT_LABEL[it.kind] && !marks.has(it.id)) marks.set(it.id, it.kind);
+      if (!it || typeof it.id !== "string" || it.kind === "later" || !WAIT_LABEL[it.kind]) continue;
+      const mark = it.call === false ? "later" : it.kind;
+      // A wait that calls wins over one left for later, whichever comes first.
+      if (!marks.has(it.id) || (marks.get(it.id) === "later" && mark !== "later")) marks.set(it.id, mark);
     }
     return marks;
   } catch { return null; }
@@ -234,7 +239,8 @@ function memoOf(fn) {
 // nothing open; an issue waiting on others sits one right of the furthest of them. Done issues are
 // left out, except a done issue whose parent still has open issues under it (shown faded). Within a
 // level, what holds an owner wait comes first, then what holds work in progress, then by stage and
-// number. `waits` maps "<slug>/<id>" to the kind of owner wait. `visible` picks the issues a
+// number. `waits` maps "<slug>/<id>" to the kind of owner wait, or "later"; only a wait that calls puts an
+// issue first. `visible` picks the issues a
 // filter leaves in the tree; stages are counted over all of `tasks`, so a hidden issue still holds
 // back what waits on it.
 export function flowRows(ledgers, tasks, waits, { all = false, folded = new Set(), visible = () => true } = {}) {
@@ -264,7 +270,8 @@ export function flowRows(ledgers, tasks, waits, { all = false, folded = new Set(
   const memo = memoOf;
   const openBelow = memo((x) => (kids.get(x.key) ?? []).some((k) => !done(k) || openBelow(k)));
   const shown = (x) => !done(x) || openBelow(x) || Boolean(parentOf(x) && openBelow(parentOf(x)));
-  const holdsWait = memo((x) => waits.has(x.key) || (kids.get(x.key) ?? []).some((k) => shown(k) && holdsWait(k)));
+  const calling = (x) => waits.has(x.key) && waits.get(x.key) !== "later";
+  const holdsWait = memo((x) => calling(x) || (kids.get(x.key) ?? []).some((k) => shown(k) && holdsWait(k)));
   const holdsWork = memo((x) => (!done(x) && (x.status === "doing" || x.status === "review")) || (kids.get(x.key) ?? []).some((k) => shown(k) && holdsWork(k)));
   const rank = (xs) => (xs.some(holdsWait) ? 0 : xs.some(holdsWork) ? 1 : 2);
   const order = (a, b) => rank([a]) - rank([b]) || stage(a) - stage(b) || num(a.id) - num(b.id) || String(a.id).localeCompare(String(b.id));
@@ -985,7 +992,8 @@ export default class KanbanBoard extends View {
         .child(div().id(`wb-bar-${x.key}`).w(STAGE_W - 8).h(18).flex_none().flex().items_center().px(6).rounded(5)
           .bg(alpha(c, "2e")).border(1).border_color(c).text_size(10.5).text_color(t.foreground).child(div().min_w(0).truncate().child(label(x.status))))
         .when(Boolean(r.wait), (el) => el.child(div().id(`wb-wait-${x.key}`).flex_none().px(5).h(16).flex().items_center().rounded(4)
-          .bg(AMBER).text_size(10).font_semibold().text_color("#000000").child(WAIT_LABEL[r.wait])))
+          .bg(r.wait === "later" ? t.raised : AMBER).text_size(10).font_semibold().text_color(r.wait === "later" ? t.muted : "#000000")
+          .child(WAIT_LABEL[r.wait])))
         .when(Boolean(x.not_before) && !r.faded, (el) => el.child(div().flex_none().text_size(10.5).text_color(t.muted).child(`from ${x.not_before}`)));
     };
     const line = (r) => {

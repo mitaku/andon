@@ -1,5 +1,5 @@
 // Inbox: what needs you, longest waiting first, and the way to each project's roles.
-// Above Needs you: one line per project with merges or decisions waiting on you (ADR-0043), read
+// Above Needs you: one line per project with owner waits that call you (ADR-0043, ADR-0062), read
 // from `andon waiting --json --project <slug>` in the cell; the mod counts nothing itself.
 // Needs you: blocked agents (ADR-0015). A role's reply is an unread mark on its Projects row, except
 // in a project whose waits can't be read, where it is a Reply in Needs you as before (ADR-0043).
@@ -30,15 +30,15 @@ const GLOW = {
 const glowOf = (i) => (i.kind === "Failed" ? "red" : "amber");
 // What the lantern at the top of the column shows: red, amber, or null (unlit). Every copy sees it.
 const LANTERN = "inbox.lantern";
-// The same decision with what it counted (ADR-0043 decision 10): {version, at, light, failed, blocked,
-// merge, decision, reply, unread, unreadable} (README "Lights"). The Stream Deck plugin reads it from
+// The same decision with what it counted (ADR-0043 decision 10, ADR-0062 decision 7): {version, at, light,
+// failed, blocked, merge, decision, task, later, reply, unread, unreadable} (README "Lights"). The Stream Deck plugin reads it from
 // the App's shared.json (../streamdeck/, ADR-0045): not one of Andon's contracts, but change both together.
 const LAMP = "inbox.lamp";
-const LAMP_VERSION = 1;
+const LAMP_VERSION = 2;
 // The same value is put again, `at` renewed, this often: how a reader outside the App tells it's still kept.
 const LAMP_EVERY = 30000;
 // Owner waits per machine and project (ADR-0043 decisions 8 and 9), shared so every copy judges
-// alike and only one calls: "<machine>/<project>" -> {at, fails, why, ok: {at, items: [{kind, since}]}}.
+// alike and only one calls: "<machine>/<project>" -> {at, fails, why, ok: {at, items: [{kind, since, call?}]}}.
 const WAITING = "inbox.waiting";
 // A project name the mod passes to andon: the shape of a kanban project's slug (schema/project.schema.json,
 // internal/spawn SlugRe): a lowercase letter or digit, then lowercase letters, digits, `_` and `-`.
@@ -51,10 +51,15 @@ const UNREADABLE_AFTER = 3;
 const READ_TIMEOUT = 15000;
 // A call that hasn't come back in this long no longer keeps this copy from calling again.
 const READ_GIVES_UP = 60000;
-const ASKS = { merge: "to merge", decision: "to decide" };
+const ASKS = { merge: "to merge", decision: "to decide", task: "to do" };
+// Whether an owner wait calls you (ADR-0062 decision 7): its `call` when andon gave one, else the rule
+// from before `call` (an older cell's andon): merges and decisions call, hand work doesn't.
+export const isCalling = (x) => (typeof x.call === "boolean" ? x.call : x.kind === "merge" || x.kind === "decision");
+// Left for later: only what andon said doesn't call. An item without `call` is never left.
+const leftLater = (x) => x.call === false;
 
 // What `andon waiting --json --project <slug>` printed, as [items, null] or [null, why it can't be
-// read]. Only `version`, `project` and each item's `kind` and `since` are read.
+// read]. Only `version`, `project` and each item's `kind`, `since` and `call` (when it is true or false) are read.
 export function parseWaiting(r, project) {
   if (!r || r.code !== 0) {
     const said = String(r?.stderr ?? "").split("\n").find((l) => l.trim()) ?? "";
@@ -69,7 +74,8 @@ export function parseWaiting(r, project) {
   if (out?.version !== 1) return [null, short(`andon waiting printed version ${out?.version}`)];
   if (out.project !== project) return [null, short(`andon waiting answered for ${out.project}`)];
   if (!Array.isArray(out.items)) return [null, "andon waiting printed no items"];
-  return [out.items.map((x) => ({ kind: String(x?.kind ?? ""), since: String(x?.since ?? "") })), null];
+  return [out.items.map((x) => ({ kind: String(x?.kind ?? ""), since: String(x?.since ?? ""),
+    ...(typeof x?.call === "boolean" ? { call: x.call } : {}) })), null];
 }
 
 // Whether what is put says the same, whenever it was put. Field by field: the App keeps its own order.
@@ -313,18 +319,21 @@ export default class Inbox extends View {
     // Every machine, with how many wait on it and whether it is connected.
     const hosts = [{ name: LOCAL, away: false }, ...machines().filter((x) => x.name).map((x) => ({ name: x.name, away: x.layout === "unavailable" }))];
     const waits = (i) => i.section === "needs";
-    // The projects with merges or decisions waiting on you: one line each, by project then machine.
-    // Hand work (`task`) shows only in the waiting pane (ADR-0043 decision 4).
-    const owed = [...cosOf.values()].flatMap((p) => {
+    // The projects with owner waits that call you: one line each, by project then machine. What is left
+    // for later (`call` false) shows only in the waiting pane, counted in inbox.lamp's `later`
+    // (ADR-0062 decision 7). Without `call` (an older cell), hand work doesn't call (ADR-0043 decision 4).
+    const read = [...cosOf.values()].flatMap((p) => {
       const s = standing(p.machine, p.project);
-      if (s.mode !== "read") return [];
-      const asks = s.items.filter((x) => x.kind in ASKS);
+      return s.mode === "read" ? [{ p, items: s.items.filter((x) => Object.hasOwn(ASKS, x.kind)) }] : [];
+    });
+    const owed = read.flatMap(({ p, items }) => {
+      const asks = items.filter(isCalling);
       if (!asks.length) return [];
       const times = asks.map((x) => Date.parse(x.since)).filter(Number.isFinite);
       const count = (kind) => asks.filter((x) => x.kind === kind).length;
-      return [{ ...p, merge: count("merge"), decision: count("decision"), since: times.length ? Math.min(...times) : now }];
+      return [{ ...p, merge: count("merge"), decision: count("decision"), task: count("task"), since: times.length ? Math.min(...times) : now }];
     }).sort((x, y) => x.project.localeCompare(y.project) || x.machine.localeCompare(y.machine));
-    const owedCount = (w) => w.merge + w.decision;
+    const owedCount = (w) => w.merge + w.decision + w.task;
     // The projects whose waits can't be read, each once: they light by replies (ADR-0043 decision 9).
     const lost = [...new Map(items.filter((i) => i.stand?.mode === "unreadable").map((i) => [i.stand.key, i.stand])).values()]
       .sort((x, y) => x.project.localeCompare(y.project) || x.machine.localeCompare(y.machine));
@@ -340,11 +349,14 @@ export default class Inbox extends View {
       blocked: needing.length - failed - replies,
       merge: owed.reduce((n, w) => n + w.merge, 0),
       decision: owed.reduce((n, w) => n + w.decision, 0),
+      task: owed.reduce((n, w) => n + w.task, 0),
+      later: read.reduce((n, r) => n + r.items.filter(leftLater).length, 0),
       reply: replies,
       unread: items.filter((i) => i.unread).length,
       unreadable: lost.length,
     };
-    lamp.light = lamp.failed ? "red" : lamp.blocked + lamp.merge + lamp.decision + lamp.reply ? "amber" : null;
+    // What is left for later never lights (ADR-0062 decision 7).
+    lamp.light = lamp.failed ? "red" : lamp.blocked + lamp.merge + lamp.decision + lamp.task + lamp.reply ? "amber" : null;
     if ((shared(LANTERN) ?? null) !== lamp.light) setShared(LANTERN, lamp.light);
     const put = /** @type {any} */ (shared(LAMP));
     if (!sameLamp(put, lamp) || !recent(put, now)) setShared(LAMP, lamp);
@@ -671,7 +683,7 @@ export default class Inbox extends View {
       .children(rows).child(all);
   }
 
-  // Above Needs you, one per project with merges or decisions waiting on you (ADR-0043 decision 7):
+  // Above Needs you, one per project with owner waits that call you (ADR-0043 decision 7, ADR-0062 decision 7):
   // the amber dot, the project, the counts by kind, the oldest wait. No heading.
   owedLine(t, m, w) {
     const counts = Object.entries(ASKS).filter(([k]) => w[k] > 0).map(([k, s]) => `${w[k]} ${s}`).join(" · ");

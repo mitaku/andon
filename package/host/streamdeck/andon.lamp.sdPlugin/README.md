@@ -7,11 +7,11 @@ One action, **Lamp**: Andon's lantern on a key (ADR-0045). It lights when you ar
 | Key | When |
 |---|---|
 | red, white text | a terminal's turn failed |
-| amber, dark text | you are called: answer or merge |
+| amber, dark text | you are called: answer, merge or do your task |
 | dark, the lantern unlit | nothing waits for you |
 | dark, the lantern and `?` | can't tell: the App is closed, the inbox isn't on screen or is older than this plugin, or it hasn't put its value for 90 seconds |
 
-A lit key has the total in large type and, under it, up to two kinds, the most pressing first: `failed`, `blocked`, `decide`, `merge`, `reply`. Every Lamp key shows the same.
+A lit key has the total in large type and, under it, up to two kinds, the most pressing first: `failed`, `blocked`, `decide`, `merge`, `task` (hand work for you), `reply`. What is left for later doesn't light the key and isn't counted (ADR-0062 decision 7). Every Lamp key shows the same.
 
 The plugin decides no light. The inbox mod (`../../inbox/`, "Lights" in its README) decides it.
 
@@ -23,7 +23,7 @@ It needs Stream Deck 7.1 or later (which brings Node.js 26), and Herdr App on th
 
 ## What it reads
 
-`shared.json` in the App's settings folder, every 2 seconds while a Lamp key is in view, and from it only `inbox.lamp` (the fields are in the inbox's README). The folder is found as the App finds it:
+`shared.json` in the App's settings folder, every 2 seconds while a Lamp key is in view, and from it only `inbox.lamp` (the fields are in the inbox's README). It reads version 2 only; the value of an older inbox (version 1) shows `?` until you put the inbox and this plugin in place together. The folder is found as the App finds it:
 
 1. `HERDR_APP_HOME`
 2. `$XDG_CONFIG_HOME/herdr-app`

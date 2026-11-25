@@ -1,6 +1,7 @@
 // Waiting on you: what waits on the owner in the focused pane's project, for the right panel.
 // The list is `andon waiting --json` run in the cell (Andon's docs/contract.md §25): the command holds
-// the counting rule, and the mod only draws its output in its order (ADR-0042 decisions 12 and 14).
+// the counting rule, and the mod only draws its output in its order (ADR-0042 decisions 12 and 14). What the
+// output leaves for later (`call` false) goes under a "Later" heading, answered the same way (ADR-0062 decision 8).
 // Its one way to write is `andon waiting answer` on a decision the output marks answerable, run only when
 // the person picks an option and then presses the answer button (decisions 17 and 18). The command checks
 // the question and writes the answer; the mod holds no rule of what may be answered.
@@ -43,6 +44,9 @@ function duration(ms) {
 }
 
 const firstLine = (s) => String(s ?? "").trim().split("\n")[0].trim();
+
+// Whether the output left the row for later. A row without `call` (an andon older than the field) calls.
+export const isLater = (i) => i?.call === false;
 
 // What one run of the command gives: { data } to draw, or { reason } in one line.
 export function readOutput(r) {
@@ -275,6 +279,12 @@ export default class Waiting extends View {
         .on_click((_e, cx) => { cx.stop_propagation(); openWeb(u); })
         .child(u)));
     }
+    // Left for later: why, and the day it calls again when there is one (ADR-0062 decision 8).
+    if (isLater(i)) {
+      const why = firstLine(i.later), until = typeof i.later_until === "string" ? i.later_until : "";
+      parts.push(label("Later"), div().id(`waiting-later-${k}`).text_size(12).text_color(t.muted)
+        .child(`${why || "Left for later"}${until ? ` (until ${until})` : ""}`));
+    }
     if (i.question) parts.push(line(`Question ${i.question}`, t.dim));
     // A merge is merged on GitHub. A decision the output doesn't mark answerable (no options, or irreversible),
     // and any answer that isn't one of the options, goes to the Chief of Staff.
@@ -337,8 +347,14 @@ export default class Waiting extends View {
       if (!d.items.length) body.push(note("waiting-empty", "Nothing is waiting on you"));
       else {
         const now = Date.now();
-        body.push(v_flex().id("waiting-list").flex_1().min_h(0).px(8).pb(14).gap(2).overflow_y_scrollbar()
-          .children(d.items.map((i) => this.row(t, i, now, chief))));
+        // What calls you first, in the output's order; what is left for later under its heading, in its order.
+        const calling = d.items.filter((i) => !isLater(i)), later = d.items.filter(isLater);
+        const rows = calling.length ? calling.map((i) => this.row(t, i, now, chief))
+          : [div().id("waiting-none-calling").px(8).py(6).text_size(12).text_color(t.dim).child("Nothing calls you now")];
+        if (later.length) rows.push(h_flex().id("waiting-later-heading").px(8).pt(10).pb(2).gap(6).flex_none().items_center()
+          .text_size(11).font_medium().text_color(t.dim).child(div().child("Later")).child(div().child(String(later.length))),
+        ...later.map((i) => this.row(t, i, now, chief)));
+        body.push(v_flex().id("waiting-list").flex_1().min_h(0).px(8).pb(14).gap(2).overflow_y_scrollbar().children(rows));
       }
     }
     const closable = inPanel(), keyboard = this.handle.is_focused();

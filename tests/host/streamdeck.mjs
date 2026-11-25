@@ -23,7 +23,7 @@ async function withDeck(options, fn) {
 }
 
 const AMBER = '#F0A202', RED = '#D8453B';
-const value = (d, fields = {}) => ({ version: 1, at: d.clock, light: null, failed: 0, blocked: 0, merge: 0, decision: 0, reply: 0, unread: 0, unreadable: 0, ...fields });
+const value = (d, fields = {}) => ({ version: 2, at: d.clock, light: null, failed: 0, blocked: 0, merge: 0, decision: 0, task: 0, later: 0, reply: 0, unread: 0, unreadable: 0, ...fields });
 const colorOf = (image) => [['red', RED], ['amber', AMBER]].filter(([, c]) => svgOf(image).includes(c)).map(([n]) => n).join('+') || 'dark';
 const isUnknown = (image) => colorOf(image) === 'dark' && textsOf(image).join() === '?';
 
@@ -76,6 +76,9 @@ await check('3 内訳: 合計と、急ぐ順に 0 でない 2 行まで。消灯
     [{ light: null, unread: 3, unreadable: 2 }, []],
     [{ light: 'amber', reply: 1, merge: 2, decision: 3, unread: 9, unreadable: 9 }, ['6', '3 decide', '2 merge']],
     [{ light: 'amber', reply: 4 }, ['4', '4 reply']],
+    [{ light: 'amber', task: 1, later: 3 }, ['1', '1 task']],
+    [{ light: 'amber', merge: 1, task: 2, reply: 1, later: 5 }, ['4', '1 merge', '2 task']],
+    [{ light: null, later: 3 }, []],
     [{ light: 'amber', merge: 2, blocked: '</text><script>', decision: -1, reply: 1.5 }, ['2', '2 merge']],
   ]) {
     await withDeck({}, async (d) => {
@@ -90,12 +93,13 @@ await check('4 分からない: 読めない 7 つの場合。消灯と違う絵
   const bad = {
     'まだ読めていない': null,
     'inbox.lamp が無い': () => ({ 'inbox.lantern': 'amber' }),
-    'version が 2': (d) => ({ 'inbox.lamp': value(d, { version: 2, light: 'amber' }) }),
+    'version が 1（前の inbox）': (d) => ({ 'inbox.lamp': value(d, { version: 1, light: 'amber' }) }),
+    'version が 3': (d) => ({ 'inbox.lamp': value(d, { version: 3, light: 'amber' }) }),
     'light が 3 つでない': (d) => ({ 'inbox.lamp': value(d, { light: 'green' }) }),
     'at が無い': (d) => ({ 'inbox.lamp': value(d, { at: undefined }) }),
     'at が文字': (d) => ({ 'inbox.lamp': value(d, { at: String(d.clock) }) }),
     'at が 91 秒先': (d) => ({ 'inbox.lamp': value(d, { at: d.clock + 91000 }) }),
-    'version が文字': (d) => ({ 'inbox.lamp': value(d, { version: '1' }) }),
+    'version が文字': (d) => ({ 'inbox.lamp': value(d, { version: '2' }) }),
     'light が無い': (d) => ({ 'inbox.lamp': value(d, { light: undefined }) }),
     'light が配列': (d) => ({ 'inbox.lamp': value(d, { light: ['red'] }) }),
     'light が継いだ名前': (d) => ({ 'inbox.lamp': value(d, { light: 'toString' }) }),
@@ -371,7 +375,7 @@ await check('本物の入口: repo の外へ写したフォルダを node で動
     const dir = path.join(tmp, 'plugins', 'andon.lamp.sdPlugin');
     await cp(PLUGIN, dir, { recursive: true });
     await mkdir(path.join(tmp, 'app'));
-    const lamp = { version: 1, at: Date.now(), light: 'amber', failed: 0, blocked: 0, merge: 2, decision: 0, reply: 0, unread: 0, unreadable: 0 };
+    const lamp = { version: 2, at: Date.now(), light: 'amber', failed: 0, blocked: 0, merge: 2, decision: 0, task: 0, later: 0, reply: 0, unread: 0, unreadable: 0 };
     await writeFile(path.join(tmp, 'shared.json'), JSON.stringify({ 'inbox.lamp': lamp }));
     await rename(path.join(tmp, 'shared.json'), path.join(tmp, 'app', 'shared.json'));
     const got = [];
