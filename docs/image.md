@@ -1,6 +1,6 @@
 # Base image のビルド
 
-`image/Dockerfile` は Ubuntu 24.04 に備品と `package/`（`/opt/andon`）を焼く。CLI は `image/aqua/` のバージョンと checksum で固定し、プロジェクトの言語は mise で管理する。Claude Code はバージョンつきのバイナリを直接取得し、固定 SHA-256 を確認してから配置する。バージョンと checksum の出典は [公式 manifest](https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json)。セル固有の設定と起動処理は boot（`andon boot`。[operate.md](operate.md)）が起動のたびに足す。
+`image/Dockerfile` は Ubuntu 24.04 に備品と `package/`（`/opt/andon`）を焼く。CLI は `image/aqua/` のバージョンと checksum で固定し、プロジェクトの言語は mise で管理する。mise の既定の go（`~/.config/mise/config.toml`）は `mise.toml` の go と同じバージョンに決めておき、`mise.toml` の無い所（一時の置き場・repo の外へ展開した検査）でも非対話のシェルで go が引ける。Claude Code はバージョンつきのバイナリを直接取得し、固定 SHA-256 を確認してから配置する。バージョンと checksum の出典は [公式 manifest](https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json)。セル固有の設定と起動処理は boot（`andon boot`。[operate.md](operate.md)）が起動のたびに足す。
 
 ## ローカルで確かめる
 
@@ -122,7 +122,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 |---|---|---|
 | `image/`・`package/`・`schema/`・`init/`・`cmd/`・`internal/`（`_test.go` を除く）・`go.mod`・`go.sum`・`embed.go`・`process/states/issue.yaml`（`andon` に埋め込む）・`.dockerignore` | 走らせる | image の build の context に入る（`.dockerignore` が通すもの）。Go の変更も、image の中の `andon` で `andon init`・`boot` を通す検査に効く |
 | `tests/image.sh`・`tests/lib/pty-probe.py`・`tests/lib/run-tests.sh`・`tests/lib/image-scope.sh` | 走らせる | 検査そのものと、それを走らせ分ける道具 |
-| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `.github/workflows/` の全部を検査し、`go.mod` の go と Dockerfile の golang のバージョンを `mise.toml` と突き合わせる |
+| `.github/`・`mise.toml` | 走らせる | `tests/image.sh` が image の中の actionlint・ghalint・pinact で `.github/workflows/` の全部を検査し、`go.mod` の go と Dockerfile の golang・mise の既定の go（`DEFAULT_GO_VERSION`）のバージョンを `mise.toml` と突き合わせる |
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`README.ja.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | `image/apply-main.sh` | 飛ばす | セルに main の commit を当てる道具（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`image/` の下だが Dockerfile は COPY しない |
 | `model/` | 飛ばす | 課題の一生のモデルと検査器のバージョン。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |

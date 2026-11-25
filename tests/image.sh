@@ -16,6 +16,13 @@ if [ "$img_go" != "$mise_go" ]; then
   exit 1
 fi
 
+# image の mise の既定の go（mise.toml の無い所で引かれる go）も mise.toml の go に揃える
+def_go=$(sed -n 's/^ARG DEFAULT_GO_VERSION=\([0-9.]*\)$/\1/p' image/Dockerfile)
+if [ "$def_go" != "$mise_go" ]; then
+  echo "FAIL image: image/Dockerfile の DEFAULT_GO_VERSION（${def_go:-<無い>}）が mise.toml の go（$mise_go）と違う" >&2
+  exit 1
+fi
+
 if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
   if [ "${CI:-false}" = true ]; then
     echo 'FAIL image: CI requires Docker' >&2
@@ -128,7 +135,8 @@ docker run --rm --network none --security-opt seccomp=unconfined andon:test bash
 '
 # ~/.bashrc を読まない非対話のシェル（担当・レビュアーの道具の呼び出し）でも、repo の mise.toml の go が PATH で引ける（ENV の PATH の mise の shims）。
 # shims が aqua の bin/mise（argv[0] で道具を選ぶ proxy）を指すと go を aqua の道具として探して落ちるので、その形も落ちる。
-# network none なので go は取らず、バージョンを名乗るだけの go を mise link で mise.toml のバージョンに登録する
+# network none なので go は取らず、バージョンを名乗るだけの go を mise link で mise.toml のバージョンに登録する。
+# mise.toml の無い所でも同じ go が引けることも見る（image の mise の既定の go が mise.toml とずれると、登録していないバージョンを探して落ちる）
 docker run --rm --network none \
   --mount "type=bind,source=$PWD/mise.toml,target=/tmp/proj/mise.toml,readonly" \
   -e MISE_GO="$mise_go" andon:test bash -euc '
@@ -140,6 +148,10 @@ docker run --rm --network none \
     mise reshim
     out=$(bash --norc --noprofile -c "cd /tmp/proj && go version") || { echo "FAIL image: 非対話のシェルで mise.toml の go が引けない" >&2; exit 1; }
     test "$out" = "go version go$MISE_GO linux/fake" || { echo "FAIL image: 非対話のシェルの go が mise.toml のバージョンでない（$out）" >&2; exit 1; }
+    # mise.toml の無い所（一時の置き場・repo の外へ展開した検査）でも、image の mise の既定の go が mise.toml のバージョンで引ける
+    bare=$(mktemp -d)
+    out=$(bash --norc --noprofile -c "cd \"$bare\" && go version") || { echo "FAIL image: mise.toml の無い所の非対話のシェルで go が引けない（image に mise の既定の go が無い）" >&2; exit 1; }
+    test "$out" = "go version go$MISE_GO linux/fake" || { echo "FAIL image: mise.toml の無い所の go が mise.toml のバージョンでない（$out）" >&2; exit 1; }
   '
 # .github/workflows/ の全部を image の中の actionlint・ghalint・pinact に通す（ADR-0034 決めたこと 8）。
 # ファイルの名前は書かない（workflow を足せば、その workflow も見る）。actionlint は git の repo の外では
