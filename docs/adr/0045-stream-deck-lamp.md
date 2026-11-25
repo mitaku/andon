@@ -19,7 +19,7 @@
 | 9 | mod `inbox` に、待っているものを順に開く command `inbox.call` を足す | `package/host/inbox/main.js`・`package/host/inbox/README.md` | 生きている |
 | 10 | plugin は npm の依存を持たず、Stream Deck の WebSocket の約束を直接話す | `package/host/streamdeck/andon.lamp.sdPlugin/lamp.js`・`package/host/streamdeck/andon.lamp.sdPlugin/manifest.json` | 生きている |
 | 11 | plugin の名前は `andon.lamp` にし、`package/host/streamdeck/` に置く | `package/host/streamdeck/andon.lamp.sdPlugin/manifest.json`・`package/host/streamdeck/andon.lamp.sdPlugin/README.md` | 生きている |
-| 12 | `host-install` は、置き場を指定されたときだけ plugin を置く | `init/bin/bootstrap`・`docs/operate.md` | 生きている |
+| 12 | `host-install` は、置き場を指定されたときだけ plugin を置く | `package/host/bootstrap`・`docs/operate.md` | 生きている |
 | 13 | 設定の画面は作らず、App の置き場と実行ファイルは環境変数で替える | `package/host/streamdeck/andon.lamp.sdPlugin/app.js`・`package/host/streamdeck/andon.lamp.sdPlugin/README.md` | 生きている |
 | 14 | `inbox.lamp` の形は Andon の約束に足さず、mod と plugin をつないだ検査で守る | `package/host/inbox/README.md`・`tests/host/screen.mjs` | 生きている |
 | 15 | herdr-core の API から、動いている役の端末の数を出す 2 つ目のキーを足す | `package/host/streamdeck/andon.lamp.sdPlugin/working.js`・`package/host/streamdeck/andon.lamp.sdPlugin/lamp.js`・`package/host/streamdeck/andon.lamp.sdPlugin/manifest.json` | 生きている |

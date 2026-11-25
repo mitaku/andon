@@ -7,7 +7,7 @@
 - `bt-ran` 当てたあとに boot が走り、dispatcher を起動し直した。見る道: 検証の担当だけ。
   - 見るファイル: `internal/boot/boot.go`、`internal/boot/start.go`、`internal/boot/owners.go`、`internal/boot/files.go`、`image/apply-main.sh`
 - `bt-generated` boot が書いたファイルが、控え（`~/.local/state/andon/boot.json`）の sha256 のまま在る。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/boot/codex.go`、`internal/boot/trust.go`、`internal/boot/gitauthor.go`、`package/codex.rules`、`package/templates/`、`package/environment.md`、`package/writing.md`、`init/`
+  - 見るファイル: `internal/boot/codex.go`、`internal/boot/trust.go`、`internal/boot/gitauthor.go`、`package/codex.rules`、`package/templates/`、`package/environment.md`、`package/writing.md`、`init/.dockerignore`、`init/.gitignore`、`init/AGENTS.local.md`、`init/Dockerfile.tmpl`、`init/andon.toml.tmpl`、`init/files/`、`init/gate.local.json`、`init/local/`、`init/projects/`、`init/wiki/`
 - `bt-managed` managed settings の hook が `/opt/andon/hooks` を指す。見る道: 検証の担当だけ。
   - 見るファイル: `package/settings.json`
 - `bt-skills` `/opt/andon/skills` の skill ごとに、`~/.agents/skills/andon-<名>` の symlink がその置き場を指す。リンクが無いもの・パッケージの外を指す `andon-*` があれば落ちる。見る道: 検証の担当だけ。
@@ -41,7 +41,16 @@
 - `package/skills/`
 - `package/gh-skills.txt`
 - `image/apply-main.sh`
-- `init/`
+- `init/.dockerignore`
+- `init/.gitignore`
+- `init/AGENTS.local.md`
+- `init/Dockerfile.tmpl`
+- `init/andon.toml.tmpl`
+- `init/files/`
+- `init/gate.local.json`
+- `init/local/`
+- `init/projects/`
+- `init/wiki/`
 
 ## 既に見ている検査
 

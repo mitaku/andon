@@ -88,6 +88,7 @@ Verify-features: wl-resume, wl-record
 
 - `package/lib/`（statusline と schema の検査器）。利用者が動かす道が無い。statusline は Claude Code が画面に出すだけで、検査器は `tests/schema.sh` と `go test ./internal/contract/` が CI で見ている。セルの本物で動かして増える証拠が無い。
 - `package/host/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
+- `init/bin/bootstrap`（セルの薄い入口）。ホストで動き、本体の `package/host/bootstrap` を走らせるだけで、セルの中の検証の担当は動かせない。`tests/andon-init.sh` と、docker のある CI の `tests/image.sh` が見ている。
 - `package/compose.yaml`。セルを起動し直す口で、動いているセルの中からは打ち直せない。`tests/image.sh` が docker のある CI で見ている。
 - `package/bin/`。焼いた andon を置く場所で、repo には空の印しか無い。
 - `internal/triage/unsorted.go`（トリアージの溜まった数）。dispatcher がトリアージのルーチンを撃つかを決める数え方で、`triage` の道は通らない。撃つところは `dispatcher-news` の `dn-idle` が見る。`go test ./internal/triage/` が見ている。

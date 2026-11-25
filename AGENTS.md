@@ -83,6 +83,7 @@
 | この表の決まりは「決まり｜守らせるもの」の対で書く。守らせるものは、検査・command・hook・repo の設定の名前か、「無し。」と理由。 | `tests/agents-md.sh`。表の外の決まり・対になっていない行・名指したファイルが無い行で落ちる。CI でいつも走る。 |
 | settle（オーナーのマージの片付け）の約束は、コードの注釈・`docs/dispatcher.md`・`docs/contract.md`・`process/states/human-merge.yaml`・`docs/decisions/` に写されている。settle を変えたら全部を揃え、YAML を変えたら `andon process render` で `docs/process/` を作り直す。 | `tests/process.sh`。`docs/process/` が `process/` から作り直しても変わらないことを見る。ほかの写しの食い違いは見ない。 |
 | ADR の決定の索引の「今の正」は、実物の `ls`・`grep` で在るパスを確かめてから書く。 | 無し。書き方の決まり。 |
+| セルの入口 `init/bin/bootstrap` は薄い入口で、前に作ったセルには届かない。sub-command の動きは本体の `package/host/bootstrap` に書く。入口の動きを変えるときは入口の `entry` と本体の `need_entry` の番号を上げ、CHANGELOG の「上げるときにすること」に置き換える手を書く。入口を変えたら `tests/andon-init.sh` の控え（`entry_sum`・`entry_num`）を直す（ADR-0048 決めたこと 12）。 | `tests/andon-init.sh`。入口の中身のハッシュと番号を控えと、本体の `need_entry` を入口の番号と突き合わせ、違えば落ちる。動きが変わったか（番号を上げるべきか）は見ない。 |
 
 ## PR とマージ
 

@@ -235,11 +235,12 @@ if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動�
 fi
 # (e) 分ける前の入口（ADR-0048 決めたこと 10・受け入れ条件 10）: 古い入口が渡すのと同じ ANDON_IMAGE・ANDON_SLUG だけの docker compose は、
 # どの sub-command も 0 でない終了で、入口を置き換える 1 行（image の名前入り）を出す。その 1 行をそのまま打つと薄い入口が出る。
-# 動いているコンテナは、その前後で ID が変わらず動いたまま。ANDON_ENTRY=1 を足した dc は通る（cid0・cid1 を取る dc ps）
+# 動いているコンテナは、その前後で ID が変わらず動いたまま。ANDON_ENTRY=1 を足した dc は通る（cid0・cid1 を取る dc ps）。
+# exec は補間の誤りで止まらない（CI の本物の docker で確かめた）。古い入口の sh・herdr は exec の前に ps -q と up -d を打ち、そこで止まる
 old_dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
 paste_line='docker run --rm andon-imgtest:local andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
 cid0=$(dc ps -q dev)
-for args in 'up -d' 'up -d --force-recreate' 'down' 'ps' 'logs dev' 'exec -T dev true'; do
+for args in 'up -d' 'up -d --force-recreate' 'down' 'ps' 'ps -q dev' 'logs dev'; do
   read -r -a argv <<<"$args"
   if out=$(old_dc "${argv[@]}" 2>&1); then
     printf '%s\n' "$out" >&2
@@ -269,7 +270,7 @@ if [ -z "$cid0" ] || [ "$cid0" != "$cid1" ] || [ "$(docker inspect -f '{{.State.
   echo "FAIL image: 古い入口の docker compose の前後で、動いているコンテナが変わったか止まった（$cid0 / $cid1）" >&2
   exit 1
 fi
-echo 'ok   image: 古い入口の docker compose は up・down・ps・logs・exec のどれも止まって入口を置き換える 1 行を出し、その 1 行で薄い入口が出て、動いているコンテナはそのまま（ANDON_ENTRY=1 なら通る）'
+echo 'ok   image: 古い入口の docker compose は up・down・ps・logs のどれも止まって入口を置き換える 1 行を出し、その 1 行で薄い入口が出て、動いているコンテナはそのまま（ANDON_ENTRY=1 なら通る）'
 dc exec -T dev bash -euc '
   andon help >/dev/null
   python3 -c "import json,sys; a,b=(json.load(open(p)) for p in sys.argv[1:]); sys.exit(a!=b)" \

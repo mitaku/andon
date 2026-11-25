@@ -106,9 +106,11 @@ A cell repo is created with `andon init <slug>`. The step-by-step procedure (the
 
 ```bash
 andon init <slug> --image ghcr.io/<owner>/andon:<version> --owner <email>
-cd <slug>-cell && bin/bootstrap            # build the image, take compose.yaml out of it, and start the cell
+cd <slug>-cell && bin/bootstrap            # build the image, take the entry's body and compose.yaml out of it, and start the cell
 bin/bootstrap host-install                  # put andon-up, the ssh config, the herdr settings and more on the host (does not overwrite)
 ```
+
+The cell repo's `bin/bootstrap` is a thin entry; its behavior lives in a body inside the image. Upgrading Andon updates the entry's behavior too.
 
 ## Map
 
