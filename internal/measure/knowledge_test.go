@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -228,5 +229,30 @@ func TestKnowledgePagesTopTen(t *testing.T) {
 		"topics/p01.md=2", "topics/p04.md=2", "topics/p07.md=2", "topics/p10.md=2", "topics/p00.md=1", "topics/p03.md=1"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("上から 10 個が違う: %v", got)
+	}
+}
+
+// 読めない report.json は飛ばした記録に 1 行だけ出す（見込みの読みと申告の読みで 2 回読まない）。
+func TestKnowledgeUnreadableReportSkippedOnce(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root は権限で読めないファイルを作れない")
+	}
+	root, wiki := knowledgeLedger(t)
+	p := filepath.Join(root, "kanban", "issues", "S-0001", "library", "report.json")
+	if err := os.Chmod(p, 0); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Measure(knowledgeOpts(root, wiki))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, s := range res.Skipped {
+		if strings.HasSuffix(s.Source, "S-0001/library/report.json") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("読めない report.json が飛ばした記録に %d 行出た: %+v", n, res.Skipped)
 	}
 }

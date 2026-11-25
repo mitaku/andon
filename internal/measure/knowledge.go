@@ -68,7 +68,7 @@ type GapWhere struct {
 }
 
 // knowledge は知識の節を組む。workers は期間に片付いた担当の課題の id（issues[] の順）、bs は片付いた課題の内訳。
-func (r *reader) knowledge(o Options, workers []string, bs map[string]*trace.Breakdown) KnowledgeSection {
+func (r *reader) knowledge(o Options, workers []string, byID map[string]*issue, bs map[string]*trace.Breakdown) KnowledgeSection {
 	s := KnowledgeSection{Pages: []KnowledgePage{}, Gaps: KnowledgeGaps{Wheres: []GapWhere{}, Repeated: []GapWhere{}}}
 	pages := map[string]*pageAcc{}
 	wheres := map[string]*GapWhere{}
@@ -107,7 +107,7 @@ func (r *reader) knowledge(o Options, workers []string, bs map[string]*trace.Bre
 				s.Read.IndexOnly++
 			}
 		}
-		gs := r.gaps(filepath.Join(dir, "library", "report.json"))
+		gs := byID[id].gaps
 		if len(gs) > 0 {
 			s.Gaps.Issues++
 		}
@@ -180,13 +180,9 @@ type gap struct {
 	Where string `json:"where"`
 }
 
-// gaps は report.json の gaps[]。report.json が無いか gaps が無ければ空。種類が 3 つのどれでもない申告は飛ばした記録に出して数えない。
-// JSON の object でない report.json は report() が飛ばした記録に出しているので、ここでは出さない。
-func (r *reader) gaps(p string) []gap {
-	b, ok := r.read(p)
-	if !ok {
-		return nil
-	}
+// gaps は report.json（p の中身 b）の gaps[]。gaps が無ければ空。種類が 3 つのどれでもない申告は飛ばした記録に出して数えない。
+// report() が読んだ中身を受ける（読めない report.json を飛ばした記録に 2 回出さない）。
+func (r *reader) gaps(p string, b []byte) []gap {
 	var v struct {
 		Gaps []json.RawMessage `json:"gaps"`
 	}

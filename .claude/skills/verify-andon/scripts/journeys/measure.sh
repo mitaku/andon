@@ -107,6 +107,22 @@ step "ms-table: andon measure を打つ" "$andon" measure \
 [ "$before" = "$(sums)" ] && ok "ms-readonly: measure の前後で kanban とセッションの記録が変わらない" \
   || fail "ms-readonly: measure が kanban かセッションの記録を書き換えた"
 
+# ms-knowledge（続き）: 内訳の読みが目録だけなら読んだ課題に入れず、内訳が null なら記録なしに入れて、読まれなかったページを null（記録なし）にする
+lib=$tmp/project/kanban/issues/$done_id/library
+jq '.breakdown.knowledge = {"index_reads": 2, "pages": []}' "$lib/outcome.json" >"$tmp/outcome.json" && mv "$tmp/outcome.json" "$lib/outcome.json"
+step "ms-knowledge: 目録だけの内訳で andon measure --json を打つ" "$andon" measure --json
+jq -c '.knowledge.read, .knowledge.unread' "$tmp/step.out" 2>/dev/null | sed 's/^/  knowledge: /'
+jq -e '.knowledge.read == {"issues": 0, "index_only": 1, "no_record": 0} and .knowledge.pages == []
+  and .knowledge.unread == ["entities/owner.md", "topics/ci.md", "topics/shell.md"]' "$tmp/step.out" >/dev/null \
+  && ok "ms-knowledge: 目録だけを読んだ $done_id を読んだ課題に入れず、目録だけの課題に数える" \
+  || fail "ms-knowledge: 目録だけの課題を読んだ課題に数えたか、読まれなかったページが違う"
+jq '.breakdown = null' "$lib/outcome.json" >"$tmp/outcome.json" && mv "$tmp/outcome.json" "$lib/outcome.json"
+step "ms-knowledge: 内訳が null で andon measure を打つ" "$andon" measure \
+  && grep -q '^  wiki のページを読んだ課題  *0件・目録だけ 0件・読みの記録なし 1件$' "$tmp/step.out" \
+  && grep -q '^  1 回も読まれなかった Topics と Entities のページ  記録なし$' "$tmp/step.out" \
+  && ok "ms-knowledge: 内訳が null の $done_id を読みの記録なしに数え、読まれなかったページを「記録なし」にする" \
+  || fail "ms-knowledge: 内訳が null の課題を記録なしに数えないか、読みの記録の無い期間に読まれなかったページを並べた"
+
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
 sed 's/^/  /' "$tmp/hc.calls" "$tmp/gh.calls"

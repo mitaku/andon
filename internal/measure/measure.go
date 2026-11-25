@@ -267,6 +267,7 @@ type issue struct {
 	session  string
 	worktree string
 	agentEst string // report.json の estimate.size（担当の見込み）
+	gaps     []gap  // report.json の gaps[]（種類の壊れた申告は除く。知識の節）
 	raw      ledger.Issue
 }
 
@@ -708,7 +709,7 @@ func Measure(o Options) (*Result, error) {
 	for _, x := range res.Issues {
 		workers = append(workers, x.Issue)
 	}
-	res.Knowledge = r.knowledge(o, workers, bs)
+	res.Knowledge = r.knowledge(o, workers, byID, bs)
 
 	sort.SliceStable(r.skipped, func(i, j int) bool {
 		if r.skipped[i].Source != r.skipped[j].Source {
@@ -966,7 +967,7 @@ func (r *reader) issues() []*issue {
 		_, _, isRound := ledger.SplitRound(id)
 		t.reviewer = isRound || strings.HasSuffix(v.Profile, "-review")
 		lib := filepath.Join(r.dir, "issues", id, "library")
-		t.pr, t.agentEst, t.obs = r.report(lib)
+		t.pr, t.agentEst, t.obs, t.gaps = r.report(lib)
 		t.gates = r.gates(lib)
 		if t.pr == "" {
 			var latest time.Time
@@ -983,11 +984,11 @@ func (r *reader) issues() []*issue {
 	return out
 }
 
-func (r *reader) report(lib string) (pr, est, obs string) {
+func (r *reader) report(lib string) (pr, est, obs string, gaps []gap) {
 	path := filepath.Join(lib, "report.json")
 	b, ok := r.read(path)
 	if !ok {
-		return "", "", ""
+		return "", "", "", nil
 	}
 	var v struct {
 		PR       string `json:"pr"`
@@ -1001,9 +1002,9 @@ func (r *reader) report(lib string) (pr, est, obs string) {
 	}
 	obs = r.observation(path, b)
 	if bad {
-		return "", "", obs
+		return "", "", obs, nil
 	}
-	return v.PR, v.Estimate.Size, obs
+	return v.PR, v.Estimate.Size, obs, r.gaps(path, b)
 }
 
 // observation は report.json（path の中身 b）の観察の報告の result（hit・miss・unknown）。無ければ空。
