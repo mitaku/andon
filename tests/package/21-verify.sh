@@ -8,7 +8,7 @@ verify_miss() {
     'bash "$d/.claude/skills/verify-andon/scripts/features.sh" <始まり>..<当てた commit>' \
     '差分が地図の「変えたら動かすパス」に当たらない' '読む skill: .claude/skills/verify-andon/SKILL.md' \
     '前の検証が見た commit: <始まり>' 'kanban review <id> で返す' \
-    'レビュー: 地図を直す PR は .claude/skills/ の中なのでレベル B になり、Review: off でも gate が独立レビューを求める' '   - Must fix: major' '「当てたら」の 2 で始まりの commit を決め直す' '報告に見た範囲が無い（診断で止まった）ときも' 'それを当てた commit として「当てたら」の 3 から回す'; do
+    '   レビュー: 地図を直す PR は .claude/skills/ の中なのでレベル B になり、Review: off でも gate が独立レビューを求める' '   - Review: off' '   - Must fix: major' '「当てたら」の 2 で始まりの commit を決め直す' '報告に見た範囲が無い（診断で止まった）ときも' 'それを当てた commit として「当てたら」の 3 から回す'; do
     grep -qF -- "$k" "$1" || m="$m [$k]"
   done
   echo "$m"
@@ -22,3 +22,8 @@ grep -q '^| マージした変更をセルへ当てた.* | `verify.md` |$' "$cos
 # 検査が当たる場合があること: 同時に1つの行を消した手引きでは落ちる
 grep -vF '同時に動く検証の課題は1つ' "$pb/verify.md" >"$tmp/verify.md"
 [ -n "$(verify_miss "$tmp/verify.md")" ] && pass "ADR-0035 A13 後半: 同時に1つの行が無い手引きは当たる（検査が見ている）" || fail "ADR-0035 A13 後半: 検査が何も見ていない"
+# 雛形のレビューの行を雛形の外（行頭の字下げ無し）へ動かした手引きと、Review を on にした手引きも当たる
+sed -e 's/^   レビュー: /レビュー: /' "$pb/verify.md" >"$tmp/verify.md"
+[ -n "$(verify_miss "$tmp/verify.md")" ] && pass "ADR-0035 A13 後半: 雛形の外へ動かしたレビューの行は当たる（検査が見ている）" || fail "ADR-0035 A13 後半: 雛形の外のレビューの行で通る"
+sed -e 's/^   - Review: off$/   - Review: on/' "$pb/verify.md" >"$tmp/verify.md"
+[ -n "$(verify_miss "$tmp/verify.md")" ] && pass "ADR-0035 A13 後半: Review を on にした雛形は当たる（検査が見ている）" || fail "ADR-0035 A13 後半: Review を on にした雛形で通る"

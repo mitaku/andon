@@ -43,7 +43,7 @@
    前の検証が見た commit: <始まり>
    当てた commit: <当てた commit>
    機能: <features.sh が出した名前>
-   レビュー: 地図を直す PR は .claude/skills/ の中なのでレベル B になり、Review: off でも gate が独立レビューを求める。PR を出したら worker skill の §4 を Review: on と同じに通し（反論の段・andon issue review-request・指摘の振り分け）、今の head のレビューが返ってから andon issue ready を打つ。地図を直さなければ PR もレビューも無い。
+   レビュー: 地図を直す PR は .claude/skills/ の中なのでレベル B になり、Review: off でも gate が独立レビューを求める。地図を直すときは worker skill の §4 を Review: on と同じに通し（PR を出す前に反論の段、出したら andon issue review-request、届いた指摘の振り分け）、今の head のレビューが返ってから andon issue ready を打つ。地図を直さなければ PR もレビューも無い。
    完了条件: 当たる機能ごとに andon issue record の記録がある。報告の ## Report の先頭に、見た commit の範囲（<始まり>..<当てた commit>）と機能ごとの結果（動いた・動かなかった・未確認）がある。地図と手順の食い違いを直したなら、その PR と、今の head を見た独立レビューがある。
    守ること: 製品のコードを直さない（直してよいのは .claude/skills/verify-andon/ の中だけ）。エージェントを起動しない。セルの本物の kanban に書かない。地図を直さなかったときは PR が無いので、andon issue report のあと kanban review <id> で返す（andon issue ready は打たない）。
 
