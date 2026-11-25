@@ -335,7 +335,7 @@ sandbox bash bin/bootstrap --dry-run >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q 'FROM を埋める' "$tmp/err" && pass "FROM が埋まっていなければ止まる" || fail "placeholder: rc=$r $(cat "$tmp/err")"
 
 if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
-  ANDON_IMAGE=andon-x:local ANDON_SLUG=x docker compose --project-directory "$PWD" -f "$andon_root/package/compose.yaml" config -q 2>"$tmp/err" &&
+  ANDON_IMAGE=andon-x:local ANDON_SLUG=x ANDON_ENTRY=1 docker compose --project-directory "$PWD" -f "$andon_root/package/compose.yaml" config -q 2>"$tmp/err" &&
     pass "compose.yaml は docker compose が読める" || fail "docker compose config: $(cat "$tmp/err")"
 else
   echo "skip docker compose config（docker compose が無い）"
