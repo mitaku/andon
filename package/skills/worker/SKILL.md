@@ -219,10 +219,10 @@ EOF
 **レビューは担当の工程。** レビューの commit と自分の最後の commit の照合は `andon issue ready` がする。
 
 **レビューが要るかは、gate と同じ判定で決まる。** `Review: on` なら要る。`Review: off` でも、PR の差分がレベル B・C なら要る（レベルは差分が触るパスから条件表で機械が決める。gate・`andon issue review-request`・`andon issue ready` は同じ判定で、今の head のレビューが無いと `ready` が断り、gate は `fix` で返す）。差分がレベル A なら要らない。
-この skill で「`Review: on` なら」と書く所（§2・§3・§7）は、`Review: off` で差分がレベル B・C の課題にも当てはまる。`Review: off` の課題は次のどちらかで要否を決める:
+`Review: off` の課題は次のどちらかで要否を決める:
 
-- 依頼書が、差分はレベル B・C なので `Review: off` でも §4 を `Review: on` と同じに通す、と書いていれば、反論の段から通す。
-- 書いていなければ、PR を出したら 1 と同じに `andon issue review-request <id> < /dev/null` を打って確かめる。差分がレベル A なら、command が「gate はレビューを求めないので頼めない。andon issue ready へ進む」と断るので、§4 を飛ばして §7 へ。レベル B・C なら、command がそのまま1回目を頼む（報告の `## レビュー依頼` の行に「review は off だが、差分が…なので gate はレビューを求める」が付く）ので、1 の残りから続ける。
+- 依頼書が、差分はレベル B・C なので `Review: off` でも §4 を `Review: on` と同じに通す、と書いていれば、反論の段から通す。この skill で「`Review: on` なら」と書く所（§2・§3・§7）も、この課題に当てはまる。
+- 書いていなければ、PR を出したら 1 と同じに `andon issue review-request <id> < /dev/null` を打って確かめる（レベルは PR の差分から決まるので、PR の前には分からない）。差分がレベル A なら、command が「gate はレビューを求めないので頼めない。andon issue ready へ進む」と断るので、§4 を飛ばして §7 へ。レベル B・C なら、command がそのまま1回目を頼む（報告の `## レビュー依頼` の行に「review は off だが、差分が…なので gate はレビューを求める」が付く）ので、1 の残りから続ける。この道では反論の段を通らず、報告に `反論:` の行を書かない。2 回目からと rebase のあとの頼み直しは `Review: on` と同じ。
 
 **1回目を頼む前に、反論の段を通す**（PR を出す前に。2回目からの頼み直しと、rebase のあとの頼み直しでは要らない）。1回目のレビューで返る major の多くは、下の6つの観点の見落としだった。自分の差分を別の目に壊させて、レビューの前に拾う:
 
@@ -258,7 +258,7 @@ EOF
    （上限を超えた回は command が `extra: true` にする。見るのは直した差分だけ）。起動するかは Chief of Staff が決める。
    minor 以下だけが残るときは、見送りに残して §7 へ。
 
-`Review: off` で差分がレベル A なら（上の `review-request` が断ったら）、§4 を飛ばして §7 へ。`Review: off` だけを見て飛ばさない（差分がレベル B・C なら `ready` が断る）。
+`Review: off` で差分がレベル A なら（上の `review-request` が「gate はレビューを求めないので頼めない」で断ったら）、§4 を飛ばして §7 へ。ほかの理由の断りは、その理由の1行に従う。`Review: off` だけを見て飛ばさない（差分がレベル B・C なら `ready` が断る）。
 
 ## 5. オーナーを待つとき
 
