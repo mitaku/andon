@@ -503,7 +503,7 @@
         }
       }
     },
-    "wiki_path": { "description": "A path relative to the wiki store, ending in .md.", "type": "string", "pattern": "^[^/].*[.]md$" },
+    "wiki_path": { "description": "A path relative to the wiki store, ending in .md (the path characters the wiki reads count).", "type": "string", "pattern": "^[A-Za-z0-9_@+-][A-Za-z0-9_.@+/-]*[.]md$" },
     "knowledge_page": {
       "description": "One wiki page's reads.",
       "type": "object",
