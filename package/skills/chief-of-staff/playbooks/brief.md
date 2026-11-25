@@ -102,7 +102,7 @@ kanban set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 
 
 | キー（依頼書の行） | 値 | 既定 | 変えるとき |
 |---|---|---|---|
-| `review`（Review） | `on` / `off` | `off` | independent-review の §1 の条件に当たれば `on`（外向きの面・新しい module・約500行超・オーナーの依頼。`AGENTS.md` の Chief of Staff の節で絞ってあればそれ） |
+| `review`（Review） | `on` / `off` | `off` | independent-review の §1 の条件に当たれば `on`（外向きの面・新しい module・約500行超・オーナーの依頼。`AGENTS.md` の Chief of Staff の節で絞ってあればそれ）。`off` でも、PR の差分がレベル B・C なら gate はレビューを求める。差分がいつもレベル B・C になる雛形（`verify.md` の検証の課題など）は、依頼書の本文にそれを書く |
 | `must_fix`（Must fix） | `critical` / `major` / `minor` / `trivial` | `major` | オーナーが線を変えたときだけ |
 | `reviewer`（Reviewer） | `codex-review` / `claude-review` | `codex-review` | 実装と別ブランドにする。Codex が書く課題（profile `codex`）なら `claude-review` |
 | `review_rounds`（Review rounds） | 1 以上の数 | `2` | オーナーが変えたときだけ |

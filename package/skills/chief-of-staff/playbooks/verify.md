@@ -43,15 +43,20 @@
    前の検証が見た commit: <始まり>
    当てた commit: <当てた commit>
    機能: <features.sh が出した名前>
-   完了条件: 当たる機能ごとに andon issue record の記録がある。報告の ## Report の先頭に、見た commit の範囲（<始まり>..<当てた commit>）と機能ごとの結果（動いた・動かなかった・未確認）がある。地図と手順の食い違いを直したなら、その PR がある。
+   レビュー: 地図を直す PR は .claude/skills/ の中なのでレベル B になり、Review: off でも gate が独立レビューを求める。PR を出したら worker skill の §4 を Review: on と同じに通し（反論の段・andon issue review-request・指摘の振り分け）、今の head のレビューが返ってから andon issue ready を打つ。地図を直さなければ PR もレビューも無い。
+   完了条件: 当たる機能ごとに andon issue record の記録がある。報告の ## Report の先頭に、見た commit の範囲（<始まり>..<当てた commit>）と機能ごとの結果（動いた・動かなかった・未確認）がある。地図と手順の食い違いを直したなら、その PR と、今の head を見た独立レビューがある。
    守ること: 製品のコードを直さない（直してよいのは .claude/skills/verify-andon/ の中だけ）。エージェントを起動しない。セルの本物の kanban に書かない。地図を直さなかったときは PR が無いので、andon issue report のあと kanban review <id> で返す（andon issue ready は打たない）。
 
    ## Settings
    - Review: off
+   - Reviewer: codex-review
+   - Must fix: major
+   - Review rounds: 2
    - Merge: person
    - Estimate: 中
    ```
 
+   - `Review` は `off` のまま書く（independent-review の §1 の条件に当たらない）。地図を直す PR はレベル B なので gate がレビューを求め、担当は依頼書の `レビュー:` の行のとおり頼む。`on` に書き直さない。`Reviewer`・`Must fix`・`Review rounds` は、そのレビューと gate が読むので省かない（`must_fix` が無いと gate はオーナーへ回す）。
    - `Merge` は、委譲がこのプロジェクトのマージを任せていれば `auto`（`brief.md` の表）。地図の直しは `.claude/skills/` の中だけなので、gate の条件表で自動でマージできる側に入る。
    - 起動は `start.md` のとおり（枠〈`andon waiting` の `slots.free`〉とぶつかりの確かめは守る）。枠が無くて待たせた課題も done でないので、1 が次の切り過ぎを止める。
 5. **オーナーへ**: 当てた知らせに1行添える。「検証の課題 <id>（<機能>）を切った」「差分が地図に当たらないので検証は切らない」「検証の課題 <id> が動いているので、片付いたあとにまとめて見る」のどれか。
