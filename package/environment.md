@@ -15,6 +15,7 @@
 - git は HTTPS。資格情報は `gh` の token（`gh auth setup-git`）。SSH 鍵を作らない・持ち込まない。
 - 認証はセルの中で取る。オーナーが見るブラウザは無いので、URL が出たらオーナーに見せて手元で開いてもらう。device code があればそれを使う。ホストからトークンを持ち込まない。
 - CLI は aqua（セルの `local/aqua.yaml`。イメージの `/opt/andon-aqua/aqua.yaml` は触らない）、言語ランタイムはリポジトリの `mise.toml`。`apt install` は最後の手段。
+- 言語の道具（`mise.toml` が名指すもの）は、Andon が役の端末を起動する前に入れる。道具が無いと言われたら、repo の中で `mise install` を打つ。
 - Playwright のブラウザはイメージに焼いてある（`PLAYWRIGHT_BROWSERS_PATH`）。入れ直さない。
 - 担当が画面を見て確かめるには `playwright-cli`（焼いた Chromium を使う。使い方は skill `playwright-cli`）。dev サーバは `127.0.0.1` で立てて開く。
 - Claude Code には plugin の pstack が入っている（Codex には入らない）。pstack の skill は、役の skill か依頼書が名指したものだけを、`SKILL.md` を読んで使う。`setup-pstack` は走らせない。`pstack:` で始まる型のサブエージェントは使わない。
