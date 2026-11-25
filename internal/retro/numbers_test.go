@@ -324,7 +324,7 @@ func TestRetroBreakdownSchemaIsOutcomeCopy(t *testing.T) {
 		return v.Defs
 	}
 	r, o := defs(contract.SchemaRetro), defs(contract.SchemaOutcome)
-	for _, k := range []string{"breakdown", "tool"} {
+	for _, k := range []string{"breakdown", "tool", "page_read"} {
 		var a, b any
 		if json.Unmarshal(r[k], &a) != nil || json.Unmarshal(o[k], &b) != nil || !reflect.DeepEqual(a, b) {
 			t.Errorf("schema/retro.schema.json の $defs.%s が schema/outcome.schema.json の写しでない", k)
