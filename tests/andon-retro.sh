@@ -79,6 +79,7 @@ printf '{"commit": "%s", "applied_at": "%s", "image_commit": "x"}\n' "$sha" "$(a
 
 # セッションログ: Chief of Staff（cwd がプロジェクトの根）。どの行にもオーナーの印を付ける
 export CLAUDE_CONFIG_DIR=$tmp/claude CODEX_HOME=$tmp/codex
+export XDG_STATE_HOME=$tmp/state   # Chief of Staff の生の記録（otel の置き場）をセルの本物から読まない
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/-sample-site"
 hum() { jq -cn --arg u "$1" --arg at "$2" --arg cwd "$root" --arg text "$3" \
   '{type: "user", uuid: $u, timestamp: $at, cwd: $cwd, origin: {kind: "human"}, promptSource: "typed", message: {role: "user", content: $text}}'; }
@@ -121,9 +122,13 @@ jq -e '.issues[] | select(.id == "S-0001") | .after_merge == {merge_commit: "111
 echo 'ok 10: マージ commit の checks の失敗と revert が元の課題に付く'
 
 # 18: 前の直し（3日前のものだけ。マージのあとに片付いた担当の課題は S-0001 と S-0003）
-jq -e '.fixes == [{issue: "S-0007", title: "S-0007 のタイトル", retro: "S-0006", pr: "https://github.com/example/sample-site/pull/7", merged_at: .fixes[0].merged_at, issues_after: 2, recurred_before: 0}]' \
+jq -e '[.fixes[] | del(.before_after)] == [{issue: "S-0007", title: "S-0007 のタイトル", retro: "S-0006", pr: "https://github.com/example/sample-site/pull/7", merged_at: .fixes[0].merged_at, issues_after: 2, recurred_before: 0}]' \
   "$tmp/out.json" >/dev/null || die "前の直し: $(jq -c '.fixes' "$tmp/out.json")"
-echo 'ok 18: 前の直しはマージから 14 日以内のものだけ、マージのあとの課題の数つき'
+# 後が 2 件なので、前後の数字は出さず、件数が足りないと書く（数字の数え方は go test ./internal/retro/ が見る）
+jq -e '.fixes[0].before_after | .after.issues == 2 and .before.numbers == null and .after.numbers == null and (.short | test("後が 2 件"))' \
+  "$tmp/out.json" >/dev/null || die "前後の数字: $(jq -c '.fixes[0].before_after' "$tmp/out.json")"
+jq -e '.chief_of_staff == {days: 0, tokens: null}' "$tmp/out.json" >/dev/null || die "Chief of Staff のトークン: $(jq -c '.chief_of_staff' "$tmp/out.json")"
+echo 'ok 18: 前の直しはマージから 14 日以内のものだけ、マージのあとの課題の数と、件数が足りないときは数字の無い前後つき'
 
 # 19: 当て直しの印
 jq -e '[.issues[] | {(.id): .reapplied}] | add == {"S-0007": null, "S-0001": false, "S-0003": true}' "$tmp/out.json" >/dev/null || die "当て直し: $(jq -c '[.issues[] | [.id, .reapplied]]' "$tmp/out.json")"
@@ -243,7 +248,7 @@ jq -e '.id == "S-0001" and (.journal | startswith("- 理解: ")) and .reviews[0]
 echo 'ok ADR-0039 6: 要約の束の全文を --issue で引ける'
 
 # 9: 前の直しに、前の振り返りが書いた再発の数
-jq -e '.fixes == [{issue: "S-0950", title: "S-0950 のタイトル", retro: "S-0899", pr: "'"$pr"'/7", merged_at: .fixes[0].merged_at, issues_after: 25, recurred_before: 2}]' \
+jq -e '[.fixes[] | del(.before_after)] == [{issue: "S-0950", title: "S-0950 のタイトル", retro: "S-0899", pr: "'"$pr"'/7", merged_at: .fixes[0].merged_at, issues_after: 25, recurred_before: 2}]' \
   "$tmp/split.json" >/dev/null || die "前の直し: $(jq -c '.fixes' "$tmp/split.json")"
 echo 'ok ADR-0039 9: 前の直しに前の振り返りが数えた再発の数（2）が添わる'
 

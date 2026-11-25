@@ -174,7 +174,7 @@ declare -A required=(
   [delivered]="at project acked news"
   [launch]="at role launch issue profile template command terminal session harness package workspace repo external drift drift_reasons memory_index"
   [outcome]="at issue result pr merge_commit merged_at gates reviewers worked_minutes sessions"
-  [retro]="project at since until previous_retro boundary issues summaries cut typed questions fixes redacted skipped"
+  [retro]="project at since until previous_retro boundary issues summaries cut typed questions fixes chief_of_staff redacted skipped"
   [patterns]="retro at since until days previous_retro patterns fixes"
   [run]="id command expect exit_code started_at finished_at output output_bytes truncated"
   [waiting]="version at project slots items"
@@ -321,7 +321,13 @@ outcome|.breakdown.errors|llm tool
 outcome|.breakdown.tools[0]|name argv0 count ms errors
 outcome|.breakdown.waits|question_ms review_ms ci_ms gone_ms
 retro|.previous_retro|issue done_at until
-retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome gates reviews waived corrections remember agents_md gaps journal after_merge reapplied reapplied_reasons
+retro|.issues[0]|id title profile repo done_at library estimate agent_estimate worked_minutes pr launches outcome breakdown gates reviews waived corrections remember agents_md gaps journal after_merge reapplied reapplied_reasons
+retro|.issues[0].breakdown|role coverage interactions llm_ms tool_ms blocked_ms tokens errors tools waits
+retro|.issues[0].breakdown.coverage|sessions traced
+retro|.issues[0].breakdown.tokens|input output cache_read cache_write
+retro|.issues[0].breakdown.errors|llm tool
+retro|.issues[0].breakdown.tools[0]|name argv0 count ms errors
+retro|.issues[0].breakdown.waits|question_ms review_ms ci_ms gone_ms
 retro|.issues[0].launches[0]|at profile model commit
 retro|.issues[0].outcome|result worked_minutes cost
 retro|.issues[0].outcome.cost|sessions measured tokens
@@ -336,7 +342,15 @@ retro|.summaries[0].gaps[0]|kind where
 retro|.typed[0]|id session at role issue text truncated
 retro|.questions[0]|issue n from kind question options answer asked_at
 retro|.questions[0].options[0]|label pick
-retro|.fixes[0]|issue title retro pr merged_at issues_after recurred_before
+retro|.fixes[0]|issue title retro pr merged_at issues_after recurred_before before_after
+retro|.fixes[0].before_after|before after short
+retro|.fixes[0].before_after.before|issues numbers
+retro|.fixes[0].before_after.after|issues numbers
+retro|.fixes[0].before_after.before.numbers|worked_minutes tokens gate review_rounds
+retro|.fixes[0].before_after.before.numbers.worked_minutes|count median
+retro|.fixes[0].before_after.before.numbers.gate|records fix needs_human rate
+retro|.chief_of_staff|days tokens
+retro|.chief_of_staff.tokens|input output cache_read cache_write
 retro|.skipped[0]|source reason
 patterns|.previous_retro|issue done_at
 patterns|.patterns[0]|id summary evidence level action target effect risk decision reason
@@ -896,6 +910,17 @@ pass|retro|.questions[0] += {"from": null, "answer": null}|聞いた役の無い
 fail|retro|.questions[0].from = "gate"|gate の問いが入っている
 fail|retro|.questions[0].kind = "scope"|範囲の問いが入っている
 fail|retro|.questions[0].n = 0|問いの番号が 0
+pass|retro|.issues[0].breakdown = null|内訳の無い束
+fail|retro|.issues[0].breakdown.role = "person"|束の内訳の役が知らない値
+fail|retro|.issues[0].breakdown.tokens.input = -1|束の内訳のトークンが負
+pass|retro|.fixes[0].before_after = {"before": {"issues": 12, "numbers": null}, "after": {"issues": 9, "numbers": null}, "short": "後が 9 件で、10 件に満たない"}|後が 10 件に満たない前の直し
+fail|retro|.fixes[0].before_after.short = ""|数字を出さない理由が空
+fail|retro|.fixes[0].before_after.after.issues = -1|後の課題の数が負
+pass|retro|.fixes[0].before_after.after.numbers.tokens = {"count": 0, "median": null}|トークンを数えた課題が無い
+fail|retro|.fixes[0].before_after.before.numbers.gate.rate = -0.1|差し戻しの率が負
+fail|retro|del(.fixes[0].before_after)|前の直しに前後の数字が無い
+pass|retro|.chief_of_staff = {"days": 0, "tokens": null}|Chief of Staff の記録が無い
+fail|retro|.chief_of_staff.tokens.output = -1|Chief of Staff のトークンが負
 pass|patterns|.previous_retro = null|前の振り返りが無い
 pass|patterns|. + {"patterns": [], "fixes": []}|パターンも前の直しも無い
 pass|patterns|.patterns[0].target = {"kind": "andon", "paths": ["package/skills/worker/SKILL.md"]}|Andon の直しで repo を持たない
@@ -1159,6 +1184,9 @@ retro|."$defs".typed.properties.role.enum += ["person"]|オーナーの文の ro
 retro|."$defs".after_merge.properties.checks.anyOf[0].properties.state.enum += ["error"]|checks の state を緩める
 retro|."$defs".fix.additionalProperties = true|前の直しの知らないキーを許す
 retro|."$defs".summary.additionalProperties = true|要約の束の知らないキーを許す
+retro|."$defs".fix.required -= ["before_after"]|前の直しの必須から before_after を外す
+retro|."$defs".numbers.additionalProperties = true|前後の数字の知らないキーを許す
+retro|."$defs".breakdown.additionalProperties = true|束の内訳の知らないキーを許す
 retro|."$defs".summary.required -= ["findings"]|要約の束の必須から findings を外す
 retro|.required -= ["questions"]|振り返りの入力の必須から questions を外す
 retro|."$defs".question.properties.from.anyOf[0].enum += ["gate"]|問いの from に gate を許す

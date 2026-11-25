@@ -32,6 +32,25 @@ step "rt-patterns: 担当の端末 tw が andon retro patterns を打つ" env HC
   && ok "rt-patterns: $r/library/retro.json に、fix 2 件と drop 1 件のパターンの一覧が置かれる" \
   || fail "rt-patterns: retro.json が無いか、形が違う"
 
+# rt-collect: 全文の束に結果の記録の内訳が写り、期間の Chief of Staff のトークンが数えた日数と一緒に出る
+mkdir -p "$tmp/project/kanban/issues/$e1/library"
+cat >"$tmp/project/kanban/issues/$e1/library/outcome.json" <<'EOF'
+{"result": "none", "worked_minutes": 3, "breakdown": {"role": "worker", "coverage": {"sessions": 1, "traced": 1}, "interactions": 1, "llm_ms": 10, "tool_ms": 0, "blocked_ms": 0,
+ "tokens": {"input": 11, "output": 0, "cache_read": 0, "cache_write": 0}, "errors": {"llm": 0, "tool": 0}, "tools": [],
+ "waits": {"question_ms": 0, "review_ms": 0, "ci_ms": 0, "gone_ms": 0}}}
+EOF
+otel=$HOME/.local/state/andon/otel/project/roles/chief-of-staff
+mkdir -p "$otel"
+echo '{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[{"traceId":"v","spanId":"1","name":"claude_code.llm_request","attributes":[{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}}]}]}]}]}' \
+  >"$otel/$(date -u +%F).traces.jsonl"
+step "rt-collect: 担当の端末 tw が andon retro collect を打つ" env HC_TERMINAL_ID=tw "$andon" retro collect
+jq -c --arg e1 "$e1" --arg e2 "$e2" '{e1: (.issues[] | select(.id == $e1) | .breakdown | {role, tokens}), e2: (.issues[] | select(.id == $e2) | .breakdown), chief_of_staff}' "$tmp/step.out" 2>/dev/null | sed 's/^/  collect: /'
+jq -e --arg e1 "$e1" --arg e2 "$e2" '(.issues[] | select(.id == $e1) | .breakdown | .role == "worker" and .tokens.input == 11)
+  and (.issues[] | select(.id == $e2) | .breakdown == null)
+  and .chief_of_staff == {"days": 1, "tokens": {"input": 5, "output": 6, "cache_read": 0, "cache_write": 0}}' "$tmp/step.out" >/dev/null \
+  && ok "rt-collect: 課題 $e1 の束に内訳が写り、$e2 の内訳は null、Chief of Staff のトークンが 1 日分で出る" \
+  || fail "rt-collect: 束の内訳か Chief of Staff のトークンが違う"
+
 # 読めなければ毎回違う値を返し、「課題の数が変わらない」の比べが素通りしない
 count() { "$kanban" list --all --json | jq -e length 2>/dev/null || echo "読めない-$RANDOM"; }
 # rt-not-cos: オーナーの課題を足す apply は、Chief of Staff でない端末では何も書かずに断る

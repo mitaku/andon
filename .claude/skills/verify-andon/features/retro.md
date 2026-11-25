@@ -6,6 +6,8 @@
 
 - `rt-patterns` 振り返りの担当の端末が `andon retro patterns` で、集め直した記録と照らしたパターンの一覧を `library/retro.json` に書く。見る道: 検証の担当だけ。
   - 見るファイル: `internal/retro/patterns.go`、`internal/retro/retro.go`、`internal/retro/typed.go`、`internal/retro/questions.go`、`internal/retro/github.go`
+- `rt-collect` 振り返りの担当の端末が `andon retro collect` で集めた入力の全文の束に、結果の記録（`library/outcome.json`）の内訳 `breakdown` が写り、期間の Chief of Staff のトークンが、ハーネスの役ごとの生の記録（`~/.local/state/andon/otel/<slug>/roles/chief-of-staff/<日付>.traces.jsonl`）から数えた日数と一緒に出る。前の直しのマージの前後の数字（`fixes[].before_after`）は道に前の直しが無いので見ず、`go test ./internal/retro/` が見る。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/retro/numbers.go`、`internal/retro/retro.go`、`internal/trace/check.go`、`internal/trace/roletokens.go`、`schema/retro.schema.json`
 - `rt-later` Chief of Staff の端末の apply は、Andon の直しを「Andon へ伝えるか」のオーナーの課題にし、印 `later` と問いを書く。`andon waiting --json` でその行が `call: false` になる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/retro/apply.go`
 - `rt-not-cos` オーナーの課題を足す apply を Chief of Staff でない端末で打つと、Chief of Staff の端末だけと言って断り、課題も当てた記録も増やさない。見る道: 検証の担当だけ。
@@ -29,6 +31,7 @@
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh retro <検証する commit>` を打つ。切り離した kanban（repos が無い）に、片付いた担当の課題を 2 つと、担当の端末 `tw` が動かす振り返りの課題を作る。Chief of Staff の端末は `tc`。
 - **一覧を書く。** `rt-patterns` の行に、Andon の直しのパターン 2 つ（`fix`）と捨てるパターン 1 つ（`drop`）を書いた出力が出る。`ok   rt-patterns` が見えれば動いた。
+- **入力を集める。** 打つ前に、片付いた担当の課題 1 の結果の記録に内訳（担当。入力のトークン 11）を置き、一時の HOME の `.local/state/andon/otel/project/roles/chief-of-staff/` に今日の日付の Chief of Staff の記録（入力 5・出力 6）を置いてある。`rt-collect` の行に、課題 1 の束の内訳と `chief_of_staff` が出る。内訳の役が `worker` で入力が 11、課題 2 の内訳が `null`、Chief of Staff が 1 日分で入力 5・出力 6 で、`ok   rt-collect` が見えれば動いた。
 - **Chief of Staff でない端末を断る。** `rt-not-cos` の行に、`tw` の apply の断り（「置いておく印を書くのは Chief of Staff の端末だけ」）が出る。`ok   rt-not-cos` が見えれば動いた。
 - **前のバージョンの形を作る。** `tc` が、2つ目のパターンの「Andon へ伝えるか」の課題を振り返りの課題の下に足し、`who: person` だけを書く。`rt-old-owner` の行に、打ち直しの前の `andon waiting --json` の行（`call: true`）が出る。
 - **置いておく。** `rt-later`・`rt-old-owner` の行に、`tc` の apply の出力と、2つのオーナーの課題の `who`・`parent`・`later` と問い、`andon waiting --json` の行（`call`・`later`）が出る。`ok   rt-later` が1行と `ok   rt-old-owner` が2行見えれば動いた。
@@ -40,12 +43,15 @@
 - `internal/retro/`
 - `package/skills/chief-of-staff/playbooks/retro.md`
 - `process/workstreams/retrospective.yaml`
+- `schema/retro.schema.json`
+- `internal/trace/check.go`
+- `internal/trace/roletokens.go`
 
 ## 既に見ている検査
 
 - `tests/andon-retro-apply.sh`（patterns の断り・apply の当て方・Chief of Staff でない端末の断り・「Andon へ伝えるか」の課題の印 `later` と `andon waiting` の行）
 - `tests/andon-retro.sh`（`andon retro collect` の入力）
-- `go test ./internal/retro/`（打ち直しで印の無いオーナーの課題に印を書くのは `apply_test.go`）
+- `go test ./internal/retro/`（打ち直しで印の無いオーナーの課題に印を書くのは `apply_test.go`。全文の束の内訳と、前の直しのマージの前後の数字と、Chief of Staff のトークンは `numbers_test.go`）
 
 ## 落とし穴
 
