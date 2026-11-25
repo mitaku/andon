@@ -628,7 +628,8 @@ func runChecks(repo, head string, cmds []string) ([]Check, error) {
 		return nil, err
 	}
 	// 宣言を満たす: 検査の command の前に、一時の worktree の mise.toml の道具を入れる（ADR-0063 決めたこと 8）。
-	// 満たせなければ検査を打たずに判定せず返す（道具が無いことを PR の欠陥として返さない。dispatcher が次の見回りで打ち直す）
+	// 満たせなければ検査を打たずに、PR の head の fetch に失敗したときと同じく判定せずに返す（道具が無いことを PR の欠陥として返さない。
+	// 返った失敗を dispatcher は、ほかの判定できない回と同じく gate の問いにする）
 	if _, err := tools.Install(wt); err != nil {
 		return nil, fmt.Errorf("検査の道具を入れられない（%s の mise install。判定しない）: %v", tools.Manifest, err)
 	}

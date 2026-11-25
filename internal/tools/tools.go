@@ -63,6 +63,9 @@ func Install(root string) (installed bool, err error) {
 	defer os.Remove(out.Name()) //nolint:errcheck // 名前を消すだけ。手放した mise install は消えたファイルへ書き続ける
 	c := exec.Command(mise, "install")
 	c.Dir = root
+	// 呼び手が引き継いだ別の worktree の既定（MISE_SYSTEM_CONFIG_FILE）を、入れる worktree の mise.toml に替える。
+	// 替えないと、別の worktree が名指す道具まで入れようとし、その失敗で警告・判定しないになる
+	c.Env = append(os.Environ(), EnvFor(root)...)
 	c.Stdout, c.Stderr = out, out
 	// 新しいセッションにする: 呼び手の端末が閉じても、手放した mise install に信号が届かない
 	c.SysProcAttr = &syscall.SysProcAttr{Setsid: true}

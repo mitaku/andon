@@ -13,11 +13,12 @@ import (
 
 // fakeMise は呼ばれた引数と cwd を FAKE_MISE_LOG（と、あれば LOG）に 1 行足す。FAKE_MISE で振る舞いを変える:
 // 空は何も入れない（all tools are installed）、installed は 1 つ入れた、fail は終了コード 1、slow は 2 秒かけて終わり、
-// 終わった印 FAKE_MISE_DONE を作る（上限を過ぎても止められないことを見る）。
+// 終わった印 FAKE_MISE_DONE を作る（上限を過ぎても止められないことを見る）。FAKE_MISE_ENVLOG があれば、受けた MISE_SYSTEM_CONFIG_FILE を 1 行足す。
 const fakeMise = `#!/bin/sh
 line="mise $* | cwd=$PWD"
 printf '%s\n' "$line" >>"$FAKE_MISE_LOG"
 [ -z "${LOG:-}" ] || printf '%s\n' "$line" >>"$LOG"
+[ -z "${FAKE_MISE_ENVLOG:-}" ] || printf '%s\n' "${MISE_SYSTEM_CONFIG_FILE:-}" >>"$FAKE_MISE_ENVLOG"
 case "${FAKE_MISE:-}" in
   installed) echo "mise ✓ go@9.9.9" >&2; echo "mise 1/1 · installed 1 tool" >&2 ;;
   fail) echo "mise ERROR boom" >&2; exit 1 ;;

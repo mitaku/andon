@@ -26,6 +26,27 @@ func TestInstallCallsMiseInRoot(t *testing.T) {
 	}
 }
 
+// 呼び手（役の端末）が別の worktree の MISE_SYSTEM_CONFIG_FILE を持っていても、mise install には入れる worktree の
+// mise.toml を渡す（引き継いだ既定のまま打つと、別の worktree が名指す道具まで入れようとする）
+func TestInstallOverridesInheritedSystemConfig(t *testing.T) {
+	toolstest.New(t, "")
+	envlog := filepath.Join(t.TempDir(), "env")
+	t.Setenv("FAKE_MISE_ENVLOG", envlog)
+	t.Setenv(EnvKey, filepath.Join(t.TempDir(), Manifest))
+	root := t.TempDir()
+	toolstest.Manifest(t, root)
+	if _, err := Install(root); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(envlog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.TrimSpace(string(b)), filepath.Join(root, Manifest); got != want {
+		t.Errorf("mise install が受けた %s = %q、want %q", EnvKey, got, want)
+	}
+}
+
 func TestInstallReportsInstalled(t *testing.T) {
 	toolstest.New(t, "installed")
 	root := t.TempDir()
