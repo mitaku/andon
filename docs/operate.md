@@ -462,7 +462,8 @@ andon delegate show          # 型と効いている値（commit の前は「無
 - 信号を読むのは `andon signal collect`（`projects/<slug>/` で打つか `--project <slug>`。[contract.md](contract.md) §15）。GitHub（`github-ci`・`github-issues`）は `gh` の資格情報をそのまま使う。Sentry・Linear・Cloudflare のトークンは `andon signal auth <source>` がセルの中で聞いて `~/.config/andon/signals/<source>.token`（mode 600。compose の volume `signals`）に置く。**トークンは読み取り専用の scope で作る**（Linear はコメントが書けるまで。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 10・15）。置き場は守りではない（セルの中の役は同じユーザーで読める）。守りは scope。最初のバージョンで読むのは GitHub だけで、ほかの出所は「読む command がまだ無い」と1行出して飛ばす。
 - **通ったら見えるもの**: 出所と repo ごとに `github-ci github.com/<owner>/<repo>: 見えている 1 件（新しい 1・また出た 0・消えた 0）`。**落ちたら見る所**: `読めないので信号の記録は変えずに飛ばす` — `gh auth status`（その出所の記録は変えず、終了コード 1。次に打てば読み直す）。`信号の記録が読めない` — `~/.local/state/andon/dispatcher/<slug>.signals.json` が壊れている（退ければ次の collect が作り直す。`delivered_episode` も消えるので、`now` の信号は届け直される）。
 - ダイジェストを Slack へ送る（[ADR-0044](adr/0044-owner-digest.md) 決めたこと 12〜14。送らないなら何もしなくてよい。`files/` にだけ出る）:
-  1. Slack の <https://api.slack.com/apps> で、次の manifest からアプリを作る（Create New App → From a manifest）。scope は `files:write` の 1 つだけで、読む scope を持たせない。
+  1. セルのパッケージを `digest` を知るバージョンに上げ、`rebuild` でセルを作り直す。トークンの置き場 `~/.config/andon/digest` は compose の volume `digest` で、作り直しで増える。`image/apply-main.sh` で当てただけのセルは compose が変わらず、置き場はコンテナの書ける層になる。そこに置いたトークンは作り直しで消えるので、トークンを置く 4 より先に作り直す。
+  2. Slack の <https://api.slack.com/apps> で、次の manifest からアプリを作る（Create New App → From a manifest）。scope は `files:write` の 1 つだけで、読む scope を持たせない。
 
      ```yaml
      display_information:
@@ -480,10 +481,10 @@ andon delegate show          # 型と効いている値（commit の前は「無
        socket_mode_enabled: false
      ```
 
-  2. ワークスペースに入れ、**ダイジェスト用のチャンネル 1 つだけ**に bot を招く（そのチャンネルで `/invite @Andon Digest`）。ほかのチャンネルには招かない。bot は招かれたチャンネルにしか送れないので、これが守りになる（トークンの置き場は守りではない。セルの中の役は同じユーザーで読める）。
-  3. セルの中で `andon digest auth slack` を打ち、Bot User OAuth Token を貼る。`~/.config/andon/digest/slack.token`（mode 600。compose の volume `digest`）に置かれる。引数に書かない。トークンはセルに 1 本で、ワークスペースはセルに 1 つ。
-  4. セルのパッケージを `digest` を知るバージョンに上げてから（volume が増えるので `rebuild`。古いバージョンは `project.json` ごと読めなくなる）、オーナーが `projects/<slug>/project.json` に `"digest": {"destinations": [{"kind": "slack", "channel": "<チャンネルの ID>"}]}` を足して commit する。ID はチャンネルの詳細の一番下にある（`C` か `G` で始まる。名前ではない）。書いたことが、毎回の送信への go になる。
-  5. `projects/<slug>/` で `andon digest check` を打つ。**通ったら見えるもの**: `送った: Slack の <ID> に確かめのファイル F…` と、チャンネルに小さなテキストのファイル。**落ちたら見る所**: `設定が無い` — commit していない。`送り先を読めない` — owner の commit でないか、形が違う。`not_in_channel`・`channel_not_found` — 2 の招待か ID。`invalid_auth`・`missing_scope` — 1 の scope を確かめて 3 をやり直す。
+  3. ワークスペースに入れ、**ダイジェスト用のチャンネル 1 つだけ**に bot を招く（そのチャンネルで `/invite @Andon Digest`）。ほかのチャンネルには招かない。bot は招かれたチャンネルにしか送れないので、これが守りになる（トークンの置き場は守りではない。セルの中の役は同じユーザーで読める）。
+  4. セルの中で `andon digest auth slack` を打ち、Bot User OAuth Token を貼る。`~/.config/andon/digest/slack.token`（mode 600。compose の volume `digest`）に置かれる。引数に書かない。トークンはセルに 1 本で、ワークスペースはセルに 1 つ。
+  5. オーナーが `projects/<slug>/project.json` に `"digest": {"destinations": [{"kind": "slack", "channel": "<チャンネルの ID>"}]}` を足して commit する。1 で上げる前に書くと、古いバージョンは `project.json` ごと読めなくなる。ID はチャンネルの詳細の一番下にある（`C` か `G` で始まる。名前ではない）。書いたことが、毎回の送信への go になる。
+  6. `projects/<slug>/` で `andon digest check` を打つ。**通ったら見えるもの**: `送った: Slack の <ID> に確かめのファイル F…` と、チャンネルに小さなテキストのファイル。**落ちたら見る所**: `設定が無い` — commit していない。`送り先を読めない` — owner の commit でないか、形が違う。`not_in_channel`・`channel_not_found` — 3 の招待か ID。`invalid_auth`・`missing_scope` — 2 の scope を確かめて 4 をやり直す。
 - 並行の上限と独立レビューを入れる条件は `project.json` の `chief_of_staff`（`parallel`・`review_when`。[contract.md](contract.md) §11）に書く。無ければ並行の上限は 2。`projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・指示）は任意。
 - 課題の id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じ課題）。
 
