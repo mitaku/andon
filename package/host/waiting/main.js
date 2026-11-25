@@ -231,9 +231,9 @@ export default class Waiting extends View {
   }
 
   slotsLine(t, s) {
-    const text = `Slots ${s.working}/${s.limit} working · ${s.waiting} waiting on you${s.waiting_full ? " · full" : ""}`;
+    const text = `Slots ${s.working}/${s.limit} working · ${s.waiting} waiting on you`;
     return div().id("waiting-slots").px(16).h(26).flex_none().flex().items_center().text_size(11.5)
-      .text_color(s.waiting_full ? t.blocked : t.muted).child(text);
+      .text_color(t.muted).child(text);
   }
 
   link(t, id, text, act) {

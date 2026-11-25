@@ -552,7 +552,7 @@ await check('files-plus: 自分で読むもの（画像・図・Markdown の画�
 const textOf = (root) => walk(root).flatMap((n) => args(n, 'child').map((a) => a[0])).filter((c) => typeof c === 'string');
 const SAMPLE_WAITING = {
   version: 1, at: '2026-11-21T10:00:00Z', project: 'sample-site',
-  slots: { limit: 4, working: 3, waiting: 2, free: 1, waiting_full: false },
+  slots: { limit: 4, working: 3, waiting: 2, free: 1 },
   items: [
     { kind: 'merge', id: 'S-0021', title: '名指しの口を足す', since: '2026-11-21T04:43:35Z', question: 'S-0021#1',
       pr: 'https://github.com/example/sample-site/pull/41', reason: 'delegation: merge=B < tier C', holds: ['S-0022', 'S-0023'] },
@@ -608,9 +608,12 @@ await check('waiting: andon waiting --json をフォーカスした pane のフ�
   // Nothing waiting: the slots line and one line.
   const empty = (await waitingPane(json({ ...SAMPLE_WAITING, items: [], slots: { ...SAMPLE_WAITING.slots, waiting: 0 } }))).draw();
   assert.ok(byId(empty, 'waiting-slots') && textOf(byId(empty, 'waiting-empty'))[0] === 'Nothing is waiting on you', '待ちが無いときの形');
-  // waiting_full shows on the slots line.
+  // An older andon's waiting_full, even true, adds no "full" and keeps the color (ADR-0065 acceptance 7).
+  const slotColor = (root) => args(byId(root, 'waiting-slots'), 'text_color').map((a) => a[0]);
+  assert.deepEqual(slotColor(tree), [THEME.muted]);
   const full = (await waitingPane(json({ ...SAMPLE_WAITING, slots: { limit: 2, working: 2, waiting: 2, free: 0, waiting_full: true } }))).draw();
-  assert.deepEqual(textOf(byId(full, 'waiting-slots')), ['Slots 2/2 working · 2 waiting on you · full']);
+  assert.deepEqual(textOf(byId(full, 'waiting-slots')), ['Slots 2/2 working · 2 waiting on you']);
+  assert.deepEqual(slotColor(full), [THEME.muted], '待ちが上限以上で色を変えた');
 });
 
 await check('waiting: 行を開くと問いの文・事実・選択肢・後ろで待つ課題が出て、マージの依頼は PR を開け、Chief of Staff へ行ける。選ぶ前は答えるボタンが無い（ADR-0042 受け入れ条件 10）', async () => {
@@ -1778,7 +1781,7 @@ await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決
 // a fake clock moves the 10-second window, and copies can share one store as the App's shared() does.
 const T0 = Date.parse('2026-11-21T12:00:00Z');
 const waitOut = (project, items) => ({ code: 0, stdout: JSON.stringify({ version: 1, at: '2026-11-21T12:00:00Z', project,
-  slots: { limit: 4, working: 1, waiting: items.length, free: 3, waiting_full: false }, items }), stderr: '' });
+  slots: { limit: 4, working: 1, waiting: items.length, free: 3 }, items }), stderr: '' });
 const wait = (kind, id, since) => ({ kind, id, title: `title of ${id}`, since, holds: [] });
 const PANE_LAYOUT = { id: 'root', children: [{ id: 'panel', children: [{ id: 'panel-body', type: 'stack', children: [{ id: 'waiting', type: 'block', content: { mod: 'waiting' } }] }] }] };
 async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => waitOut(a[3], state.items?.[a[3]] ?? []), layoutTree = null, ui = recordingUi(), calls = { exec: [], run: [] } } = {}) {
