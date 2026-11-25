@@ -112,6 +112,10 @@ echo "  slots: $(jq -c .slots "$tmp/step.out" 2>/dev/null)"
 jq -e '.slots.waiting >= .slots.limit and .slots.working < .slots.limit and .slots.free == .slots.limit - .slots.working and .slots.free > 0 and (.slots | has("waiting_full") | not)' "$tmp/step.out" >/dev/null \
   && ok "ow-slots: オーナー待ちが上限以上でも、空き（slots.free）は上限から動いている数を引いた正の数で、waiting_full は無い" \
   || fail "ow-slots: オーナー待ちが上限以上で空きが 0 か、waiting_full がある"
+step "ow-slots: andon waiting を打つ（人が読む出力）" "$andon" waiting
+if grep -q '起動しない' "$tmp/step.out"; then fail "ow-slots: 人が読む出力に、オーナー待ちで新しい課題を起動しないの文がある"
+elif grep -qE 'の枠: 上限 2、動いている 0、オーナー待ち 2、空き 2$' "$tmp/step.out"; then ok "ow-slots: 人が読む枠の行は空き 2 で、新しい課題を起動しないの文が無い"
+else fail "ow-slots: 人が読む枠の行が違う"; fi
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
