@@ -340,7 +340,7 @@ API の根拠は [Herdr App の mod guide](https://github.com/herdrdev/herdr-app
 
 ### Stream Deck に行燈のキーを置く
 
-Stream Deck のキー「Lamp」に行燈の色と件数を出し、押すと待っているものを App で開く（[ADR-0045](adr/0045-stream-deck-lamp.md)）。plugin は `package/host/streamdeck/andon.lamp.sdPlugin/` で、読むものと起動するものはその README にある。要るのは、Stream Deck のアプリ 7.1 以上と、同じマシンの Herdr App（レイアウト `andon` と、plugin と同じバージョンの mod `inbox`）。
+Stream Deck のキー「Lamp」に行燈の色と件数を出し、押すと待っているものを App で開く（[ADR-0045](adr/0045-stream-deck-lamp.md)）。2 つ目のキー「Working」には、動いている役の端末（Chief of Staff・Chief Engineer・担当・レビュアー）の数を出す。0 のときは `idle` と出るので、次の仕事を入れる時だと分かる。plugin は `package/host/streamdeck/andon.lamp.sdPlugin/` で、読むものと起動するものはその README にある。要るのは、Stream Deck のアプリ 7.1 以上と、同じマシンの Herdr App（レイアウト `andon` と、plugin と同じバージョンの mod `inbox`）。「Working」のキーには、同じマシンの `hc`（herdr-core）が要る。App を閉じていても数は出る。
 
 plugin の置き場は `host-install` が推測しない。`STREAMDECK_PLUGINS` に絶対パスで指定する。
 
@@ -360,15 +360,16 @@ plugin の置き場は `host-install` が推測しない。`STREAMDECK_PLUGINS` 
      bin/bootstrap host-install
    ```
 3. mod `inbox` が前のバージョンなら、上の「新しいバージョンに置き直す」の手順で置き直す。前の `inbox` のままだと、キーは「?」のままになる。
-4. Stream Deck のアプリを起動し、分類「Andon」の「Lamp」をキーに置く。
+4. Stream Deck のアプリを起動し、分類「Andon」の「Lamp」をキーに置く。使うなら「Working」も別のキーに置く。
 
-- **通ったら見えるもの**: `+ <置き場>/andon.lamp.sdPlugin`。キーが App の行燈と同じ色になる。押すと App が前に出て、待っているものが開く。もう一度押すと次が開く。
+- **通ったら見えるもの**: `+ <置き場>/andon.lamp.sdPlugin`。キーが App の行燈と同じ色になる。押すと App が前に出て、待っているものが開く。もう一度押すと次が開く。「Working」のキーに動いている役の端末の数が出て、押すと App が前に出る。
 - **落ちたら見る所**:
   - `! … はすでにある（触らない）` — 前の plugin がある。下の置き直し。
   - `! このイメージに Stream Deck の plugin が無い` — image が古い。上げてから打ち直す。
   - plugin の行が1行も出ない — セルの `bin/bootstrap` が古い。下の「前に作ったセル」。
   - キーが「?」 — App が閉じている、レイアウトに `inbox` が見えていない、`inbox` が古い、App の設定フォルダが既定と違うのに Stream Deck に `HERDR_APP_HOME` が渡っていない、のどれか。
   - 押すと警告の印 — App が動いていない、`inbox` が見えていない、`herdr-app` が見つからない（`HERDR_APP_BIN` に実行ファイルのパスを入れて Stream Deck を起動し直す）、のどれか。
+  - 「Working」のキーだけが「?」 — `hc` が見つからないか、`hc events` が終わった。`hc` が PATH に無ければ、`HC_BIN` に実行ファイルのパスを入れて Stream Deck を起動し直す。「?」の間も 30 秒おきに起動し直している。
 
 **置き直す**: Stream Deck を終え、前のフォルダを置き場の外へ退避してから打ち直す。置き場の中で名前を変えるだけにしない。mod `inbox` が置く値のバージョンが変わったときは、plugin と mod `inbox` を一緒に置き直す。片方だけだと、キーは「?」を描く（`inbox.lamp` のバージョン 2 は ADR-0062）。
 

@@ -4,7 +4,7 @@
   "Name": "Andon",
   "Version": "0.1.0.0",
   "Author": "Andon",
-  "Description": "Andon's lantern on a key: lit while you are called, with what waits. Press it to open that in Herdr App.",
+  "Description": "Andon's lantern on a key: lit while you are called, with what waits. Press it to open that in Herdr App. And a key with how many of Andon's role terminals are working.",
   "Category": "Andon",
   "CategoryIcon": "imgs/category",
   "Icon": "imgs/plugin",
@@ -26,6 +26,16 @@
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
       "States": [{ "Image": "imgs/key" }]
+    },
+    {
+      "UUID": "andon.lamp.working",
+      "Name": "Working",
+      "Tooltip": "How many of Andon's role terminals are working. Press to bring Herdr App to the front.",
+      "Icon": "imgs/working",
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false,
+      "States": [{ "Image": "imgs/working-key" }]
     }
   ]
 }
