@@ -72,7 +72,7 @@ Verify-features: wl-resume, wl-record
 | dispatcher のマージ | [merge.md](./merge.md) | 切り離して動かす | 検証の担当だけ |
 | dispatcher の通知 | [dispatcher-news.md](./dispatcher-news.md) | 本物の記録を読む | 記録は検証の担当だけ。届いた turn は Chief of Staff の試しの課題 |
 | hook | [hooks.md](./hooks.md) | 切り離して動かす | 振る舞いは検証の担当だけ。待ち役と Esc はオーナーが見る |
-| boot | [boot.md](./boot.md) | 本物の記録を読む | 検証の担当だけ |
+| boot | [boot.md](./boot.md) | 本物の記録を読む | 検証の担当だけ。ホストの入口（`bt-entry`）はオーナーが見る |
 | ダイジェスト | [digest.md](./digest.md) | 切り離して動かす | 検証の担当だけ。Slack に届いたかはオーナーが見る |
 | 流れの数え | [measure.md](./measure.md) | 切り離して動かす | 検証の担当だけ |
 | プロジェクトを立てる | [create.md](./create.md) | 切り離して動かす | 検証の担当だけ。端末で聞く道はオーナーが見る |
@@ -87,8 +87,7 @@ Verify-features: wl-resume, wl-record
 `internal/`・`cmd/`・`package/` の下のうち、次のものはどの機能の道も通らない。機能の「変えたら動かすパス」の下にあっても、変えたときに検証の課題は切られない（`scripts/features.sh` が機能を返さない）。細かい機能の見るファイルには書かない。機能のパスを丸ごと外す置き場も書かない。1行に置き場と理由を書く。行の先頭に `` で囲んで「・」で並べたパスを `tests/verify-andon.sh` が読む。
 
 - `package/lib/`（statusline と schema の検査器）。利用者が動かす道が無い。statusline は Claude Code が画面に出すだけで、検査器は `tests/schema.sh` と `go test ./internal/contract/` が CI で見ている。セルの本物で動かして増える証拠が無い。
-- `package/host/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
-- `package/compose.yaml`。セルを起動し直す口で、動いているセルの中からは打ち直せない。`tests/image.sh` が docker のある CI で見ている。
+- `package/host/andon/`・`package/host/andon-up`・`package/host/cloud-init.yaml`・`package/host/context-header/`・`package/host/files-plus/`・`package/host/herdr-config.toml`・`package/host/inbox/`・`package/host/kanban-board/`・`package/host/layouts/`・`package/host/ssh_config`・`package/host/streamdeck/`・`package/host/waiting/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin。入口の本体 `package/host/bootstrap` は boot の `bt-entry`）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
 - `package/bin/`。焼いた andon を置く場所で、repo には空の印しか無い。
 - `internal/triage/unsorted.go`（トリアージの溜まった数）。dispatcher がトリアージのルーチンを撃つかを決める数え方で、`triage` の道は通らない。撃つところは `dispatcher-news` の `dn-idle` が見る。`go test ./internal/triage/` が見ている。
 - `internal/board/`・`internal/chiefofstaff/`・`internal/open/`（ボードと、Chief of Staff を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。Chief Engineer を起動する口（`internal/chiefengineer/`）は、起動の前に道具を入れる手を担当の起動の `wl-tools` が見る。

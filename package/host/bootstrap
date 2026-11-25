@@ -1,0 +1,460 @@
+#!/usr/bin/env bash
+# セルの入口。ホストに要るのは docker と bash だけ。
+#
+#   bin/bootstrap                起動だけ（入らない）。最後に Herdr App での開き方と、TUI で入る打ち方を出す
+#   bin/bootstrap up             起動だけ（入らない。案内も出さない）
+#   bin/bootstrap herdr          起動して herdr（TUI）に入る（セッションは残るので、もう一度打てば戻る。enter も同じ）
+#   bin/bootstrap sh             herdr を介さず bash で入る（退避用）
+#   bin/bootstrap down           止める（volume は残る）
+#   bin/bootstrap logs           起動の記録を追う
+#   bin/bootstrap status         状態を見る（FROM の image と、その元の commit も出す）
+#   bin/bootstrap rebuild        イメージを作り直して入れ替える（Dockerfile の FROM を上げたあと）
+#   bin/bootstrap rebuild --from <andon の checkout>
+#                                その checkout から base image（andon:local-<短い SHA>）を焼き、FROM をそれにして入れ替える
+#   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod・Stream Deck の plugin）を置く
+#   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
+#
+# これは本体（image の /opt/andon/host/bootstrap）。セルの repo の bin/bootstrap（薄い入口）が、打つたびに image から
+# .andon/bootstrap に取り出して走らせるので、Andon のバージョンを上げると一緒に新しくなる。
+# compose.yaml はセルの repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
+# 番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。
+set -euo pipefail
+
+# 薄い入口との約束（ADR-0048 決めたこと 3）: 作業フォルダはセルの repo の根、引数はそのまま、ANDON_ENTRY に入口の形の番号。
+# 自分のファイルの場所からは根を決めない（.andon/ にも、名指しの checkout にも置かれる）
+self=${BASH_SOURCE[0]}
+root=$PWD
+# この本体が要る入口の形の番号。薄い入口の動きを変えて番号を上げたら、ここも上げる（古い入口を断る。ADR-0048 決めたこと 12）
+need_entry=1
+
+dry=0
+if [ "${1:-}" = --dry-run ]; then
+  dry=1
+  shift
+fi
+
+die() { echo "✗ $*" >&2; exit 1; }
+
+if [ -z "${ANDON_ENTRY:-}" ]; then
+  die "これは bin/bootstrap の本体で、直には打たない。セルの repo の bin/bootstrap（薄い入口）から打つ"
+fi
+
+# 先頭の注記の塊（2 行目から、最初の # で始まらない行の前まで）。行番号で切らないので、注記の行数が変わっても欠けない
+usage() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    [ "$n" = 1 ] && continue
+    [[ $line == '#'* ]] || break
+    line=${line#'#'}
+    printf '%s\n' "${line#' '}"
+  done <"$self"
+}
+
+# andon.toml の key = "value" の値（TOML の1行の文字列だけを読む）
+toml() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" andon.toml | head -n 1; }
+
+[ -f andon.toml ] || die "andon.toml が無い（andon init で作ったセルの repo の中で打つ）"
+slug=$(toml slug)
+case "$slug" in
+  '' | *[!a-z0-9-]* | -*) die "andon.toml の slug が無いか、英小文字・数字・- でない: '$slug'" ;;
+esac
+from=$(sed -n 's/^FROM[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' Dockerfile | head -n 1)
+case "$from" in
+  '' | *'<'* | *'>'*) die "Dockerfile の FROM を埋める（いま: '$from'。例 ghcr.io/<owner>/andon:<バージョン>）" ;;
+esac
+
+project=andon-$slug
+image=$project:local
+export ANDON_SLUG=$slug ANDON_IMAGE=$image
+
+# 入口の形の番号が要る番号より小さい（か数でない）ときは、入口を置き換える 1 行を出して止まる。文は package/compose.yaml の止める行と同じ
+case "$ANDON_ENTRY" in
+  *[!0-9]*) entry_ok=0 ;;
+  *) if [ "$ANDON_ENTRY" -ge "$need_entry" ]; then entry_ok=1; else entry_ok=0; fi ;;
+esac
+if [ "$entry_ok" = 0 ]; then
+  die "セルの入口 bin/bootstrap が古い（入口の形 $ANDON_ENTRY。この本体は $need_entry 以上が要る）。セルの repo で次の 1 行を打って入口を置き換え、打った command を打ち直す（手を入れていた入口なら先に git diff で見る。docs/operate.md の 4）
+docker run --rm $image andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new"
+fi
+
+run() {
+  if [ "$dry" = 1 ]; then
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+require_docker() {
+  [ "$dry" = 1 ] && return 0
+  command -v docker >/dev/null 2>&1 || die "docker が無い。セルはホストに docker と bash だけを求める"
+  docker info >/dev/null 2>&1 || die "docker デーモンに繋がらない（起動しているか確かめる）"
+}
+
+# セルの andon は uid 1000 で動く（image/Dockerfile）。セルの repo は /workspace に bind mount するので、
+# セルの repo のオーナーが違うと andon が .ssh/authorized_keys も /workspace の中も読み書きできない。起動する前に止める。
+require_owner() {
+  local owner
+  owner=$(stat -c %u "$root") || die "セルの repo（$root）のオーナーが読めない"
+  [ "$owner" = 1000 ] && return 0
+  die "セルの repo（$root）のオーナーが uid $owner。セルの andon は uid 1000 で動くので、/workspace を読み書きできない。
+  回り道: uid 1000 の利用者でセルの repo を作り直して（andon init）、そこから打つ（docs/operate.md の 3）"
+}
+
+# extract <イメージの中の /opt/andon からのパス> <置き場>
+# ANDON_IMAGE_ROOT があれば、そのディレクトリをイメージの根として読む（試験用の偽のイメージ）。
+# --dry-run では何も書かない（打つものを出すだけ）。
+extract() {
+  if [ "$dry" = 1 ]; then
+    if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+      run cp -R "$ANDON_IMAGE_ROOT/opt/andon/$1" "$2"
+    else
+      run docker cp "<docker create $image>:/opt/andon/$1" "$2"
+    fi
+    return 0
+  fi
+  mkdir -p "$(dirname "$2")"
+  if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+    cp -R "$ANDON_IMAGE_ROOT/opt/andon/$1" "$2"
+  else
+    local cid
+    cid=$(docker create "$image")
+    docker cp "$cid:/opt/andon/$1" "$2" >/dev/null || { docker rm "$cid" >/dev/null; return 1; }
+    docker rm "$cid" >/dev/null
+  fi
+}
+
+compose_file() {
+  if [ "$dry" = 1 ]; then
+    extract compose.yaml .andon/compose.yaml
+    return 0
+  fi
+  # 一時の名前はプロセスごとに変える（別の端末で同時に打った本体と同じファイルに書かない。ADR-0048 決めたこと 4）
+  local part
+  mkdir -p .andon
+  part=$(mktemp .andon/compose.yaml.XXXXXX)
+  if ! extract compose.yaml "$part"; then
+    rm -f "$part"
+    return 1
+  fi
+  mv "$part" .andon/compose.yaml
+}
+
+# recreate は、焼いた image の本体で作り直す（ADR-0048 決めたこと 8）。本体と compose.yaml は組なので、焼く前の本体
+# （いま走っている自分）では作り直さない。薄い入口から入り直し、新しい本体が _recreate で compose.yaml を取り出して作り直す。
+# 名指しの本体（ANDON_ENTRY_BODY）で打ったときも、名指しを外して入り直す
+recreate() {
+  unset ANDON_ENTRY_BODY
+  if [ "$dry" = 1 ]; then
+    exec bash "$root/bin/bootstrap" --dry-run _recreate
+  fi
+  exec bash "$root/bin/bootstrap" _recreate
+}
+
+dc() {
+  local files=(-f .andon/compose.yaml)
+  [ -f compose.override.yaml ] && files+=(-f compose.override.yaml)
+  run docker compose --project-name "$project" --project-directory "$root" "${files[@]}" "$@"
+}
+
+build() { run docker build "$@" -t "$image" "$root"; }
+
+# rebuild --from が焼いた FROM（andon:local-…）はレジストリに無いので、--pull を付けない
+pull_flag() {
+  case "$from" in
+    andon:local-*) ;;
+    *) echo --pull ;;
+  esac
+}
+
+# FROM の image と、その元の commit（image/build.sh が付ける label。前のバージョンの image には無い）
+# （go の template の開き括弧を2つ並べて書かない。andon init は雛形にそれが残っていないことを確かめる）
+show_from() {
+  local rev fmt
+  fmt=$(printf '%s%s index .Config.Labels "org.opencontainers.image.revision" }}' '{' '{')
+  if [ "$dry" = 1 ]; then
+    run docker image inspect --format "$fmt" "$from"
+    return 0
+  fi
+  rev=$(docker image inspect --format "$fmt" "$from" 2>/dev/null) || rev='手元に無い'
+  case "$rev" in '' | '<no value>') rev=不明 ;; esac
+  echo "FROM: $from（commit: $rev）"
+}
+
+# revision <andon の checkout>: HEAD の commit（汚れていれば末尾に -dirty）。
+# ホストに git が無ければ、今の FROM の image の git で読む（ホストに要るのは docker と bash だけ）
+revision() {
+  local co=$1 rev dirty
+  if command -v git >/dev/null 2>&1; then
+    rev=$(git -C "$co" rev-parse HEAD) || die "$co の commit が読めない（git の checkout か）"
+    dirty=$(git -C "$co" status --porcelain) || die "$co の状態が読めない"
+  elif [ "$dry" = 1 ]; then
+    run docker run --rm --network none -v "$co:/src:ro" "$from" git -C /src rev-parse HEAD >&2
+    echo '<commit>'
+    return 0
+  else
+    rev=$(docker run --rm --network none -v "$co:/src:ro" "$from" git -c safe.directory='*' -C /src rev-parse HEAD) ||
+      die "$co の commit が読めない（git の checkout か。ホストに git が無いので $from の git で読んだ）"
+    dirty=$(docker run --rm --network none -v "$co:/src:ro" "$from" git -c safe.directory='*' -C /src status --porcelain) ||
+      die "$co の状態が読めない"
+  fi
+  [ -z "$dirty" ] || rev=$rev-dirty
+  echo "$rev"
+}
+
+# rebuild_from <andon の checkout>: image/build.sh で base image を焼き、Dockerfile の FROM をそれにして入れ替える
+rebuild_from() {
+  local co=$1 rev tag line done=0
+  [ -n "$co" ] || die "rebuild --from に andon の checkout を渡す（例: bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon）"
+  [ -f "$co/image/build.sh" ] || die "$co/image/build.sh が無い（andon の checkout を渡す。image/build.sh の無い古いバージョンからは焼けない）"
+  co=$(cd "$co" && pwd)
+  rev=$(revision "$co") || exit 1
+  tag=andon:local-${rev:0:12}
+  case "$rev" in *-dirty) tag=$tag-dirty ;; esac
+  echo "[$project] $co（commit: $rev）から $tag を焼く"
+  run bash "$co/image/build.sh" "$co" "$tag" "$rev"
+  echo "[$project] Dockerfile の FROM: $from → $tag（GHCR のバージョンへ戻すなら、FROM を書き戻して bin/bootstrap rebuild）"
+  if [ "$dry" = 1 ]; then
+    echo "+ Dockerfile の最初の FROM を 'FROM $tag' にする"
+  else
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ "$done" = 0 ] && [[ $line =~ ^FROM[[:space:]] ]]; then
+        line="FROM $tag"
+        done=1
+      fi
+      printf '%s\n' "$line"
+    done <Dockerfile >Dockerfile.new
+    mv Dockerfile.new Dockerfile
+  fi
+  from=$tag
+}
+
+# 手元の image が FROM の image の上に焼かれたもの（FROM の履歴が末尾に並ぶ）でないと分かれば止まる。
+# 履歴は段ごとの作った日時と命令で、層を作らない ENV などの段も入る（層だけでは設定の違いを見落とす）。
+# 同じ slug で立て直したセルは、前のセルの image を名前ごと拾う。FROM の image が手元に無ければ分からないので通す。
+# 作り直しはオーナーが打つ（ここでは image を消さない・焼き直さない）
+require_from() {
+  local fmt base hist
+  fmt=$(printf '%s%s.CreatedAt}} %s%s.CreatedBy}}' '{' '{' '{' '{')
+  base=$(docker history --no-trunc --format "$fmt" "$from" 2>/dev/null) || return 0
+  hist=$(docker history --no-trunc --format "$fmt" "$image" 2>/dev/null) || return 0
+  [ -n "$base" ] || return 0
+  case $'\n'"$hist" in *$'\n'"$base") return 0 ;; esac
+  die "手元の $image は Dockerfile の FROM（$from）から焼いたものでない（前のセルの image か、FROM を変えたあと）。bin/bootstrap rebuild で作り直す"
+}
+
+ensure_image() {
+  if [ "$dry" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then
+    build
+  else
+    require_from
+  fi
+}
+
+ensure_up() {
+  if [ "$dry" = 0 ] && [ -n "$(dc ps -q dev 2>/dev/null)" ]; then
+    return 0
+  fi
+  ensure_image
+  compose_file
+  dc up -d
+  [ "$dry" = 1 ] && return 0
+  echo "[$project] 起動の完了を待つ..."
+  for _ in $(seq 1 60); do
+    if dc logs dev 2>/dev/null | grep -q '\[andon boot\] ready'; then
+      echo "[$project] 準備できた"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "[$project] 準備の完了を確かめられなかった（続ける。bin/bootstrap logs で見る）" >&2
+}
+
+# The probe directory is replaceable so tests never inspect the host's /proc.
+is_wsl() {
+  [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] && return 0
+  local marker
+  for marker in "${ANDON_WSL_PROBE:-/proc/sys/fs/binfmt_misc}"/WSLInterop*; do
+    [ -e "$marker" ] && return 0
+  done
+  return 1
+}
+
+# install_streamdeck は、Stream Deck の plugin を STREAMDECK_PLUGINS に置く（場所は推測しない）。今あるものは触らない。
+install_streamdeck() {
+  local name=andon.lamp.sdPlugin plugins=${STREAMDECK_PLUGINS:-}
+  local from=$1/streamdeck/$name to part
+  if [ -z "$plugins" ]; then
+    echo "Stream Deck の plugin は置いていない: 使うなら plugin の置き場を STREAMDECK_PLUGINS に指定して打ち直す（docs/operate.md の host-install を参照）"
+    return 0
+  fi
+  to=${plugins%/}/$name
+  if [ -e "$to" ] || [ -L "$to" ]; then
+    echo "! $to はすでにある（触らない）"
+  elif [ ! -d "$from" ]; then
+    echo "! このイメージに Stream Deck の plugin が無い（置かない。イメージを新しくして打ち直す）"
+  elif [ "$dry" = 1 ]; then
+    echo "+ cp -R $from $to"
+  else
+    mkdir -p "$plugins"
+    # 写している途中の形を、Stream Deck が読む名前で残さない
+    part=$(mktemp -d "${plugins%/}/.andon-lamp.XXXXXX")
+    # 移す先は親のフォルダで言う（$to を名指すと、その間に出来ていたフォルダの中へ入ってしまう）
+    if ! { cp -R "$from" "$part/" && mv "$part/$name" "${plugins%/}/"; }; then
+      rm -rf "$part"
+      die "$to に置けなかった"
+    fi
+    rm -rf "$part"
+    echo "+ $to"
+  fi
+}
+
+# host_install は、イメージの /opt/andon/host/ からホストの置き場へ写す。今あるファイルは上書きしない。
+host_install() {
+  local app_home
+  if [ -n "${HERDR_APP_HOME:-}" ]; then
+    app_home=$HERDR_APP_HOME
+  elif is_wsl; then
+    die 'WSL では App の置き場を HERDR_APP_HOME に指定する（Windows の App なら Windows 側の設定フォルダを wslpath で変換する。docs/operate.md の host-install を参照）'
+  else
+    app_home=${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app
+  fi
+  case "${STREAMDECK_PLUGINS:-}" in
+    '' | /*) ;;
+    *) die "STREAMDECK_PLUGINS は絶対パスで指定する（Windows のパスは wslpath で変換する。docs/operate.md の host-install を参照）" ;;
+  esac
+  local bin=${ANDON_HOST_BIN:-$HOME/.local/bin}
+  local src
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  if [ -n "${ANDON_IMAGE_ROOT:-}" ]; then
+    src=$ANDON_IMAGE_ROOT/opt/andon/host # 偽のイメージは読むだけ（--dry-run でも中身を見て比べられる）
+  elif [ "$dry" = 1 ]; then
+    extract host "$tmp/host" # 打つものを出すだけ。中身が無いので、ここで終わる
+    return 0
+  else
+    extract host "$tmp/host"
+    src=$tmp/host
+  fi
+  local ssh_port portless_port
+  ssh_port=$(dotenv SSH_PORT 2222)
+  portless_port=$(dotenv PORTLESS_PORT 1355)
+  case "$ssh_port$portless_port" in
+    *[!0-9]*) die ".env の SSH_PORT・PORTLESS_PORT は数字だけ（いま: '$ssh_port' '$portless_port'）" ;;
+  esac
+  sed -e "s/<slug>/$slug/g" -e "s/<ssh-port>/$ssh_port/g" -e "s/<portless-port>/$portless_port/g" \
+    "$src/ssh_config" >"$tmp/ssh_config" # 一時ディレクトリ（セルの repo と HOME の外）
+  place "$src/andon-up" "$bin/andon-up" 755
+  place "$src/herdr-config.toml" "$HOME/.config/herdr/config.toml" 644
+  place "$tmp/ssh_config" "$HOME/.ssh/config.d/$project.conf" 600
+  place "$src/cloud-init.yaml" .andon/cloud-init.yaml 644
+  # App の mod（名前付けの andon と、画面の mod）とレイアウト。mod はディレクトリで1つ: 不完全でも今あるものは触らない。
+  local name mod
+  for name in andon inbox kanban-board context-header files-plus waiting; do
+    mod="$app_home/mods/$name"
+    if [ -e "$mod" ] || [ -L "$mod" ]; then
+      echo "! $mod はすでにある（触らない）"
+    elif [ "$dry" = 1 ]; then
+      echo "+ cp -R $src/$name $mod"
+    else
+      mkdir -p "${mod%/*}"
+      cp -R "$src/$name" "$mod"
+      echo "+ $mod"
+    fi
+  done
+  place "$src/layouts/andon.json" "$app_home/layouts/andon.json" 644
+  place "$src/layouts/andon.svg" "$app_home/layouts/andon.svg" 644
+  install_streamdeck "$src"
+  echo "App のレイアウトを andon に切り替える: App のあるマシンで herdr-app do layout.switch --name andon（keys.json・settings.json はオーナーのもの。各 mod の README の断片を足す）"
+  echo "cloud-init の雛形: .andon/cloud-init.yaml（クラウドの VM にセルを立てるとき、<…> を埋めて渡す）"
+  if ! grep -qs '^Include config\.d/\*' "$HOME/.ssh/config"; then
+    echo "~/.ssh/config の先頭に1行足す: Include config.d/*"
+  fi
+}
+
+# place <元> <先> <mode>: 先が無ければ置く。あれば違いだけ知らせて触らない。
+place() {
+  if [ -e "$2" ]; then
+    if cmp -s "$1" "$2"; then
+      echo "= $2"
+    else
+      echo "! $2 はすでにあり、雛形と違う（触らない。入れ替えるなら退避してから打ち直す）"
+    fi
+    return 0
+  fi
+  if [ "$dry" = 1 ]; then
+    echo "+ install -m $3 $2"
+    return 0
+  fi
+  install -D -m "$3" "$1" "$2"
+  echo "+ $2"
+}
+
+# .env の key の値（最後の行）。無ければ既定。
+dotenv() {
+  local k v val=""
+  if [ -f .env ]; then
+    while IFS='=' read -r k v; do
+      k=${k//[[:space:]]/}
+      v=${v//[\"\'[:space:]]/}
+      [ "$k" = "$1" ] && [ -n "$v" ] && val=$v
+    done <.env
+  fi
+  echo "${val:-$2}"
+}
+
+case "${1:-}" in
+  "")
+    require_docker
+    require_owner
+    ensure_up
+    echo "[$project] 開く: Herdr App で machine $project を選ぶ（無ければ bin/bootstrap host-install のあと、Add Machine で $project を足す）"
+    echo "[$project] TUI で入るなら: bin/bootstrap herdr"
+    ;;
+  herdr | enter)
+    require_docker
+    require_owner
+    ensure_up
+    # herdr は手元の端末の名前（TERM_PROGRAM）を見て通知を出すので、コンテナの中まで運ぶ
+    dc exec -e TERM_PROGRAM="${TERM_PROGRAM:-}" -e TERM_PROGRAM_VERSION="${TERM_PROGRAM_VERSION:-}" dev herdr
+    ;;
+  up) require_docker; require_owner; ensure_up ;;
+  sh | bash) require_docker; require_owner; ensure_up; dc exec dev bash ;;
+  down) require_docker; compose_file; dc down ;;
+  logs) require_docker; compose_file; dc logs -f dev ;;
+  status) require_docker; compose_file; dc ps; show_from ;;
+  rebuild)
+    require_docker
+    require_owner
+    case "${2:-}" in
+      '') ;;
+      --from) rebuild_from "${3:-}" ;;
+      *) die "rebuild の引数は --from <andon の checkout> だけ（いま: '$2'）" ;;
+    esac
+    # shellcheck disable=SC2046 # pull_flag は空か --pull の1語
+    build $(pull_flag)
+    recreate
+    ;;
+  # rebuild が焼いたあと、薄い入口から入り直して打つ（help に出さない）
+  _recreate)
+    require_docker
+    require_owner
+    compose_file
+    dc up -d --force-recreate
+    ;;
+  host-install)
+    if [ -z "${ANDON_IMAGE_ROOT:-}" ]; then
+      require_docker
+      ensure_image
+    fi
+    host_install
+    ;;
+  -h | --help | help) usage ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

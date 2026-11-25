@@ -551,11 +551,11 @@ andon/
     codex.rules              Codex の execpolicy の rules（settings.json の deny の頭の線。直接の形とよくある wrapper）
     gh-skills.txt            boot が gh skill で入れる外の skill の一覧（§2.3）
     compose.yaml             セルの compose（bootstrap がイメージから取り出す）
-    host/                    ホスト用（WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus・waiting）・レイアウト layouts/andon.json、Stream Deck の plugin（streamdeck/andon.lamp.sdPlugin）
+    host/                    ホスト用（セルの入口の本体 bootstrap・WSL の andon-up・ssh config の雛形・herdr の config・cloud-init の雛形）と、Herdr App の mod（andon・inbox・kanban-board・context-header・files-plus・waiting）・レイアウト layouts/andon.json、Stream Deck の plugin（streamdeck/andon.lamp.sdPlugin）
   image/                     base image
     Dockerfile               備品・Claude Code・Codex・hc・kanban の CLI・package/ の COPY
     aqua/                    備品の宣言（aqua.yaml・registry・checksums・policy）
-  init/                      セルの repo の雛形（andon init が写す。生成後は追従しない）
+  init/                      セルの repo の雛形（andon init が写す。生成後は追従しない。bin/bootstrap は薄い入口で、本体は package/host/bootstrap。ADR-0048）
     andon.toml.tmpl  Dockerfile.tmpl  bin/bootstrap  local/aqua.yaml  local/setup.sh
     AGENTS.local.md  gate.local.json  wiki/  files/  projects/  .gitignore  .dockerignore
   cmd/andon/  internal/      andon の Go のソース（cmd/andon が入口、internal/<sub> が中身。go.mod は repo の根）
@@ -584,7 +584,8 @@ andon/
 | `/opt/andon/hooks/*` | managed settings の `hooks` | 上と同じ |
 | `/opt/andon/codex.rules` | `~/.codex/rules/andon.rules`（＋ `~/.codex/config.toml` の承認・sandbox の既定） | boot が生成する。config.toml は無いキーだけを足す（[image.md](image.md) の「Codex の承認と sandbox」） |
 | `/opt/andon/gate.json` ＋ セルの `gate.local.json` | `andon gate` | command が起動時に重ねて読む（ファイルは生成しない） |
-| `/opt/andon/compose.yaml` | ホストの `docker compose` | `bin/bootstrap` がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
+| `/opt/andon/host/bootstrap` | セルの入口 `bin/bootstrap` の本体 | 薄い入口の `bin/bootstrap` が打たれるたびにセルの image から取り出し、`.andon/bootstrap`（gitignore）に置いて走らせる（[ADR-0048](adr/0048-thin-cell-entry.md)） |
+| `/opt/andon/compose.yaml` | ホストの `docker compose` | 本体がイメージから取り出し `.andon/compose.yaml`（gitignore）に置く |
 | `/opt/andon/host/*` | WSL の `~/.local/bin`・クラウドの VM・オーナーの Herdr App の設定フォルダ（`mods/`・`layouts/`）・Stream Deck の plugin の置き場（`STREAMDECK_PLUGINS` を指定したとき） | `bin/bootstrap host-install` で写す（今あるものは上書きしない） |
 
 セルの repo にパッケージのファイルは**1つも無い**。だから雛形の更新の取り込み（3方向マージ）が要らず、更新は `Dockerfile` の `FROM` のバージョンを上げる PR（Renovate が出せる）と `bootstrap rebuild` だけ。Andon を直してセルで試すときは、`bootstrap rebuild --from <andon の checkout>` がその checkout から base image を焼いて `FROM` を差し替える（GHCR を通さない。配るバージョンは `vX.Y.Z` の tag だけ）。
@@ -654,7 +655,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 |---|---|---|---|
 | **base image** | `ubuntu:24.04`（LTS）を直接 `FROM` し、利用者・sudo・git・ssh・locale を自前で入れる。Go のバイナリは multi-stage の builder（`golang:<バージョン>`）で焼く | 仮設は devcontainers の base image に乗っているが、devcontainer への依存は捨てる（§3.1）。Ubuntu は Playwright のブラウザ・Claude Code・Codex の動作確認が揃っている。LTS で5年 | Debian slim（小さいが Playwright の依存を自分で揃える）／devcontainers の base（VS Code から入りやすいが、捨てた依存に戻る） |
 | **`andon`（command）の言語** | **Go**（オーナーの決定 2026-11-05。§6 問い24）。kanban の CLI（`kanban`）と同じ module・同じビルド。`andon` 1バイナリに issue・dispatcher・gate・delegate・boot …を sub-command で持つ | (1) dispatcher は常駐して状態を持つ——bash では辛い（仮設の経験: 画面や Markdown を正規表現で読む形は端が尽きない）。(2) gate と委譲は**決定式**で、`go test` で表にして確かめたい。(3) YAML・JSON・TOML・JSON Schema を標準的に扱える。(4) 配布が1バイナリ（image に COPY するだけ。jq・gh への依存が減る）。(5) kanban の CLI が Go で来る（§3.5）ので、repo の言語が1つになる。(6) public の読み手に読める | bash 継続（仮設の 1,466 行を写すだけで速い。だが常駐と状態・テストが弱く、jq/gh/yq に依る。二度書くことになる）／Python・TypeScript（ランタイムを image に足す。Go なら要らない）。**§6 問い24** |
-| **bash が残る所** | `Dockerfile` の `RUN`・ホストの `bootstrap`・`host/` のスクリプト（ホストは docker と bash だけ）・結合テストの駆動（`tests/*.sh`） | ホストと image の組み立ては shell が自然。`shellcheck` は入れていない（`init/bin/bootstrap` などに `shellcheck disable` の注記が残るだけ） | — |
+| **bash が残る所** | `Dockerfile` の `RUN`・ホストの `bootstrap`・`host/` のスクリプト（ホストは docker と bash だけ）・結合テストの駆動（`tests/*.sh`） | ホストと image の組み立ては shell が自然。`shellcheck` は入れていない（`package/host/bootstrap` などに `shellcheck disable` の注記が残るだけ） | — |
 | **Go のバージョンと依存** | バージョンは `mise.toml` で固定（仮設の deck と同じ 1.27 系）。依存は最小: `gopkg.in/yaml.v3`（kanban。deck と同じ）・`github.com/BurntSushi/toml`（`andon.toml`）・JSON Schema の検証ライブラリ1つ。CLI の枠組み（cobra 等）は入れず標準の `flag` | deck が依存2つで済んでいる薄さを保つ | — |
 | **設定と記録の形式** | オーナーが書く設定＝**TOML**（`andon.toml`）。kanban＝**YAML**（形式 v2 のまま）。機械の記録・条件表・委譲＝**JSON**。約束の正＝**JSON Schema**（2020-12。`$id` にバージョン） | オーナーが書くものは TOML が読みやすく、機械が書くものは JSON が扱いやすい。kanban は形式を変えない（§4） | 全部 YAML（オーナーが書く設定には楽だが、機械の記録には曖昧） |
 | **テスト** | 単体＝`go test`（決定式・schema・command の出力）。結合＝bash（偽の hc・試しの kanban・一時 HOME。仮設の tests と同じ型）。`tests/public.sh`（§2.6）。workflow は `actionlint`・`ghalint`・`pinact`（aqua。`image/aqua/aqua.yaml`）。`gitleaks`・`shellcheck` は入れていない | 決定式は表で、配線は実物で | — |
@@ -702,7 +703,7 @@ Andon を建てる担当（仮設の工場の担当も、セルフホストの�
 | `AGENTS.md`（環境メモ ＋ 編成の規約） | — | 取り込む（分ける） | 環境の節 → `package/environment.md`。編成の規約（規約1〜10・受付と俯瞰）→ `package/skills/chief-of-staff` と `docs/operate.md`。案件の部分（projects の一覧・直接フォワード）→ セルの `AGENTS.local.md` |
 | `bin/yard`（80 行）・`lib/yard/task`（234）・`coordinator`（99）・`news`（464）・`gate`（322）・`triage`（239）・`publish`（28） | 1,466 | 取り込む（育てる） | `package/bin/andon`・`package/lib/andon/*`。`andon issue` に作業側の command（`show`・`report`・`review`・`ask`・`ready`・`review-request`。§4）、`news` を**dispatcher**（`dispatcher`）に育てる（レビュアーの起動・gate・finish・フックの口）。`gate` は「kanban の項目と指摘の JSON を読む」形（仮設で進行中）を出発点に |
 | `bin/yard-coordinator`・`yard-deck-tick`・`yard-merge-gate`・`yard-publish`・`yard-task`・`yard-triage`（古い名前の別名） | 24 | **捨てる** | Andon に古い名前は無い |
-| `bin/bootstrap`（89 行。ホストで動く入口） | 89 | 取り込む | `init/bin/bootstrap`（セルの repo に1本）。イメージから `compose.yaml` と自分の更新版を取り出す。`host-install` を足す |
+| `bin/bootstrap`（89 行。ホストで動く入口） | 89 | 取り込む | `init/bin/bootstrap`（セルの repo に1本の薄い入口）と、その本体 `package/host/bootstrap`。入口がイメージから本体を、本体が `compose.yaml` を取り出す。`host-install` を足す（[ADR-0048](adr/0048-thin-cell-entry.md)） |
 | `bin/yard-autopush`（78 行。セルの repo の post-commit） | 78 | **捨てる** | オーナーの決定（2026-11-05。§6 問い10）: commit と push は Chief of Staff や Chief Engineer が意識して行うことで、仕組みは要らない |
 | `bin/yard-agent-wrapper` | 13 | 取り込む | `image/`（焼く。portless をセル固定の node で） |
 | `merge-gate.json` | — | 取り込む | `package/gate.json`（既定）。セルごとの上書きは `init/gate.local.json`。repo ごとのレベルの上書き（§6 問い7）を足す |

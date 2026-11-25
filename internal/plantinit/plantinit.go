@@ -21,9 +21,11 @@ import (
 )
 
 const Usage = "usage: andon init <slug> [--dir <path>] [--image <ref>] [--owner <email>]\n" +
+	"       andon init --print <雛形の中のパス>\n" +
 	"セルの repo の雛形を <path>（既定 ./<slug>-cell）に作る。<path> がすでにあって空でなければ何もしない。\n" +
 	"  --image  Dockerfile の FROM（既定は埋める場所だけを置く。bin/bootstrap は埋めるまで動かない）\n" +
 	"  --owner  andon.toml の owner（委譲のファイルを信じる commit の author の email）\n" +
+	"  --print  雛形のそのファイル（例 bin/bootstrap）を標準出力に出す。セルの repo は作らず、何も書かない。名前が .tmpl のものは断る\n" +
 	"できたら: cd <path> → Dockerfile の FROM を確かめる → bin/bootstrap\n"
 
 // PlaceholderImage は --image が無いときの FROM。bin/bootstrap は < > が残っていれば止まる。
@@ -45,6 +47,8 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fl.StringVar(&o.Dir, "dir", "", "")
 	fl.StringVar(&o.Image, "image", PlaceholderImage, "")
 	fl.StringVar(&o.Owner, "owner", "", "")
+	var printPath string
+	fl.StringVar(&printPath, "print", "", "")
 	// slug を先にも後にも書けるように、flag でない引数を1つだけ拾う
 	var pos []string
 	for rest := args; ; {
@@ -57,6 +61,19 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 		pos = append(pos, fl.Arg(0))
 		rest = fl.Args()[1:]
+	}
+	if printPath != "" {
+		if len(pos) != 0 {
+			fmt.Fprint(stderr, Usage)
+			return 2
+		}
+		b, err := Print(printPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "andon init: %v\n", err)
+			return 1
+		}
+		stdout.Write(b)
+		return 0
 	}
 	if len(pos) != 1 {
 		fmt.Fprint(stderr, Usage)
@@ -75,6 +92,29 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "Dockerfile の FROM はまだ埋まっていない（%s）\n", PlaceholderImage)
 	}
 	return 0
+}
+
+// Print は埋め込んだ雛形の1ファイル（init/ からのパス）の中身を返す。前に作ったセルが、入口 bin/bootstrap を
+// 置き換えるのに使う（ADR-0048 決めたこと 11）。埋める前の .tmpl・無いパス・ディレクトリは断る。
+func Print(p string) ([]byte, error) {
+	if strings.HasSuffix(p, ".tmpl") {
+		return nil, fmt.Errorf("%s はセルごとに埋める雛形で、そのままでは出さない", p)
+	}
+	src, err := fs.Sub(andon.Init, "init")
+	if err != nil {
+		return nil, err
+	}
+	if !fs.ValidPath(p) {
+		return nil, fmt.Errorf("%s は雛形の中のパスでない（bin/bootstrap のように init/ からの相対で書く）", p)
+	}
+	st, err := fs.Stat(src, p)
+	if err != nil {
+		return nil, fmt.Errorf("雛形に %s が無い", p)
+	}
+	if st.IsDir() {
+		return nil, fmt.Errorf("%s はディレクトリで、出せない", p)
+	}
+	return fs.ReadFile(src, p)
 }
 
 // Init は o.Dir に雛形を写す。o.Dir がすでにあり空でなければ、何も書かずに誤りを返す。

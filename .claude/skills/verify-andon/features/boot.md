@@ -7,7 +7,9 @@
 - `bt-ran` 当てたあとに boot が走り、dispatcher を起動し直した。見る道: 検証の担当だけ。
   - 見るファイル: `internal/boot/boot.go`、`internal/boot/start.go`、`internal/boot/owners.go`、`internal/boot/files.go`、`image/apply-main.sh`
 - `bt-generated` boot が書いたファイルが、控え（`~/.local/state/andon/boot.json`）の sha256 のまま在る。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/boot/codex.go`、`internal/boot/trust.go`、`internal/boot/gitauthor.go`、`package/codex.rules`、`package/templates/`、`package/environment.md`、`package/writing.md`、`init/`
+  - 見るファイル: `internal/boot/codex.go`、`internal/boot/trust.go`、`internal/boot/gitauthor.go`、`package/codex.rules`、`package/templates/`、`package/environment.md`、`package/writing.md`、`init/.dockerignore`、`init/.gitignore`、`init/AGENTS.local.md`、`init/Dockerfile.tmpl`、`init/andon.toml.tmpl`、`init/files/`、`init/gate.local.json`、`init/local/`、`init/projects/`、`init/wiki/`
+- `bt-entry` ホストの `bin/bootstrap`（薄い入口）が、打つたびにセルの image から本体を `.andon/bootstrap` に取り出して走らせる。分ける前の入口のまま上げると、`docker compose` が止まって入口を置き換える 1 行を出す。見る道: オーナーが見る。
+  - 見るファイル: `init/bin/bootstrap`、`package/host/bootstrap`、`package/compose.yaml`
 - `bt-managed` managed settings の hook が `/opt/andon/hooks` を指す。見る道: 検証の担当だけ。
   - 見るファイル: `package/settings.json`
 - `bt-skills` `/opt/andon/skills` の skill ごとに、`~/.agents/skills/andon-<名>` の symlink がその置き場を指す。リンクが無いもの・パッケージの外を指す `andon-*` があれば落ちる。見る道: 検証の担当だけ。
@@ -30,6 +32,10 @@
 - **生成物を読む。** `bt-generated` の行に控えのファイルの数と、控えと違うものの数が出る。違うものが 0 で、`ok   bt-generated` が見えれば動いた。
 - **配った先を読む。** `bt-managed` と `bt-skills` の行に、hook の置き場と skill の symlink の先が出る。`ok   bt-managed` が見え、`bt-skills` に FAIL が無ければ動いた。
 
+- **入口を見る（`bt-entry`）。** ホストで動くので、検証の担当は動かせない。報告の `acceptance[]` に `manual` と書き、オーナーがセルのホストで見る次の証拠を `evidence` に書く。
+  - 分ける前の入口のセル: `bin/bootstrap rebuild`（Andon を開発するセルでは `rebuild --from <checkout>`）が、image を焼いたあと `セルの入口 bin/bootstrap が古い` の行で止まり、行の最後の「: 」のあとに `docker run --rm andon-<slug>:local andon init --print bin/bootstrap …` の 1 行が出る。`docker ps` のセルのコンテナの ID は前後で同じ。
+  - その 1 行を打ったあと: `grep -x 'entry=[0-9]*' bin/bootstrap` が番号を出し、`bin/bootstrap rebuild` が作り直す。`cmp .andon/bootstrap <(docker run --rm andon-<slug>:local cat /opt/andon/host/bootstrap)` が何も出さない。そのあとの `bin/bootstrap host-install` で mod `waiting` が置かれる。
+
 ## 変えたら動かすパス
 
 - `internal/boot/`
@@ -41,15 +47,31 @@
 - `package/skills/`
 - `package/gh-skills.txt`
 - `image/apply-main.sh`
-- `init/`
+- `init/.dockerignore`
+- `init/.gitignore`
+- `init/AGENTS.local.md`
+- `init/Dockerfile.tmpl`
+- `init/andon.toml.tmpl`
+- `init/files/`
+- `init/gate.local.json`
+- `init/local/`
+- `init/projects/`
+- `init/wiki/`
+- `init/bin/bootstrap`
+- `package/host/bootstrap`
+- `package/compose.yaml`
 
 ## 既に見ている検査
 
 - `tests/andon-boot.sh`（偽の HOME・偽のパッケージで2回打ち、2回目で何も変わらないこと）
 - `tests/apply-main.sh`（当てて、焼いた andon の help・version を打つ）
 - `go test ./internal/boot/`
+- `tests/andon-init.sh`（`bt-entry`。偽の docker で、入口が本体を取り出す順・焼く回数・名指しの本体・入口の控え）
+- `tests/image.sh`（`bt-entry`。docker のある CI で、薄い入口から起動し、分ける前の入口の `docker compose` が止まって置き換えの 1 行を出す）
 
 ## 落とし穴
+
+- `bt-entry` の本体は、`image/apply-main.sh` では変わらない。入口が取り出すのはセルの image の本体なので、当てたあとの `/opt/andon/host/bootstrap` と比べない。
 
 - `image/apply-main.sh` は、PATH に `go` が無いときだけ、`mise which go` の前に `mise install` を打つ。セルの PATH に mise の shims の go がある間は、この分岐は当てても走らず、`bt-ran` の ok はこの分岐を通った証拠にならない。この分岐は `tests/apply-main.sh` の場面 14 が見る。
 

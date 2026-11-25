@@ -46,7 +46,7 @@ tmp=$(mktemp -d)
 plant=$tmp/andon-imgtest
 # セルの compose を片付ける。boot がコンテナの利用者で /workspace に書いたものは root でオーナーを戻してから消す
 # compose の補間に要る値は bin/bootstrap と同じものを渡す
-dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
+dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest ANDON_ENTRY=1 docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
 cleanup() {
   if [ -f "$plant/.andon/compose.yaml" ]; then
     dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -209,7 +209,22 @@ docker volume create --label com.docker.compose.project=andon-imgtest --label co
 docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -euc 'echo old >/v/hosts.yml; chown -R 1001:1001 /v'
 # セルの image は FROM andon:test。docker-container の builder（CI の setup-buildx）は手元の image を見ないので、docker の builder で焼く
 # ホストのシェルの TZ はセルに入らない（.env の CELL_TZ が無ければ Asia/Tokyo。下の (a1t) が見る）
+# bin/bootstrap は薄い入口: image（andon-imgtest:local）が無いので焼いてから本体を取り出し、本体が ANDON_ENTRY を渡して起動する（ADR-0048）
 TZ=UTC BUILDX_BUILDER=default "$plant/bin/bootstrap" up
+# (e0) 取り出した本体は image の /opt/andon/host/bootstrap と同じで、image の andon init --print bin/bootstrap はセルの bin/bootstrap と同じ（受け入れ条件 11）
+docker run --rm --network none andon-imgtest:local cat /opt/andon/host/bootstrap >"$tmp/image-body"
+docker run --rm --network none andon-imgtest:local andon init --print bin/bootstrap >"$tmp/printed-entry"
+if ! cmp -s "$plant/.andon/bootstrap" "$tmp/image-body" || ! cmp -s "$tmp/printed-entry" "$plant/bin/bootstrap" || ! grep -q '^host_install()' "$tmp/image-body"; then
+  echo 'FAIL image: .andon/bootstrap が image の本体と違うか、image の andon init --print bin/bootstrap がセルの bin/bootstrap と違う' >&2
+  exit 1
+fi
+left=$(find "$plant/.andon" -name 'bootstrap.*' -o -name 'compose.yaml.?*')
+if [ -n "$left" ]; then
+  printf '%s\n' "$left" >&2
+  echo 'FAIL image: 本体か compose.yaml を取り出した一時のファイルが .andon/ に残った' >&2
+  exit 1
+fi
+echo 'ok   image: 薄い入口から起動し、.andon/bootstrap は image の本体と同じで、andon init --print bin/bootstrap はセルの入口と同じ（受け入れ条件 11）'
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
 if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
@@ -218,6 +233,44 @@ if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動�
   echo 'FAIL image: compose の起動で andon boot が ready まで走らない（sshd・volume のオーナーの行も見る）' >&2
   exit 1
 fi
+# (e) 分ける前の入口（ADR-0048 決めたこと 10・受け入れ条件 10）: 古い入口が渡すのと同じ ANDON_IMAGE・ANDON_SLUG だけの docker compose は、
+# どの sub-command も 0 でない終了で、入口を置き換える 1 行（image の名前入り）を出す。その 1 行をそのまま打つと薄い入口が出る。
+# 動いているコンテナは、その前後で ID が変わらず動いたまま。ANDON_ENTRY=1 を足した dc は通る（cid0・cid1 を取る dc ps）。
+# exec は補間の誤りで止まらない（CI の本物の docker で確かめた）。古い入口の sh・herdr は exec の前に ps -q と up -d を打ち、そこで止まる
+old_dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
+paste_line='docker run --rm andon-imgtest:local andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
+cid0=$(dc ps -q dev)
+for args in 'up -d' 'up -d --force-recreate' 'down' 'ps' 'ps -q dev' 'logs dev'; do
+  read -r -a argv <<<"$args"
+  if out=$(old_dc "${argv[@]}" 2>&1); then
+    printf '%s\n' "$out" >&2
+    echo "FAIL image: 古い入口の docker compose $args が通った（ANDON_ENTRY が無くても止まらない）" >&2
+    exit 1
+  fi
+  # Compose の補間の文は改行を持てないので、置き換える 1 行は案内の行の最後の「: 」のあとに出る（行の末尾がそのまま打てる 1 行）
+  line=$(grep -F 'セルの入口 bin/bootstrap が古い' <<<"$out" | sed -n 1p)
+  if [[ "$line" != *": $paste_line" ]]; then
+    printf '%s\n' "$out" >&2
+    echo "FAIL image: 古い入口の docker compose $args が、入口を置き換える 1 行（image の名前入り）を案内の行の最後に出さない" >&2
+    exit 1
+  fi
+done
+echo "ok   image: 古い入口の docker compose が出す案内（up -d の例）:"
+out=$(old_dc up -d 2>&1) || true
+printf '%s\n' "$out" | sed 's/^/       /'
+paste_dir=$tmp/paste
+mkdir -p "$paste_dir/bin"
+(cd "$paste_dir" && bash -c "$paste_line")
+if ! cmp -s "$paste_dir/bin/bootstrap" "$plant/bin/bootstrap" || [ "$(stat -c %a "$paste_dir/bin/bootstrap")" != 755 ] || [ -e "$paste_dir/bin/bootstrap.new" ]; then
+  echo 'FAIL image: 案内の 1 行をそのまま打って出た bin/bootstrap が、セルの bin/bootstrap と違う（か実行できない・一時のファイルが残る）' >&2
+  exit 1
+fi
+cid1=$(dc ps -q dev)
+if [ -z "$cid0" ] || [ "$cid0" != "$cid1" ] || [ "$(docker inspect -f '{{.State.Running}}' "$cid1")" != true ]; then
+  echo "FAIL image: 古い入口の docker compose の前後で、動いているコンテナが変わったか止まった（$cid0 / $cid1）" >&2
+  exit 1
+fi
+echo 'ok   image: 古い入口の docker compose は up・down・ps・logs のどれも止まって入口を置き換える 1 行を出し、その 1 行で薄い入口が出て、動いているコンテナはそのまま（ANDON_ENTRY=1 なら通る）'
 dc exec -T dev bash -euc '
   andon help >/dev/null
   python3 -c "import json,sys; a,b=(json.load(open(p)) for p in sys.argv[1:]); sys.exit(a!=b)" \

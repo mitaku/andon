@@ -9,19 +9,20 @@
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
 | 1 | 範囲は、`bin/bootstrap` の追従と、前に作ったセルの移し方までにする | この ADR | 生きている |
-| 2 | 入口を、セルの repo の薄い入口と、image の中の本体の 2 つに分ける | この ADR | まだ実装していない |
-| 3 | 薄い入口の仕事を 6 つに限り、本体との約束を作業フォルダと引数と変数 1 つにする | この ADR | まだ実装していない |
-| 4 | 本体は打つたびに image から取り出し、前に取り出したものを走らせない | この ADR | まだ実装していない |
-| 5 | image が無いか、image に本体が無いときは、入口が 1 回焼いてから見直す | この ADR | まだ実装していない |
-| 6 | image を見ずに、名指しした本体で動かす口を 1 つ持つ | この ADR | まだ実装していない |
-| 7 | `--dry-run` は docker を打たず、help は image を焼かない | この ADR | まだ実装していない |
-| 8 | `rebuild` は、image を焼いたあと入口から入り直して、新しい本体で作り直す | この ADR | まだ実装していない |
-| 9 | 本体は `package/host/bootstrap` に置き、gate のレベルは C になる | この ADR | まだ実装していない |
-| 10 | 前に作ったセルは、上げたときに古い入口が止まって案内を出し、オーナーが 1 行を 1 回打つ | この ADR | まだ実装していない |
-| 11 | 雛形の 1 ファイルを出す口 `andon init --print` を足す | この ADR | まだ実装していない |
-| 12 | 薄い入口は変えないことを原則にし、変えるときは番号を上げて本体が断る | この ADR | まだ実装していない |
-| 13 | Stream Deck の plugin の置き先は本体へ移し、ADR-0045 の「雛形で置き換える」手をこの ADR の手に替える | この ADR | まだ実装していない |
-| 14 | 本体は、焼き直さずに当てる口では変わらないものに入れる | この ADR | まだ実装していない |
+| 2 | 入口を、セルの repo の薄い入口と、image の中の本体の 2 つに分ける | `init/bin/bootstrap`・`package/host/bootstrap` | 生きている |
+| 3 | 薄い入口の仕事を 6 つに限り、本体との約束を作業フォルダと引数と変数 1 つにする | `init/bin/bootstrap`・`package/host/bootstrap` | 生きている |
+| 4 | 本体は打つたびに image から取り出し、前に取り出したものを走らせない | `init/bin/bootstrap` | 生きている |
+| 5 | image が無いか、image に本体が無いときは、入口が 1 回焼いてから見直す | `init/bin/bootstrap` | 生きている |
+| 6 | image を見ずに、名指しした本体で動かす口を 1 つ持つ | `init/bin/bootstrap`・`docs/operate.md` | 生きている |
+| 7 | `--dry-run` は docker を打たず、help は image を焼かない | `init/bin/bootstrap` | 生きている |
+| 8 | `rebuild` は、image を焼いたあと入口から入り直して、新しい本体で作り直す | `package/host/bootstrap` | 生きている |
+| 9 | 本体は `package/host/bootstrap` に置き、gate のレベルは C になる | `package/host/bootstrap`・`package/gate.json` | 生きている |
+| 10 | 前に作ったセルは、上げたときに古い入口が止まって案内を出し、オーナーが 1 行を 1 回打つ | `package/compose.yaml`・`docs/operate.md` | 生きている |
+| 11 | 雛形の 1 ファイルを出す口 `andon init --print` を足す | `internal/plantinit/plantinit.go` | 生きている |
+| 12 | 薄い入口は変えないことを原則にし、変えるときは番号を上げて本体が断る | `init/bin/bootstrap`・`package/host/bootstrap`・`tests/andon-init.sh` | 生きている |
+| 13 | Stream Deck の plugin の置き先は本体へ移し、ADR-0045 の「雛形で置き換える」手をこの ADR の手に替える | `package/host/bootstrap`・`docs/operate.md` | 生きている |
+| 14 | 本体は、焼き直さずに当てる口では変わらないものに入れる | `docs/operate.md` | 生きている |
+| 15 | 案内の 1 行は行の最後に出し、`exec` は止まらないことを受け入れ条件 10 に写す | `package/compose.yaml`・`tests/image.sh` | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
@@ -158,6 +159,10 @@ Andon のバージョンを上げても、ホストで打つ入口の `bin/boots
 
 14. **2026-11-22 本体は、焼き直さずに当てる口では変わらないものに入れる（Chief Engineer が決めた）。** `image/apply-main.sh apply` のあとも、ホストの入口が取り出す本体は、image を焼いたときのままである。[operate.md](../operate.md) の「当てないもの」に、本体を足す。
     理由: 本体は `compose.yaml` と `host/` と同じ image から取り出すので、3 つがいつも同じバージョンで揃う（事実 13）。
+
+15. **2026-11-25 決めたこと 10 の案内の出方を、CI の本物の docker で確かめた結果に合わせる（実装の担当が確かめた）。** 決めたこと 10 の細部が「CI で確かめる」とした 2 点は、次のとおりだった。
+    - 案内の文の中の `${ANDON_IMAGE}` は開かれ、image の名前が入って出る。ただし Compose の補間の文は改行を持てない。改行を入れると、`ANDON_ENTRY=1` を渡しても設定を読めない。置き換えの 1 行は、案内の行の最後の「: 」のあとに出る。オーナーはその部分を 1 行として打つ。
+    - `docker compose exec` は、補間の誤りがあっても止まらない。`up -d`、`up -d --force-recreate`、`down`、`ps`、`logs` は止まる。古い入口の `sh` と `herdr` は、`exec` の前に `ps -q` と `up -d` を打ち、そこで止まるので、古い入口から見た動きは決めたこと 10 の細部のとおりである。受け入れ条件 10 の検査は、`exec` の代わりに `ps -q dev` を見る。
 
 ## やらないこと（範囲の外。理由）
 

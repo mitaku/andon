@@ -106,9 +106,11 @@ Andon は一人のソフトウェア工場を、2 つの面で言い分ける。
 
 ```bash
 andon init <slug> --image ghcr.io/<owner>/andon:<バージョン> --owner <email>
-cd <slug>-cell && bin/bootstrap            # イメージを焼き、compose.yaml をイメージから取り出して起動する
+cd <slug>-cell && bin/bootstrap            # イメージを焼き、入口の本体と compose.yaml をイメージから取り出して起動する
 bin/bootstrap host-install                  # ホストの andon-up・ssh config・herdr の設定などを置く（今あるものは上書きしない）
 ```
+
+セルの repo の `bin/bootstrap` は薄い入口で、動きはイメージの中の本体が持つ。Andon のバージョンを上げると、入口の動きも一緒に新しくなる。
 
 ## 文書の地図
 

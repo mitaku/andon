@@ -1,6 +1,6 @@
 # セルの compose（パッケージの持ち物）。セルの bin/bootstrap がイメージから .andon/compose.yaml に取り出して使う。
 # セルの repo では書き換えない。セルに固有のサービスはセルの compose.override.yaml に書く（bootstrap が重ねる）。
-# 番号とタイムゾーンはセルの .env（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。ANDON_IMAGE・ANDON_SLUG は bootstrap が渡す。
+# 番号とタイムゾーンはセルの .env（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。ANDON_IMAGE・ANDON_SLUG・ANDON_ENTRY は bootstrap が渡す。
 services:
   dev:
     image: ${ANDON_IMAGE:?bin/bootstrap から起動する}
@@ -16,6 +16,9 @@ services:
       # ssh（herdr の別マシン・portless の LocalForward）。127.0.0.1 にだけ晒す
       - "127.0.0.1:${SSH_PORT:-2222}:22"
     environment:
+      # セルの入口の形の番号（ADR-0048 決めたこと 3・10）。薄い入口の bin/bootstrap が渡す。分ける前の入口は渡さないので、
+      # 新しい image に上げたあとは、どの docker compose もここで止まり、入口を置き換える 1 行（image の名前入り）を文の最後に出す（補間の文は改行を持てない）
+      ANDON_ENTRY: "${ANDON_ENTRY:?セルの入口 bin/bootstrap が古い（この image は薄い入口から打つ）。セルの repo で、この文の最後の「: 」のあとを 1 行として打って入口を置き換え、打った command を打ち直す（手を入れていた入口なら先に git diff で見る。docs/operate.md の 4）: docker run --rm ${ANDON_IMAGE} andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new}"
       # セルの local/aqua.yaml（Dockerfile が /opt/andon-local に写す）をイメージの備品に重ねる
       AQUA_GLOBAL_CONFIG: /opt/andon-local/aqua.yaml:/opt/andon-aqua/aqua.yaml
       # タイムゾーン（IANA の名前）。セルの .env の CELL_TZ で変える。鍵を TZ にしないのは、compose が .env よりホストのシェルの

@@ -8,6 +8,18 @@
 
 ## 未リリース
 
+### 変わったこと
+
+- **セルの入口 `bin/bootstrap` を、薄い入口と image の中の本体に分けた**（[ADR-0048](docs/adr/0048-thin-cell-entry.md)）: セルの repo の `bin/bootstrap` は薄い入口になり、打たれるたびにセルの image から本体（`/opt/andon/host/bootstrap`）を `.andon/bootstrap` に取り出して走らせる。sub-command の中身は本体が持つので、これからは Andon を上げて `rebuild` すれば入口の動きも新しくなる。`andon init --print <パス>` で雛形の 1 ファイルを出せる。image を見ずに本体を名指しする口 `ANDON_ENTRY_BODY` を足した。`--dry-run` は docker を打たず、焼く・取り出す・走らせるの 3 行だけを出す。
+
+### 上げるときにすること
+
+- **前に作ったセルの入口を、1 回だけ置き換える**: 分ける前の入口のまま `FROM` を上げて `bin/bootstrap rebuild` を打つと、image を焼いたあと `docker compose` のところで止まり、置き換える 1 行（image の名前入り）を案内の行の最後に出す。動いているコンテナは前の image のまま動き続ける。セルの repo でその 1 行を打ち、`bin/bootstrap rebuild` を打ち直す（手順は [docs/operate.md](docs/operate.md) の「前に作ったセルの入口を置き換える」）。
+  - **置き換える前に `git diff bin/bootstrap` を見る**: 入口に手を入れていたら、置き換えでその行が消える。セルごとの違いは `.env`・`compose.override.yaml`・`local/` に書く。置き換えた `bin/bootstrap` はセルの repo に commit する。
+  - **`host-install` は入口を置き換えてから打つ**: 古い入口の `host-install` は `docker compose` を打たないので止まらず、古い入口が知っている置き先だけを黙って置く。
+  - v0.0.14 の「今あるセルの `bin/bootstrap` を置き換える」の手順（セルの中の `andon` で雛形を作る）は使わない。古い入口が止まったとき、セルの中の `andon` は前の image のもので、古い入口が出る。
+- **入口を分ける前のバージョンへ戻すとき**: 入口も前のものに戻してから `rebuild` を打つ（[docs/operate.md](docs/operate.md) の「GHCR のバージョンへ戻す」）。
+
 ### 直したこと
 
 - **届けた通知の記録が、`answered` と `hold` を含むターンを落とした**: v0.0.14 と v0.0.15 の既知の不具合。`delivered`（届けた通知の記録）の schema に種類 `answered` と `hold` を足し、通知と記録の種類の一覧がずれたら検査が落ちるようにした。どちらかを渡したターンも、一緒に渡したほかの通知ごと記録に残り、`andon measure` の届けた通知の数と、ダイジェストの止まった担当に数えられる。直す前に落ちたターンは記録に戻らない。schema のバージョンは変わらない。

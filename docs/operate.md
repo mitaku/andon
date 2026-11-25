@@ -80,7 +80,7 @@ docker pull ghcr.io/<owner>/andon:<バージョン>      # <バージョン> は
 
 ## 2. セルの repo を作る（`andon init`）
 
-セルの repo は `andon init <slug>` が作る（雛形は `init/`。作ったあとは Andon に追従しない）。置き場は `~/src/<slug>-cell`（`andon-up` が `$HOME/src/*-cell` と、前の形の `$HOME/src/andon-*` を探す。`ANDON_PLANTS` で変えられる）。
+セルの repo は `andon init <slug>` が作る（雛形は `init/`。作ったあとは Andon に追従しない。入口の `bin/bootstrap` は薄い入口で、動きは image の中の本体が持つので、Andon を上げると一緒に新しくなる。3 を参照）。置き場は `~/src/<slug>-cell`（`andon-up` が `$HOME/src/*-cell` と、前の形の `$HOME/src/andon-*` を探す。`ANDON_PLANTS` で変えられる）。
 
 前の形の名前（`~/src/andon-<slug>`）で作ったセルは、そのままでよい。改めるなら `bin/bootstrap down` → `mv ~/src/andon-<slug> ~/src/<slug>-cell` → 新しい場所で `bin/bootstrap up`（compose の project と volume は slug から決まるので残る。`~/.config/andon/skip` に書いた名前は書き直す）。
 
@@ -109,9 +109,14 @@ cd ~/src && andon init home --image ghcr.io/<owner>/andon:<バージョン> --ow
 
 ```bash
 cd ~/src/home-cell
-bin/bootstrap --dry-run     # docker を打たずに、打つものを出す
-bin/bootstrap               # 初回: image を焼く → compose.yaml を取り出す → 起動（入らない。App での開き方を出す）
+bin/bootstrap --dry-run     # docker を打たず、焼く・本体を取り出す・本体を走らせるの 3 つを出す
+bin/bootstrap               # 初回: image を焼く → 本体と compose.yaml を取り出す → 起動（入らない。App での開き方を出す）
 ```
+
+セルの repo の `bin/bootstrap` は薄い入口で、sub-command の中身（本体）は image の `/opt/andon/host/bootstrap` にある（[ADR-0048](adr/0048-thin-cell-entry.md)）。入口は打たれるたびに、セルの image（`andon-<slug>:local`）から本体を `.andon/bootstrap` に取り出し、引数をそのまま渡して走らせる。前に取り出したものは走らせない。image が無いか、image に本体が無いときは、先に1回だけ焼く。Andon を上げて `rebuild` すると、入口の動きも一緒に新しくなる。
+
+- `--dry-run` は docker を打たず、何も書かないので、本体が打つものまでは出ない（焼く・取り出す・走らせるの 3 行だけ）。全部を見るなら、本体のファイルを `ANDON_ENTRY_BODY` に名指しして打つ（例 `ANDON_ENTRY_BODY=.ghq/github.com/<owner>/andon/package/host/bootstrap bin/bootstrap --dry-run`）。
+- `bin/bootstrap --help` は本体の使い方を出す。image が無いか、docker に繋がらないときは、焼かずに短い案内を出す。
 
 番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）はセルの `.env` に書く。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
@@ -131,12 +136,15 @@ grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh 
 - **通ったら見えるもの**: 選んだ `SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT` のどれも、上の3つの出力に出てこない。選んだ番号を `.env` に書いてから `bin/bootstrap`。
 - **落ちたら見る所**: `bin/bootstrap` が `port is already allocated`・`address already in use` で落ちる — 出た番号を上の3つで引き、その番号を使っている側を動かすか、`.env` の番号を変えて打ち直す。起動のあとで `.env` の番号を変えたなら、`host-install` が置いた ssh config の `Port`・`LocalForward` も同じ番号にする（4 の落ちたら見る所）。
 
-- **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ Herdr App での開き方と、TUI（herdr）で入る打ち方を2行で出す。herdr には入らない。TUI で入るなら `bin/bootstrap herdr`（もう一度打てば同じセッションに戻る）。手元に `andon-home:local` がもうあれば焼かず、それが `FROM` の image の上に焼いたものかを照らしてから起動する（`FROM` の image が手元に無ければ照らせないので、そのまま起動する）。
+- **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の本体を `.andon/bootstrap` に取り出して走らせる → 本体が image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ Herdr App での開き方と、TUI（herdr）で入る打ち方を2行で出す。herdr には入らない。TUI で入るなら `bin/bootstrap herdr`（もう一度打てば同じセッションに戻る）。手元に `andon-home:local` がもうあれば焼かず、それが `FROM` の image の上に焼いたものかを照らしてから起動する（`FROM` の image が手元に無ければ照らせないので、そのまま起動する）。
 - **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・dispatcher を起動した行）。最後に `[andon-home] 開く: Herdr App で machine andon-home を選ぶ` と `[andon-home] TUI で入るなら: bin/bootstrap herdr` の2行。andon が uid 1001 だったバージョンの image から上げた最初の起動では、`置き場のオーナーを直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
   - `セルの repo（…）のオーナーが uid <n>` — セルの repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon init` からやり直す（uid を合わせ直す仕組みは無い）。
   - `docker デーモンに繋がらない` — docker が起動しているか。
+  - `本体を取り出せない` — `Dockerfile` の `FROM` が、入口を分ける前のバージョン（本体を持たない image）。`FROM` を上げて打ち直す。image を焼けないときは、下の「壊れた本体を焼いたとき」の名指しの口で焼き直す。
+  - `セルの入口 bin/bootstrap が古い` — 入口を分ける前の入口が残っている。4 の「前に作ったセルの入口を置き換える」。
+  - `これは bin/bootstrap の本体で、直には打たない` — `.andon/bootstrap` を直に打った。セルの repo の `bin/bootstrap` から打つ。
   - `手元の andon-home:local は Dockerfile の FROM（…）から焼いたものでない` — 前のセル（同じ slug）の image が残っているか、`FROM` を変えたあと `rebuild` を打っていない。`bin/bootstrap rebuild` で作り直す（`up` は image を消さず、焼き直しもしない）。
   - 5分待っても `ready` が出ず `準備の完了を確かめられなかった` — `bin/bootstrap logs` で boot の警告の行を見る。`andon help` が `command not found` なら `FROM` の image が古い（`andon` を焼く前のバージョン）。
   - ポートが使用中 — `.env` の番号を変えて `bin/bootstrap` を打ち直す。
@@ -152,9 +160,19 @@ bin/bootstrap rebuild --from .ghq/github.com/<owner>/andon    # セルの /works
 bin/bootstrap status                                          # 最後の行に FROM と元の commit
 ```
 
-- **何が起きるか**: checkout の `image/build.sh` で base image `andon:local-<commit の先頭12文字>`（checkout が汚れていれば末尾に `-dirty`）を焼く（kanban・andon の go build も docker の中。ホストに go は要らない）→ セルの `Dockerfile` の `FROM` をその tag に書き換える → セルの image を焼き直す（手元にしか無い tag なので `--pull` は付けない）→ compose で作り直す。commit はホストの git で読む（ホストに git が無ければ、今の `FROM` の image の git で読む）。
+- **何が起きるか**: checkout の `image/build.sh` で base image `andon:local-<commit の先頭12文字>`（checkout が汚れていれば末尾に `-dirty`）を焼く（kanban・andon の go build も docker の中。ホストに go は要らない）→ セルの `Dockerfile` の `FROM` をその tag に書き換える → セルの image を焼き直す（手元にしか無い tag なので `--pull` は付けない）→ 入口から入り直し、焼いた image から取り出した新しい本体が compose で作り直す（本体と `compose.yaml` は組なので、焼く前の本体では作り直さない）。commit はホストの git で読む（ホストに git が無ければ、今の `FROM` の image の git で読む）。
 - **通ったら見えるもの**: `[andon-home] <checkout>（commit: <40桁>）から andon:local-… を焼く` と `Dockerfile の FROM: <前> → andon:local-…`。`bin/bootstrap status` の最後の行が `FROM: andon:local-…（commit: <40桁>）`。
 - **GHCR のバージョンへ戻す**: `Dockerfile` の `FROM` を `ghcr.io/<owner>/andon:<バージョン>`（上の行に出た「前」の値）に書き戻して `bin/bootstrap rebuild`（1 の pull が先）。セルの repo を git で持っているなら `git checkout Dockerfile` でもよい。
+  - 入口を分ける前のバージョンへ戻すときは、入口も前のものに戻してから `rebuild` を打つ（前の image の本体は無く、前の `compose.yaml` は本体の渡す変数を知らない）。前に作ったセルは、セルの repo の git で `bin/bootstrap` を前のものへ戻す。分けたあとに作ったセルは、履歴に前の入口が無いので、戻す先の image の中で `andon init` を打って取り出す。
+    ```bash
+    docker run --rm ghcr.io/<owner>/andon:<戻す先のバージョン> bash -c 'andon init x --dir /tmp/x >/dev/null && cat /tmp/x/bin/bootstrap' > bin/bootstrap.old \
+      && install -m 755 bin/bootstrap.old bin/bootstrap && rm bin/bootstrap.old
+    ```
+- **壊れた本体を焼いたとき・image が 1 つも無いとき**: 入口は image から本体を取り出すので、壊れた本体を焼くと `rebuild` を含むどの sub-command も壊れた本体で動く。image を見ずに、直した checkout の本体を名指しして焼き直す。入口は、名指しの本体で動いていることを標準エラーに1行出す。焼き直したあとの作り直しは、名指しを外して焼いた image の本体で行う。
+  ```bash
+  ANDON_ENTRY_BODY=<直した checkout>/package/host/bootstrap bin/bootstrap rebuild --from <直した checkout>
+  ```
+  新しい本体が作り直しで止まったとき、動いているコンテナは前の image のまま動いている。
 - **落ちたら見る所**: `image/build.sh が無い` — `--from` が andon の checkout を指していないか、`image/build.sh` を持つ前のバージョンの checkout（`git pull` する）。焼きが落ちる — 出力の `docker build` のログ（checkout の変更が原因なら直して打ち直す）。`--from` の焼き直しはセルの image が変わるだけで、volume（ログイン・履歴）は残る。
 - 手元で焼いた `andon:local-…` は増えていくので、要らなくなったら `docker image rm` で消す。ホストの `andon`（2）を合わせるなら、2 の取り出しの `ghcr.io/<owner>/andon:<バージョン>` を `andon:local-…` に置き換えて打つ。
 
@@ -176,7 +194,7 @@ image/apply-main.sh revert          # イメージのバージョンへ戻す
 - **古いバージョンへ戻す前に（revert でも GHCR のバージョンへ戻すときでも）**: 委譲に名指しの grant（`issues` のある行。[contract.md](contract.md) §11）があれば、オーナーが `project.json` からその行を消して commit する（`revoke` では行が残るので足りない）。名指しを知らないバージョンの `andon` と `kanban` は、その `project.json` を読めず、無委譲・書いてよい repo 無しに倒れる。`digest`（ダイジェストの送り先）も同じで、あれば先にキーごと消して commit する。
 - **古いバージョンへ戻す前に、dispatcher の控えに残った通知を確かめる**: 戻す先のバージョンが知らない種類の通知を dispatcher の控え（`$XDG_STATE_HOME/andon/dispatcher/<slug>.json`。`XDG_STATE_HOME` が無ければ `~/.local/state` の下）が持ったまま下げると、戻した dispatcher は控えを書けず、通知が届かない。見る種類は、[CHANGELOG.md](../CHANGELOG.md) の、下げる元から戻す先の1つ上までの全部のバージョンの節の「戻すとき」にある。2 つ以上のバージョンを一度に下げるときは、それらの節の種類を全部確かめる（v0.0.15 から v0.0.13 へなら、v0.0.15 と v0.0.14 の両方の節）。v0.0.14 の節（v0.0.13 へ戻すとき）では、v0.0.14 で増えた通知 `answered`（オーナーがペインで答えた）がこれに当たる。先に mod とレイアウトを退避したものに戻して mod `waiting` を消し、ペインから新しい答えが入らないようにする。`andon waiting answer` も、下げ終わるまで打たない。2 分待って dispatcher に見回らせてから、セルの中で `grep -l '"kind": "answered"' "${XDG_STATE_HOME:-$HOME/.local/state}"/andon/dispatcher/*.json` を打ち、何も出ないことを確かめる。ファイル名が出たら、Chief of Staff に受け取らせ、そのターンが終わってから打ち直す。ほかの節の種類も、同じ順で確かめる。
 - **消えるとき**: 当てた状態と退避はコンテナの書ける層にあるので、コンテナの再起動では残り、作り直し（`bin/bootstrap rebuild`）で消える。正はイメージのまま。
-- **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
+- **当てないもの**: イメージの備品（`image/` で決まる aqua の道具・Claude Code・bash の設定）と、ホストが取り出すもの（`compose.yaml`・`host/`。入口の本体 `host/bootstrap` も入る）。これらは焼き直しで変わる。マージ前の branch を試すのは、今のまま `ANDON_HOME` と `rebuild --from`。
 - **落ちたら見る所**: `origin/main に含まれない` — マージ前の commit を渡した。`go build に失敗した` — その commit が焼けない（何も変えていない）。`ほかの apply-main.sh が動いている` — 同時に2つは走らない（`/opt/andon-image.lock`）。dispatcher の見回りが15分終わらないときは、入れ替えまで済ませて dispatcher を触らずに終わるので、見回りが終わってから `andon boot` を打つ（受け口はこの道でも止めて、当てたパッケージで起動し直す）。
 
 ### 言語の道具の volume（`mise`）
@@ -213,6 +231,22 @@ bin/bootstrap host-install
 
 - **通ったら見えるもの**: `+ <path>`（新しく置いた）か `= <path>`（同じ）。違うものは `! <path> はすでにあり、雛形と違う`（触らない。入れ替えるなら退避してから打ち直す）。`~/.ssh/config` に `Include config.d/*` が無ければ、足す1行を案内する。
 - **落ちたら見る所**: `.env の SSH_PORT・PORTLESS_PORT は数字だけ`。`andon-up` が見つからない — `~/.local/bin` が PATH にあるか。WSL で `HERDR_APP_HOME` が未指定なら、ほかのホストの道具も置く前に止まる。下の手順で App の設定フォルダを指定して打ち直す。`STREAMDECK_PLUGINS は絶対パスで指定する` — Windows のパスは `wslpath` に通す。
+
+### 前に作ったセルの入口を置き換える
+
+入口を分ける前のバージョン（v0.0.15 まで）で作ったセルの `bin/bootstrap` は、`andon init` のときに写したきりの入口で、Andon を上げても変わらない（[ADR-0048](adr/0048-thin-cell-entry.md)）。分けたバージョン以上に上げると、古い入口の `rebuild` は image を焼いたあと、`docker compose` を打つところで止まる。動いているコンテナは前の image のまま動き続ける。止まったとき、案内の行の最後の「: 」のあとに、入口を置き換える 1 行が image の名前入りで出る。セルの repo で、その 1 行を1回打ってから、打った command を打ち直す。
+
+```bash
+docker run --rm andon-<slug>:local andon init --print bin/bootstrap > bin/bootstrap.new \
+  && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new
+bin/bootstrap rebuild         # FROM はもう上がっている（rebuild --from で上げたセルも、この rebuild でよい）
+bin/bootstrap host-install    # 入口を置き換えてから打つ
+```
+
+- **置き換える前に**: 入口に手を入れていたら、置き換えでその行が消える。先に `git diff bin/bootstrap` で見る。セルごとの違いは、今までどおり `.env`・`compose.override.yaml`・`local/` に書く。置き換えた `bin/bootstrap` はセルの repo に commit する。
+- **古い入口の `host-install` は止まらない**: `docker compose` を打たないので、入口を置き換えずに打つと、古い入口が知っている置き先だけが黙って置かれる（Stream Deck の plugin・mod `waiting` が置かれない）。入口を置き換えてから打つ。
+- **順を逆にしてもよい**: `FROM` がレジストリのバージョンのセルは、上げた先の `FROM` の image を `docker run` に渡して、入口を先に置き換えてもよい。そのあとの `bin/bootstrap rebuild` は、image を焼き直してから本体を取り出して進む。`rebuild --from` で上げるセルは、古い入口で `rebuild --from` を先に打つ（`andon-<slug>:local` が新しい image になる）。
+- 置き換えはセルごとに1回で、そのあとの入口の変更は本体に入るので、手は要らない。古い入口の `up`・`down`・`status`・`logs`・`sh`・`herdr` も、置き換えるまで同じ案内で止まる。`andon-up` は、そのセルを失敗として出す。
 
 ### バージョンを上げるとき: host-install が置いたものを退避する
 
@@ -390,7 +424,7 @@ plugin の置き場は `host-install` が推測しない。`STREAMDECK_PLUGINS` 
 - **落ちたら見る所**:
   - `! … はすでにある（触らない）` — 前の plugin がある。下の置き直し。
   - `! このイメージに Stream Deck の plugin が無い` — image が古い。上げてから打ち直す。
-  - plugin の行が1行も出ない — セルの `bin/bootstrap` が古い。下の「前に作ったセル」。
+  - plugin の行が1行も出ない — セルの `bin/bootstrap` が入口を分ける前のもの。上の「前に作ったセルの入口を置き換える」。
   - キーが「?」 — App が閉じている、レイアウトに `inbox` が見えていない、`inbox` が古い、App の設定フォルダが既定と違うのに Stream Deck に `HERDR_APP_HOME` が渡っていない、のどれか。
   - 押すと警告の印 — App が動いていない、`inbox` が見えていない、`herdr-app` が見つからない（`HERDR_APP_BIN` に実行ファイルのパスを入れて Stream Deck を起動し直す）、のどれか。
   - 「Working」のキーだけが「?」 — `hc` が見つからないか、`hc events` が終わった。`hc` が PATH に無ければ、`HC_BIN` に実行ファイルのパスを入れて Stream Deck を起動し直す。「?」の間も 30 秒おきに起動し直している。
@@ -405,15 +439,7 @@ STREAMDECK_PLUGINS="$plugins" bin/bootstrap host-install      # WSL なら HERDR
 
 **外す**: Stream Deck を終え、置き場の `andon.lamp.sdPlugin` を消して起動し直す。mod `inbox` はそのままでよい（足した項目と command は、読む plugin が無くても害が無い）。
 
-**前に作ったセル**: `bin/bootstrap` は `andon init` のときに写したきりで、追従しない。plugin を知らない `bin/bootstrap` は `STREAMDECK_PLUGINS` を読まない。雛形はセルごとの値を持たないので、そのまま置き換える。新しい image の `andon` を使い、セルの中で打つ。
-
-```bash
-t=$(mktemp -d); andon init x --dir "$t/x" > /dev/null
-install -m 755 "$t/x/bin/bootstrap" /workspace/bin/bootstrap      # 手を入れていたら、先に diff を見る
-rm -r "$t"
-```
-
-`bin/bootstrap` の差分はセルの repo に commit する。
+**前に作ったセル**: plugin を知らない古い入口は `STREAMDECK_PLUGINS` を読まない。上の「前に作ったセルの入口を置き換える」の手順で入口を置き換えてから打つ。
 
 ## 5. セルに入って、立ち上がりを確かめる
 
