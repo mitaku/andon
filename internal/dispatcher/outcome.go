@@ -239,7 +239,7 @@ func (p *project) breakdown(id string, launches []launchRow, ss *[]OutcomeSessio
 	if n := len(launches); n > 0 {
 		role = launches[n-1].Role
 	}
-	b, err := trace.BreakdownOf(filepath.Join(otel.Root(), p.l.Slug), id, ids, role)
+	b, err := trace.BreakdownOf(filepath.Join(otel.Root(), p.l.Slug), id, ids, role, trace.WikiDir())
 	if err != nil {
 		p.logf("%s の内訳を数えられない（breakdown は null で書く）: %v", id, err)
 		return nil

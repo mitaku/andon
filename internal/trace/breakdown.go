@@ -38,6 +38,9 @@ type Breakdown struct {
 	Errors       BreakdownError `json:"errors"`
 	Tools        []ToolUse      `json:"tools"`
 	Waits        BreakdownWaits `json:"waits"`
+	// Knowledge は知識の読み（ADR-0061 決めたこと 16）。Claude Code の span（claude_code.）が 1 つも無い内訳には無い
+	// （Codex の記録はツールの記録にパスが載らないので、0 回と分けて「記録なし」にする）。
+	Knowledge *Knowledge `json:"knowledge,omitempty"`
 }
 
 // Coverage は起動の記録のセッションのうち、生の記録に span が 1 つでもあったものの数。
@@ -73,8 +76,8 @@ type BreakdownWaits struct {
 // （無ければ ""。そのときは記録の resource 属性 andon.role が起動の記録の役のどれかなら、それを使う）。
 // 生の記録が 1 行も無ければ nil（breakdown は null）。ファイルがあるのに読めなければ誤り。JSON として読めない行は飛ばす。
 // 同じ span（traceId と spanId が同じ）は 1 つに数える。dispatcher の見回りの中で読むので、数えに使う属性だけを持って読む
-// （Codex のレビュアーの記録は 1 本で数十 MB になる）。
-func BreakdownOf(dir, id string, sessions []string, role string) (*Breakdown, error) {
+// （Codex のレビュアーの記録は 1 本で数十 MB になる）。wiki はセルの wiki の置き場（WikiDir。知識の読みを数える）。
+func BreakdownOf(dir, id string, sessions []string, role, wiki string) (*Breakdown, error) {
 	r := &reader{o: Options{Otel: dir}}
 	base := filepath.Join(dir, "issues", id)
 	nlogs := 0
@@ -135,6 +138,9 @@ func BreakdownOf(dir, id string, sessions []string, role string) (*Breakdown, er
 		return nil, nil
 	}
 	b := count(spans)
+	if len(spans) > 0 {
+		b.Knowledge = knowledge(spans, wiki)
+	}
 	b.Coverage.Sessions = len(sessions)
 	for _, s := range sessions {
 		if s != "" && sessSeen[s] {
@@ -156,7 +162,7 @@ var sessionKeys = []string{"session.id", "gen_ai.conversation.id", "conversation
 // keptAttrs は内訳の数えに使う属性（ほかは持たない）。
 var keptAttrs = map[string]bool{
 	"session.id": true, "gen_ai.conversation.id": true, "conversation.id": true, "andon.role": true,
-	"tool_name": true, "gen_ai.tool.name": true, "bash_argv0": true, "full_command": true, "success": true,
+	"tool_name": true, "gen_ai.tool.name": true, "bash_argv0": true, "full_command": true, "success": true, "file_path": true,
 	"input_tokens": true, "output_tokens": true, "cache_read_tokens": true, "cache_creation_tokens": true,
 }
 

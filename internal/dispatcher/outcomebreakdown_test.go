@@ -219,3 +219,93 @@ func compactJSON(t *testing.T, raw []byte) string {
 	}
 	return b.String()
 }
+
+// ADR-0061 受け入れ条件 9: wiki のページを読む記録を 2 つ（Read と Bash）と、目録を読む記録を 1 つ持つ見本を受け口に送り、
+// dispatcher が片付けを拾うと、outcome.json の breakdown.knowledge に、そのページの読みが 2、目録の読みが 1 と出る。
+// wiki の外のファイルを読む記録は数えない。生の記録の無い課題では breakdown が null のまま。どれも schema を通る。
+// 見本の形は、担当のセッションで wiki のページを 1 枚読ませて受け口の置き場に書かれた span（claude_code.tool の
+// tool_name・file_path・full_command）と同じ。
+func TestOutcomeBreakdownKnowledge(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	ws := t.TempDir()
+	t.Setenv("ANDON_WORKSPACE", ws)
+	const (
+		w, none = "D-0005", "D-0006"
+		sess    = "d665506d-cc64-41f9-9e03-6b92318250c0"
+	)
+	p := outcomeProject(t,
+		statusRow(w, "2026-11-19T09:00:00Z", "doing"), statusRow(w, "2026-11-19T09:10:00Z", "done"),
+		statusRow(none, "2026-11-19T09:00:00Z", "doing"), statusRow(none, "2026-11-19T09:10:00Z", "done"),
+	)
+	p.l.Slug = "demo"
+	p.tasks = []ledger.Issue{{"id": w, "profile": "claude"}, {"id": none, "profile": "claude"}}
+	writeFile(t, filepath.Join(p.l.Library(w), "launches.jsonl"), `{"role":"worker","session":"`+sess+`","harness":{"name":"claude"},"repo":null}`+"\n")
+	str := func(k, v string) map[string]any {
+		return map[string]any{"key": k, "value": map[string]any{"stringValue": v}}
+	}
+	n := 0
+	tool := func(attrs ...map[string]any) map[string]any {
+		n++
+		a := []any{str("session.id", sess), str("span.type", "tool")}
+		for _, x := range attrs {
+			a = append(a, x)
+		}
+		return map[string]any{"traceId": "c43ee97f7dd8f491fa3848a4438c5d81", "spanId": fmt.Sprintf("%016x", n), "parentSpanId": "",
+			"name": "claude_code.tool", "kind": 1, "startTimeUnixNano": "1763542800000000000", "endTimeUnixNano": "1763542801000000000",
+			"attributes": a}
+	}
+	page := filepath.Join(ws, "wiki", "topics", "tool-quirks.md")
+	body, err := json.Marshal(map[string]any{"resourceSpans": []any{map[string]any{
+		"resource": map[string]any{"attributes": []any{str("andon.project", "demo"), str("andon.issue", w), str("andon.role", "worker"), str("service.name", "claude-code")}},
+		"scopeSpans": []any{map[string]any{"scope": map[string]any{"name": "com.anthropic.claude_code.tracing"}, "spans": []any{
+			tool(str("tool_name", "Read"), str("file_path", page)),
+			tool(str("tool_name", "Bash"), str("full_command", "sed -n 1,40p "+page)),
+			tool(str("tool_name", "Bash"), str("full_command", "sed -n '/^## Entities/,/^## Sources/p' "+filepath.Join(ws, "wiki", "index.md")+" | head -60")),
+			tool(str("tool_name", "Read"), str("file_path", filepath.Join(ws, "docs", "design.md"))),
+		}}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &otel.Receiver{Root: otel.Root(), Log: io.Discard}
+	req := httptest.NewRequest(http.MethodPost, "/v1/traces", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	rec.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("受け口が %d を返した: %s", rw.Code, rw.Body.String())
+	}
+	p.st.Outcomes.Add(w)
+	p.st.Outcomes.Add(none)
+	p.outcomes()
+	for id, want := range map[string]string{
+		w:    `{"index_reads":1,"pages":[{"path":"topics/tool-quirks.md","reads":2}]}`,
+		none: "",
+	} {
+		b, err := os.ReadFile(filepath.Join(p.l.Library(id), outcomeFile))
+		if err != nil {
+			t.Fatalf("%s に outcome.json を書いていない: %v", id, err)
+		}
+		if err := contract.SchemaOutcome.Check(b); err != nil {
+			t.Errorf("%s の outcome.json が schema を通らない: %v", id, err)
+		}
+		var v struct {
+			Breakdown *struct {
+				Knowledge json.RawMessage `json:"knowledge"`
+			} `json:"breakdown"`
+		}
+		if err := json.Unmarshal(b, &v); err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case want == "" && v.Breakdown != nil:
+			t.Errorf("生の記録の無い %s の breakdown が null でない: %s", id, b)
+		case want != "" && (v.Breakdown == nil || compactJSON(t, v.Breakdown.Knowledge) != want):
+			t.Errorf("%s の breakdown.knowledge が %s でない: %s", id, want, b)
+		}
+	}
+}

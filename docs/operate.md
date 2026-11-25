@@ -638,7 +638,7 @@ jq . ~/.local/state/andon/dispatcher/andon.json 2>/dev/null   # 控え（<プロ
 
 ### 課題 1 件の流れを見る（`andon issue trace`）
 
-役の起動は、Claude Code と Codex のトレースとログを、セルの中の受け口（`andon otel serve`。`127.0.0.1:4318`）へ送る。受け口は `~/.local/state/andon/otel/<プロジェクト名>/` に課題ごとに書く（[contract.md](contract.md) §30。[ADR-0060](adr/0060-otel-trace.md)）。`andon issue trace <id>` は、kanban の記録から導いた段（列・起動・走らせた command・問い・レビュー・gate・端末が死んでいた間・マージ）と、その下のハーネスの記録を、課題 1 件の木にして出す。レビュアーの課題の起動と記録は、レビューの段の下に入る。読むだけで、何も書かない。
+役の起動は、Claude Code と Codex のトレースとログを、セルの中の受け口（`andon otel serve`。`127.0.0.1:4318`）へ送る。受け口は `~/.local/state/andon/otel/<プロジェクト名>/` に課題ごとに書く（[contract.md](contract.md) §30。[ADR-0060](adr/0060-otel-trace.md)）。`andon issue trace <id>` は、kanban の記録から導いた段（列・起動・走らせた command・問い・レビュー・gate・端末が死んでいた間・マージ・依頼書に載った wiki のページ・知識の欠けの申告）と、その下のハーネスの記録を、課題 1 件の木にして出す。レビュアーの課題の起動と記録は、レビューの段の下に入る。読むだけで、何も書かない。
 
 ```bash
 cd /workspace/projects/andon

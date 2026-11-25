@@ -890,7 +890,8 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
    "tokens": {"input": 1180, "output": 34600, "cache_read": 2390000, "cache_write": 179000},
    "errors": {"llm": 2, "tool": 5},
    "tools": [{"name": "Bash", "argv0": "go", "count": 14, "ms": 412000, "errors": 1}, {"name": "Read", "argv0": null, "count": 40, "ms": 9000, "errors": 0}],
-   "waits": {"question_ms": 0, "review_ms": 540000, "ci_ms": 300000, "gone_ms": 0}}}
+   "waits": {"question_ms": 0, "review_ms": 540000, "ci_ms": 300000, "gone_ms": 0},
+   "knowledge": {"index_reads": 1, "pages": [{"path": "topics/tool-quirks.md", "reads": 2}]}}}
 ```
 
 PR 無しで片付いた課題で、起動の記録の無い（この仕組みの前に起動した）とき:
@@ -921,6 +922,7 @@ PR 無しで片付いた課題で、起動の記録の無い（この仕組み�
 | `breakdown.errors` | 失敗した span の数。`llm` はモデルの呼び出し、`tool` はツール。失敗は `success` が `false` か status が ERROR（ツールは下の `claude_code.tool.execution` の失敗も） |
 | `breakdown.tools[]` | ツールの名前（`tool_name`）と、Bash なら最初の語（`argv0`。`bash_argv0`、無ければ全文 `full_command` の最初の語。ほかのツールは `null`）ごとの、span の数・時間の合計（ミリ秒）・失敗の数。どの深さのツールも数え、時間の長い順に 10 個まで |
 | `breakdown.waits` | 課題が `doing` の間の待ちの内訳（ミリ秒。種類の間で重なればそれぞれに数える）。`question_ms`（自分の問いが開いていた間）・`review_ms`（レビュアーの課題を待った間）・`gone_ms`（端末が死んでいた間）は `worked_minutes` が引く待ちと同じ数え方（`ledger.WorkedWaits`）。`ci_ms` は、Bash の全文が PR の checks を待つ command（`gh pr checks`・`gh run watch`）のツールの時間を、重なりを 1 回にして合わせたもの（`hc run --bg` で裏に回して `hc wait` で待った時間は、command の全文から checks の待ちと分からないので入らない） |
+| `breakdown.knowledge` | 知識の読み（[ADR-0061](adr/0061-knowledge-factory.md) 決めたこと 16）。課題のセッションが読んだセルの wiki（`<ANDON_WORKSPACE>/wiki/`）のページと目録の数。数えるのは `claude_code.tool` の span のうち、ファイルを読むツール（Read）の `file_path` と、Bash の全文 `full_command` に出た wiki の置き場の下のパス（置き場の絶対パスの下か、パスの文字でない文字のあとの `wiki/` の下。`cd` してからの相対パスは拾わない）である。1 つのツールの記録の中で同じページが何度出ても 1 回に数える。サブエージェントのツールも数える。`index_reads` は目録（`index.md`）を読んだツールの記録の数で、ページと分ける。`pages[]` はページ（`entities/`・`topics/`・`sources/` の下の `.md` と `overview.md`。`log.md` と `raw/` は数えない）ごとの `path`（置き場からの相対パス）と `reads`（読んだツールの記録の数）で、多い順、同じ数はパスの順。Claude Code の span（`claude_code.`）が 1 つも無い内訳には無い（Codex の記録はツールの記録にパスが載らないので、0 回でなく「記録なし」と読む）。このキーより前に書いた記録にも無い |
 
 - **ファイルが無いのは「集めていない」。** 読めないもの（gh・kanban・gate の記録・起動の記録）があれば書かず、次の見回りで1回だけ打ち直す。それも駄目なら dispatcher のログに1行で諦める（通知は積まない。§14 の `corrections` と違い、Chief of Staff が手で集め直す口は無い。振り返りは無い欄を `null` として読む）。gh の上限で止めている間（控えの `GHReset`）は打たず、回数にも数えない。
 - 片付けたあとに状態が変わる PR（`open` のまま片付いて、あとでオーナーがマージした）は、書いたときの状態のまま。書き直さない（「1回だけ書く」。マージ後のことは振り返りが GitHub から読む）。

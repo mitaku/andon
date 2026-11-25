@@ -497,8 +497,10 @@ if [ "$self" = true ]; then
   bdone() { echo '{"at": "2026-01-01T00:04:00Z", "by": "terminal:t1", "id": "B-0001", "change": {"status": "doing"}}' >"$bk/log.jsonl"
     [ "$1" = done ] || return 0
     echo '{"at": "2026-01-01T00:09:00Z", "by": "terminal:t1", "id": "B-0001", "change": {"status": "done"}}' >>"$bk/log.jsonl"; }
-  bout_of() { # bout_of <内訳のトークン（JSON か null）> <セッションのトークン>
-    echo "{\"at\": \"2026-01-01T00:10:00Z\", \"breakdown\": $( [ "$1" = null ] && echo null || echo "{\"tokens\": {\"input\": $1, \"output\": 0, \"cache_read\": 0, \"cache_write\": 0}}"), \"sessions\": [{\"cost\": {\"tokens\": {\"input\": $2, \"output\": 0, \"cache_read\": 0, \"cache_write\": 0}}}]}" >"$bl/outcome.json"; }
+  bout_of() { # bout_of <内訳のトークン（JSON か null）> <セッションのトークン> [<知識の読み（JSON。省くと {"index_reads": 1, "pages": []}。- でキーを書かない）>]
+    local k=${3:-'{"index_reads": 1, "pages": []}'}
+    if [ "$k" = - ]; then k=; else k=", \"knowledge\": $k"; fi
+    echo "{\"at\": \"2026-01-01T00:10:00Z\", \"breakdown\": $( [ "$1" = null ] && echo null || echo "{\"tokens\": {\"input\": $1, \"output\": 0, \"cache_read\": 0, \"cache_write\": 0}$k}"), \"sessions\": [{\"cost\": {\"tokens\": {\"input\": $2, \"output\": 0, \"cache_read\": 0, \"cache_write\": 0}}}]}" >"$bl/outcome.json"; }
   bdone doing; bcheck
   grep -qF 'note ot-breakdown: 当てたあとに起動した Claude Code の担当の課題が、まだ片付いていない' <<<"$bout" || die "ot-breakdown: 片付いていない課題で、まだ片付いていない note を出さない: $bout"
   if grep -q '^FAIL' <<<"$bout"; then die "ot-breakdown: 片付いていない課題で落ちる: $bout"; fi
@@ -506,6 +508,19 @@ if [ "$self" = true ]; then
   grep -qF 'に done になったのに、結果の記録' <<<"$bout" || die "ot-breakdown: done から時間が経っても結果の記録が無い課題で落ちない: $bout"
   bout_of 100 102; bcheck
   grep -qF 'ok   ot-breakdown: 当てたあとに片付いた担当の課題 1 件' <<<"$bout" || die "ot-breakdown: 上下 5% に入る内訳で ok にならない: $bout"
+  grep -qF 'note ot-knowledge: 当てたあとに片付いた担当の課題 1 件の内訳に、読んだ wiki のページが無い' <<<"$bout" || die "ot-knowledge: ページを読んでいない内訳で note を出さない: $bout"
+  if grep -q '^FAIL' <<<"$bout"; then die "ot-knowledge: ページを読んでいない内訳で落ちる: $bout"; fi
+  bout_of 100 102 '{"index_reads": 1, "pages": [{"path": "topics/tool-quirks.md", "reads": 2}]}'; bcheck
+  grep -qF 'ok   ot-knowledge: 当てたあとに片付いた担当の課題の内訳に、読んだ wiki のページがある（B-0001(topics/tool-quirks.md×2)）' <<<"$bout" || die "ot-knowledge: ページを読んだ内訳で ok にならない: $bout"
+  bout_of 100 102 -; bcheck
+  grep -qF 'FAIL ot-knowledge:' <<<"$bout" && grep -qF 'knowledge のキーが無い' <<<"$bout" || die "ot-knowledge: knowledge のキーの無い内訳で落ちない: $bout"
+  # 置き場の記録が wiki のページを名指しているのに、内訳のページが空（数えていない）
+  echo "{\"resourceSpans\": [{\"scopeSpans\": [{\"spans\": [{\"name\": \"claude_code.tool\", \"attributes\": [{\"key\": \"file_path\", \"value\": {\"stringValue\": \"$c/ws/wiki/topics/tool-quirks.md\"}}]}]}]}]}" >"$btr"
+  bout_of 100 102; bcheck
+  grep -qF 'FAIL ot-knowledge:' <<<"$bout" && grep -qF 'wiki のページを名指しているのに' <<<"$bout" || die "ot-knowledge: 置き場の記録がページを名指すのに内訳のページが空で落ちない: $bout"
+  rm -f "$btr"
+  bout_of 0 102 -; bcheck
+  if grep -q 'FAIL ot-knowledge' <<<"$bout"; then die "ot-knowledge: モデルの呼び出しの無い内訳でキーを求めて落ちる: $bout"; fi
   bout_of 200 100; bcheck
   grep -qF 'の上下 5% に入らない' <<<"$bout" || die "ot-breakdown: 上下 5% に入らない内訳で落ちない: $bout"
   bout_of null 100; bcheck

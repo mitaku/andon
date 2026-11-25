@@ -10,6 +10,8 @@
 //	問いとオーナー待ち  questions.yaml と library/questions/<n>.json
 //	端末が死んでいた間  dispatcher の控えの gone
 //	マージ              library/outcome.json の merged_at
+//	依頼書に載った wiki のページ  brief.md（時刻は課題を足した時刻。ADR-0061 決めたこと 16）
+//	知識の欠けの申告    library/report.json の gaps[]（時刻は log.jsonl の最後に報告を書いた行。ADR-0061 決めたこと 16）
 //
 // 起動の下には、ハーネスの生の記録（受け口の置き場の issues/<id>/traces.jsonl。docs/contract.md §30）の span を、
 // session.id で結んで入れる。レビュアーの課題の起動と記録は、親の課題の木のレビューの段の下に入る（決めたこと 13）。
@@ -47,6 +49,8 @@ const (
 	KindGate        = "gate"
 	KindGone        = "gone"
 	KindMerge       = "merge"
+	KindBriefWiki   = "brief_wiki"
+	KindGaps        = "gaps"
 	KindInteraction = "interaction"
 	KindLLM         = "llm_request"
 	KindTool        = "tool"
@@ -54,7 +58,7 @@ const (
 )
 
 // order は同じ時刻に始まる段の並び（記録の起きた順に近いもの）。
-var order = map[string]int{KindColumn: 0, KindLaunch: 1, KindRun: 2, KindQuestion: 3, KindReview: 4, KindGate: 5, KindGone: 6, KindMerge: 7}
+var order = map[string]int{KindColumn: 0, KindLaunch: 1, KindRun: 2, KindQuestion: 3, KindReview: 4, KindGate: 5, KindGone: 6, KindMerge: 7, KindBriefWiki: 8, KindGaps: 9}
 
 // Node は木の節。End が nil の段は続いている（まだ閉じていない）。点の段（gate・マージ・done の列）は Start と End が同じ。
 type Node struct {
@@ -116,6 +120,7 @@ type Options struct {
 	Otel  string    // ハーネスの記録のプロジェクトの置き場（~/.local/state/andon/otel/<slug>）。空なら読まない
 	State string    // dispatcher の控え（gone だけ読む）。空なら読まない
 	Now   time.Time // 続いている段の終わり（--otlp だけが使う）
+	Wiki  string    // セルの wiki の置き場（WikiDir。依頼書に載った wiki のページの段）。空なら wiki/ から始まる相対パスだけを見る
 }
 
 type reader struct {
@@ -329,6 +334,8 @@ func Build(o Options, id string) (*Trace, error) {
 	stages = append(stages, r.gates(lib)...)
 	stages = append(stages, goneStages(rows, id, gone, end)...)
 	stages = append(stages, r.merge(lib)...)
+	stages = append(stages, r.briefWiki(id, start)...)
+	stages = append(stages, r.gaps(id, lib, rows)...)
 
 	extra, h := r.attach(id, launches)
 	stages = append(stages, extra...)
@@ -771,6 +778,69 @@ func (r *reader) merge(lib string) []*Node {
 		attrs["merge_commit"] = *v.MergeCommit
 	}
 	return []*Node{{Kind: KindMerge, Name: "マージ", Start: tp(at), End: tp(at), Attrs: attrs}}
+}
+
+// briefWiki は依頼書に載った wiki のページの段（点。時刻は課題を足した時刻 at。ADR-0061 決めたこと 16）。
+// 依頼書が無いか、ページのパスが 1 つも無ければ段は無い。目録だけを名指した依頼書も段にしない。
+func (r *reader) briefWiki(id string, at *time.Time) []*Node {
+	path := filepath.Join(r.dir, "issues", id, "brief.md")
+	b, ok := r.read(path)
+	if !ok {
+		return nil
+	}
+	pages, _ := WikiRefs(string(b), r.o.Wiki)
+	if len(pages) == 0 {
+		return nil
+	}
+	if at == nil {
+		r.skip(path, 0, "課題を足した時刻が無いので、依頼書に載った wiki のページを段にしていない")
+		return nil
+	}
+	return []*Node{{Kind: KindBriefWiki, Name: fmt.Sprintf("依頼書に載った wiki のページ %d 枚", len(pages)),
+		Start: at, End: at, Attrs: map[string]any{"pages": pages}}}
+}
+
+// gaps は知識の欠けの申告の段（点。時刻は log.jsonl の、この課題の最後に報告を書いた行。ADR-0061 決めたこと 16）。
+// report.json が無いか、gaps が空なら段は無い。
+func (r *reader) gaps(id, lib string, rows []ledger.Row) []*Node {
+	path := filepath.Join(lib, "report.json")
+	b, ok := r.read(path)
+	if !ok {
+		return nil
+	}
+	var v struct {
+		Gaps []struct {
+			Kind     string `json:"kind"`
+			Where    string `json:"where"`
+			Text     string `json:"text"`
+			Proposal string `json:"proposal,omitempty"`
+		} `json:"gaps"`
+	}
+	if json.Unmarshal(b, &v) != nil {
+		r.skip(path, 0, "JSON の object でない")
+		return nil
+	}
+	if len(v.Gaps) == 0 {
+		return nil
+	}
+	var at *time.Time
+	for _, row := range rows {
+		if row.ID != id {
+			continue
+		}
+		if _, ok := row.Change["report"]; !ok {
+			continue
+		}
+		if t, ok := parseAt(row.At); ok {
+			at = tp(t)
+		}
+	}
+	if at == nil {
+		r.skip(path, 0, "log.jsonl に報告を書いた行が無いので、知識の欠けの申告を段にしていない")
+		return nil
+	}
+	return []*Node{{Kind: KindGaps, Name: fmt.Sprintf("知識の欠けの申告 %d 件", len(v.Gaps)),
+		Start: at, End: at, Attrs: map[string]any{"gaps": v.Gaps}}}
 }
 
 // review はレビュアーの課題 1 件の段。足した行から、最初の review か done の行まで（ledger.Worked のレビュー待ちと同じ区間）。

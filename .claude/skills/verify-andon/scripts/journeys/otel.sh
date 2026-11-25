@@ -150,6 +150,25 @@ if [ "$trc" = 0 ] && [ "${ntrace:-0}" = 1 ] && [ "${nroot:-0}" = 1 ] && [ "${nll
 else
   fail "ot-trace: andon issue trace $tid --otlp が 1 本のトレースにならないか、結び先が違う（出力の先頭: $(sed -n 1p <<<"$tout" | cut -c1-200)）"
 fi
+# 段の表の 2 行（ADR-0061 決めたこと 16）: 依頼書が wiki のページを名指す課題と、report.json に申告のある課題を 1 件ずつ探し、
+# 当てたパッケージの andon issue trace --json にその段（brief_wiki・gaps）が出ることを見る（読むだけ。無ければ未確認の note）
+for want in brief_wiki gaps; do
+  sk= sid=
+  for d in "$ws"/projects/*/kanban/issues/*/; do
+    case $want in
+      brief_wiki) grep -qE "$ws/wiki/(entities|topics|sources)/[A-Za-z0-9_.@+/-]+\.md|(^|[^A-Za-z0-9_.@+/~-])wiki/(entities|topics|sources)/[A-Za-z0-9_.@+/-]+\.md" "$d/brief.md" 2>/dev/null || continue ;;
+      gaps) jq -e '(.gaps // []) | length > 0' "$d/library/report.json" >/dev/null 2>&1 || continue ;;
+    esac
+    sk=${d%/issues/*} sid=$(basename "$d"); break
+  done
+  if [ -z "$sid" ]; then
+    echo "note ot-trace: 段 $want の元の記録を持つ課題が無い。この段は確かめていない"
+    continue
+  fi
+  nst=$(cd "$(dirname "$sk")" && KANBAN_ROOT=$(dirname "$sk") "$pkg/bin/andon" issue trace "$sid" --json 2>/dev/null | jq -r --arg k "$want" '[.tree.children[] | select(.kind == $k)] | length' 2>/dev/null) || nst=
+  echo "-- ot-trace: $(basename "$(dirname "$sk")")/$sid の段 $want ${nst:-読めない}"
+  [ "${nst:-0}" -gt 0 ] && ok "ot-trace: 課題 $sid の流れに段 $want が出る" || fail "ot-trace: 課題 $sid は段 $want の元の記録を持つのに、andon issue trace --json にその段が無い"
+done
 [ "$fails" = 0 ] || exit 1
 
 # ot-breakdown: 当てたあとに片付いた Claude Code の担当の課題の結果の記録の内訳を比べる（ADR-0060 受け入れ条件 16。判定は scripts/breakdown.sh）
