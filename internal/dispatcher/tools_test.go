@@ -42,6 +42,8 @@ func TestReviewerLaunchSatisfiesDeclaration(t *testing.T) {
 			for _, n := range []string{"hc", "kanban", "gh"} {
 				os.WriteFile(filepath.Join(bin, n), []byte(reviewerTools), 0o755)
 			}
+			// 起動の記録が codex --version を聞く。本物の codex は CODEX_HOME に書くので、偽物で答える
+			os.WriteFile(filepath.Join(bin, "codex"), []byte("#!/bin/sh\necho codex-cli 0.0.0\n"), 0o755)
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			logf := filepath.Join(t.TempDir(), "log")
 			t.Setenv("LOG", logf)

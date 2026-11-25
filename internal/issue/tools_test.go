@@ -95,10 +95,12 @@ func TestResumeSatisfiesDeclaration(t *testing.T) {
 		t.Run("mode="+mode, func(t *testing.T) {
 			f := newStart(t)
 			f.manifest()
+			// start も道具を入れるので、偽の mise を先に置く（置かないと本物の mise が替えた HOME へ道具を入れる）
+			m := toolstest.New(t, "")
 			if rc, _, errs := f.run(); rc != 0 {
 				t.Fatalf("start: rc=%d err=%q", rc, errs)
 			}
-			m := toolstest.New(t, mode)
+			t.Setenv("FAKE_MISE", mode)
 			toolstest.Short(t, &tools.Limit, 200*time.Millisecond)
 			os.Truncate(f.log, 0)
 			sid := "11111111-2222-4333-8444-555555555555"
