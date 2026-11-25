@@ -22,7 +22,7 @@ import (
 	"andon/internal/ledger"
 )
 
-// prPoll は同じ PR を GitHub に聞く間隔（dispatcher は待ちがあると5秒ごとに打つので、gh の上限を食わない。dispatcher.md §2.7）。
+// prPoll は同じ PR を GitHub に聞く間隔（dispatcher は doing・review の課題がある間は5秒ごとに打つので、gh の上限を食わない。dispatcher.md §2.7）。
 const prPoll = time.Minute
 
 // settleOn は settle が PR を見る課題の status（doing のうちにオーナーがマージした PR も片付ける。dispatcher.md §2.7）。
