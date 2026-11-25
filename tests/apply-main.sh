@@ -524,7 +524,20 @@ printf '#!/usr/bin/env bash\necho "mise $* | cwd=$PWD" >>"$CALLS"\n[ "$1 $2" != 
 chmod 755 "$nogo/mise"
 nogo_path=$nogo
 IFS=: read -ra path_dirs <<<"$PATH"
-for d in "${path_dirs[@]}"; do [ -x "$d/go" ] || nogo_path=$nogo_path:$d; done
+# go のあるフォルダは丸ごと外さず、go だけを除いた写し（symlink）に替える（CI では go が bash と同じ /usr/bin にある）
+n=0
+for d in "${path_dirs[@]}"; do
+  if [ -x "$d/go" ]; then
+    n=$((n + 1))
+    mkdir -p "$tmp/nogo-$n"
+    for f in "$d"/*; do
+      if [ "${f##*/}" != go ]; then ln -s "$f" "$tmp/nogo-$n/"; fi
+    done
+    nogo_path=$nogo_path:$tmp/nogo-$n
+  else
+    nogo_path=$nogo_path:$d
+  fi
+done
 # go がある PATH では mise を呼ばない（検査が当たる場合があること: 次の場面と PATH の違いだけで分かれる）
 : >"$CALLS"
 if PATH=$nogo:$PATH run apply && grep -q 'を当てた' "$tmp/out" && ! grep -q '^mise ' "$CALLS"; then
