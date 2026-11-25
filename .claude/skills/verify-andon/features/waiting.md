@@ -10,6 +10,8 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
   - 見るファイル: `internal/ledger/ask.go`
 - `ow-waiting` `andon waiting --json` と人が読む出力に、足したオーナーの課題が答えられる判断の行として出る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/waiting/open_unix.go`、`internal/waiting/open_other.go`、`schema/waiting.schema.json`
+- `ow-slots` オーナー待ちの担当の課題が上限以上でも、動いている課題が上限より少なければ、`andon waiting --json` の `slots.free` は上限から動いている課題の数を引いた正の数で、`slots` に `waiting_full` は無い。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`schema/waiting.schema.json`
 - `ow-later` Chief of Staff が `kanban set <id> later=<理由>` を書いたオーナーの課題は、`andon waiting --json` で `call: false` と理由を持ち、呼んでいる行の後に並ぶ。人が読む出力は「置いてあるもの N 件」の見出しの下に置いた理由つきで出す。`later_until` の日が先なら置いたまま、来たらまた呼ぶ。担当の端末が書き直した印は信じない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 - `ow-ask-later` `andon issue ask --new` は、`--now` か `--later "<理由>"` のどちらも無ければ理由を言って断る。Chief of Staff の端末の `--later --until <日>` は課題に `later` と `later_until` を書き、`andon waiting --json` でその行が `call: false` になる。担当の端末の `--later` は断る。どの断りでも課題は増えない。見る道: 検証の担当だけ。
@@ -34,6 +36,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - **取り違えない。** `ow-same-title` の行に、親の違う2つ目の課題の id と、同じ親で打ち直したときの「同じ問いのオーナーの課題 … がもうある」が出る。`ok   ow-same-title` が2行見えれば動いた。
 - **呼ぶか置いておくかを言い切らせる。** `ow-ask-later` の行に、旗なしの断り（「呼ぶか置いておくかを言い切る」）、担当の端末 `tw` の `--later` の断り（「Chief of Staff の端末だけ」）、`--later --until` で足した課題の `andon waiting --json` の行が出る。`ok   ow-ask-later` が3行見えれば動いた。
 - **オーナー待ちを読む。** `ow-waiting` の行に、`andon waiting --json` の枠と判断の行、人が読む出力が出る。`ok   ow-waiting` が2行見えれば動いた。
+- **枠の空きを読む。** `ow-slots` の行に、担当の課題 2 つを担当の端末 `tw1`・`tw2` で `doing` にして判断の問いを出したあとの `andon waiting --json` の `slots` が出る。オーナー待ちが上限（既定の 2）以上で、`free` が上限から動いている数を引いた正の数なら、`ok   ow-slots` が見えれば動いた。
 - **置いておく。** `ow-later` の行に、印を書いたあとの `andon waiting --json` の行（`call`・`later`・`later_until`）が出る。印を書いた課題が置いてある行になり、先の日では置いたまま、来た日ではまた呼び、担当の端末 `tw` が書き直した印では呼ぶ。`ok   ow-later` が5行見えれば動いた。
 - **パネルを見る（`ow-pane`）。** 本物のオーナーの課題がオーナー待ちにある間に、オーナーが Herdr App のパネルで見る。`package/host/waiting/` を変えたときは、mod を置き直したあと、オーナー待ちの数が `andon waiting --json` の `slots.limit` 以上ある project でパネルを開き、枠の行に「full」が無く、待ちが上限より少ない project と同じ色であることも見る。報告の `acceptance[]` に `manual` と書き、見る場所（Herdr App のオーナー待ちのパネル）と、見た枠の行の文を `evidence` に書く。
 - **片付く。** 最後に `ok   片付けた` が出る。
@@ -60,6 +63,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 
 - 判断の行に出るのは灯りの種類（`business`・`users`・`promise`・`irreversible`・`line`）の問いだけ。`scope` の問いは `ask --new` が断る。
 - `ask --new --later` を打てるのは Chief of Staff の端末だけ。道は `HC_TERMINAL_ID=tc` で打つ。`--now` はだれが打っても通る。
+- オーナー待ちの数では起動を止めない。`slots.free` はオーナー待ちがいくつあっても減らない。`slots.waiting_full` のキーはもう無い。
 - `andon waiting` の枠の「オーナー待ち」（`slots.waiting`）は、`doing` か `review` の担当の課題のうちオーナー待ちの行を持つものの数で、オーナーの課題は数えない。判断の行が2つあっても 0 のことがある。
 - 置いておけるのは、オーナーの課題か、状態が `todo` か `queued` の課題だけ。マージの依頼と、`doing`・`review` の担当の課題の行は、印があっても呼ぶ。
 - 印 `later` は、その行の時点の Chief of Staff の端末が最後に書いたときだけ信じる。道は `HC_TERMINAL_ID=tc` で書き、担当は `tw` で書く。

@@ -453,6 +453,7 @@ managed settings の `hooks`（boot が `package/settings.json` から生成）�
 - キーを消す・意味を変える: バージョンを上げ、古いバージョンを読む側を1 バージョンだけ残す（セルの `FROM` のバージョンアップが追いつくまで）。
 - ledger-format の `version` が上がったら、Andon の command は kanban の CLI の言うとおりに止まる（ledger-format の規則）。
 - **バージョン 2（`notification`・`report`・`question`・`gate`・`project`。[ADR-0008](adr/0008-issue-naming.md)）**: kanban のカードの名前を task から issue に改めた。`task` → `issue`・`reviewer_task` → `reviewer_issue`・`tasks[]` → `issues[]`（`impact`）・`review.task` → `review.issue`・`next[].to` と問いの `from` の値 `task` → `issue`・`triage_max_tasks` → `triage_max_issues`。`task-keys` は `issue-keys`（`/1`。中のキーは同じ）に改名。このバージョンアップだけは古いバージョンを読む側を残さない（ADR-0008 決めたこと 7。既存の kanban と `project.json` は手で移す）。ラベル `task=` も `issue=` に改め、`task=` は読まない。
+- **`waiting` のバージョン 1 のまま、`slots.waiting_full` を消した（[ADR-0065](adr/0065-owner-waits-never-stop-launch.md)）**: オーナー待ちの数で起動を止めなくなったので、キーごと消し、`slots.free` の式も変えた（§25）。この 1 回だけはバージョンを上げない（ADR-0065 決めたこと 5。上げるとオーナーのペインが置き直すまで一覧を描かない）。古い読み手は無いキーを偽として読む。上げる前に集めて送り終えていないダイジェストの入力（§26）は組めないので、集め直して送り直す（§28）。
 
 ## 11. プロジェクトの事実と委譲（`project.json`）
 
@@ -1173,7 +1174,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 ```json
 {"version": 1, "at": "2026-11-21T10:00:00Z", "project": "sample-site",
- "slots": {"limit": 4, "working": 3, "waiting": 2, "free": 1, "waiting_full": false},
+ "slots": {"limit": 4, "working": 3, "waiting": 2, "free": 1},
  "items": [
    {"kind": "merge", "id": "S-0021", "title": "名指しの口を足す", "since": "2026-11-21T04:43:35Z",
     "question": "S-0021#1", "pr": "https://github.com/example/sample-site/pull/41",
@@ -1221,8 +1222,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `slots.limit` | `project.json` の `chief_of_staff.parallel`。無ければ 2 |
 | `slots.waiting` | `doing` か `review` の担当の課題（レビュアーの子課題〈`<id>-r<k>`・`profile` が `-review` で終わる〉・Chief Engineer の課題・オーナーの課題を除く）のうち、`items` に `merge` か `decision` の行があるものか、Chief of Staff が止めているものの数 |
 | `slots.working` | 同じ課題のうち、残りの数 |
-| `slots.waiting_full` | `waiting` が `limit` 以上のとき `true`。新しい課題を起動しない |
-| `slots.free` | `waiting_full` なら 0。そうでなければ `limit` から `working` を引いた数で、0 より小さくしない |
+| `slots.free` | `limit` から `working` を引いた数で、0 より小さくしない。`waiting` がいくつでも変わらない（[ADR-0065](adr/0065-owner-waits-never-stop-launch.md) 決めたこと 4）。Chief of Staff は 1 以上ならその数まで起動する |
 | `items[]` | オーナー待ちの行。`call` が真の行が先で、`holds` の数の多い順、同じなら `since` の古い順。そのあとに `call` が偽の行を `since` の古い順に並べる。Chief Engineer の文書の PR とオーナーの課題は、行には出るが枠には数えない |
 | `items[].question` | `merge` の 1 つ目は gate の問い、`decision` の 1 つ目はその問い（`<id>#<n>`）。`decision` の 2 つ目は持たない |
 | `items[].pr` | `report.json` の `pr`（`merge` の行で、あれば） |
@@ -1260,7 +1260,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
     "pr": "https://github.com/example/sample-site/pull/2", "merged_at": "2026-11-21T09:00:00Z", "merged_by": "person",
     "tier": "C", "grant": null, "retro": false}],
  "waiting": {"version": 1, "at": "2026-11-21T10:00:00Z", "project": "sample-site",
-  "slots": {"limit": 2, "working": 1, "waiting": 0, "free": 1, "waiting_full": false}, "items": []},
+  "slots": {"limit": 2, "working": 1, "waiting": 0, "free": 1}, "items": []},
  "concerns": [{"kind": "gate_fix", "issue": "S-0003", "title": "検索の速さ", "at": "2026-11-21T07:00:00Z", "url": null}],
  "numbers": {"days": [{"date": "2026-11-21", "merged": 2, "auto": 1}],
   "current": {"since": "2026-11-15", "until": "2026-11-21", "merged": 9, "auto": 5, "closed": 12, "lead_time_hours": 3.5, "question_open_hours": 1.2, "tokens": 1200000},

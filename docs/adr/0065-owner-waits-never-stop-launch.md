@@ -9,14 +9,14 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | オーナー待ちの数を理由に、新しい課題の起動を止めない | この ADR | まだ実装していない |
+| 1 | オーナー待ちの数を理由に、新しい課題の起動を止めない | `internal/waiting/waiting.go`・`package/skills/chief-of-staff/playbooks/start.md` | 生きている |
 | 2 | たまった PR には上限も知らせも足さず、rebase が要らない形に仕事を組んで扱う | この ADR | まだ実装していない |
 | 3 | この ADR は歯止めを外すところまでにし、rebase が要らない形の仕組みは次のテーマにする | この ADR | 生きている |
-| 4 | 空きの数は、上限から動いている課題の数を引いた数だけで決める | この ADR | まだ実装していない |
-| 5 | 出力から `slots.waiting_full` をキーごと消し、互換の決まりの例外としてバージョンは 1 のままにする | この ADR | まだ実装していない |
+| 4 | 空きの数は、上限から動いている課題の数を引いた数だけで決める | `internal/waiting/waiting.go`・`docs/contract.md` §25 | 生きている |
+| 5 | 出力から `slots.waiting_full` をキーごと消し、互換の決まりの例外としてバージョンは 1 のままにする | `schema/waiting.schema.json`・`docs/contract.md` §10・§25 | 生きている |
 | 6 | オーナー待ちのペインの「full」の表示を消す | この ADR | まだ実装していない |
-| 7 | Chief of Staff は、空きが 1 以上なら起動し、オーナー待ちの数ではオーナーに何も言い足さない | この ADR | まだ実装していない |
-| 8 | 枠の空きを見る dispatcher も、オーナー待ちの数では止めない | この ADR | まだ実装していない |
+| 7 | Chief of Staff は、空きが 1 以上なら起動し、オーナー待ちの数ではオーナーに何も言い足さない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 生きている |
+| 8 | 枠の空きを見る dispatcher も、オーナー待ちの数では止めない | `docs/dispatcher.md` §2.13 | 生きている |
 | 9 | rebase で動き出した課題が上限を超えることは受け入れ、いっぺんに頼む数を絞る決まりは足さない | この ADR | 生きている |
 | 10 | セルの指針の暫定の 1 行は実装が当たったあとに消し、ADR-0042 の観察は歯止めの無い形で読む | この ADR | まだ実装していない |
 

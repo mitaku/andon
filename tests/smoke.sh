@@ -37,5 +37,10 @@ check "上限の名前の検査が古い定義に当たる" grep -q "$cap_re" <<
 no_cap() { ! grep -rn "$cap_re" --include='*.go' . >&2; }
 check "Go のコードに AndonProject・andonCap が無い" no_cap
 check "委譲の型（Presets）に andon が在る" grep -q '^	"andon": {"merge": "B"' internal/delegate/delegate.go
+# 枠の空きを見る dispatcher はオーナー待ちの数では止めない（ADR-0065 受け入れ条件 6）
+waits_idle='オーナー待ちが上限に達している間は'
+check "オーナー待ちで空きを見ない文の検査が直す前の文に当たる" grep -q "$waits_idle" <<<'前の回の結果を消す。オーナー待ちが上限に達している間は `slots.free` が 0 なので空きにならない。'
+no_waits_idle() { ! grep -n "$waits_idle" docs/dispatcher.md >&2; }
+check "dispatcher.md にオーナー待ちが上限の間は空きを見ない文が無い" no_waits_idle
 
 exit "$fail"

@@ -45,7 +45,7 @@ before=$(cd "$p" && find . -type f -exec sha1sum {} + | sort)
 
 "$andon" waiting --json --project sample-site >"$tmp/out.json"
 jq -e '.version == 1 and .project == "sample-site"
-  and .slots == {limit: 3, working: 0, waiting: 2, free: 3, waiting_full: false}
+  and .slots == {limit: 3, working: 0, waiting: 2, free: 3}
   and ([.items[] | [.kind, .id, (.question // "")]] == [["merge", "S-0001", "S-0001#1"], ["decision", "S-0003", "S-0003#1"], ["task", "S-0004", ""], ["decision", "S-0005", ""]])
   and .items[0].holds == ["S-0002"] and .items[0].pr == $pr
   and .items[1].ask.question == "CSV だけにするか" and .items[1].answerable == true
@@ -105,10 +105,33 @@ echo 'ok kanban に何も書かず、gh も git も kanban の CLI も呼ばな�
 mkdir -p "$tmp/empty/kanban"
 printf 'version: 3\n' >"$tmp/empty/kanban/config.yaml"
 KANBAN_ROOT=$tmp/empty "$andon" waiting --json >"$tmp/empty.json"
-jq -e '.items == [] and .slots == {limit: 2, working: 0, waiting: 0, free: 2, waiting_full: false}' "$tmp/empty.json" >/dev/null
+jq -e '.items == [] and .slots == {limit: 2, working: 0, waiting: 0, free: 2}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" waiting-empty.json
 KANBAN_ROOT=$tmp/empty "$andon" waiting | grep -q '^オーナー待ちは無い$'
 echo 'ok 空の kanban: 上限 2・空の並び・終了コード 0'
+
+# オーナー待ちが上限以上でも空きは減らない（ADR-0065 受け入れ条件 2）: 上限 2・判断を待つ担当 2・動いている担当 1
+fp=$tmp/full
+fk=$fp/kanban
+printf 'version: 3\nprefix: S\nchief_of_staff: t1\n' | put "$fk/config.yaml"
+printf '{"version": 1, "project": {"title": "Sample", "prefix": "S"}, "repos": [], "chief_of_staff": {"parallel": 2}}\n' | put "$fp/project.json"
+for id in S-0001 S-0002; do
+  printf 'id: %s\ntitle: 判断を待つ\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' "$id" | put "$fk/issues/$id/issue.yaml"
+  printf -- '- n: 1\n  text: CSV だけにするか\n  kind: users\n  status: open\n  asked: "2026-11-21T02:00:00Z"\n' | put "$fk/issues/$id/questions.yaml"
+done
+printf 'id: S-0003\ntitle: 動いている\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' | put "$fk/issues/S-0003/issue.yaml"
+: | put "$fk/log.jsonl"
+KANBAN_ROOT=$fp "$andon" waiting --json >"$tmp/full.json"
+jq -e '.slots == {limit: 2, working: 1, waiting: 2, free: 1}' "$tmp/full.json" >/dev/null \
+  || die "待ちが上限以上の slots が違う（キーは limit・working・waiting・free の 4 つ）: $(jq -c .slots "$tmp/full.json")"
+KANBAN_ROOT=$fp "$andon" waiting >"$tmp/full.text"
+grep -q '^full の枠: 上限 2、動いている 1、オーナー待ち 2、空き 1$' "$tmp/full.text" \
+  || die "待ちが上限以上の枠の行が違う: $(cat "$tmp/full.text")"
+if grep -q '起動しない' "$tmp/full.text"; then die "人が読む出力に起動しないの文がある: $(cat "$tmp/full.text")"; fi
+# 当たる場合があること: 直す前の枠の行には上の否定の grep が当たる
+grep -q '起動しない' <<<'full の枠: 上限 2、動いている 1、オーナー待ち 2、空き 0。オーナー待ちが上限に達したので新しい課題を起動しない' \
+  || die "起動しないの文を見る grep が直す前の文に当たらない"
+echo 'ok 待ちが上限以上: 空きは上限から動いている数を引いた数で、waiting_full も起動しないの文も無い'
 
 set +e
 "$andon" waiting --project nothing >/dev/null 2>"$tmp/err"; rc=$?

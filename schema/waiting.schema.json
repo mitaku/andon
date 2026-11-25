@@ -13,14 +13,13 @@
     "slots": {
       "description": "Parallel slots. Counts the doing and review issues of workers (not reviewer sub-issues, Chief Engineer issues or owner issues).",
       "type": "object",
-      "required": ["limit", "working", "waiting", "free", "waiting_full"],
+      "required": ["limit", "working", "waiting", "free"],
       "additionalProperties": false,
       "properties": {
         "limit": { "description": "project.json chief_of_staff.parallel, else 2.", "type": "integer", "minimum": 1 },
         "working": { "description": "Counted issues that are not waiting on the owner.", "type": "integer", "minimum": 0 },
         "waiting": { "description": "Counted issues that have a merge or decision item.", "type": "integer", "minimum": 0 },
-        "free": { "description": "0 when waiting_full; otherwise limit minus working, never below 0.", "type": "integer", "minimum": 0 },
-        "waiting_full": { "description": "true when waiting is limit or more: launch no new issue.", "type": "boolean" }
+        "free": { "description": "limit minus working, never below 0. Waiting issues do not reduce it: launch while it is 1 or more.", "type": "integer", "minimum": 0 }
       }
     },
     "items": {

@@ -259,6 +259,12 @@ any(.steps[]; .id == "hold" and .by == "ai" and ((.skill | if type == "array" th
 any(.steps[]; .by == "machine" and .command == "andon issue start")@起動する段が andon issue start
 any(.triggers[]; .kind == "notification" and .notification == "asked")@きっかけに通知 asked（オーナー待ちに入って枠が空く）
 LAUNCH
+# オーナー待ちの数では起動を止めない（ADR-0065 受け入れ条件 5）: 待つわけに「オーナー待ちが上限の数」が無い
+waits_stop='オーナー待ちが上限の数'
+if grep -q "$waits_stop" process/workstreams/launch.yaml; then ng "起動の流れにオーナー待ちで止める待つわけが残る: $(grep -n "$waits_stop" process/workstreams/launch.yaml)"
+else ok "起動の流れにオーナー待ちで止める待つわけが無い"; fi
+grep -q "$waits_stop" <<<'    decides: [待つわけ（オーナー待ちが上限の数・動いている課題が上限の数）, 問いを出す順]' \
+  && ok "オーナー待ちで止める待つわけの検査が直す前の文に当たる（検査が見ている）" || ng "オーナー待ちで止める待つわけの検査が何も見ていない"
 old=$(grep -l '並行の上限' process/workstreams/*.yaml || true)
 [ -z "$old" ] && ok "ワークストリームに古い数え方（並行の上限を kanban で数える）が無い" || ng "古い数え方が残る: $old"
 printf '%s\n' '    input: [notification.ready, kanban(並行の上限)]' | grep -q '並行の上限' \

@@ -1,4 +1,4 @@
-# 枠の数え方は ADR-0042 決めたこと 10・11。数える式は andon waiting だけが持つ（contract.md §25）。
+# 枠の数え方は ADR-0042 決めたこと 10・11 と ADR-0065 決めたこと 4。オーナー待ちの数では起動を止めない。数える式は andon waiting だけが持つ（contract.md §25）。
 name: launch
 title: 起動（Launch）
 purpose: 依頼書のできた課題に、並行の枠（オーナー待ちを数えない）とぶつかりを守って担当を起動する
@@ -16,7 +16,7 @@ triggers:
     kind: notification
     notification: asked
     start: count
-  # 課題が片付いた。オーナー待ちか動いている課題が 1 つ減る
+  # 課題が片付いた。動いている課題に数えていた課題なら枠が 1 つ空く。オーナー待ちが減っても空きは変わらないが、後ろで待っていた課題が起動できるようになる
   - name: merged
     kind: notification
     notification: merged
@@ -57,5 +57,5 @@ steps:
     input: [andon waiting --json（slots・items）]
     output: [オーナーへの返事, オーナーへの 1 問]
     skill: [chief-of-staff/playbooks/start.md, ask-one-by-one#3]
-    decides: [待つわけ（オーナー待ちが上限の数・動いている課題が上限の数）, 問いを出す順（items の並び。holds の多い順）, マージ待ちの後ろに並べた課題を先に起動しない]
+    decides: [待つわけ（動いている課題が上限の数）, 問いを出す順（items の並び。holds の多い順）, マージ待ちの後ろに並べた課題を先に起動しない]
 counts: [flow.wait.todo, flow.wait.queued]

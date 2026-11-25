@@ -43,13 +43,12 @@ type Result struct {
 	Items   []Item `json:"items"`
 }
 
-// Slots は並行の枠（決めたこと 9・10）。
+// Slots は並行の枠（決めたこと 9・10。free の式は ADR-0065 決めたこと 4）。
 type Slots struct {
-	Limit       int  `json:"limit"`
-	Working     int  `json:"working"`
-	Waiting     int  `json:"waiting"`
-	Free        int  `json:"free"`
-	WaitingFull bool `json:"waiting_full"`
+	Limit   int `json:"limit"`
+	Working int `json:"working"`
+	Waiting int `json:"waiting"`
+	Free    int `json:"free"`
 }
 
 type Item struct {
@@ -313,10 +312,8 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 			s.Working++
 		}
 	}
-	s.WaitingFull = s.Waiting >= s.Limit
-	if !s.WaitingFull {
-		s.Free = max(s.Limit-s.Working, 0)
-	}
+	// 空きは上限から動いている課題の数を引いた数だけで決め、オーナー待ちの数では減らさない（ADR-0065 決めたこと 4）
+	s.Free = max(s.Limit-s.Working, 0)
 	return Result{Version: Version, At: now.UTC().Format(timeLayout), Project: l.Slug, Slots: s, Items: items}
 }
 
