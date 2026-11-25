@@ -21,6 +21,9 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `wl-rebuttal` 当てたあとに起動した担当が、1回目のレビューを頼む前の反論の段で、反論役のサブエージェントに repo の `REVIEW.md` のパスを渡し、その項目でも差分を壊させる（worker skill §4）。担当のセッションの記録の読み方は動かし方の `wl-rebuttal`。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `package/skills/worker/`
 
+- `wl-tools` worktree の根に `mise.toml` がある課題で、当てたあとに起動した担当とレビュアーの端末が、誰も `mise install` を打たずに `mise.toml` のバージョンの道具を引く。端末の環境の `MISE_SYSTEM_CONFIG_FILE` が自分の worktree の `mise.toml` を指し、一時の置き場でも同じバージョンを引く（ADR-0063 決めたこと 6・10）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/tools/tools.go`、`internal/tools/env.go`、`internal/cli/leaves.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/dispatcher/loop.go`、`package/templates/`
+
 ## 辿り着き方（利用者から）
 
 - Chief of Staff が `andon issue start <id>` を打つ。
@@ -51,8 +54,16 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 
 - **反論の段の渡すものを読む（`wl-rebuttal`）。** 当てたあとに Chief of Staff が起動した Claude Code の担当（`role` が `worker`、`launch` が `start`）のうち、`<kanban>/issues/<id>/report.md` に `反論: サブエージェントで` で始まる行があり、PR の repo に `REVIEW.md` があるものを選ぶ。その担当のセッションの記録（`issue.yaml` の `session` の id の `<CLAUDE_CONFIG_DIR>/projects/*/<session>.jsonl`）で、反論の段の呼び出しだけを選ぶ。サブエージェントを起動する道具の呼び出し（`name` が `Agent`）のうち、`input.prompt` に worker skill §4 の頼み方の文「この差分を壊せ」があるものが反論の段の呼び出しで、それ以外の Agent の呼び出し（調べもの・別のレビューなど）は数えない。反論の段の呼び出しごとに、同じ `input.prompt` に `REVIEW.md` のパスと、その項目を使う指示（「`REVIEW.md` の項目」の文字）の両方があるかを見る（`jq -c '.message.content[]? | select(.type == "tool_use" and .name == "Agent" and (.input.prompt | test("この差分を壊せ"))) | {path: (.input.prompt | test("REVIEW\\.md")), items: (.input.prompt | test("REVIEW\\.md の項目"))}'`）。反論の段の呼び出しが1つ以上あり、どれも両方が `true` なら動いた。どれかに片方でも `false` があれば、ほかの Agent の呼び出しに `REVIEW.md` があっても、壊れとして `fail` に書く。反論の段の呼び出しが無い担当は、この細かい機能の対象にしない。Codex などで `反論: 自分で` の行の担当は、その行に「`REVIEW.md` の項目から L 件」があれば動いた（項目を当てた数が報告に残る）。無ければ壊れとして `fail` に書く。そうした担当が無い（反論の段がまだ走っていない・`REVIEW.md` の無い repo）なら未確認と書き、報告の `## Next` に「`Review: on` か差分がレベル B・C の課題の担当が1回目のレビューを頼んだあとで打ち直す」と書く。
 
+- **道具を読む（`wl-tools`）。** 案件の repo の根に `mise.toml` がある課題で、当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）か、dispatcher が起動したそのレビュアーの端末で、次の3つを打ってもらうか、検証の担当が自分の端末で打つ。
+  1. `printenv MISE_SYSTEM_CONFIG_FILE` が、その課題の kanban の `worktree` の根の `mise.toml` を指す（レビュアーは cwd が `issues/<課題>/` でも、PR の head の worktree を指す）。
+  2. worktree の中の `go version` と、`cd "$(mktemp -d)" && go version` の両方が、`mise.toml` の go のバージョンを出す。
+  3. 起動を打った Chief of Staff の出力か dispatcher の端末のログ（`hc read dispatcher`）に `mise install` の失敗の警告が無い。道具が消えたあとの最初の起動なら「道具を入れた」の1行がある。
+  見たのが自分の端末なら、そう `evidence` に書く。
+
 ## 変えたら動かすパス
 
+- `internal/tools/`
+- `internal/cli/leaves.go`
 - `internal/issue/start.go`
 - `internal/issue/resume.go`
 - `internal/dispatcher/loop.go`
