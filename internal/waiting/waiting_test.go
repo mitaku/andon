@@ -474,7 +474,7 @@ func TestHeld(t *testing.T) {
 			t.Errorf("理由の課題の holds = %v, want 止めた 4 件と S-0001 の後ろの S-0005", it.Holds)
 		}
 	}
-	if r.Slots != (Slots{Limit: 4, Working: 0, Waiting: 4, Free: 0, WaitingFull: true}) {
+	if r.Slots != (Slots{Limit: 4, Working: 0, Waiting: 4, Free: 4}) {
 		t.Errorf("slots = %+v, want waiting 4（止めた S-0001・S-0002・S-0004 と S-0006）", r.Slots)
 	}
 	// オーナーが答えた（受け取られるまで理由の課題も行を持たない）: 止めた課題はどの行にも出ず、外すまで waiting のまま
@@ -519,7 +519,7 @@ func TestHoldsAndOrder(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 4: 枠の数え方（6 つの場合）。
+// 受け入れ条件 4: 枠の数え方（7 つの場合。free の式は ADR-0065 決めたこと 4）。
 func TestSlots(t *testing.T) {
 	waitingOn := func(f *fake, id string) {
 		f.issue(id, "review", "profile: claude", "merge: person")
@@ -554,13 +554,25 @@ func TestSlots(t *testing.T) {
 			t.Fatalf("slots = %+v", r.Slots)
 		}
 	})
-	t.Run("waiting が limit 以上なら waiting_full で free は 0", func(t *testing.T) {
+	// ADR-0065 受け入れ条件 1: オーナー待ちが上限以上でも、空きは上限から動いている課題の数を引いた数
+	t.Run("waiting が limit と同じでも free は limit から working を引いた数", func(t *testing.T) {
 		f := newFake(t, 2)
 		waitingOn(f, "S-0001")
 		waitingOn(f, "S-0002")
 		r := f.read()
-		if r.Slots != (Slots{Limit: 2, Working: 0, Waiting: 2, Free: 0, WaitingFull: true}) {
-			t.Fatalf("slots = %+v", r.Slots)
+		if r.Slots != (Slots{Limit: 2, Working: 0, Waiting: 2, Free: 2}) {
+			t.Fatalf("slots = %+v, want free 2", r.Slots)
+		}
+	})
+	t.Run("waiting が limit を超えても free は limit から working を引いた数", func(t *testing.T) {
+		f := newFake(t, 2)
+		waitingOn(f, "S-0001")
+		waitingOn(f, "S-0002")
+		waitingOn(f, "S-0003")
+		f.issue("S-0004", "doing", "profile: claude")
+		r := f.read()
+		if r.Slots != (Slots{Limit: 2, Working: 1, Waiting: 3, Free: 1}) {
+			t.Fatalf("slots = %+v, want free 1", r.Slots)
 		}
 	})
 	t.Run("working が limit を超えても free は 0 より小さくならない", func(t *testing.T) {

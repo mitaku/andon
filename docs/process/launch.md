@@ -72,7 +72,7 @@ flowchart LR
 |---|---|---|---|
 | `check` | `chief-of-staff/playbooks/start.md` | 起動する課題（slots.free の数まで）・after で並べる・束ねる・オーナーの go が要らない起動か（ルーチン・委譲の範囲・プロジェクトの設定） |  |
 | `tell` | `chief-of-staff/playbooks/start.md` | 知らせる文 |  |
-| `hold` | `chief-of-staff/playbooks/start.md`・`ask-one-by-one#3` | 待つわけ（オーナー待ちが上限の数・動いている課題が上限の数）・問いを出す順（items の並び。holds の多い順）・マージ待ちの後ろに並べた課題を先に起動しない |  |
+| `hold` | `chief-of-staff/playbooks/start.md`・`ask-one-by-one#3` | 待つわけ（動いている課題が上限の数）・問いを出す順（items の並び。holds の多い順）・マージ待ちの後ろに並べた課題を先に起動しない |  |
 
 見るもの（手順の入るものの和）: `kanban（doing・review の担当の課題・問い・log.jsonl）`・`library/report.json`・`library/gate/<head>.json`・`project.json（chief_of_staff.parallel）`・`andon waiting --json（slots・items）`・`kanban ready`・`依頼書`・`doing・review の課題の依頼書`・`出ている PR の files`・`kanban（todo の課題）`・`brief.md`・`andon issue start の出た場所の行`
 

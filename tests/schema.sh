@@ -151,6 +151,15 @@ while IFS=$'\t' read -r sec json; do
   key="$name"; if [ "$name" = gate ] && jq -e 'has("decision")' "$f" >/dev/null; then key=gate-record; fi
   [ -n "${first[$key]:-}" ] || first[$key]="$f"
 done <"$tmp/examples.tsv"
+# §26 の例の waiting も §25 の schema を通る（digest-input の schema は waiting の中を見ない。ADR-0065 受け入れ条件 3）
+j=0
+while IFS=$'\t' read -r sec json; do
+  [ "$sec" = 26 ] || continue
+  j=$((j + 1)); f="$tmp/ex-digest-waiting-$j.json"
+  jq -e '.waiting' <<<"$json" >"$f" || { ng "contract.md §26 の例 $j に waiting が無い"; continue; }
+  expect pass waiting "$f" "contract.md §26 の例 $j の waiting が schema/waiting を通る"
+done <"$tmp/examples.tsv"
+[ "$j" -gt 0 ] || ng "contract.md §26 の例が無い"
 flush
 for key in $expected $ledger gate-record; do
   [ -n "${first[$key]:-}" ] || ng "contract.md に schema/$(schema_file "$key") の例が無い"
@@ -360,7 +369,7 @@ patterns|.patterns[0].target|kind paths
 patterns|.fixes[0]|issue recurred view
 patterns|.chief_of_staff|days tokens
 patterns|.chief_of_staff.tokens|input output cache_read cache_write
-waiting|.slots|limit working waiting free waiting_full
+waiting|.slots|limit working waiting free
 waiting|.items[0]|kind id title since holds
 waiting|.items[1].ask|kind question options
 waiting|.items[1].ask.options[0]|label
@@ -1036,7 +1045,7 @@ pass|waiting|.items[1] |= (del(.ask, .question) | .answerable = false | .reason 
 fail|waiting|.version = 2|version が 1 でない
 fail|waiting|.slots.limit = 0|上限が 0
 fail|waiting|.slots.free = -1|空きが負
-fail|waiting|.slots.waiting_full = "no"|waiting_full が真偽値でない
+fail|waiting|.slots.waiting_full = false|slots に消したキー waiting_full がある（ADR-0065）
 fail|waiting|.items[0].kind = "review"|kind が merge・decision・task でない
 fail|waiting|.items[0].question = "S-0021"|question が <id>#<n> でない
 fail|waiting|.items[0].since = "2026-11-21"|since が日付だけ

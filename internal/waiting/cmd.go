@@ -85,12 +85,8 @@ func projectRoot(slug string) (string, error) {
 // Text は人が読む行（--json を付けないときの出力。中身は --json と同じ）。
 func Text(r Result) string {
 	var b strings.Builder
-	full := ""
-	if r.Slots.WaitingFull {
-		full = "。オーナー待ちが上限に達したので新しい課題を起動しない"
-	}
-	fmt.Fprintf(&b, "%s の枠: 上限 %d、動いている %d、オーナー待ち %d、空き %d%s\n",
-		r.Project, r.Slots.Limit, r.Slots.Working, r.Slots.Waiting, r.Slots.Free, full)
+	fmt.Fprintf(&b, "%s の枠: 上限 %d、動いている %d、オーナー待ち %d、空き %d\n",
+		r.Project, r.Slots.Limit, r.Slots.Working, r.Slots.Waiting, r.Slots.Free)
 	if len(r.Items) == 0 {
 		b.WriteString("オーナー待ちは無い\n")
 		return b.String()
