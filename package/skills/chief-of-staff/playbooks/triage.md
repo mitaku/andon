@@ -1,5 +1,5 @@
 ---
-読む時: トリアージの課題を足す・起動する・`review` を受ける・適用するとき（`memory` の通知を受けたときも）と、報告の Next にほかのプロジェクトへの委譲があったとき
+読む時: トリアージの課題を足す・起動する・報告（通知 `<id> report`）を受ける・適用するとき（`memory` の通知を受けたときも）と、報告の Next にほかのプロジェクトへの委譲があったとき
 消す条件: 足す・起動する・適用する・続けるの段は「`andon triage apply` が適用のあと finish と足した課題の起動まで回し、オーナーへの1行を出すようになったら」。委譲の形（規約10）は「ほかのプロジェクトへの委譲を command が送るようになったら」
 ---
 
@@ -16,7 +16,7 @@ kanban に溜まったもの（報告の Next・見送り・Remember・For AGENT
    `memory` の通知（memory が線を超えた）を受けたら、臨時のトリアージを同じ形で足す（ゴールは「memory を蒸留して線の下に戻す」）。
    `todo`／`doing`／`review` のトリアージがあれば足さない（同時に1つ）。
 2. **起動する**: ルーチンが足したものもオーナーが言ったものも、オーナーに聞かずに `andon issue start <id>`（`start.md`。枠〈`andon waiting` の `slots.free`〉とぶつかりは守る）。
-3. **`review` が来たら**: 報告の要約表と `issues/<id>/library/decisions.json` を読み、`andon triage apply <id> --dry-run` を打つ。
+3. **報告が届いたら**: 通知は `<id> report`（PR の無い課題なので `review` の通知は来ない。報告を書いたときと `review` に入ったときの2度届きうる）。課題が `doing` のままなら待つ。`review` に入っていれば、報告の要約表と `issues/<id>/library/decisions.json` を読み、`andon triage apply <id> --dry-run` を打つ。
    閉じる理由が読めない・オーナーへのものが ask-one-by-one §1 の線に合わない・判断の推奨案と選択肢がオーナーがペインで答えられるほど具体でない・`person` の `later`（置いておく理由か、呼ぶ `false`）が置いておく基準（triage skill §3。ask-one-by-one §3 と同じ文）に合わない、なら担当に `hc send` で戻す。迷うものは呼ぶ（`false`）に直させる。
    Andon の skill とパッケージの直し（`remember`・`next`・`memory` の項目）は、オーナーの決定を覆すもの・オーナーの持ち物を変えるもの・権限か秘密か信頼の境界を弱めるもの（`person` のまま）のほかは、オーナーへの問いでなく直す課題か「1 件目」になっているかを見る（ADR-0062 決めたこと 13・14）。
    **判断の閉じと課題の閉じを1件ずつ読む**: `--dry-run` の出力の `review`（`andon triage apply <id> --dry-run | jq .review`）は、担当の判断だけで閉じる項目（起きない・その場限り・当てはまらない・読んだ・1 件目）と、kanban の課題（担当の無い課題・オーナーの判断待ち）を閉じる項目。

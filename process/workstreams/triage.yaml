@@ -21,10 +21,10 @@ triggers:
     kind: notification
     notification: memory
     start: add
-  # 仕分けの担当が報告して課題が review に入った（repo の無い課題なので届く）
-  - name: review
+  # 仕分けの担当の報告。PR の無い課題は review に入っても report の通知で届く
+  - name: report
     kind: notification
-    notification: review
+    notification: report
     start: check
 steps:
   - id: signal
@@ -70,7 +70,7 @@ steps:
   - id: check
     title: 仕分けを確かめる
     by: ai
-    input: [notification.review, 報告, library/decisions.json, andon triage apply --dry-run の出力（review の表）]
+    input: [notification.report, 報告, library/decisions.json, andon triage apply --dry-run の出力（review の表）]
     output: [library/verdicts.json]
     skill: chief-of-staff/playbooks/triage.md
     decides: [判断の閉じと課題の閉じを 1 件ずつ閉じてよいか覆すか（andon triage verdict）, 担当に戻す, 適用する]

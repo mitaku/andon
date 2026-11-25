@@ -14,10 +14,10 @@ triggers:
   - name: person
     kind: person
     start: add
-  # 振り返りの担当が報告して課題が review に入った（repo の無い課題なので届く）
-  - name: review
+  # 振り返りの担当の報告。PR の無い課題は review に入っても report の通知で届く
+  - name: report
     kind: notification
-    notification: review
+    notification: report
     start: check
 steps:
   - id: add
@@ -69,7 +69,7 @@ steps:
   - id: check
     title: パターンの一覧を検収する
     by: ai
-    input: [notification.review, 報告, library/retro.json, 根拠の課題の記録, andon retro apply --dry-run の出力]
+    input: [notification.report, 報告, library/retro.json, 根拠の課題の記録, andon retro apply --dry-run の出力]
     output: []
     skill: chief-of-staff/playbooks/retro.md
     decides: [担当に戻す, 当てる]
