@@ -1,0 +1,9 @@
+// 写して wrangler.local.jsonc にし、<…> を埋める。wrangler.local.jsonc は commit しない。
+{
+  "name": "tray-proto-list",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./public" },
+  "routes": [{ "pattern": "<一覧の面のホスト名>", "custom_domain": true }],
+  "vars": { "VIEW_ORIGIN": "https://<報告の面のホスト名>" }
+}

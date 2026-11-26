@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>見本の報告</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; line-height: 1.6; }
+  #script { padding: 8px; background: #fde68a; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<h1>見本の報告</h1>
+<p id="script">スクリプトは動いていない。</p>
+<p>この報告は報告の面のオリジンから、sandbox 付きの枠の中に出ている。下の行は、枠の中を指で縦に送れるかを見るための埋め草である。</p>
+<ol id="lines"></ol>
+<script>
+  document.getElementById('script').textContent = '枠の中のスクリプトが動いた（' + location.origin + '）。';
+  var ol = document.getElementById('lines');
+  for (var i = 1; i <= 60; i++) {
+    var li = document.createElement('li');
+    li.textContent = i + ' 行目。最後の 60 行目まで送れれば、枠の中の縦の送りは動いている。';
+    ol.appendChild(li);
+  }
+</script>
+</body>
+</html>
