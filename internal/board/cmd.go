@@ -20,7 +20,6 @@ const BoardUsage = "usage: andon issue board --since <時刻> [--json] [--projec
 	"片付いていない課題の親をたどった先を親に持つ課題、その 2 つの after の相手。older は updated が --since より前の片付いた課題の数。\n" +
 	"--since は省けない（RFC 3339 の時刻。2026-11-23T13:00:00Z）。\n" +
 	"issue.yaml かそのフォルダが symlink・256 KiB を超える・YAML の alias を含む課題は、中身を出さずに読めない課題（broken）として出す。\n" +
-	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
 	"--json は docs/contract.md §29 の形。\n"
 
 const HistoryUsage = "usage: andon issue history [--json] [--limit <件数>] [--match <文字>] [--project <slug>]\n" +

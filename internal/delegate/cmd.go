@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	owner = "オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/project.json の delegation を検査して書き、\n" +
-		"project.json を andon.toml の owner を author にして commit する（project.json は先にオーナーが書く）。--project を省くと cwd の projects/<slug>/。\n" +
+	owner = "オーナーが打つ（セルの中のどこで打ってもよい）。セルの repo（ANDON_WORKSPACE。既定 /workspace）の projects/<slug>/project.json の delegation を検査して書き、\n" +
+		"project.json を andon.toml の owner を author にして commit する（project.json は先にオーナーが書く）。\n" +
 		"Chief of Staff・担当・dispatcher の端末（hc のラベル role= か issue= がある）では打てない。\n"
 	scopes = "scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 		"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
@@ -34,7 +34,7 @@ const (
 	RevokeUsage = "usage: andon delegation revoke <id> --reason <text> [--project <slug>]\n" +
 		"委譲を1件取り消す。\n" + owner
 	ShowUsage = "usage: andon delegation show [--json] [--project <slug>]\n" +
-		"HEAD の委譲を読み手と同じに読んで出す（読むだけ）。--project を省くと cwd の projects/<slug>/。\n"
+		"HEAD の委譲を読み手と同じに読んで出す（読むだけ）。\n"
 )
 
 var usages = map[string]string{"grant": GrantUsage, "narrow": NarrowUsage, "revoke": RevokeUsage, "show": ShowUsage}
@@ -140,13 +140,19 @@ func run(sub string, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// project は --project か、cwd が <ws>/projects/<slug>/ の下ならその slug。
+// project はプロジェクトの slug（ADR-0053 決めたこと 4）: --project、KANBAN_ROOT、cwd が <ws>/projects/<slug>/ の下ならその slug、
+// kanban の CLI が今いるフォルダから見つける kanban（repo の載ったプロジェクト・セルに1つだけ）の順。
 func project(ws, given string) (string, error) {
 	if given != "" {
 		if !slugRe.MatchString(given) {
 			return "", fmt.Errorf("slug が不正: %q", given)
 		}
 		return given, nil
+	}
+	if root := os.Getenv("KANBAN_ROOT"); root != "" {
+		if slug := filepath.Base(root); slugRe.MatchString(slug) {
+			return slug, nil
+		}
 	}
 	cwd, _ := os.Getwd()
 	base, _ := filepath.EvalSymlinks(filepath.Join(ws, "projects"))
@@ -158,7 +164,10 @@ func project(ws, given string) (string, error) {
 			}
 		}
 	}
-	return "", errors.New("プロジェクトが分からない（projects/<slug>/ で打つか --project <slug>）")
+	if l, err := ledger.Open(); err == nil && slugRe.MatchString(l.Slug) {
+		return l.Slug, nil
+	}
+	return "", errors.New("プロジェクトが決まらない（--project <slug> で指す）")
 }
 
 // AgentTerminal は打っているのが Chief of Staff・担当・dispatcher の端末か（hc のラベル role= か issue=）。

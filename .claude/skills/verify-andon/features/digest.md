@@ -4,7 +4,7 @@
 
 ## 細かい機能
 
-- `dg-collect` 期間の記録が `library/digest/input.json` に集まり、期間に片付いた課題が入る。見る道: 検証の担当だけ。
+- `dg-collect` 期間の記録が `library/digest/input.json` に集まり、期間に片付いた課題が入る。`andon digest collect --help` は `--project` の行を持ち、どこで打つかを言わない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/collect.go`、`internal/digest/decided.go`、`internal/digest/digest.go`、`internal/redact/redact.go`、`internal/ledger/cron.go`、`internal/ledger/config.go`、`internal/measure/measure.go`、`internal/waiting/waiting.go`、`schema/digest-input.schema.json`
 - `dg-build-refuse` 入力に無い課題を指す文は理由1行で断り、何も書かない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/build.go`
@@ -31,7 +31,7 @@
 - `scripts/doctor.sh` が終了コード 0。
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh digest <検証する commit>` を打つ。切り離した kanban に片付いた課題とダイジェストの課題を作り、送り先を書かないセルの repo（一時の git の repo）で、担当として5つの細かい機能を順に動かす。Slack へは何も送らない。
-- **集める。** `dg-collect` の行に `input.json` の `since`・`until`・`issues`・`skipped` が出る。`ok   dg-collect` が見えれば動いた。
+- **集める。** `dg-collect` の行に `input.json` の `since`・`until`・`issues`・`skipped` が出る。続く `dg-collect` の行に `andon digest collect --help` が出る。`ok   dg-collect` が2行見えれば動いた。
 - **断られる。** `dg-build-refuse` の行に `andon digest build` の終了コード 1 と、入力に無い課題を指したという理由1行が出る。`ok   dg-build-refuse` が見えれば動いた。
 - **組み立てる。** `dg-build` の行に3つのファイルのパスと `ls -l` が出る。`ok   dg-build` が見えれば動いた。
 - **分けて描く。** 集める前に、Chief of Staff の端末が呼ぶ判断（`andon issue ask --new --now`）と置いておく判断（`--later`）を 1 件ずつ足してある。`dg-later` の行に節 2 の 2 つの見出しと置いた理由、`message.txt` の 2 つの数の行が出る。`ok   dg-later` が見えれば動いた。

@@ -466,7 +466,7 @@ Andon で「オーナーの手直し」が起きる所は5つしか無い。全�
 
 課題の `merge: auto` は委譲の範囲の中でだけ効き、`merge: person` は委譲があってもオーナーに戻す（**狭める方向にだけ効く**）。委譲が無い課題の `auto` は gate が `needs_human` にする。条件表と委譲を1つにしない理由は上の案 C。
 
-**書き手の照合**: 委譲の正はセルの repo の HEAD。command は、そのファイルを最後に変えた commit の author がセルの `andon.toml` の `owner` と一致するときだけ信じ、一致しなければ**無委譲（全部オーナー）**として読む（安全側。履歴は固定のプログラム〈git〉が作り、読む側が照合する——kanban の `log.jsonl` の `by` と同じ考え）。Chief of Staff・担当・dispatcher はオーナーのファイルを書き換えられない（managed settings の deny `Edit(//workspace/…)` が Claude Code の道具と Bash の `sed -i`・`tee`・リダイレクトを拒む。ファイルを自分で開く子プロセスと Codex は拒めず、照合が受け持つ。ADR-0005 決めたこと 6）・`andon delegation` は役の端末で打てない（端末のラベル）。将来は signed commit で強くできる（今は備えない。§1.5）。委譲を足す・狭める・取り消すのは `andon delegation grant|narrow|revoke`（オーナーがセルの repo で打つ。JSON と `delegation.md` を書き、根拠を commit message に残す）。
+**書き手の照合**: 委譲の正はセルの repo の HEAD。command は、そのファイルを最後に変えた commit の author がセルの `andon.toml` の `owner` と一致するときだけ信じ、一致しなければ**無委譲（全部オーナー）**として読む（安全側。履歴は固定のプログラム〈git〉が作り、読む側が照合する——kanban の `log.jsonl` の `by` と同じ考え）。Chief of Staff・担当・dispatcher はオーナーのファイルを書き換えられない（managed settings の deny `Edit(//workspace/…)` が Claude Code の道具と Bash の `sed -i`・`tee`・リダイレクトを拒む。ファイルを自分で開く子プロセスと Codex は拒めず、照合が受け持つ。ADR-0005 決めたこと 6）・`andon delegation` は役の端末で打てない（端末のラベル）。将来は signed commit で強くできる（今は備えない。§1.5）。委譲を足す・狭める・取り消すのは `andon delegation grant|narrow|revoke`（オーナーが打つ。JSON と `delegation.md` を書き、根拠を commit message に残す）。
 
 **任せた場合でも残す安全網**:
 

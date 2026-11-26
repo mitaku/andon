@@ -28,14 +28,13 @@ import (
 )
 
 const (
-	where        = "projects/<slug>/ で打つ。\n"
 	CollectUsage = "usage: andon triage collect [--limit N]\n" +
-		"kanban の未処理と repo ごとの最新の main を JSON に出す（読むだけ。担当が打つ）。\n" + where
+		"kanban の未処理と repo ごとの最新の main を JSON に出す（読むだけ。担当が打つ）。\n"
 	ApplyUsage = "usage: andon triage apply <id> [--max-issues N] [--dry-run]\n" +
 		"decisions.json を kanban に当てる（Chief of Staff が打つ）。--dry-run は Chief of Staff が読む判定の表 review も出す。\n" +
-		"起動する上限は project.json の chief_of_staff.triage_max_issues（無ければ 3）。--max-issues はその回だけ上書きする。\n" + where
+		"起動する上限は project.json の chief_of_staff.triage_max_issues（無ければ 3）。--max-issues はその回だけ上書きする。\n"
 	VerdictUsage = "usage: andon triage verdict <id> <key> ok|overturn\n" +
-		"Chief of Staff が、判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く。\n" + where
+		"Chief of Staff が、判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く。\n"
 )
 
 var (

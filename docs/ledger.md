@@ -77,6 +77,10 @@ From a working folder, in order:
 3. **From the repository.** Take the main checkout: the parent of `git rev-parse --path-format=absolute --git-common-dir`, so a worktree anywhere (`/workspace/.worktrees/…`) leads to its repository. Walk up from the main checkout. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2) and keep the ledgers whose `repos` match the main checkout (see `repos` below). Stop at the first folder where any match.
    - One match: that ledger.
    - More than one: an error that names them; set `$KANBAN_ROOT`.
+   - None, up to the top: go on to 4.
+4. **The only project.** Walk up from the working folder. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2), whatever its `repos`. A `config.yaml` that cannot be read or parsed counts too, so a broken neighbour is never taken for the only project; a readable one without a `version` does not. Stop at the first folder that holds any ([ADR-0053](adr/0053-command-system.md) decision 20).
+   - One: that ledger. On a yard with one project, every folder in it finds that project (the yard's own root, say).
+   - More than one: an error that names them; set `$KANBAN_ROOT`, or work in one of them.
    - None, up to the top: there is no ledger.
 
 ## `config.yaml`

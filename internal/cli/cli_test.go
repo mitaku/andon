@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -210,6 +211,8 @@ func TestNounLists(t *testing.T) {
 
 // A3: 名前を変えた葉の古い名前は、どれも打つと新しい名前を含む1行を標準エラーに出し、終了コード 2 になる。実行はしない（決めたこと 17）。
 func TestRetiredNames(t *testing.T) {
+	ws := cell(t, "sample-site") // 動く葉はプロジェクトを読む。本物のセルを読まない
+	t.Setenv("KANBAN_ROOT", filepath.Join(ws, "projects", "sample-site"))
 	calls := stubLeaves(t)
 	for old, neu := range retired {
 		if _, ok := find(old); ok {
@@ -349,6 +352,9 @@ func TestHelpAll(t *testing.T) {
 }
 
 func TestPassesArgsToLeaf(t *testing.T) {
+	// プロジェクトは一時のセルのもの（決める段でセルの本物の kanban を読まない）
+	ws := cell(t, "a")
+	t.Setenv("KANBAN_ROOT", filepath.Join(ws, "projects", "a"))
 	if rc, _, errs := run("dispatcher", "--bogus"); rc != 2 || !strings.HasPrefix(errs, "usage: andon dispatcher") {
 		t.Errorf("dispatcher: rc=%d err=%q", rc, errs)
 	}

@@ -4,7 +4,7 @@
 
 ## 細かい機能
 
-- `tr-collect` `andon triage collect` が、片付いた担当の報告の「オーナーに聞くこと」を `question` の項目として出す。見る道: 検証の担当だけ。
+- `tr-collect` `andon triage collect` が、片付いた担当の報告の「オーナーに聞くこと」を `question` の項目として出す。`andon triage collect --help` は `--project` の行を持ち、どこで打つかを言わない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/triage.go`、`internal/triage/collect.go`、`internal/triage/memory.go`、`internal/triage/signals.go`
 - `tr-later` Chief of Staff の端末の apply は、`later` に理由のある判断と手作業の `person` を、印 `later`（と `later_until`）を持つオーナーの課題にし、`andon waiting list --json` でその行が `call: false` になる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/apply.go`、`internal/triage/decisions.go`、`internal/triage/verdict.go`
@@ -30,7 +30,7 @@
 - `scripts/doctor.sh` が終了コード 0。
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh triage <検証する commit>` を打つ。切り離した kanban に、「オーナーに聞くこと」を持つ報告の片付いた担当の課題を 3 つと、トリアージの課題を 2 つ作る。Chief of Staff の端末は `tc`、担当の端末は `tw`。
-- **集める。** `tr-collect` の行に、`andon triage collect` の出力と 3 つの `question` の項目が出る。`ok   tr-collect` が見えれば動いた。
+- **集める。** `tr-collect` の行に、`andon triage collect` の出力と 3 つの `question` の項目が出る。続く `tr-collect` の行に `andon triage collect --help` が出る。`ok   tr-collect` が2行見えれば動いた。
 - **前の形を読む。** `tr-old-shape` の行に、`later` の無い `person` の断り（「person に later が無い」）と、`keep` だけの判定を `tw` で当てた記録の表が出る。`ok   tr-old-shape` が2行見えれば動いた。
 - **Chief of Staff でない端末を断る。** `tr-not-cos` の行に、`tw` の apply の断り（「later で置いておく印を書くのは Chief of Staff の端末だけ」）が出る。`ok   tr-not-cos` が見えれば動いた。
 - **置いておく・呼ぶ。** `tr-later`・`tr-call` の行に、`tc` の apply の記録の表と、足したオーナーの課題の `who`・`only_owner`・`later`・`later_until` と、`andon waiting list --json` の行（`kind`・`call`・`later`）が出る。`ok   tr-later` が2行と `ok   tr-call` が1行見えれば動いた。

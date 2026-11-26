@@ -1,7 +1,7 @@
 // Package chiefengineer は andon design start: オーナーと仕様・設計を対話する Chief Engineer を
 // kanban の課題として起動する（docs/design.md §1.8）。
 //
-//	andon design start "<タイトル>"                           projects/<slug>/ で打つ。repo は kanban の repos が1つならそれ
+//	andon design start "<タイトル>" [--project <slug>]        repo は kanban の repos が1つならそれ
 //	andon design start --repo <host/owner/repo> "<タイトル>"   kanban の repos が2つ以上（か無い）とき
 //	andon design start --brief - "<タイトル>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
@@ -37,7 +37,7 @@ import (
 )
 
 const Usage = "usage: andon design start [--repo <host/owner/repo>] [--brief -] \"<タイトル>\"\n" +
-	"projects/<slug>/ で打つ。--repo を省くと kanban の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
+	"--repo を省くと kanban の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
 	"kanban に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起動し、課題を doing にする。文書の PR はその課題から出る。\n" +
 	"--brief - は stdin の文（経緯）を依頼書の既定の行の下に足す。\n" +
@@ -97,7 +97,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	root, err := output(nil, "", cli, "root")
 	if err != nil || root == "" {
-		return die("kanban が見つからない（projects/<slug>/ で打つ）")
+		return die("kanban が見つからない（--project <slug> で指す）")
 	}
 	slug := filepath.Base(root)
 	if !slugRe.MatchString(slug) {

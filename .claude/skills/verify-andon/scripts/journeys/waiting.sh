@@ -131,6 +131,62 @@ if grep -q '起動しない' "$tmp/step.out"; then fail "ow-slots: 人が読む�
 elif grep -qE 'の枠: 上限 2、動いている 0、オーナー待ち 2、空き 2$' "$tmp/step.out"; then ok "ow-slots: 人が読む枠の行は空き 2 で、新しい課題を起動しないの文が無い"
 else fail "ow-slots: 人が読む枠の行が違う"; fi
 
+# ow-anywhere: どこで打っても読む。一時のセルにプロジェクト2つ（x・y）と1つ（solo）を作り、KANBAN_ROOT を外して打つ
+c2=$tmp/cell2 c1=$tmp/cell1
+for p in "$c2/projects/x" "$c2/projects/y" "$c1/projects/solo"; do
+  mkdir -p "$p" && "$kanban" init --root "$p" --prefix "$(basename "$p" | tr a-z A-Z)" >/dev/null \
+    && KANBAN_ROOT=$p "$kanban" add "$run の $(basename "$p") の課題" >/dev/null || fail "ow-anywhere: 一時のセルの $p を作れない"
+done
+mkdir -p "$c1/notes"
+at() { local d=$1 ws=$2; shift 2; (cd "$d" && env -u KANBAN_ROOT ANDON_WORKSPACE="$ws" "$@"); }
+step "ow-anywhere: 2つのセルの根で andon waiting list --project x を打つ" at "$c2" "$c2" "$andon" waiting list --project x \
+  && grep -q '^x の枠: ' "$tmp/step.out" && ok "ow-anywhere: セルの根で --project x を付けると x のオーナー待ちを出す" \
+  || fail "ow-anywhere: セルの根の --project x で x の枠の行が出ない"
+for d in "$c1" "$c1/notes"; do
+  step "ow-anywhere: 1つのセルの ${d#"$tmp"/} で andon waiting list を打つ" at "$d" "$c1" "$andon" waiting list \
+    && grep -q '^solo の枠: ' "$tmp/step.out" && ok "ow-anywhere: プロジェクトが1つのセルの ${d#"$tmp"/} では、省いても solo のオーナー待ちを出す" \
+    || fail "ow-anywhere: 1つのセルの ${d#"$tmp"/} で省くと solo の枠の行が出ない"
+done
+step "ow-anywhere: 1つのセルの根で kanban list を打つ" at "$c1" "$c1" "$kanban" list \
+  && grep -qF "$run の solo の課題" "$tmp/step.out" && ok "ow-anywhere: プロジェクトが1つのセルの根で、kanban list も solo の kanban を読む" \
+  || fail "ow-anywhere: 1つのセルの根で kanban list が solo の課題を出さない"
+rc=0; step "ow-anywhere: 2つのセルの根で --project を省いて andon waiting list を打つ" at "$c2" "$c2" "$andon" waiting list || rc=$?
+[ "$rc" = 2 ] && grep -qF 'セルのプロジェクト: x・y' "$tmp/step.out" && grep -qF 'andon waiting list --project <slug>' "$tmp/step.out" \
+  && ok "ow-anywhere: 2つのセルの根で省くと、終了コード 2 で x と y と --project を付ける1行を出す" \
+  || fail "ow-anywhere: 2つのセルの根で省いたときに終了コード 2 と一覧が出ない（終了コード $rc）"
+rc=0; step "ow-anywhere: 2つのセルの根で andon waiting list --project nosuch を打つ" at "$c2" "$c2" "$andon" waiting list --project nosuch || rc=$?
+[ "$rc" = 2 ] && grep -qF 'プロジェクト nosuch は無い' "$tmp/step.out" \
+  && ok "ow-anywhere: 無いプロジェクトの --project は終了コード 2 で断る" \
+  || fail "ow-anywhere: 無いプロジェクトの --project が終了コード 2 で断られない（終了コード $rc）"
+# --project を自分で読む葉（委譲）も同じに決まる。kanban の無い projects/<slug>/ の下でも、今いるフォルダで決まる
+mkdir -p "$c2/projects/z/notes"
+step "ow-anywhere: 2つのセルの根で andon delegation show --project x を打つ" at "$c2" "$c2" "$andon" delegation show --project x \
+  && grep -q '^x: ' "$tmp/step.out" \
+  && step "ow-anywhere: 1つのセルの notes で andon delegation show を打つ" at "$c1/notes" "$c1" "$andon" delegation show \
+  && grep -q '^solo: ' "$tmp/step.out" \
+  && step "ow-anywhere: kanban の無い projects/z/notes で andon delegation show を打つ" at "$c2/projects/z/notes" "$c2" "$andon" delegation show \
+  && grep -q '^z: ' "$tmp/step.out" \
+  && ok "ow-anywhere: delegation show も、--project・セルに1つだけ・kanban の無い projects/<slug>/ の下でプロジェクトが決まる" \
+  || fail "ow-anywhere: delegation show のプロジェクトの決まり方が違う"
+# --project は動詞のあとならどこでも受ける。後ろに置いた signal delivered は usage にならず、記録に無い信号として断る（記録は一時の HOME）
+rc=0; step "ow-anywhere: andon signal delivered fp 3 --project x を打つ" at "$c2" "$c2" env HC_TERMINAL_ID=dispatcher "$andon" signal delivered fp 3 --project x || rc=$?
+[ "$rc" = 1 ] && grep -qF '記録に無い信号: fp' "$tmp/step.out" \
+  && ok "ow-anywhere: 後ろに置いた --project を signal delivered が受け、x の記録を見る" \
+  || fail "ow-anywhere: 後ろに置いた --project を signal delivered が受けない（終了コード $rc）"
+# 使い方の文はどこで打つかを言わず、振り分けが足す --project の行を持つ
+bad=
+for l in "retro collect" "signal collect" "design start"; do
+  # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
+  step "ow-anywhere: andon $l --help を打つ" "$andon" $l --help >/dev/null
+  grep -q '^プロジェクト: --project <slug>' "$tmp/step.out" && ! grep -q 'projects/<slug>/ .*で打つ' "$tmp/step.out" || bad+=" $l"
+done
+[ -z "$bad" ] && ok "ow-anywhere: プロジェクトを読む葉の --help は --project の行を持ち、projects/<slug>/ で打つと言わない" \
+  || fail "ow-anywhere: --help に --project の行が無いか、projects/<slug>/ で打つと言う:$bad"
+step "ow-anywhere: kanban --help を打つ" "$kanban" --help
+grep -qF 'only projects/<slug>/ with a kanban' "$tmp/step.out" \
+  && ok "ow-anywhere: kanban --help は、上の projects/ に kanban が1つだけならそれ、の段を言う" \
+  || fail "ow-anywhere: kanban --help に根の探し方の最後の段が無い"
+
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
 sed 's/^/  /' "$tmp/hc.calls" "$tmp/gh.calls"

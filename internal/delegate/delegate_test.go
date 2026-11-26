@@ -318,6 +318,7 @@ func TestParseProject(t *testing.T) {
 func TestShowRefusesOtherCommandsOptions(t *testing.T) {
 	ws := t.TempDir()
 	t.Setenv("ANDON_WORKSPACE", ws)
+	t.Setenv("KANBAN_ROOT", "") // KANBAN_ROOT は今いるフォルダより先に決める（ADR-0053 決めたこと 4）
 	dir := filepath.Join(ws, "projects", "sample-site")
 	os.MkdirAll(dir, 0o755)
 	t.Chdir(dir)

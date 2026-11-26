@@ -329,6 +329,38 @@ try {
     check("two projects with one repository is an error naming both",
       both.code === 1 && both.err.includes("projects/a") && both.err.includes("projects/b"), both.out + both.err);
   } else console.log("skip: no git");
+
+  // The only project: from a folder with no ledger above and no repository, the one projects/<slug>/
+  // in the nearest folder above that holds any. With more than one, an error that names them.
+  const several = run(["root"], { cwd: yard });
+  check("the yard's root with more than one project is an error naming them",
+    several.code === 1 && several.err.includes("projects/a") && several.err.includes("projects/b"), several.out + several.err);
+  const one = mkdtempSync(join(tmpdir(), "deck-one-"));
+  try {
+    const only = join(one, "projects", "solo");
+    mkdirSync(join(one, "notes", "deep"), { recursive: true });
+    mkdirSync(join(one, "projects", "draft", "kanban"), { recursive: true });
+    writeFileSync(join(one, "projects", "draft", "kanban", "config.yaml"), "prefix: D\n");
+    check("init the only project", run(["init", "--root", only]).code === 0);
+    for (const at of [one, join(one, "notes", "deep"), join(one, "projects")]) {
+      const r = run(["root"], { cwd: at });
+      check(`root found from ${at.slice(one.length) || "/"} (the only project)`, r.code === 0 && same(r.out, only), r.out + r.err);
+    }
+    const listed = run(["list"], { cwd: one });
+    check("list from the yard's root reads the only project", listed.code === 0, listed.out + listed.err);
+    // a project whose config.yaml cannot be read is still a project: the yard is not "only one", and nothing is written to solo
+    const broken = join(one, "projects", "broken", "kanban", "config.yaml");
+    mkdirSync(dirname(broken), { recursive: true });
+    writeFileSync(broken, "version: 3\ncolumns: [todo\n");
+    const two = run(["root"], { cwd: one });
+    check("an unreadable config.yaml beside the only project is a second project",
+      two.code === 1 && two.err.includes("projects/broken") && two.err.includes("projects/solo"), two.out + two.err);
+    rmSync(join(one, "projects", "broken"), { recursive: true });
+    rmSync(join(only, "kanban", "config.yaml"));
+    check("no project with a version above is no ledger", run(["root"], { cwd: one }).code === 1);
+  } finally {
+    rmSync(one, { recursive: true, force: true });
+  }
 } finally {
   rmSync(yard, { recursive: true, force: true });
 }

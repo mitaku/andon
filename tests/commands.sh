@@ -103,4 +103,68 @@ printf '%s\n' 'exec("andon", ["issue", "done", id], { cwd });' 'exec("andon", ["
 extra=$(host_args "$tmp/host.js" | tr '\n' '|')
 [ "$extra" = 'issue board --json|issue done|waiting --json --project|' ] && pass "ホストの部品の引数を拾う式は、足した呼び出しと古い名前の引数を拾う" || fail "ホストの部品の引数を拾う式: [$extra]"
 
+# === A5・A11 どこで打っても動く（決めたこと 3・4・15・20） ===
+# 一時のセルに a と b を作り、焼いた andon と kanban を打つ。読む葉は waiting list（--project を葉が自分で読む）と
+# issue show（振り分けが外して KANBAN_ROOT に渡す）。どちらも kanban を読むだけ
+. tests/lib/kanban.sh
+export HOME="$tmp/home"
+mkdir -p "$HOME"
+mkcell() { # mkcell <セル> <slug>…: 各プロジェクトに課題を1件足す（タイトルは「<slug> の課題」）
+  local ws=$1 s
+  shift
+  for s in "$@"; do
+    mkdir -p "$ws/projects/$s"
+    "$kanban" init --root "$ws/projects/$s" --prefix "$(printf '%s' "$s" | tr a-z A-Z)" >/dev/null \
+      && KANBAN_ROOT="$ws/projects/$s" "$kanban" add "$s の課題" >/dev/null || fail "一時のセルの $s を作れない"
+  done
+}
+two=$tmp/cell2 one=$tmp/cell1
+mkcell "$two" a b
+mkcell "$one" solo
+mkdir -p "$two/notes" "$one/notes"
+
+out=$(cd "$two" && ANDON_WORKSPACE=$two "$andon" waiting list --project a 2>&1)
+[[ "$out" == "a の枠:"* ]] && pass "セルの根で --project a を付けると a の kanban を読む（waiting list）" || fail "根で --project a（waiting list）: $out"
+out=$(cd "$two" && ANDON_WORKSPACE=$two "$andon" issue show A-0001 --project a 2>&1)
+jq -e '.id == "A-0001"' >/dev/null 2>&1 <<<"$out" && pass "セルの根で --project a を付けると a の kanban を読む（issue show）" || fail "根で --project a（issue show）: $out"
+out=$(cd "$two" && ANDON_WORKSPACE=$two "$andon" issue show B-0001 --project a 2>&1)
+jq -e '.id' >/dev/null 2>&1 <<<"$out" && fail "--project a で b の課題が読めた: $out" || pass "--project a は b の kanban を読まない"
+out=$(cd "$two/projects/a" && ANDON_WORKSPACE=$two "$andon" waiting list 2>&1)
+[[ "$out" == "a の枠:"* ]] && pass "projects/a/ では --project を省いても a を読む" || fail "projects/a/ で省く: $out"
+for at in "$one" "$one/notes"; do
+  out=$(cd "$at" && ANDON_WORKSPACE=$one "$andon" issue show SOLO-0001 2>&1)
+  jq -e '.id == "SOLO-0001"' >/dev/null 2>&1 <<<"$out" && pass "プロジェクトが1つのセルでは ${at#"$tmp"/} で省いても読む" || fail "1つのセルの ${at#"$tmp"/} で省く: $out"
+done
+out=$(cd "$one" && "$kanban" list 2>&1)
+[[ "$out" == *"solo の課題"* ]] && pass "プロジェクトが1つのセルの根で、kanban list も同じ kanban を読む" || fail "1つのセルの根で kanban list: $out"
+
+# 表の欄で選ぶ: プロジェクトを読む葉は --help に「プロジェクト: --project <slug>」の行を持つ（go test ./internal/cli が欄と突き合わせる）。
+# dispatcher の葉は打たない（省くと全部を回る常駐と、フック。フックは決まらなくても 2 を返さないことを go test ./internal/cli が見る）
+: >"$tmp/project-leaves"
+while IFS= read -r l; do
+  # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
+  h=$("$andon" $l --help)
+  [[ "$h" == *$'\nプロジェクト: --project <slug>'* ]] && echo "$l" >>"$tmp/project-leaves"
+done <"$tmp/leaves"
+np=$(wc -l <"$tmp/project-leaves")
+grep -qx 'issue show' "$tmp/project-leaves" && grep -qx 'waiting list' "$tmp/project-leaves" && ! grep -qx 'schema check' "$tmp/project-leaves" && [ "$np" -ge 30 ] \
+  && pass "プロジェクトを読む葉 $np を --help の行から選ぶ" || fail "プロジェクトを読む葉が選べない（$np）"
+bad=
+while IFS= read -r l; do
+  case "$l" in dispatcher | dispatcher\ *) continue ;; esac
+  # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
+  err=$(cd "$two" && ANDON_WORKSPACE=$two "$andon" $l </dev/null 2>&1 >/dev/null); rc=$?
+  # shellcheck disable=SC2086
+  err2=$(cd "$two" && ANDON_WORKSPACE=$two "$andon" $l --project nosuch </dev/null 2>&1 >/dev/null); rc2=$?
+  if [ "$l" = "issue stop-check" ]; then # Stop フックが打つ葉は 2 を返さない（2 はフックの合図）
+    [ "$rc" = 0 ] && [ "$rc2" = 0 ] || bad+="$l: フックなのに $rc・$rc2"$'\n'
+    continue
+  fi
+  [ "$rc" = 2 ] && [[ "$err" == *"プロジェクトが決まらない"* && "$err" == *"セルのプロジェクト: a・b"* && "$err" == *"andon $l --project <slug>"* ]] \
+    || bad+="$l: 2つのセルの根で省いて $rc: ${err%%$'\n'*}"$'\n'
+  [ "$rc2" = 2 ] && [[ "$err2" == *"プロジェクト nosuch は無い"* ]] || bad+="$l --project nosuch: $rc2: ${err2%%$'\n'*}"$'\n'
+done <"$tmp/project-leaves"
+[ -z "$bad" ] && pass "プロジェクトを読む葉は全部 --project を受け、2つのセルの根で省くと終了コード 2 と2つの slug を出す" \
+  || fail "プロジェクトを読む葉:"$'\n'"$bad"
+
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

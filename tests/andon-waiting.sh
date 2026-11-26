@@ -137,6 +137,7 @@ set +e
 "$andon" waiting list --project nothing >/dev/null 2>"$tmp/err"; rc=$?
 "$andon" waiting list --bogus >/dev/null 2>&1; rc2=$?
 set -e
-[[ $rc == 1 ]] && grep -q 'プロジェクト nothing の kanban が無い' "$tmp/err" || die "無いプロジェクトを終了コード 1 で断らない（rc=$rc）"
+# プロジェクトが決まらないのは使い方の誤り（ADR-0053 決めたこと 15）
+[[ $rc == 2 ]] && grep -q 'プロジェクト nothing は無い' "$tmp/err" || die "無いプロジェクトを終了コード 2 で断らない（rc=$rc）"
 [[ $rc2 == 2 ]]
-echo 'ok 無いプロジェクトは終了コード 1、知らない引数は 2'
+echo 'ok 無いプロジェクトも知らない引数も終了コード 2'

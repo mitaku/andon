@@ -56,7 +56,8 @@ const help = `kanban: a project's work ledger in kanban/ (format 3; one folder p
 Ids are <prefix>-<n> with n of four digits (W-0001); W-1 is read as W-0001. A reviewer's issue
 (--parent and a --profile ending in -review) is <parent>-r<k> for round k (W-0001-r1) and takes no number.
 The root: $KANBAN_ROOT, else the nearest folder above with kanban/config.yaml, else the projects/<slug>/
-whose config.yaml lists this worktree's repository in repos (looked for above its main checkout).
+whose config.yaml lists this worktree's repository in repos (looked for above its main checkout), else the
+only projects/<slug>/ with a kanban in the nearest folder above that has any.
 repo is filled in from the current checkout when it matches one of repos.
 After --, every word is a word, not a flag: kanban add -- "--title that starts with --". --help prints this.
 add, start, set, review, done, ask, answer, received, config set and routine run also take --json

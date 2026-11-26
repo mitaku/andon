@@ -190,7 +190,39 @@ func findRoot(cwd string) (string, error) {
 			return "", fail("this repository is in more than one project under %s: %s (set KANBAN_ROOT)", at, strings.Join(names, ", "))
 		}
 	}
-	return "", fail("no ledger: no kanban/ here or above, and no projects/*/kanban/ lists this repository (run kanban init, or set KANBAN_ROOT)")
+	if at, found := onlyProject(cwd); len(found) == 1 {
+		return found[0], nil
+	} else if len(found) > 1 {
+		names := make([]string, len(found))
+		for i, f := range found {
+			names[i] = "projects/" + filepath.Base(f)
+		}
+		return "", fail("no ledger here, and more than one project under %s: %s (set KANBAN_ROOT, or work in one of them)", at, strings.Join(names, ", "))
+	}
+	return "", fail("no ledger: no kanban/ here or above, no projects/*/kanban/ lists this repository, and no projects/ above holds one (run kanban init, or set KANBAN_ROOT)")
+}
+
+// onlyProject: the ledgers of projects/*/ in the nearest folder at or above dir that holds any
+// (docs/ledger.md, Finding the root, the last step). One of them is the root.
+func onlyProject(dir string) (string, []string) {
+	for d := filepath.Clean(dir); ; d = filepath.Dir(d) {
+		configs, _ := filepath.Glob(filepath.Join(d, "projects", "*", ledgerName, "config.yaml"))
+		var found []string
+		for _, c := range configs {
+			// A config.yaml that cannot be read or parsed still names a project: leaving it out would take its
+			// neighbour for the only one and write there. A readable one without a version is a draft, not a ledger.
+			root := filepath.Dir(filepath.Dir(c))
+			if cfg, err := ledger.ReadConfig(ledgerDir(root)); err != nil || cfg.IntVersion {
+				found = append(found, root)
+			}
+		}
+		if len(found) > 0 {
+			return d, found
+		}
+		if filepath.Dir(d) == d {
+			return "", nil
+		}
+	}
 }
 
 // writeAtomic writes a temporary file beside the target and renames it over the target

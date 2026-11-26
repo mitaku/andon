@@ -95,7 +95,7 @@ Verify-features: wl-resume, wl-record
 - `internal/plantinit/`（`andon cell init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
 - `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
 - `cmd/kanban/migrate.go`・`cmd/kanban/dispatcherstate.go`（`kanban migrate`）。前の形の kanban を移す口で、どの機能の道も打たない。`go test ./cmd/kanban/` と `tests/kanban.sh` が見ている。
-- `internal/delegate/cmd.go`（`andon delegation grant` など）。オーナーが委譲を変える口で、どの機能の道も打たない。gate が委譲を読むところは `gt-route` が見る。`go test ./internal/delegate/` と `tests/andon-gate.sh` が見ている。
+- `internal/delegate/cmd.go`（`andon delegation grant` など）。オーナーが委譲を変える口で、機能の道は委譲を変えない。gate が委譲を読むところは `gt-route` が、どこで打ってもプロジェクトが決まることは `ow-anywhere` が `andon delegation show` で見る。`go test ./internal/delegate/` と `tests/andon-gate.sh` が見ている。
 - `cmd/kanban/lock_windows.go`・`cmd/kanban/rename_windows.go`・`internal/spawn/tty_other.go`・`internal/signal/echo_other.go`。linux でない OS でだけ build されるファイルで、セルの andon と kanban には入らない。
 
 `package/gh-skills.txt` は覆う。`boot.md` の「変えたら動かすパス」に載せた。

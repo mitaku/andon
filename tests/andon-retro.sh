@@ -297,6 +297,7 @@ KANBAN_ROOT=$root "$andon" retro collect --issue S-0002 >/dev/null 2>&1; rc_out=
 KANBAN_ROOT=$root "$andon" retro collect --issue >/dev/null 2>&1; rc_noid=$?
 set -e
 [ "$rc_noun" = 0 ] && grep -q '^  retro collect  ' "$tmp/nouns" || die "名詞だけで葉の一覧を出さない: rc=$rc_noun $(cat "$tmp/nouns")"
-[ "$rc_usage" = 2 ] && [ "$rc_days" = 2 ] && [ "$rc_none" = 1 ] && [ "$rc_out" = 1 ] && [ "$rc_noid" = 2 ] \
+# kanban の無い KANBAN_ROOT はプロジェクトが決まらない使い方の誤りで 2（ADR-0053 決めたこと 15）
+[ "$rc_usage" = 2 ] && [ "$rc_days" = 2 ] && [ "$rc_none" = 2 ] && [ "$rc_out" = 1 ] && [ "$rc_noid" = 2 ] \
   || die "終了コード: usage=$rc_usage days=$rc_days none=$rc_none issue-out=$rc_out issue-noid=$rc_noid"
 echo 'ok 終了コード: 使い方 2・--days の外 2・kanban が無い 1・期間の外の --issue 1・id の無い --issue 2'
