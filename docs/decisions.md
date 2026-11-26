@@ -116,7 +116,7 @@ Andon の決定を、日付と出典つきで 1 件ずつ残す。**上書きし
 | 2026-11-03 | 【仮】直す・まとめるの上限は 1 回 3 タスク | 仮設の記録（private）トリアージ P2 |
 | 2026-11-03 | 【仮】不要の確認は事後の要約で見る（閉じたものは戻せる） | 仮設の記録（private）トリアージ P3 |
 | 2026-11-03 | 【仮】reflect はトリアージへ統合する | 仮設の記録（private）トリアージ P4 |
-| 2026-11-03 | 【仮】積み重ねた PR（Stacked PR）は採らない。小さい PR を順に流す | 仮設の記録（private）トリアージ P5 |
+| 2026-11-03 | 【仮】積み重ねた PR（Stacked PR）は採らない。小さい PR を順に流す → 覆された（decisions/2026-11-27-adr-0067-stacked-start.md。小さい PR を順に流すことは生きている） | 仮設の記録（private）トリアージ P5 |
 | 2026-11-03 | 推奨案があり後で変えられる判断は、Chief of Staff が仮決めしてよい。オーナーにはオーナーが要る判断だけ届ける | 仮設の記録（private）トリアージ P6 |
 
 ## 5. P1 での決定
@@ -206,7 +206,7 @@ kanban の CLI と形式の元のオーナー herdr-flightdeck（private）の�
 |---|---|---|
 | 2026-11-05 | `andon gate` は判定と記録（`library/gate/<head>.json`・PR の commit status `andon/gate` とコメント）までで、**マージしない**。マージと finish はクーリエ（P6a） | contract.md §6・§7、courier.md §5 |
 | 2026-11-05 | gate は PR の場所を `report.json` の `pr` だけから読む（`task.yaml` の `pr` は読まない）。`report.json` が無い・形が違う・kanban と PR が合わないときは、信じられる PR が無いので記録も GitHub への書き込みもせず `fix` | contract.md §4・仮設の gate（template-yard #41） |
-| 2026-11-05 | 委譲が無い（無い・読めない・author が owner でない）ときの `merge` は `none` で、gate はどのレベルでも `needs_human`（オーナーがマージする）。conflict・base が既定ブランチでない・作者が建屋の gh アカウントでない・fork・files の件数の食い違いは、委譲の範囲に関わらず `needs_human`（仮設ではレベル C の理由だったもの。委譲 `merge: C` で通らないように分けた） | contract.md §7・§11、design.md §1.10 |
+| 2026-11-05 | 委譲が無い（無い・読めない・author が owner でない）ときの `merge` は `none` で、gate はどのレベルでも `needs_human`（オーナーがマージする）。conflict・base が既定ブランチでない・作者が建屋の gh アカウントでない・fork・files の件数の食い違いは、委譲の範囲に関わらず `needs_human`（仮設ではレベル C の理由だったもの。委譲 `merge: C` で通らないように分けた） → 一部が覆された（decisions/2026-11-27-adr-0067-stacked-start.md。前の課題の PR の上に積んだ PR だけは、積んでいる間、conflict と base が既定ブランチでないことを `needs_human` の理由にしない。ほかの PR では生きている） | contract.md §7・§11、design.md §1.10 |
 | 2026-11-05 | `must_fix` 以上の指摘を担当が `waived` に入れたら、gate は `needs_human`（担当がレビュアーを覆した。オーナーが判断する）。`must_fix_open` は `waived` に無いものだけを数える。同じ head で Must fix が残って `fix` を返した記録があれば、2度目は `needs_human`（仮設の控えファイルを記録で置き換えた） | 担当の推し（chief-of-staff skill の数え方と schema の description に合わせた） |
 | 2026-11-05 | `andon task review-request` の回は、レビュアーの子タスク（profile が `*-review`）の `findings.json` の `commit` のうち違うものの数 ＋ 1。`previous` は最新の `findings.json` の `commit`。古い commit を見たレビューは前の回と同じ commit なので回が増えない。`HEAD` のレビューがもうあれば頼まない | 担当の推し（`report.json` は毎回書き直すので、回を控える場所が無い） |
 | 2026-11-05 | `andon task report` は `--pr` を省くと前の `report.json` の `pr` を引き継ぐ（gate が読むのはこれだけなので、書き忘れで落ちないように）。ほかのキーは毎回書き直す。`review-request` は前の `report.json` に `review_request` を足して書く | 担当の推し |

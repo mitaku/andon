@@ -18,7 +18,7 @@
 | 8 | オーナー待ちを、マージの依頼・判断・手作業の 3 種に定め、今の head について決め終えたものだけを数える | `internal/waiting/waiting.go`・`docs/contract.md` §25・`package/skills/glossary/SKILL.md` | 覆された → ADR-0057（手作業の定義と、オーナーの課題の問いを数える条件。3 種に分けることと、今の head について決め終えたものだけを数えることは生きている） |
 | 9 | オーナー待ちと並行の枠を読む口は、読むだけの command `andon waiting` の 1 つにする | `internal/waiting/cmd.go`・`schema/waiting.schema.json`・`docs/contract.md` §25 | 生きている。答えを書く口（決めたこと 17）は同じ command の `andon waiting answer`。出力の `slots.waiting_full` と `free` の式は、ADR-0065 決めたこと 4・5 が改めた |
 | 10 | 並行の枠は、オーナー待ちの課題を数えない。オーナー待ちが上限の数に達したら、新しい課題を起動しない | `package/skills/chief-of-staff/playbooks/start.md`・`process/workstreams/launch.yaml` | 覆された → ADR-0065（後半の、オーナー待ちが上限の数に達したら新しい課題を起動しないこと。前半の、枠にオーナー待ちの課題を数えないことは生きている） |
-| 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 生きている |
+| 11 | マージ待ちの後ろに並べた課題は先に起動せず、待ちが止めている課題を見せて、その多い順に出す | `package/skills/chief-of-staff/playbooks/start.md`・`package/skills/ask-one-by-one/SKILL.md` | 覆された → ADR-0067（前半の、後ろに並べた課題を先に起動しないこと。後半の、待ちが止めている課題を見せて、その多い順に出すことは生きている） |
 | 12 | オーナー待ちは、右のパネルのペインに出す | `package/host/waiting/`・`package/host/layouts/andon.json`・`package/host/inbox/main.js` | 生きている（右のパネルの 3 つ目の画面を開く App の操作は、オーナーの手元の App で確かめる） |
 | 13 | ボードに 3 つ目の表示として、ガントチャートの形の Flow を足す | `package/host/kanban-board/main.js`・`package/host/kanban-board/README.md` | 生きている |
 | 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js`・`package/host/kanban-board/main.js` | 生きている。ボードが呼ぶ command に、読むだけの `andon issue board` と `andon issue history` が増えた（[ADR-0059](0059-board-leaves-old-done-to-history.md) 決めたこと 12） |
@@ -165,6 +165,7 @@
     理由: `after` は、同じ場所を触る課題がぶつからないように並べるのに使われている。前の PR が入る前に後ろを起動すると、ぶつかる変更が 2 本動き、rebase が増える。どのマージが何件を止めているかが見えれば、オーナーはそこから片付けられる。
     細部: `ask-one-by-one` skill の §3 の「出す順」の 1 番目「止めている作業が多いもの」を、`andon waiting` の並びで読むと書く。
     捨てた案: 後ろの課題を、前の課題の branch の上で起動する（前の PR が直されるたびに、後ろも直すことになる。worktree の作り方と、PR の base の決まりも変わる）。
+    → 2026-11-26 に、[ADR-0067](0067-stacked-start.md) 決めたこと 2 が、この決定の前半を覆した。gate が今の head で通している PR の上になら、後ろの課題を起動できる。後ろの課題は前の課題の変更の上に作るので、2 本はぶつからない。後ろの直しは、前の課題が main に入った時の 1 回の載せ替えにまとめる。`holds` で数えて多い順に出すことは、そのまま生きている。
 
 ### ペインとボード
 
