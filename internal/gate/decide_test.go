@@ -531,6 +531,24 @@ func TestClassifyModelFiles(t *testing.T) {
 	}
 }
 
+// 本物の package/gate.json で、tray の依存（package.json と bun.lock）を変える PR は行数によらずレベル C、tray のコードだけは C にならない
+// （ADR-0064 決めたこと 28。依存は Cloudflare に出す Worker に入る外のコードで、変える PR はオーナーがマージする）。
+func TestClassifyTrayDependencies(t *testing.T) {
+	tb := pkgTable(t)
+	for _, p := range []string{"tray/package.json", "tray/bun.lock"} {
+		got, err := tb.Classify(RepoTable{}, []File{{Path: p, Additions: 1, Deletions: 1}}, "", false)
+		if err != nil || got.Tier != "C" {
+			t.Errorf("%s: tier=%q err=%v, want C", p, got.Tier, err)
+		}
+	}
+	for _, p := range []string{"tray/src/lib/list-api.ts", "tray/test/list.test.ts", "tray/public/app.js"} {
+		got, err := tb.Classify(RepoTable{}, []File{{Path: p, Additions: 1}}, "", false)
+		if err != nil || got.Tier == "C" {
+			t.Errorf("%s: tier=%q err=%v, want not C", p, got.Tier, err)
+		}
+	}
+}
+
 // hunkDiff は1ファイル・1 hunk の差分（行の頭の +・-・空白はそのまま書く）。
 func hunkDiff(path string, oldN, newN int, body ...string) string {
 	return fmt.Sprintf("diff --git a/%[1]s b/%[1]s\n--- a/%[1]s\n+++ b/%[1]s\n@@ -1,%[2]d +1,%[3]d @@\n%[4]s\n", path, oldN, newN, strings.Join(body, "\n"))
