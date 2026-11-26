@@ -1176,7 +1176,7 @@ gen_flush
 # 4. 自己検査: 制約を緩めた schema の写しでは、この検査全体が落ちること（期待値を schema から作っていない証し）
 if [ -z "${ANDON_SCHEMA_DIR:-}" ]; then
   # 緩めた写しごとの再実行は互いに独立なので、並べて走らせて結果を溜めた順に出す
-  par="$(nproc 2>/dev/null || echo 2)"; [ "$par" -le 8 ] || par=8
+  par="$(bash tests/lib/cpus.sh)"; [ "$par" -le 8 ] || par=8
   n=0; descs=()
   while IFS='|' read -r name expr desc; do
     case "$name" in ''|'#'*) continue ;; esac

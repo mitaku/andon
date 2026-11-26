@@ -4,7 +4,7 @@
 # tests/*.sh を並べて走らせる。出力は1本ごとに一時ファイルへ受け、終わった順に1本ずつまとめて出す（混ざらない）。
 # 最後に1本ごとの所要時間の表を出す（GITHUB_STEP_SUMMARY があればそこにも）。1本でも落ちれば 1 で終わる。
 #   引数が無ければ tests/*.sh 全部。ANDON_TEST_SKIP（空白区切りのパス）は走らせず、表に skip と出す。
-#   並べる数は ANDON_TEST_JOBS（既定は nproc）。長いもの（image.sh・andon-dispatcher.sh）を先に起動する。
+#   並べる数は ANDON_TEST_JOBS（既定はコンテナの CPU の上限、無ければ nproc。tests/lib/cpus.sh）。長いもの（image.sh・andon-dispatcher.sh）を先に起動する。
 #   command の出力を読む検査（ANDON_TEST_EMIT_READER。既定は tests/schema.sh）は、`<読み手> --emitters` が出す検査を
 #   回し直さない。同じ回に渡された emitters には ANDON_EMIT_DIR=<置き場>/out を渡し、終わったら <置き場>/<名前>.status に
 #   終了コード、<名前>.log に出力を置く。読み手は最後に、その emitters が全部終わってから ANDON_EMITTED=<置き場> で起動する。
@@ -19,7 +19,7 @@ cd "$(dirname "$0")/../.."
 
 if [ "$#" -gt 0 ]; then all=("$@"); else all=(tests/*.sh); fi
 skip=" ${ANDON_TEST_SKIP:-} "
-jobs_max=${ANDON_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
+jobs_max=${ANDON_TEST_JOBS:-$(bash tests/lib/cpus.sh)}
 gha=${GITHUB_ACTIONS:-false}
 stream=" ${ANDON_TEST_STREAM-tests/image.sh} "
 
