@@ -1,12 +1,12 @@
 // 報告の面（ADR-0064 決めたこと 18・22）。一覧の面と別のオリジンで、署名付き URL の報告だけを返す。
-//   GET /r/<id>?e=<期限>&s=<署名>
+//   GET /r/<id>/<中身の sha256>?e=<期限>&s=<署名>
 // HTML・Markdown・テキスト・画像・PDF は開き、ほかは Content-Disposition: attachment で返す。
 // Markdown とテキストは決まった HTML の型に入れる（Markdown の中の HTML は消さない。sandbox で出すので HTML の報告と同じ扱い）。
 
 import { marked } from "marked";
 import type { ViewEnv } from "./env";
 import { escapeHTML } from "./http";
-import { REPORT_ID, segments } from "./names";
+import { objectKey, REPORT_ID, SHA256, segments } from "./names";
 import { checkSignature } from "./sign";
 
 const SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox";
@@ -63,16 +63,16 @@ export async function viewFace(req: Request, env: ViewEnv, nowSeconds?: number):
   const url = new URL(req.url);
   const seg = segments(url.pathname);
   if (req.method !== "GET" && req.method !== "HEAD") return shortPage(405, "使えない", "GET だけ", env.LIST_ORIGIN);
-  if (seg.length !== 2 || seg[0] !== "r" || !REPORT_ID.test(seg[1] ?? "")) {
+  if (seg.length !== 3 || seg[0] !== "r" || !REPORT_ID.test(seg[1] ?? "") || !SHA256.test(seg[2] ?? "")) {
     return shortPage(404, "無い", "報告が無い", env.LIST_ORIGIN);
   }
-  const id = seg[1] as string;
-  const check = await checkSignature(id, url.searchParams.get("e"), url.searchParams.get("s"), env.SIGNING_KEY, nowSeconds);
+  const key = objectKey(seg[1] as string, seg[2] as string);
+  const check = await checkSignature(key, url.searchParams.get("e"), url.searchParams.get("s"), env.SIGNING_KEY, nowSeconds);
   if (check === "bad") return shortPage(403, "開けない", "署名が合わない", env.LIST_ORIGIN);
   if (check === "expired") {
     return shortPage(410, "期限切れ", "この URL の期限が切れた。一覧から開き直す。", env.LIST_ORIGIN);
   }
-  const obj = await env.BUCKET.get(id);
+  const obj = await env.BUCKET.get(key);
   if (!obj) return shortPage(404, "無い", "報告が無い", env.LIST_ORIGIN);
   const contentType = obj.httpMetadata?.contentType ?? "application/octet-stream";
   const base = (contentType.split(";")[0] ?? "").trim().toLowerCase();

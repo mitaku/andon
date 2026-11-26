@@ -7,8 +7,9 @@ import { viewFace } from "../src/lib/view-face";
 import view from "../src/view";
 import { LIST_ORIGIN, SIGNING_KEY, VIEW_ORIGIN, viewEnv } from "./helpers";
 
-const A = "a".repeat(32);
-const B = "b".repeat(32);
+// R2 のキーは <報告の id>/<中身の sha256>
+const A = `${"a".repeat(32)}/${"1".repeat(64)}`;
+const B = `${"b".repeat(32)}/${"2".repeat(64)}`;
 
 beforeEach(async () => {
   await env.BUCKET.put(A, "<!doctype html><p>A の報告</p>", { httpMetadata: { contentType: "text/html; charset=utf-8" } });
@@ -80,9 +81,22 @@ describe("署名（受け入れ条件 12）", () => {
     expect((await get(await signedURL(VIEW_ORIGIN, A, "other-key"))).status).toBe(403);
   });
 
-  it("id の形でないパスを断る", async () => {
-    expect((await get(`${VIEW_ORIGIN}/r/..%2F${A}`)).status).toBe(404);
-    expect((await get(`${VIEW_ORIGIN}/x/${A}`)).status).toBe(404);
+  it("同じ報告の別の中身（前のバージョン）の署名を付けた URL を断る", async () => {
+    const other = `${"a".repeat(32)}/${"9".repeat(64)}`;
+    await env.BUCKET.put(other, "<p>前の中身</p>", { httpMetadata: { contentType: "text/html" } });
+    const forOther = new URL(await signedURL(VIEW_ORIGIN, other, SIGNING_KEY));
+    const res = await get(`${VIEW_ORIGIN}/r/${A}${forOther.search}`);
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("A の報告");
+  });
+
+  it("id と sha256 の形でないパスを断る", async () => {
+    const forA = new URL(await signedURL(VIEW_ORIGIN, A, SIGNING_KEY)).search;
+    expect((await get(`${VIEW_ORIGIN}/r/..%2F${A}${forA}`)).status).toBe(404);
+    expect((await get(`${VIEW_ORIGIN}/x/${A}${forA}`)).status).toBe(404);
+    expect((await get(`${VIEW_ORIGIN}/r/${"a".repeat(32)}${forA}`)).status).toBe(404);
+    expect((await get(`${VIEW_ORIGIN}/r/${A}/x${forA}`)).status).toBe(404);
+    expect((await get(`${VIEW_ORIGIN}/r/${"a".repeat(32)}/${"1".repeat(63)}g${forA}`)).status).toBe(404);
   });
 });
 
@@ -96,14 +110,14 @@ describe("形式", () => {
   });
 
   it("テキストは文字を逃がして <pre> に入れる", async () => {
-    const id = "c".repeat(32);
+    const id = `${"c".repeat(32)}/${"3".repeat(64)}`;
     await env.BUCKET.put(id, "<script>x</script>", { httpMetadata: { contentType: "text/plain" } });
     const text = await (await get(await signedURL(VIEW_ORIGIN, id, SIGNING_KEY))).text();
     expect(text).toContain("<pre>&#60;script&#62;x&#60;/script&#62;</pre>");
   });
 
   it("開かない形式はダウンロードにする", async () => {
-    const id = "d".repeat(32);
+    const id = `${"d".repeat(32)}/${"4".repeat(64)}`;
     await env.BUCKET.put(id, "a,b", { httpMetadata: { contentType: "text/csv" } });
     const res = await get(await signedURL(VIEW_ORIGIN, id, SIGNING_KEY));
     expect(res.headers.get("Content-Disposition")).toBe("attachment");

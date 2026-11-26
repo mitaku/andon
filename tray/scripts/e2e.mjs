@@ -133,7 +133,7 @@ try {
   check(l.headers["content-security-policy"] === "frame-ancestors 'none'", "一覧の面の応答は枠に入らない");
 
   const o = await open(t, id);
-  check(o.status === 200 && o.json?.url?.startsWith(`${t.view_origin}/r/${id}?`), "開くと報告の面の署名付き URL が返る");
+  check(o.status === 200 && o.json?.url?.startsWith(`${t.view_origin}/r/${id}/`), "開くと報告の面の署名付き URL が返る");
   const v = new URL(o.json.url);
   const page = await http(t.list, `${v.pathname}${v.search}`, { host: v.host });
   check(page.status === 200 && page.text.includes("<h1>A</h1>"), "署名付き URL で報告が読める");

@@ -47,7 +47,7 @@ describe("ローカルの tray", () => {
       localEnv(),
     );
     const { url: viewURL } = (await opened.json()) as { url: string };
-    expect(viewURL.startsWith(`http://${VIEW_HOST}:1355/r/${id}?`)).toBe(true);
+    expect(viewURL.startsWith(`http://${VIEW_HOST}:1355/r/${id}/`)).toBe(true);
     const res = await local.fetch(new Request(viewURL), localEnv());
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("<h1>見出し</h1>");

@@ -40,3 +40,11 @@ export function decodeHeader(value: string | null): string | null {
 }
 
 export const REPORT_ID = /^[0-9a-f]{32}$/;
+
+// 中身の sha256（16進の64字）
+export const SHA256 = /^[0-9a-f]{64}$/;
+
+// objectKey: R2 のキー。報告の id と中身の sha256 の組で、中身ごとに別のキーにする。報告の面の署名もこの組に結び付ける
+export function objectKey(id: string, sha256: string): string {
+  return `${id}/${sha256}`;
+}

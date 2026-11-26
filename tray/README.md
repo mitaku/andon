@@ -7,7 +7,7 @@
 | 面 | 入口 | 守り |
 |---|---|---|
 | 一覧の面 | `src/list.ts`（`/api/`） | Cloudflare Access の JWT（aud・iss・期限・署名）。書き込みは同じ Origin だけ |
-| 報告の面 | `src/view.ts`（`/r/<id>?e=&s=`） | 5分で切れる HMAC の署名付き URL。CSP の sandbox で、一覧の面と別のオリジン |
+| 報告の面 | `src/view.ts`（`/r/<id>/<sha256>?e=&s=`） | 中身ごとの R2 のキーに結び付けた、5分で切れる HMAC の署名付き URL。CSP の sandbox で、一覧の面と別のオリジン |
 | アップロードの口 | `src/upload.ts`（`PUT /v1/reports/<プロジェクト>/<名前>`） | セルごとの API キー。キーはセルを決め、ほかのセルの報告は書けない |
 
 D1 の表は `migrations/`、アップロードの約束と見本は `contract/upload-v1.json`。画面（`public/`）は仮の最小のもの。

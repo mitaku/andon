@@ -145,7 +145,7 @@ describe("既読", () => {
     const res = await open(id);
     const body = (await res.json()) as { url: string; version: number };
     expect(body.version).toBe(1);
-    expect(body.url).toMatch(new RegExp(`^https://tray-view\\.example\\.com/r/${id}\\?e=\\d+&s=[A-Za-z0-9_-]+$`));
+    expect(body.url).toMatch(new RegExp(`^https://tray-view\\.example\\.com/r/${id}/[0-9a-f]{64}\\?e=\\d+&s=[A-Za-z0-9_-]+$`));
     expect(await reports()).toHaveLength(0);
     await upload("r", "1");
     expect(await reports()).toHaveLength(0);

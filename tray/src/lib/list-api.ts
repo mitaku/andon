@@ -8,7 +8,7 @@
 
 import type { ListEnv } from "./env";
 import { error, json, LIST_HEADERS, randomHex, sha256Hex, withHeaders } from "./http";
-import { decodeName, REPORT_ID, segments } from "./names";
+import { decodeName, objectKey, REPORT_ID, segments } from "./names";
 import { signedURL } from "./sign";
 
 export const OLD_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
@@ -61,13 +61,14 @@ async function listReports(url: URL, env: ListEnv, now: number): Promise<Respons
 async function openReport(id: string, env: ListEnv, now: number): Promise<Response> {
   if (!REPORT_ID.test(id)) return error(404, "not_found", "報告が無い");
   const r = await env.DB.prepare(
-    "UPDATE reports SET read_version = version WHERE id = ?1 AND version > 0 RETURNING version, content_type, title",
+    "UPDATE reports SET read_version = version WHERE id = ?1 AND version > 0 RETURNING version, sha256, content_type, title",
   )
     .bind(id)
-    .first<{ version: number; content_type: string; title: string }>();
+    .first<{ version: number; sha256: string; content_type: string; title: string }>();
   if (!r) return error(404, "not_found", "報告が無い");
   await env.DB.prepare("INSERT INTO opens (report_id, version, at) VALUES (?1, ?2, ?3)").bind(id, r.version, now).run();
-  const url = await signedURL(env.VIEW_ORIGIN, id, env.SIGNING_KEY, Math.floor(now / 1000));
+  // 開いた時点の中身（D1 が指す sha256）に結び付けた URL を返す
+  const url = await signedURL(env.VIEW_ORIGIN, objectKey(id, r.sha256), env.SIGNING_KEY, Math.floor(now / 1000));
   return json({ url, version: r.version, content_type: r.content_type, title: r.title });
 }
 

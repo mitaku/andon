@@ -12,7 +12,7 @@
 import pkg from "../../package.json";
 import type { UploadEnv } from "./env";
 import { error, json, randomHex, sha256Hex } from "./http";
-import { decodeHeader, decodeName, segments } from "./names";
+import { decodeHeader, decodeName, objectKey, segments } from "./names";
 
 export const MAX_BYTES = 20 * 1024 * 1024;
 export const KINDS = ["publish", "digest", "report"] as const;
@@ -57,14 +57,12 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ id: string; sha256: string; version: number }>();
   if (!cur) return error(500, "internal", "報告の行を作れない");
   const url = `${env.LIST_ORIGIN}/r/${cur.id}`;
-  // 中身が同じ出し直しはバージョンを上げない（読み終えた物を未読に戻さない）。同じ名前への上げが重なると、D1 の sha256 と
-  // R2 の中身が食い違って残りうるので、R2 の中身の sha256 も合うときだけ飛ばす（出し直しで食い違いが直る）
-  if (cur.version > 0 && cur.sha256 === want && (await env.BUCKET.head(cur.id))?.customMetadata?.sha256 === want) {
-    return json({ url, version: cur.version, bumped: false });
-  }
+  // 中身が同じ出し直しはバージョンを上げない（読み終えた物を未読に戻さない）
+  if (cur.version > 0 && cur.sha256 === want) return json({ url, version: cur.version, bumped: false });
 
-  // R2 を先に書き、あとで D1 のバージョンを上げる（中身の無いバージョンを一覧に出さない）
-  await env.BUCKET.put(cur.id, body, { httpMetadata: { contentType }, customMetadata: { sha256: want } });
+  // R2 は中身ごとのキー（<id>/<sha256>）に先に書き、あとで D1 の sha256 とバージョンを1つの文で切り替える。同じ名前への上げが
+  // 重なっても、D1 が指す sha256 の中身は R2 に必ず在り、タイトルや形式と食い違わない。前の中身は消さない（決めたこと 21）
+  await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
   const up = await env.DB.prepare(
     `UPDATE reports SET version = version + 1, sha256 = ?2, title = ?3, kind = ?4, content_type = ?5, size = ?6, updated_at = ?7
      WHERE id = ?1 RETURNING version`,

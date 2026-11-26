@@ -2,8 +2,11 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import contract from "../contract/upload-v1.json";
+import { sha256Hex } from "../src/lib/http";
+import { listAPI } from "../src/lib/list-api";
+import { viewFace } from "../src/lib/view-face";
 import upload from "../src/upload";
-import { putKey, putRequest, UPLOAD_ORIGIN, uploadEnv } from "./helpers";
+import { LIST_ORIGIN, listEnv, putKey, putRequest, UPLOAD_ORIGIN, uploadEnv, viewEnv } from "./helpers";
 
 async function send(req: Request) {
   const res = await upload.fetch(req, uploadEnv());
@@ -87,7 +90,7 @@ describe("鍵（受け入れ条件 11）", () => {
       ["c2", 1],
     ]);
     const c1 = got.find((r) => r.cell === "c1");
-    expect(await (await env.BUCKET.get(c1?.id ?? ""))?.text()).toBe("c1 の中身");
+    expect(await (await env.BUCKET.get(`${c1?.id}/${c1?.sha256}`))?.text()).toBe("c1 の中身");
   });
 });
 
@@ -106,18 +109,72 @@ describe("バージョン", () => {
     expect(ups.results.map((u) => u.version)).toEqual([1, 2]);
   });
 
-  it("同じ名前への2つの上げが重なって R2 と D1 が食い違っても、出し直しで R2 の中身が直る", async () => {
+  it("同じ名前へ違う中身を並行に上げても、開いて読む中身は D1 が記録した中身と同じ", async () => {
     const key = "tray_race00000000000000";
     await putKey("c1", key);
-    const first = await send(await putRequest({ name: "race", body: "A", key }));
-    const id = String(first.body.url).split("/").pop() as string;
-    // 重なりの結果: R2 は後から書いた B、D1 は先に更新を終えた A を持つ
-    const b = new TextEncoder().encode("B");
-    const bsha = [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
-    await env.BUCKET.put(id, b, { customMetadata: { sha256: bsha } });
-    const again = await send(await putRequest({ name: "race", body: "A", key }));
-    expect(again.body.bumped).toBe(true);
-    expect(await (await env.BUCKET.get(id))?.text()).toBe("A");
+    // 食い違いが残る順を作る: A の R2 の書き込み → B の R2 の書き込みと D1 の更新 → A の D1 の更新。
+    // R2 と D1 の口を包み、A の書き込みが終わったら B を送り、A の更新は B の更新が終わるまで待たせる
+    const shaA = await sha256Hex("# A");
+    const shaB = await sha256Hex("# B");
+    let aPut!: () => void;
+    let bUpdated!: () => void;
+    const aPutDone = new Promise<void>((ok) => (aPut = ok));
+    const bUpdateDone = new Promise<void>((ok) => (bUpdated = ok));
+    const bucket = new Proxy(env.BUCKET, {
+      get(target, prop) {
+        if (prop !== "put") return Reflect.get(target, prop).bind(target);
+        return async (k: string, value: ArrayBuffer, opts?: R2PutOptions) => {
+          const r = await target.put(k, value, opts);
+          if (new TextDecoder().decode(value) === "# A") aPut();
+          return r;
+        };
+      },
+    });
+    const db = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop !== "prepare") return Reflect.get(target, prop).bind(target);
+        return (sql: string) => {
+          const stmt = target.prepare(sql);
+          if (!sql.startsWith("UPDATE reports SET version")) return stmt;
+          return {
+            bind: (...args: unknown[]) => {
+              const bound = stmt.bind(...args);
+              return {
+                first: async <T>() => {
+                  if (args[1] === shaA) await bUpdateDone;
+                  const r = await bound.first<T>();
+                  if (args[1] === shaB) bUpdated();
+                  return r;
+                },
+              };
+            },
+          };
+        };
+      },
+    });
+    const racing = { ...uploadEnv(), DB: db, BUCKET: bucket };
+    const sendRacing = async (body: string) => {
+      const res = await upload.fetch(await putRequest({ name: "race", title: body.slice(2), body, key }), racing);
+      return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+    };
+    const a = sendRacing("# A");
+    await aPutDone;
+    const [ra, rb] = await Promise.all([a, sendRacing("# B")]);
+    expect([ra.status, rb.status]).toEqual([200, 200]);
+
+    const id = String(ra.body.url).split("/").pop() as string;
+    const row = await env.DB.prepare("SELECT sha256, title FROM reports WHERE id = ?1").bind(id).first<{ sha256: string; title: string }>();
+    expect([row?.title, row?.sha256]).toEqual(["A", shaA]);
+    const open = await listAPI(
+      new Request(`${LIST_ORIGIN}/api/reports/${id}/open`, { method: "POST", headers: { Origin: LIST_ORIGIN } }),
+      listEnv(),
+    );
+    const { url } = (await open.json()) as { url: string };
+    const page = await (await viewFace(new Request(url), viewEnv())).text();
+    expect(page, "D1 は A を記録したのに、読めた中身が違う").toContain("<h1>A</h1>");
+    // 同じ中身の出し直しは、読めている中身のまま上げない
+    const again = await send(await putRequest({ name: "race", title: "A", body: "# A", key }));
+    expect(again.body.bumped).toBe(false);
   });
 });
 
