@@ -159,12 +159,29 @@ func (l *Ledger) Log() []Row {
 // ReadLog は Log と同じく log.jsonl を読み、ファイルを開けない・読み切れないときは読めたところまでと err を返す
 // （空の kanban と、読めなかった kanban を分けたい呼び手のため）。
 func (l *Ledger) ReadLog() ([]Row, error) {
+	rows, _, err := l.readLog()
+	return rows, err
+}
+
+// ErrBadRow は、log.jsonl に JSON として読めない行があったこと（ReadWholeLog）。
+var ErrBadRow = errors.New("log.jsonl に読めない行がある")
+
+// ReadWholeLog は ReadLog と同じ行を返し、JSON として読めない行（空行は除く）があれば ErrBadRow も返す。行を飛ばした履歴で
+// 書き手の照合を言い切りたくない呼び手のため（Chief of Staff の交代の行が抜けると、交代のあとの前の端末を Chief of Staff と読む）。
+func (l *Ledger) ReadWholeLog() ([]Row, error) {
+	rows, bad, err := l.readLog()
+	if err == nil && bad > 0 {
+		err = fmt.Errorf("%w（%d 行）", ErrBadRow, bad)
+	}
+	return rows, err
+}
+
+func (l *Ledger) readLog() (rows []Row, bad int, err error) {
 	f, err := os.Open(filepath.Join(l.Dir, "log.jsonl"))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
-	var rows []Row
 	s := bufio.NewScanner(f)
 	s.Buffer(make([]byte, 64<<10), 16<<20)
 	for s.Scan() {
@@ -172,9 +189,11 @@ func (l *Ledger) ReadLog() ([]Row, error) {
 		if json.Unmarshal(s.Bytes(), &r) == nil {
 			r.ID = CanonID(r.ID)
 			rows = append(rows, r)
+		} else if len(bytes.TrimSpace(s.Bytes())) > 0 {
+			bad++
 		}
 	}
-	return rows, s.Err()
+	return rows, bad, s.Err()
 }
 
 // TakenByChiefOfStaff は、課題 id の agent を agent に書いた最後の行が、その時点の Chief of Staff の端末だったときに書かれたか

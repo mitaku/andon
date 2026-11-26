@@ -134,6 +134,38 @@ func TestWaitedGone(t *testing.T) {
 	}
 }
 
+// kanban の履歴に JSON として壊れた行があれば、その巡は読み切れなかったと数える。壊れた行が Chief of Staff の交代
+// （t5 → t9）で、交代のあとに前の端末 t5 が report を書いた課題は、照合できないので「確かめられない」に入れる（やめの見分けを
+// 止めない・報告の課題とも信じない）。壊れた行の無い履歴は読み切れたと数える
+func TestLoadLogBadRow(t *testing.T) {
+	p := routeProject(t)
+	os.WriteFile(filepath.Join(p.l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t9\n"), 0o644)
+	p.tasks = append(p.tasks, ledger.Issue{"id": "E-0051", "status": "done", "profile": "claude", "repo": "github.com/example/app", "deliverable": "report"})
+	os.MkdirAll(p.l.Library("E-0051"), 0o755)
+	os.WriteFile(filepath.Join(p.l.Library("E-0051"), "outcome.json"), []byte(`{"result":"none"}`), 0o644)
+	logf := filepath.Join(p.l.Dir, "log.jsonl")
+	good := `{"by":"andon","config":{"chief_of_staff":"t5"}}` + "\n"
+	set := `{"by":"terminal:t5","id":"E-0051","change":{"deliverable":"report"}}` + "\n"
+	os.WriteFile(logf, []byte(good+`{"by":"andon","config":{"chief_of_staff":"t9"`+"\n"+set), 0o644)
+	p.loadLog()
+	if p.rowsErr == nil || len(p.rows) != 2 {
+		t.Fatalf("壊れた行のある履歴: rows %d err %v", len(p.rows), p.rowsErr)
+	}
+	a := ledger.Issue{"id": "E-0100", "status": "todo", "after": []any{"E-0051"}}
+	if gone, unsure := p.waitedGone(a); gone != nil || !slices.Equal(unsure, []string{"E-0051"}) {
+		t.Errorf("壊れた行のある履歴: gone %v unsure %v", gone, unsure)
+	}
+	os.WriteFile(logf, []byte(good+"\n"+set), 0o644)
+	p.loadLog()
+	if p.rowsErr != nil || len(p.rows) != 2 {
+		t.Fatalf("空行だけの履歴: rows %d err %v", len(p.rows), p.rowsErr)
+	}
+	os.Remove(logf)
+	if p.loadLog(); p.rowsErr != nil || p.rows != nil {
+		t.Fatalf("履歴が無い kanban: rows %v err %v", p.rows, p.rowsErr)
+	}
+}
+
 func TestReadyLine(t *testing.T) {
 	cases := []struct {
 		detail map[string]any
