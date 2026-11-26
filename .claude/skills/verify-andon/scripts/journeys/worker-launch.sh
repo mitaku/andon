@@ -37,9 +37,14 @@ else
       else fail "wl-settings: $id の依頼書の ## Settings 欄が予約キーの写しでない（start --dry-run が書き直す）"; fi
     done < <(since "$kb/log.jsonl" | jq -r 'select(.change.add) | .id' | sort -u)
   done
-  if [ "$fails" = "$sfails" ]; then
+  # ok は、--dry-run の確かめと、起動前の課題の依頼書との比べの両方を通したときだけ。どちらかを打てなければ note だけで未確認にする
+  if [ "$fails" != "$sfails" ]; then :
+  elif [ -z "$kb0" ]; then
+    echo "note wl-settings: セルにプロジェクトの kanban が無く、create --dry-run の欄と次の1手を確かめられない。wl-settings は未確認"
+  elif [ "$ncmp" = 0 ]; then
+    echo "note wl-settings: create は予約キーでないキーを断り、--dry-run で欄と次の1手を出したが、比べられる課題（当てたあとに足し、起動前で、そのあと予約キーを書き直していない）が無く、依頼書の欄は確かめていない。wl-settings は未確認。Chief of Staff が andon issue create で課題を足したあとで打ち直す"
+  else
     ok "wl-settings: andon issue create は予約キーでないキーを断り、--dry-run で欄と次の1手を出す。当てたあとに足した起動前の課題 $ncmp 件の依頼書は予約キーの写し"
-    [ "$ncmp" -gt 0 ] || echo "note wl-settings: 比べられる課題（当てたあとに足し、起動前で、そのあと予約キーを書き直していない）が無かった。Chief of Staff が andon issue create で課題を足したあとで打ち直すと、依頼書の欄も確かめられる"
   fi
 fi
 

@@ -829,6 +829,31 @@ if [ "$self" = true ]; then
     || die "drive.sh: 名指した wl-record が ok なのに 0 で終わらないか、名指さない wl-resume の未確認を補いとして出さない（$drc）: $dout"
   drive worker-launch "$new" wl-record,wl-resume
   [ "$drc" = 3 ] && grep -qF '名指したうち未確認: wl-resume' <<<"$dout" || die "drive.sh: 名指した wl-resume が未確認なのに 3 で終わらない（$drc）: $dout"
+  # wl-settings は、create --dry-run の確かめと起動前の課題の依頼書の比べの両方を通したときだけ ok。当てたパッケージの andon が無い回と、
+  # 比べられる課題が無い回は note だけで、名指せば 3（未確認）。偽の andon は create の2つの打ち方と start --dry-run --json に答える
+  drive worker-launch "$new" wl-record,wl-settings
+  [ "$drc" = 3 ] && grep -qF '名指したうち未確認: wl-settings' <<<"$dout" && ! grep -q '^ok   wl-settings' <<<"$dout" \
+    || die "drive.sh: 当てたパッケージの andon が無いのに wl-settings を未確認にしない（$drc）: $dout"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'case "$*" in' \
+    '  *who=person*) echo "who は andon issue create が受ける予約キーでない" >&2; exit 1 ;;' \
+    "  'issue create'*) printf '%s\\n' '# verify' '' '## Settings' '- Review: off' '- Estimate: 小' \"andon issue create: 次: kanban set <足した id> 'profile=<名前>' を打ってから andon issue start <足した id>\" ;;" \
+    '  "issue start "*) jq -n --rawfile b "$KANBAN_ROOT/kanban/issues/$3/brief.md" "{brief: \$b}" ;;' \
+    'esac' >"$c/pkg/bin/andon"
+  chmod +x "$c/pkg/bin/andon"
+  drive worker-launch "$new" wl-record,wl-settings
+  [ "$drc" = 3 ] && grep -qF '依頼書の欄は確かめていない' <<<"$dout" && ! grep -q '^ok   wl-settings' <<<"$dout" \
+    || die "drive.sh: 比べられる課題が無いのに wl-settings を未確認にしない（$drc）: $dout"
+  vk=$c/ws/projects/v/kanban; mkdir -p "$vk/issues/V-0009"
+  printf 'id: V-0009\nstatus: todo\n' >"$vk/issues/V-0009/issue.yaml"
+  printf '# x\n\n## Settings\n- Review: off\n- Estimate: 小\n' >"$vk/issues/V-0009/brief.md"
+  printf '%s\n' '{"at": "2026-01-01T00:12:30Z", "by": "terminal:t2", "id": "V-0009", "change": {"add": "x"}}' \
+    '{"at": "2026-01-01T00:12:31Z", "by": "terminal:t2", "id": "V-0009", "change": {"review": "off", "estimate": "small"}}' >"$vk/log.jsonl"
+  drive worker-launch "$new" wl-record,wl-settings
+  [ "$drc" = 0 ] && grep -qF 'ok   wl-settings' <<<"$dout" && grep -qF '起動前の課題 1 件' <<<"$dout" \
+    || die "drive.sh: create の確かめと依頼書の比べを通したのに wl-settings が ok でない（$drc）: $dout"
+  rm -rf "$c/pkg/bin/andon" "$vk/issues/V-0009" "$vk/log.jsonl" # 後の場面が偽の andon と課題を拾わない
+  ok "verify-andon: wl-settings は create の確かめと依頼書の比べを両方通したときだけ ok で、andon が無いか比べる課題が無ければ名指して 3"
   drive worker-launch "$new" "wl-record gt-route"
   [ "$drc" = 0 ] && grep -qF '別の機能の gt-route は数えない' <<<"$dout" || die "drive.sh: 別の機能の細かい機能を名指しに数える（$drc）: $dout"
   # 名指しが別の機能か外で見るものだけ: 決める細かい機能が無く、補いの wl-resume の未確認で 3 にしない（Verify-features: wl-first-turn の範囲の形）
