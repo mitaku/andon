@@ -56,6 +56,10 @@
 | go が mise の shim のとき、`tests/isolation` は「番兵に書いた」で誤って落ちる。`PATH="$(dirname "$(mise which go)"):$PATH" tests/isolation …` と実体を先頭に置いて回す。 | 無し。job isolation の runner に mise は無く、手元でどの go で回したかを見るものが無い。 |
 | `tests/andon-dispatcher.sh` の merge・settle の見張りの時刻は `freeze` が止める。直に打つ口を足すときは先に `freeze` を呼び、聞き直させたい課題だけ `mpoll`・`watch_due` で due にする。 | `tests/andon-dispatcher.sh`。`freeze` を呼ばずに打つと時刻が進み、後の場面の問い合わせの数の検査が落ちる。 |
 | `internal/chiefofstaff` の `TestChiefOfStaffForegroundUnknown` と `internal/dispatcher` の `TestRewakeSkipsWhenNoLongerStopped` は、`tests/run` と `go test ./...` を並べるなど負荷の下で揺れる。落ちたら単独で回し直す。 | 無し。負荷で揺れるので見るものが無い。 |
+| 時刻で待つ Go の検査が負荷で揺れるときは、偽の `hc` の起動時間が待ちの幅を食っていることが多い。順を時刻でなく、ファイルが書かれた・n 回目の答え、の条件で決める。 | 無し。揺れの直し方の手順で、見るものが無い。 |
+| 依頼書の `-count=200` は `go test` の既定の 10 分に収まるかを先に見積もる。 | 無し。見積もりの手順で、見るものが無い。 |
+| `spawn.Look` は Unsure のあいだ上限まで読み直す。読み直しの確かめは 2 回目を Running にした場面で、上限で止まる確かめは `SettleWait = 0` で書く。 | 無し。検査の書き方の決まりで、見るものが無い。 |
+| 実装が `time.Sleep` で待つ間に起きることを検査するときは、待ちを `var` に出して検査が差し替え、待ちの中で変化を打つ。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | この表の「守らせるもの」の列は、repo に在るパスを名指す。無いものを名指さない。 | 無し。書き方の決まり。 |
 
 ## 約束と文書
