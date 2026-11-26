@@ -4,7 +4,7 @@
 // tests/kanban.sh runs it: DECK_BIN=<path to a kanban executable> node tests/kanban/test-deck.mjs
 // Without DECK_BIN it looks for bin/kanban (bin/kanban.exe on Windows) at the repo root. Uses a temporary folder only.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -356,6 +356,27 @@ try {
     check("an unreadable config.yaml beside the only project is a second project",
       two.code === 1 && two.err.includes("projects/broken") && two.err.includes("projects/solo"), two.out + two.err);
     rmSync(join(one, "projects", "broken"), { recursive: true });
+    // nor is one whose kanban/ cannot be searched (an error in the walk is not "no project there")
+    const hidden = join(one, "projects", "hidden", "kanban");
+    mkdirSync(hidden, { recursive: true });
+    writeFileSync(join(hidden, "config.yaml"), "version: 3\n");
+    chmodSync(hidden, 0o000);
+    try {
+      const shut = run(["root"], { cwd: one });
+      check("a kanban/ that cannot be searched beside the only project is a second project",
+        shut.code === 1 && shut.err.includes("projects/hidden") && shut.err.includes("projects/solo"), shut.out + shut.err);
+    } finally {
+      chmodSync(hidden, 0o755);
+      rmSync(join(one, "projects", "hidden"), { recursive: true });
+    }
+    // a projects/ that cannot be listed is an error, not "no project here"
+    chmodSync(join(one, "projects"), 0o000);
+    try {
+      const unlisted = run(["root"], { cwd: one });
+      check("a projects/ that cannot be listed is an error", unlisted.code === 1 && unlisted.err.includes("cannot list"), unlisted.out + unlisted.err);
+    } finally {
+      chmodSync(join(one, "projects"), 0o755);
+    }
     // like git, the last step does not look at or above a folder in $GIT_CEILING_DIRECTORIES (the tests fence the cell off with it)
     // keep the ceiling the tests already set, or git (the earlier steps) finds the repository the tests run in
     const keep = process.env.GIT_CEILING_DIRECTORIES ? `:${process.env.GIT_CEILING_DIRECTORIES}` : "";

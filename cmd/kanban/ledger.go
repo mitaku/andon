@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math/rand/v2"
 	"os"
 	"os/exec"
@@ -190,7 +191,9 @@ func findRoot(cwd string) (string, error) {
 			return "", fail("this repository is in more than one project under %s: %s (set KANBAN_ROOT)", at, strings.Join(names, ", "))
 		}
 	}
-	if at, found := onlyProject(cwd); len(found) == 1 {
+	if at, found, err := onlyProject(cwd); err != nil {
+		return "", fail("no ledger here, and %v (set KANBAN_ROOT, or work in one of the projects)", err)
+	} else if len(found) == 1 {
 		return found[0], nil
 	} else if len(found) > 1 {
 		names := make([]string, len(found))
@@ -204,7 +207,7 @@ func findRoot(cwd string) (string, error) {
 
 // onlyProject: the ledgers of projects/*/ in the nearest folder at or above dir that holds any
 // (docs/ledger.md, Finding the root, the last step). One of them is the root.
-func onlyProject(dir string) (string, []string) {
+func onlyProject(dir string) (string, []string, error) {
 	// Like git, do not look at or above a folder in $GIT_CEILING_DIRECTORIES (the tests fence the cell off with it).
 	ceiling := map[string]bool{}
 	for _, c := range filepath.SplitList(os.Getenv("GIT_CEILING_DIRECTORIES")) {
@@ -219,24 +222,43 @@ func onlyProject(dir string) (string, []string) {
 		dir = r
 	}
 	for d := filepath.Clean(dir); !ceiling[d]; d = filepath.Dir(d) {
-		configs, _ := filepath.Glob(filepath.Join(d, "projects", "*", ledgerName, "config.yaml"))
-		var found []string
-		for _, c := range configs {
-			// A config.yaml that cannot be read or parsed still names a project: leaving it out would take its
-			// neighbour for the only one and write there. A readable one without a version is a draft, not a ledger.
-			root := filepath.Dir(filepath.Dir(c))
-			if cfg, err := ledger.ReadConfig(ledgerDir(root)); err != nil || cfg.IntVersion {
-				found = append(found, root)
-			}
-		}
-		if len(found) > 0 {
-			return d, found
+		found, err := projectsIn(filepath.Join(d, "projects"))
+		if err != nil || len(found) > 0 {
+			return d, found, err
 		}
 		if filepath.Dir(d) == d {
-			return "", nil
+			return "", nil, nil
 		}
 	}
-	return "", nil
+	return "", nil, nil
+}
+
+// projectsIn: the projects of one projects/ folder. Anything that cannot be searched or read still names a
+// project: leaving it out would take its neighbour for the only one and write there. Only a project that is
+// plainly not there (no kanban/config.yaml) or a readable config.yaml without a version (a draft) is left out.
+// A projects/ that cannot be listed is an error, never "no project".
+func projectsIn(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("cannot list %s: %w", dir, err)
+	}
+	var found []string
+	for _, e := range entries {
+		root := filepath.Join(dir, e.Name())
+		if st, err := os.Stat(root); err == nil && !st.IsDir() || errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(ledgerDir(root), "config.yaml")); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if cfg, err := ledger.ReadConfig(ledgerDir(root)); err != nil || cfg.IntVersion {
+			found = append(found, root)
+		}
+	}
+	return found, nil
 }
 
 // writeAtomic writes a temporary file beside the target and renames it over the target

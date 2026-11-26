@@ -78,7 +78,7 @@ From a working folder, in order:
    - One match: that ledger.
    - More than one: an error that names them; set `$KANBAN_ROOT`.
    - None, up to the top: go on to 4.
-4. **The only project.** Walk up from the working folder. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2), whatever its `repos`. A `config.yaml` that cannot be read or parsed counts too, so a broken neighbour is never taken for the only project; a readable one without a `version` does not. Like git, it does not look at or above a folder named in `$GIT_CEILING_DIRECTORIES` (the tests fence the cell off with it). Stop at the first folder that holds any ([ADR-0053](adr/0053-command-system.md) decision 20).
+4. **The only project.** Walk up from the working folder. At each folder, look at every `projects/*/kanban/config.yaml` (with a `version`, as in 2), whatever its `repos`. A project whose `kanban/` cannot be searched, or whose `config.yaml` cannot be read or parsed, counts too, so a broken neighbour is never taken for the only project; a readable `config.yaml` without a `version` does not. A `projects/` that cannot be listed is an error. Like git, it does not look at or above a folder named in `$GIT_CEILING_DIRECTORIES` (the tests fence the cell off with it). Stop at the first folder that holds any ([ADR-0053](adr/0053-command-system.md) decision 20).
    - One: that ledger. On a yard with one project, every folder in it finds that project (the yard's own root, say).
    - More than one: an error that names them; set `$KANBAN_ROOT`, or work in one of them.
    - None, up to the top: there is no ledger.
