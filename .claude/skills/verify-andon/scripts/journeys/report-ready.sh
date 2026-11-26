@@ -66,7 +66,13 @@ step "rr-ready-report: 担当が書いた report で pr の無い報告の ready
   || { grep -q -- '--pr' "$tmp/step.out" && grep -q 'Chief of Staff でない' "$tmp/step.out" \
     && ok "rr-ready-report: 担当が書いた report は PR の課題として --pr を案内し、外れた理由を添える" \
     || fail "rr-ready-report: 担当が書いた report の ready が --pr を案内しないか、外れた理由を添えない"; }
-HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=pr >/dev/null
+step "rr-ready-report: 担当が書いた report で pr の無い報告に gate を打つ" "$andon" gate "$id" \
+  && fail "rr-ready-report: 担当が report を書いた課題で pr が無いのに gate が通った" \
+  || { grep -q 'report.json に pr が無い' "$tmp/step.out" && grep -q 'Chief of Staff でない' "$tmp/step.out" && [ ! -e "$lib/gate" ] \
+    && ok "rr-ready-report: 担当が書いた report は、手で打った gate も PR の課題として pr を求める fix を返し、外れた理由を添える（記録は書かない）" \
+    || fail "rr-ready-report: 担当が書いた report の gate が pr を求めないか、外れた理由を添えないか、記録を書いた"; }
+# この先は Chief of Staff が書いた報告の課題のまま、pr のある報告で rr-ready を通す（pr があれば PR の課題と同じ確かめ）
+HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null
 jq --arg pr "$pr" '.pr = $pr' "$lib/report.json" >"$tmp/rep.new" && mv "$tmp/rep.new" "$lib/report.json"
 step "rr-report: ほかの課題の PR が入った報告を、--pr を付けずに書き直す" "$andon" issue report "$id" <<<"## Report" \
   && grep -q 'この課題の PR でないので引き継がない' "$tmp/step.out" && jq -e '(.pr // "") == ""' "$lib/report.json" >/dev/null \
@@ -108,12 +114,12 @@ step "rr-acceptance: 予約キー acceptance=1,2 で ready を打つ（報告の
     || fail "rr-acceptance: 断る理由が番号 2 だけでないか、status が動いた"; }
 HC_TERMINAL_ID=tc "$kanban" set "$id" acceptance=1 >/dev/null
 
-# rr-ready: ready で review へ進む
+# rr-ready: ready で review へ進む。課題は Chief of Staff が deliverable=report を書いた報告の課題で、pr があるので PR の課題と同じ確かめを通る
 step "rr-ready: ready を打つ" "$andon" issue ready "$id" \
   && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = review ] \
   && ok "rr-ready: ready が通り、課題が review に入る" \
   || fail "rr-ready: ready が通らないか、status が review でない"
-"$kanban" show "$id" --json | jq -c '.issue | {id, status, review, merge, acceptance}' | sed 's/^/  kanban show: /'
+"$kanban" show "$id" --json | jq -c '.issue | {id, status, review, merge, acceptance, deliverable}' | sed 's/^/  kanban show: /'
 jq -c --arg id "$id" 'select(.id == $id and .change.status) | {by, change}' "$tmp/project/kanban/log.jsonl" | sed 's/^/  log.jsonl: /'
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"

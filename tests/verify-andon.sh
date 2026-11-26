@@ -752,6 +752,9 @@ if [ "$self" = true ]; then
     case ${2:-} in
       before) KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null ;;
       worker) KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" set "$id" deliverable=report >/dev/null ;;
+      restart) # Chief of Staff が書いたあと起き直して端末が替わる（書いた時点の Chief of Staff と比べるので、まだ報告の課題）
+        KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null
+        KANBAN_ROOT=$g HC_TERMINAL_ID=tz "$kanban" config set chief_of_staff=tz >/dev/null ;;
     esac
     KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null
     mkdir -p "$g/kanban/issues/$id/library"
@@ -773,14 +776,16 @@ if [ "$self" = true ]; then
   # 報告の課題（Chief of Staff が review の前に deliverable=report を書いた）は、自分の commit があっても数える（ADR-0066 受け入れ条件 9）。
   # review のあとに書いた印と、担当が書いた report では数えない（印の無い間に正しく fix を受けた行を、あとから書いた印で数えない）
   ssetup false before; journey gate
-  [ "$jrc" = 3 ] && grep -qF 'ok   gt-skip' <<<"$jout" && grep -qF '報告の課題' <<<"$jout" || die "gate: 自分の commit のある報告の課題が review のままなのに gt-skip が ok でない（$jrc）: $jout"
+  [ "$jrc" = 3 ] && grep -qF 'ok   gt-skip' <<<"$jout" && grep -qF '報告の課題（commit' <<<"$jout" || die "gate: 自分の commit のある報告の課題が review のままなのに gt-skip が ok でない（$jrc）: $jout"
   ssetup true before; journey gate
   [ "$jrc" = 1 ] && grep -qF 'FAIL gt-skip' <<<"$jout" || die "gate: 自分の commit のある報告の課題を review のあと担当が doing に戻したのに gt-skip が落ちない（$jrc）: $jout"
   ssetup true after; journey gate
   [ "$jrc" = 3 ] && grep -qF 'note gt-skip' <<<"$jout" || die "gate: review のあとに書いた report の印で、前の review の行を数えた（$jrc）: $jout"
   ssetup true worker; journey gate
   [ "$jrc" = 3 ] && grep -qF 'note gt-skip' <<<"$jout" || die "gate: 担当が書いた report の課題を gt-skip が報告の課題と数えた（$jrc）: $jout"
-  ok "verify-andon: gate の gt-skip は、Chief of Staff が review の前に report を書いた課題を commit を見ずに数え、review のあとに書いた印と担当が書いた印では数えない"
+  ssetup false restart; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'ok   gt-skip' <<<"$jout" && grep -qF '報告の課題（commit' <<<"$jout" || die "gate: report を書いたあと Chief of Staff が起き直した課題を gt-skip が報告の課題と数えない（$jrc）: $jout"
+  ok "verify-andon: gate の gt-skip は、Chief of Staff が review の前に report を書いた課題を commit を見ずに数え（起き直したあとも）、review のあとに書いた印と担当が書いた印では数えない"
 
   # drive.sh は検証する commit を省けない。検証の途中で次の commit が当たったあと、省いて打つと新しい commit の間を読み、
   # 検証する commit の出来事を見ずに未確認や誤りになっていた。偽のセルで、drive.sh を利用者と同じく通しで打つ
