@@ -281,6 +281,7 @@ np=$(nproc)
 cpus() { ANDON_CPU_MAX="$1" bash tests/lib/cpus.sh; }
 printf '800000 100000\n' >"$tmp/cpu8"; [ "$(cpus "$tmp/cpu8")" = 8 ] || die "cpu.max 800000 100000 で 8 にならない: $(cpus "$tmp/cpu8")"
 printf '150000 100000\n' >"$tmp/cpu2"; [ "$(cpus "$tmp/cpu2")" = 2 ] || die "cpu.max 150000 100000 で 2（切り上げ）にならない: $(cpus "$tmp/cpu2")"
+printf '120000 100000\n' >"$tmp/cpu12"; [ "$(cpus "$tmp/cpu12")" = 2 ] || die "cpu.max 120000 100000 で 2（四捨五入でなく切り上げ）にならない: $(cpus "$tmp/cpu12")"
 printf '1000 100000\n' >"$tmp/cpu1"; [ "$(cpus "$tmp/cpu1")" = 1 ] || die "cpu.max 1000 100000 で 1 にならない: $(cpus "$tmp/cpu1")"
 printf 'max 100000\n' >"$tmp/cpumax"; [ "$(cpus "$tmp/cpumax")" = "$np" ] || die "cpu.max max で nproc（$np）にならない: $(cpus "$tmp/cpumax")"
 [ "$(cpus "$tmp/no-such")" = "$np" ] || die "cpu.max が無いとき nproc（$np）にならない: $(cpus "$tmp/no-such")"
@@ -288,7 +289,7 @@ mkdir "$tmp/cpudir"; [ "$(cpus "$tmp/cpudir")" = "$np" ] || die "cpu.max が読�
 # run-tests は ANDON_TEST_JOBS が無ければ cpus.sh の数、あればそちら。schema.sh も同じ決め方を使う
 printf 'exit 0\n' >"$tmp/e.sh"
 printf '300000 100000\n' >"$tmp/cpu3"
-ANDON_CPU_MAX="$tmp/cpu3" GITHUB_ACTIONS=false GITHUB_STEP_SUMMARY="$tmp/sum3" bash tests/lib/run-tests.sh "$tmp/e.sh" >/dev/null
+env -u ANDON_TEST_JOBS ANDON_CPU_MAX="$tmp/cpu3" GITHUB_ACTIONS=false GITHUB_STEP_SUMMARY="$tmp/sum3" bash tests/lib/run-tests.sh "$tmp/e.sh" >/dev/null
 grep -q '（並べる数 3）' "$tmp/sum3" || die "ANDON_TEST_JOBS が無いのに cpu.max の数で並べない: $(cat "$tmp/sum3")"
 ANDON_TEST_JOBS=5 ANDON_CPU_MAX="$tmp/cpu3" GITHUB_ACTIONS=false GITHUB_STEP_SUMMARY="$tmp/sum5" bash tests/lib/run-tests.sh "$tmp/e.sh" >/dev/null
 grep -q '（並べる数 5）' "$tmp/sum5" || die "ANDON_TEST_JOBS が cpu.max に勝たない: $(cat "$tmp/sum5")"
@@ -305,7 +306,7 @@ ok "cpus: 並べる数の既定は cpu.max から（8・2・1、max・無い・�
 r="$tmp/run"
 mkdir -p "$r/tests/lib"
 cp tests/run "$r/tests/run"
-cp tests/lib/run-tests.sh "$r/tests/lib/run-tests.sh"
+cp tests/lib/run-tests.sh tests/lib/cpus.sh "$r/tests/lib/"
 cat >"$r/tests/x.sh" <<'EOF'
 d=$RUN_DIR
 echo "start $RUN_ID" >>"$d/log"
