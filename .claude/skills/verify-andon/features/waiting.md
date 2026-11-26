@@ -54,6 +54,8 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - `schema/question.schema.json`
 - `schema/issue-keys.schema.json`
 - `internal/ledger/ledger.go`
+- `internal/cli/cli.go`
+- `internal/cli/leaves.go`
 
 ## 既に見ている検査
 
