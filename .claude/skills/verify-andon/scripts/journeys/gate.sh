@@ -69,7 +69,7 @@ skipped=0 f0=$fails
 for k in "$ws"/projects/*/kanban; do
   [ -f "$k/log.jsonl" ] || continue
   slug=${k%/kanban}; slug=${slug##*/}
-  cos=$(sed -n 's/^chief_of_staff: *//p' "$k/config.yaml" 2>/dev/null | tr -d '"'"'"' | sed -n 1p)
+  cos=$(sed -n 's/^chief_of_staff: *//p' "$k/config.yaml" 2>/dev/null | tr -d "\"'" | sed -n 1p)
   rows=$(jq -c -n '[inputs] | to_entries[] | select(.value.change.status) | .value + {row: (.key + 1)}' "$k/log.jsonl")
   while IFS=$'\t' read -r id row by; do
     rep=$k/issues/$id/library/report.json
