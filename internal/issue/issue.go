@@ -201,15 +201,32 @@ func readMarkdown(stdin io.Reader) (string, error) {
 }
 
 // reportHeadingRe は人が読む報告の見出し「## Report」の行（worker skill §7 の書式。どの役の書式も持つ）。
-var reportHeadingRe = regexp.MustCompile(`(?m)^##[ \t]+Report[ \t]*\r?$`)
+var reportHeadingRe = regexp.MustCompile(`^##[ \t]+Report[ \t]*$`)
+
+// fenceRe はコードフェンスの行（行頭の空白 3 つまでと、``` か ~~~ を 3 つ以上）。
+var fenceRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
 
 // checkReportHeading は、見出し「## Report」の行を持たない Markdown を断る。前の報告を sed などで切り出して
-// 書き直すと、本文が消えて PR の行だけが残ることがある。その報告で kanban の報告を置き換えると、人が読む本文が無くなる
+// 書き直すと、本文が消えて PR の行だけが残ることがある。その報告で kanban の報告を置き換えると、人が読む本文が無くなる。
+// コードフェンスの中の行は見出しでないので数えない（閉じないフェンスは終わりまで続く）
 func checkReportHeading(md string) error {
-	if !reportHeadingRe.MatchString(md) {
-		return fail("人が読む報告（Markdown）に見出し「## Report」の行が無い。本文が消えていないか確かめ、報告の全体を stdin で渡す（worker skill §7 の書式）")
+	fence := ""
+	for _, line := range strings.Split(md, "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		if m := fenceRe.FindStringSubmatch(line); m != nil {
+			switch {
+			case fence == "":
+				fence = m[1]
+			case m[1][0] == fence[0] && len(m[1]) >= len(fence) && strings.TrimSpace(line[strings.Index(line, m[1])+len(m[1]):]) == "":
+				fence = ""
+			}
+			continue
+		}
+		if fence == "" && reportHeadingRe.MatchString(line) {
+			return nil
+		}
 	}
-	return nil
+	return fail("人が読む報告（Markdown）に見出し「## Report」の行が無い（コードフェンスの中は数えない）。本文が消えていないか確かめ、報告の全体を stdin で渡す（worker skill §7 の書式）")
 }
 
 func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
