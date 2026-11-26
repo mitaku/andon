@@ -105,6 +105,20 @@ describe("バージョン", () => {
     const ups = await env.DB.prepare("SELECT version FROM uploads ORDER BY version").all<{ version: number }>();
     expect(ups.results.map((u) => u.version)).toEqual([1, 2]);
   });
+
+  it("同じ名前への2つの上げが重なって R2 と D1 が食い違っても、出し直しで R2 の中身が直る", async () => {
+    const key = "tray_race00000000000000";
+    await putKey("c1", key);
+    const first = await send(await putRequest({ name: "race", body: "A", key }));
+    const id = String(first.body.url).split("/").pop() as string;
+    // 重なりの結果: R2 は後から書いた B、D1 は先に更新を終えた A を持つ
+    const b = new TextEncoder().encode("B");
+    const bsha = [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    await env.BUCKET.put(id, b, { customMetadata: { sha256: bsha } });
+    const again = await send(await putRequest({ name: "race", body: "A", key }));
+    expect(again.body.bumped).toBe(true);
+    expect(await (await env.BUCKET.get(id))?.text()).toBe("A");
+  });
 });
 
 describe("名前とヘッダ", () => {
