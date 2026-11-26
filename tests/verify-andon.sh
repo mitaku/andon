@@ -744,16 +744,25 @@ if [ "$self" = true ]; then
   r=$c/ws/.ghq/github.com/example/sample-site
   rm -rf "$r" && git init -q "$r" && git -C "$r" commit -q --allow-empty -m one && git -C "$r" update-ref refs/remotes/origin/main HEAD \
     && git -C "$r" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main || die "gt-skip の場面の repo が作れない"
-  ssetup() { # ssetup <review のあとに担当が doing に戻すか true/false>: kanban を作り直し、PR 無しの課題を review に入れる
+  ssetup() { # ssetup <review のあとに担当が doing に戻すか true/false> [<deliverable=report を書く時 before・after・worker>]: kanban を作り直し、PR 無しの課題を review に入れる
     rm -rf "$g" && mkdir -p "$g" && (cd "$g" && "$kanban" init --prefix G --repo github.com/example/sample-site >/dev/null) || die "gt-skip の場面の kanban が作れない"
+    KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" config set chief_of_staff=tc >/dev/null || die "gt-skip の場面の Chief of Staff が書けない"
     local id
     id=$(KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" add "検証" --repo github.com/example/sample-site)
+    case ${2:-} in
+      before) KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null ;;
+      worker) KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" set "$id" deliverable=report >/dev/null ;;
+      restart) # Chief of Staff が書いたあと起き直して端末が替わる（書いた時点の Chief of Staff と比べるので、まだ報告の課題）
+        KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null
+        KANBAN_ROOT=$g HC_TERMINAL_ID=tz "$kanban" config set chief_of_staff=tz >/dev/null ;;
+    esac
     KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null
     mkdir -p "$g/kanban/issues/$id/library"
     echo "{\"commit\": \"$(git -C "$r" rev-parse HEAD)\"}" >"$g/kanban/issues/$id/library/report.json"
     KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" report "$id" <<<"## Report" >/dev/null
     KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" review "$id" >/dev/null || die "gt-skip の場面の課題を review にできない"
     if [ "$1" = true ]; then KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null; fi
+    if [ "${2:-}" = after ]; then KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null; fi
   }
   # gate の記録が無い場面なので、gt-record・gt-route は未確認で、道の終了コードは 3（gt-skip の ok・note は終了コードを変えない）
   ssetup false; journey gate
@@ -764,6 +773,19 @@ if [ "$self" = true ]; then
   ssetup true; journey gate
   [ "$jrc" = 3 ] && grep -qF 'note gt-skip' <<<"$jout" || die "gate: 自分の commit のある課題の fix を gt-skip が数えた（$jrc）: $jout"
   ok "verify-andon: gate の gt-skip は、自分の commit の無い PR 無しの課題を review のあと担当が doing に戻すと落ち、review のままなら ok、自分の commit のある課題は数えない"
+  # 報告の課題（Chief of Staff が review の前に deliverable=report を書いた）は、自分の commit があっても数える（ADR-0066 受け入れ条件 9）。
+  # review のあとに書いた印と、担当が書いた report では数えない（印の無い間に正しく fix を受けた行を、あとから書いた印で数えない）
+  ssetup false before; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'ok   gt-skip' <<<"$jout" && grep -qF '報告の課題（commit' <<<"$jout" || die "gate: 自分の commit のある報告の課題が review のままなのに gt-skip が ok でない（$jrc）: $jout"
+  ssetup true before; journey gate
+  [ "$jrc" = 1 ] && grep -qF 'FAIL gt-skip' <<<"$jout" || die "gate: 自分の commit のある報告の課題を review のあと担当が doing に戻したのに gt-skip が落ちない（$jrc）: $jout"
+  ssetup true after; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'note gt-skip' <<<"$jout" || die "gate: review のあとに書いた report の印で、前の review の行を数えた（$jrc）: $jout"
+  ssetup true worker; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'note gt-skip' <<<"$jout" || die "gate: 担当が書いた report の課題を gt-skip が報告の課題と数えた（$jrc）: $jout"
+  ssetup false restart; journey gate
+  [ "$jrc" = 3 ] && grep -qF 'ok   gt-skip' <<<"$jout" && grep -qF '報告の課題（commit' <<<"$jout" || die "gate: report を書いたあと Chief of Staff が起き直した課題を gt-skip が報告の課題と数えない（$jrc）: $jout"
+  ok "verify-andon: gate の gt-skip は、Chief of Staff が review の前に report を書いた課題を commit を見ずに数え（起き直したあとも）、review のあとに書いた印と担当が書いた印では数えない"
 
   # drive.sh は検証する commit を省けない。検証の途中で次の commit が当たったあと、省いて打つと新しい commit の間を読み、
   # 検証する commit の出来事を見ずに未確認や誤りになっていた。偽のセルで、drive.sh を利用者と同じく通しで打つ

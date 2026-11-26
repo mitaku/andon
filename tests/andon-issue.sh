@@ -189,6 +189,16 @@ expect_fail 'report.json の形が違う' "$andon" issue ready "$id"
 jq 'del(.pr)' "$tmp/good" > "$lib/report.json"
 expect_fail 'pr が無い' "$andon" issue ready "$id"
 ok 'ready: report.json の知らないキー・壊れた commit・pr 無しで止まる'
+# 報告の課題（deliverable: report を Chief of Staff が書いた）で pr が無ければ、断って kanban review で返すと案内し、--pr を案内しない
+# （ADR-0066 決めたこと 8・受け入れ条件 6）。担当が書いた report は PR の課題として --pr を案内し、外れた理由を添える
+as t5 kanban set "$id" deliverable=report >/dev/null
+expect_fail "deliverable: report の課題で PR が無いときは kanban review $id で返す" "$andon" issue ready "$id"
+if grep -q -- '--pr' "$tmp/err"; then die "PR の無い報告の課題の ready が --pr を案内した: $(cat "$tmp/err")"; fi
+as t7 kanban set "$id" deliverable=report >/dev/null
+expect_fail 'deliverable: report を書いたのが Chief of Staff でない' "$andon" issue ready "$id"
+grep -q -- '--pr' "$tmp/err" || die "照合が外れた report の ready が --pr を案内しない: $(cat "$tmp/err")"
+as t5 kanban set "$id" deliverable=pr >/dev/null
+ok 'ready: 報告の課題で pr が無ければ kanban review で返すと案内し（--pr を出さない）、担当が書いた report は PR の課題として --pr を案内する'
 cp "$tmp/good" "$lib/report.json"
 
 # show
@@ -198,10 +208,12 @@ jq -e --arg rev "$rev2" --arg c "$c2" '.settings == {review: "on", must_fix: "ma
 jq .settings "$tmp/show" > "$tmp/settings.json"; emit "$tmp/settings.json" issue-keys.json
 ok 'show: 予約キー（既定で埋める）・report.json・レビューの照合'
 
-# ready の正
+# ready の正。pr のある報告の課題は PR の課題と同じ確かめを通る（ADR-0066 受け入れ条件 6）
+as t5 kanban set "$id" deliverable=report >/dev/null
 "$andon" issue ready "$id" >/dev/null
-[ "$(kanban show "$id" --json | jq -r .issue.status)" = review ]
-ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で review にする'
+[ "$(kanban show "$id" --json | jq -r .issue.status)" = review ] || die 'pr のある報告の課題を ready が review にしない'
+as t5 kanban set "$id" deliverable=pr >/dev/null
+ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で review にする（pr のある報告の課題も同じ）'
 
 # review: off なら照合しない。review が無ければ止まる
 id2=$(as t5 kanban add 'レビュー無し' --profile codex)

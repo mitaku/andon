@@ -98,11 +98,15 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	if row == 0 || err != nil || rep == nil {
 		return nil
 	}
-	if rep.PR == "" && c.onDefaultBranch(rep.Commit) {
-		// PR を出さない課題（検証・マージ後のレビュー）: PR が無く、報告の commit が既定の branch に入っていて push するものが無い。
-		// gate を回さず、担当に push を求める fix を送らない。返ったことは dispatcher の collect が通知 report で Chief of Staff に届ける。
-		// 自分の commit があるのに PR が無い課題は、これまでどおり gate が fix を返す
-		return nil
+	if rep.PR == "" {
+		// 報告の課題（deliverable: report を書いた時点の Chief of Staff が書いた課題。検証・点検・マージ後のレビュー）は PR が無くてよい。
+		// 報告の commit を見ずに gate を回さず、fix を送らず、merge の記録にも書かない（ADR-0066 決めたこと 7）。
+		// PR の課題（照合の外れた report を含む）は、PR が無く、報告の commit が既定の branch に入っていて push するものが無いときだけ
+		// 同じに回さない（直す課題が直さずに返した。PR #630）。自分の commit があるのに PR が無い課題は、これまでどおり gate が fix を返す。
+		// どちらも返ったことは dispatcher の collect が通知 report で Chief of Staff に届ける
+		if form, _ := c.l.Deliverable(c.issue); form == "report" || c.onDefaultBranch(rep.Commit) {
+			return nil
+		}
 	}
 	if reason, held, err := c.l.Hold(rows, logErr, c.issue); err != nil || held {
 		if w.Row != row {
