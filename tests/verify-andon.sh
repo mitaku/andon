@@ -333,12 +333,16 @@ if [ "$self" = true ]; then
   realgo=$(cd "$root" && go env GOROOT)/bin/go
   mkdir -p "$tmp/gobin" && printf '#!/usr/bin/env bash\n[ "$PWD" = "%s" ] || { echo "go: 打った所の外で呼ばれた: $PWD" >&2; exit 1; }\nexec "%s" "$@"\n' "$repo" "$realgo" >"$tmp/gobin/go" && chmod +x "$tmp/gobin/go"
   feat() { (cd "$repo" && PATH="$tmp/gobin:$PATH" bash "$ext/verify-andon/scripts/features.sh" "$1"); }
-  [ "$(feat "$c0..$c1")" = gate ] || die "features.sh: internal/gate/ の差分で gate だけにならない: $(feat "$c0..$c1" | tr '\n' ' ')"
+  # gatepkg <範囲>: internal/gate/ の Go のファイル（地図が名指す gate.go と同じ package）の差分で、gate・hold・report-ready を出す
+  gatepkg() { [ "$(feat "$1" | tr '\n' ' ')" = "gate hold report-ready " ]; }
+  # 試しの repo には go.mod が無く import は辿らない。同じ package（地図が名指す internal/gate/gate.go などと同じフォルダ）の機能は出す
+  got=$(feat "$c0..$c1" | tr '\n' ' ')
+  [ "$got" = "gate hold report-ready " ] || die "features.sh: internal/gate/ の差分で gate hold report-ready にならない: $got"
   got=$(feat "$c0..$c2" | tr '\n' ' ')
-  [ "$got" = "dispatcher-news gate hooks " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hooks にならない: $got"
+  [ "$got" = "dispatcher-news gate hold hooks report-ready " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hold hooks report-ready にならない: $got"
   [ "$(feat "$c4..$c5")" = digest ] || die "features.sh: internal/digest/ の差分で digest だけにならない: $(feat "$c4..$c5" | tr '\n' ' ')"
   got=$(feat "$c5..$c6" | tr '\n' ' ')
-  [ "$got" = "digest measure report-ready waiting " ] || die "features.sh: internal/ledger/ask.go の差分で digest measure report-ready waiting にならない: $got"
+  [ "$got" = "digest hold measure otel report-ready waiting worker-launch " ] || die "features.sh: internal/ledger/ask.go の差分で digest hold measure otel report-ready waiting worker-launch にならない: $got"
   got=$(feat "$c6..$c7" | tr '\n' ' ')
   [[ " $got" == *" create "* ]] || die "features.sh: internal/spawn/ の差分で create を返さない: $got"
   got=$(feat "$c7..$c8" | tr '\n' ' ')
@@ -353,19 +357,22 @@ if [ "$self" = true ]; then
   [ "$(feat "$c10..$c11")" = gate ] || die "features.sh: 名前が test で終わるだけの置き場（internal/gate/latest/）の差分で gate を返さない: $(feat "$c10..$c11" | tr '\n' ' ')"
   # git は ASCII でないパスを既定で "…\346…" と引用符で包んで出す。包んだまま読むと、どの機能にも当たらず黙って抜ける
   c12=$(put internal/gate/新しい.go x)
-  [ "$(feat "$c11..$c12")" = gate ] || die "features.sh: ASCII でない名前のファイル（internal/gate/新しい.go）の差分で gate を返さない: $(feat "$c11..$c12" | tr '\n' ' ')"
+  got=$(feat "$c11..$c12" | tr '\n' ' ')
+  [[ " $got" == *" gate "* ]] || die "features.sh: ASCII でない名前のファイル（internal/gate/新しい.go）の差分で gate を返さない: $got"
   # 目次の「地図が覆わないもの」は機能のパス（cmd/kanban/）より先に効く。kanban migrate を通らない report-ready を選ばない
   c13=$(put cmd/kanban/migrate.go x)
   out=$(feat "$c12..$c13") || die "features.sh: 地図が覆わないものだけの範囲で 0 で終わらない"
   [ -z "$out" ] || die "features.sh: 地図が覆わないもの（cmd/kanban/migrate.go）だけの差分で $out を出す"
   c14=$(put cmd/kanban/main.go x)
-  [ "$(feat "$c13..$c14")" = report-ready ] || die "features.sh: cmd/kanban/main.go の差分で report-ready だけにならない: $(feat "$c13..$c14" | tr '\n' ' ')"
-  # dispatcher が巡ごとに呼ぶ生の記録の片付け（internal/otel/prune.go）は dispatcher-news とハーネスの受け口（otel）を選び、
-  # boot と役の起動が起動する受け口（serve.go）は otel だけを選ぶ
+  # cmd/kanban/ は report-ready のパス。同じ package の routines.go（dispatcher-news）と questions.go（waiting）の機能も出す
+  got=$(feat "$c13..$c14" | tr '\n' ' ')
+  [ "$got" = "dispatcher-news report-ready waiting " ] || die "features.sh: cmd/kanban/main.go の差分で dispatcher-news report-ready waiting にならない: $got"
+  # dispatcher が巡ごとに呼ぶ生の記録の片付け（internal/otel/prune.go）は dispatcher-news とハーネスの受け口（otel）を選ぶ。
+  # 受け口（serve.go）も同じ package なので、dispatcher-news（prune.go を名指す）を選ぶ
   c15=$(put internal/otel/prune.go x)
   [ "$(feat "$c14..$c15" | tr '\n' ' ')" = "dispatcher-news otel " ] || die "features.sh: internal/otel/prune.go の差分で dispatcher-news と otel にならない: $(feat "$c14..$c15" | tr '\n' ' ')"
   c16=$(put internal/otel/serve.go x)
-  [ "$(feat "$c15..$c16")" = otel ] || die "features.sh: internal/otel/serve.go の差分で otel だけにならない: $(feat "$c15..$c16" | tr '\n' ' ')"
+  [ "$(feat "$c15..$c16" | tr '\n' ' ')" = "dispatcher-news otel " ] || die "features.sh: internal/otel/serve.go の差分で dispatcher-news と otel にならない: $(feat "$c15..$c16" | tr '\n' ' ')"
   # Go のファイルでコメントだけを変えた差分は機能を出さず、名指しも求めない。コードの字句・//go: の指令・cgo の前置き・文字列の中の // を
   # 変えた差分は、今までどおり機能を出し、名指しを求める
   g0=$(put internal/gate/g.go $'package gate\n\n// F は 1 を返す\nfunc F() int { return 1 } // 行の終わり\n\nvar s = "// x"')
@@ -375,24 +382,24 @@ if [ "$self" = true ]; then
   out=$(feat "$g0...$g1") || die "features.sh: Go のコメントだけの範囲（...）で 0 で終わらない"
   [ -z "$out" ] || die "features.sh: Go のコメントだけを変えた差分（... の範囲）で $out を出す"
   g2=$(put internal/gate/g.go $'package gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// x"')
-  [ "$(feat "$g1..$g2")" = gate ] || die "features.sh: Go のコードの字句を変えた差分で gate を返さない: $(feat "$g1..$g2" | tr '\n' ' ')"
-  [ "$(feat "$g0..$g2")" = gate ] || die "features.sh: Go のコメントとコードを変えた差分で gate を返さない: $(feat "$g0..$g2" | tr '\n' ' ')"
+  gatepkg "$g1..$g2" || die "features.sh: Go のコードの字句を変えた差分で gate を返さない: $(feat "$g1..$g2" | tr '\n' ' ')"
+  gatepkg "$g0..$g2" || die "features.sh: Go のコメントとコードを変えた差分で gate を返さない: $(feat "$g0..$g2" | tr '\n' ' ')"
   g3=$(put internal/gate/g.go $'package gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// y"')
-  [ "$(feat "$g2..$g3")" = gate ] || die "features.sh: Go の文字列の中の // を変えた差分で gate を返さない: $(feat "$g2..$g3" | tr '\n' ' ')"
+  gatepkg "$g2..$g3" || die "features.sh: Go の文字列の中の // を変えた差分で gate を返さない: $(feat "$g2..$g3" | tr '\n' ' ')"
   g4=$(put internal/gate/g.go $'//go:build linux\n\npackage gate\n\n// F は\n// 1 を返す。\n/* 囲み */\nfunc F() int { return 2 }\n\nvar s = "// y"')
-  [ "$(feat "$g3..$g4")" = gate ] || die "features.sh: Go の //go:build の指令を足した差分で gate を返さない: $(feat "$g3..$g4" | tr '\n' ' ')"
+  gatepkg "$g3..$g4" || die "features.sh: Go の //go:build の指令を足した差分で gate を返さない: $(feat "$g3..$g4" | tr '\n' ' ')"
   g7=$(put internal/gate/b.go $'package gate\n\nfunc B() {}')
   g8=$(put internal/gate/b.go $'//  +build ignore\n\npackage gate\n\nfunc B() {}')
-  [ "$(feat "$g7..$g8")" = gate ] || die "features.sh: Go の // と +build の間に空白を2つ置いた指令を足した差分で gate を返さない: $(feat "$g7..$g8" | tr '\n' ' ')"
+  gatepkg "$g7..$g8" || die "features.sh: Go の // と +build の間に空白を2つ置いた指令を足した差分で gate を返さない: $(feat "$g7..$g8" | tr '\n' ' ')"
   g9=$(put internal/gate/b.go $'//\t+build linux\n\npackage gate\n\nfunc B() {}')
-  [ "$(feat "$g8..$g9")" = gate ] || die "features.sh: Go の // と +build の間にタブを置いた指令に変えた差分で gate を返さない: $(feat "$g8..$g9" | tr '\n' ' ')"
+  gatepkg "$g8..$g9" || die "features.sh: Go の // と +build の間にタブを置いた指令に変えた差分で gate を返さない: $(feat "$g8..$g9" | tr '\n' ' ')"
   g5=$(put internal/gate/c.go $'package gate\n\n// #include <a.h>\nimport "C"')
   g6=$(put internal/gate/c.go $'package gate\n\n// #include <b.h>\nimport "C"')
-  [ "$(feat "$g5..$g6")" = gate ] || die "features.sh: cgo の前置き（import \"C\" の前のコメント）を変えた差分で gate を返さない: $(feat "$g5..$g6" | tr '\n' ' ')"
+  gatepkg "$g5..$g6" || die "features.sh: cgo の前置き（import \"C\" の前のコメント）を変えた差分で gate を返さない: $(feat "$g5..$g6" | tr '\n' ' ')"
   # Go は import "\x43" も import "C" として読む（パスは引用符を外して比べる）
   g10=$(put internal/gate/e.go $'package gate\n\n// #define VALUE 1\nimport "\\x43"')
   g11=$(put internal/gate/e.go $'package gate\n\n// #define VALUE 2\nimport "\\x43"')
-  [ "$(feat "$g10..$g11")" = gate ] || die "features.sh: エスケープで書いた import \"\\x43\" の cgo の前置きを変えた差分で gate を返さない: $(feat "$g10..$g11" | tr '\n' ' ')"
+  gatepkg "$g10..$g11" || die "features.sh: エスケープで書いた import \"\\x43\" の cgo の前置きを変えた差分で gate を返さない: $(feat "$g10..$g11" | tr '\n' ' ')"
   # 3c の名指し: 見るファイル（internal/issue/resume.go）でコメントだけを変えた変更は名指し無しで通り、コードの字句を変えた変更は名指しを求める
   r0=$(put internal/issue/resume.go $'package issue\n\n// Resume は続ける\nfunc Resume() {}')
   r1=$(put internal/issue/resume.go $'package issue\n\n// Resume は端末で続きを始める。\nfunc Resume() {}')
@@ -411,6 +418,59 @@ if [ "$self" = true ]; then
   rc=0; bash "$skill/scripts/drive.sh" no-such-feature 0123456789abcdef0123456789abcdef01234567 2>/dev/null || rc=$?
   [ "$rc" = 2 ] || die "drive.sh: 知らない機能で終了コード $rc（2 でない）"
   ok "verify-andon: features.sh は当たる範囲で機能の名前を出し、文書と Go のテスト（testdata/・テスト用の package を含む）と Go のコメントだけなら何も出さず 0。名指しの確かめも Go のコメントだけの変更を除き、コードの字句・指令・cgo の前置きの変更は残す。drive.sh は知らない機能を 2 で断る"
+fi
+
+# 5b. features.sh は Go のファイルを package の単位で読む。地図の行から共通の部品（ledger・spawn・delegate）や同じ package の
+#     呼び出し元（merge.go・settle.go）が漏れても、地図が名指す package と同じ package か、それが repo の中で推移的に import する
+#     package の差分なら、その機能を出す。地図の写しから過去に漏れた行を消し、go.mod と import を持つ試しの repo で確かめる
+if [ "$self" = true ]; then
+  mrepo=$tmp/mod
+  git init -q "$mrepo"
+  mput() { mkdir -p "$mrepo/$(dirname "$1")" && printf '%s\n' "$2" >"$mrepo/$1" && git -C "$mrepo" add -A && git -C "$mrepo" commit -qm "$1" && git -C "$mrepo" rev-parse HEAD; }
+  mput go.mod $'module example.com/m\n\ngo 1.22' >/dev/null
+  mput internal/issue/hold.go $'package issue\n\nfunc Hold() {}' >/dev/null
+  mput internal/digest/digest.go $'package digest\n\nimport (\n\t"fmt"\n\n\t"example.com/m/internal/ledger"\n)\n\nvar _ = fmt.Sprint(ledger.X)' >/dev/null
+  mput internal/measure/measure.go $'package measure\n\nimport "example.com/m/internal/ledger"\n\nvar _ = ledger.X' >/dev/null
+  mput internal/ledger/ledger.go $'package ledger\n\nvar X = 1' >/dev/null
+  # create は delegate を import し、delegate と spawn は互いに import する（循環でも止まる。spawn は create から2段先）
+  mput internal/create/create.go $'package create\n\nimport "example.com/m/internal/delegate"\n\nvar _ = delegate.D' >/dev/null
+  mput internal/delegate/delegate.go $'package delegate\n\nimport "example.com/m/internal/spawn"\n\nvar D = spawn.S' >/dev/null
+  mput internal/spawn/spawn.go $'package spawn\n\nimport _ "example.com/m/internal/delegate"\n\nvar S = 1' >/dev/null
+  mput internal/triage/triage.go $'package triage\n\nfunc T() {}' >/dev/null
+  # 字句に分けられないファイルがあっても、ほかのファイルの import は読む
+  m0=$(mput internal/create/broken.go 'package create (')
+  m1=$(mput internal/issue/settle.go $'package issue\n\nfunc Settle() {}')
+  m2=$(mput internal/ledger/ask.go $'package ledger\n\nfunc Ask() {}')
+  m3=$(mput internal/spawn/run.go $'package spawn\n\nfunc Run() {}')
+  m4=$(mput internal/triage/sort.go $'package triage\n\nfunc Sort() {}')
+  m5=$(mput internal/delegate/cmd.go $'package delegate\n\nfunc Cmd() {}')
+  cut=$tmp/cut && mkdir -p "$cut" && cp -r "$skill" "$cut/"
+  drop() { # drop <機能> <パス>: 地図の写しの機能から、変えたら動かすパスの行を消す（過去の漏れを写す）
+    local f=$cut/verify-andon/features/$1.md
+    grep -qxF -- "- \`$2\`" "$f" || die "5b の写し: $1.md の変えたら動かすパスに $2 の行が無い（消す行を見失った）"
+    grep -vxF -- "- \`$2\`" "$f" >"$f.new" && mv "$f.new" "$f"
+  }
+  drop hold internal/issue/merge.go
+  drop hold internal/issue/settle.go
+  drop digest internal/ledger/
+  drop measure internal/ledger/
+  drop create internal/spawn/
+  drop create internal/delegate/
+  mkdir -p "$tmp/mgobin" && printf '#!/usr/bin/env bash\n[ "$PWD" = "%s" ] || { echo "go: 打った所の外で呼ばれた: $PWD" >&2; exit 1; }\nexec "%s" "$@"\n' "$mrepo" "$realgo" >"$tmp/mgobin/go" && chmod +x "$tmp/mgobin/go"
+  mfeat() { (cd "$mrepo" && PATH="$tmp/mgobin:$PATH" bash "$cut/verify-andon/scripts/features.sh" "$1") | tr '\n' ' '; }
+  got=$(mfeat "$m0..$m1")
+  [[ " $got" == *" hold "* ]] || die "features.sh: hold.md が名指す internal/issue/hold.go と同じ package の settle.go の差分で hold を返さない（地図の行から漏れた呼び出し元）: $got"
+  got=$(mfeat "$m1..$m2")
+  [[ " $got" == *" digest "* && " $got" == *" measure "* ]] || die "features.sh: digest と measure の package が import する internal/ledger/ の差分で digest と measure を返さない（地図の行から漏れた共通の部品）: $got"
+  got=$(mfeat "$m2..$m3")
+  [[ " $got" == *" create "* ]] || die "features.sh: create の package が2段先で import する internal/spawn/ の差分で create を返さない（推移的な import）: $got"
+  # 当たらない package（どの機能の package も import しない internal/triage/ は triage のパスだけ）では、import を辿った機能を出さない
+  got=$(mfeat "$m3..$m4")
+  [ "$got" = "triage " ] || die "features.sh: どの機能の package も import しない internal/triage/ の差分で triage だけにならない: $got"
+  # 「地図が覆わないもの」（internal/delegate/cmd.go）は、package を辿っても先に効く
+  out=$(mfeat "$m4..$m5") || die "features.sh: 地図が覆わないものだけの範囲（import のある repo）で 0 で終わらない"
+  [ -z "$out" ] || die "features.sh: 地図が覆わないもの（internal/delegate/cmd.go）だけの差分で、同じ package を辿って $out を出す"
+  ok "verify-andon: features.sh は Go のファイルを package の単位で読み、地図の行から漏れた同じ package の呼び出し元（settle.go）・共通の部品（ledger）・2段先の import（spawn）の差分でも機能を出し、import されない package と地図が覆わないものでは出さない"
 fi
 
 # 6. 自分の確かめ: 写しを壊すと落ちる（上の確かめが何も見ていないことを避ける）
