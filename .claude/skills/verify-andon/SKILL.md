@@ -105,7 +105,7 @@ worker skill §7 の書式で書く。`## Report` の先頭に次の3つを置�
 
 | スクリプト | 打ち方 | すること |
 |---|---|---|
-| `features.sh` | `bash .claude/skills/verify-andon/scripts/features.sh <前>..<後>` | 差分が当たる機能の名前を1行1つで出す。当たらなければ何も出さず 0。地図の「変えたら動かすパス」が正 |
+| `features.sh` | `bash .claude/skills/verify-andon/scripts/features.sh <前>..<後>` | 差分が当たる機能の名前を1行1つで出す。当たらなければ何も出さず 0。地図の「変えたら動かすパス」が正で、Go のファイルはパスの package と、それが推移的に import する package まで当たる（`scripts/gopkgs.go`） |
 | `doctor.sh` | `bash .claude/skills/verify-andon/scripts/doctor.sh` | 読むだけの診断。最後の行に `commit <当てた commit>` |
 | `drive.sh` | `bash .claude/skills/verify-andon/scripts/drive.sh <機能> <検証する commit>` | 1機能を動かし、片付けと跡の確かめまで。2つ目の引数は省けず、本物の記録を読む道が読む間を決める。3つ目の引数（名指した細かい機能）は省ける。最後に細かい機能ごとの結果を出す。終了コードは 3 の表 |
 | `journeys/<機能>.sh` | `drive.sh` が呼ぶ。直に打たない | 機能ごとの道。`sandbox.sh`（切り離して動かす）か `cell.sh`（本物の記録を読む）を読む |
