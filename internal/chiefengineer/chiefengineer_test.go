@@ -165,6 +165,10 @@ func TestStartsChiefEngineer(t *testing.T) {
 	if !strings.HasSuffix(out, "andon design start: 出た場所 sample-site / CE S-7 Billing の設計（t42）\n") || strings.Contains(out, "hc attach") || f.has("hc attach") {
 		t.Errorf("出た場所が最後に無い・attach が残る: out=%q", out)
 	}
+	// 出た場所の手前に次の1手の行（ADR-0053 決めたこと 14・受け入れ条件 A12）
+	if !strings.HasSuffix(out, "andon design start: 次: 出た場所の端末で Chief Engineer と話す。止まったら andon issue resume S-7 --project sample-site\nandon design start: 出た場所 sample-site / CE S-7 Billing の設計（t42）\n") {
+		t.Errorf("次の1手（andon issue resume）が出た場所の手前に無い: out=%q", out)
+	}
 	if b := f.branches(); !strings.Contains(b, "sample-site/S-7-billing") {
 		t.Errorf("branch が無い: %q", b)
 	}

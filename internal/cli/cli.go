@@ -145,7 +145,24 @@ func runLeaf(l leaf, args []string, stdin io.Reader, stdout, stderr io.Writer) i
 			return rc
 		}
 	}
+	if l.json == jsonAlways {
+		args = dropJSON(args)
+	}
 	return l.run(args, stdin, stdout, stderr)
+}
+
+// dropJSON は -- より前の --json を外す。いつも JSON を出す葉は --json を読まないので、振り分けが受けて外す（決めたこと 13）。
+func dropJSON(args []string) []string {
+	var out []string
+	for i, a := range args {
+		if a == "--" {
+			return append(out, args[i:]...)
+		}
+		if a != "--json" {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // unknown は表に無い名前を断り、綴りの近い葉を1つ勧める（決めたこと 12）。typed は打った1語か2語。
@@ -348,6 +365,9 @@ func leafHelp(l leaf, w io.Writer) {
 	if l.project {
 		fmt.Fprintf(w, "プロジェクト: %s\n", projectText(l))
 	}
+	if t, ok := jsonText[l.json]; ok {
+		fmt.Fprintf(w, "JSON: %s\n", t)
+	}
 	fmt.Fprint(w, "例:\n")
 	for _, e := range l.examples {
 		fmt.Fprintf(w, "  andon %s\n", e)
@@ -357,6 +377,13 @@ func leafHelp(l leaf, w io.Writer) {
 		fmt.Fprintf(w, "\n同じ名詞の葉:\n")
 		rows(w, kids, false)
 	}
+}
+
+// jsonText は andon <葉> --help の JSON の行（決めたこと 13）。
+var jsonText = map[jsonForm]string{
+	jsonAlways: "--json を付けても付けなくても、JSON を標準出力に出す",
+	jsonFlag:   "--json で JSON を標準出力に出す。付けないと人向けに出す",
+	jsonDryRun: "--dry-run --json で、書くはずのことを JSON で標準出力に出す（--dry-run の無い --json は使い方の誤り）",
 }
 
 func exitText(l leaf) string {

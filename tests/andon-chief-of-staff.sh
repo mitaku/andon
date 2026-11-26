@@ -86,6 +86,9 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label r
 jq -e 'select(.config) | .config.chief_of_staff == "t42"' kanban/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
 grep -q 'demo の Chief of Staff は t42（demo-cos・起動した）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = 'andon open: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
+# 出た場所の手前に次の1手の行（ADR-0053 決めたこと 14・受け入れ条件 A12）
+[ "$(tail -n 2 "$tmp/out" | sed -n 1p)" = 'andon open: 次: 出た場所の端末で Chief of Staff に話す。オーナー待ちは andon waiting list --project demo で出す' ] \
+  || die "open が次の1手（andon waiting list）を出さない: $(cat "$tmp/out")"
 ok '起動する: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は kanban の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
 
 # 起動の記録（contract.md §18。ADR-0028 決めたこと 7）: Chief of Staff は課題を持たないので kanban の chief-of-staff/launches.jsonl に1件

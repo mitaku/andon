@@ -15,6 +15,9 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `wl-first-turn` 起動した担当が、最初の turn で依頼書を読んで動き出し、課題に書く（テンプレート・skill・`--append-system-prompt-file` の効き）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `package/templates/`、`package/skills/worker/`、`package/.claude-plugin/`、`package/settings.json`
 
+- `wl-next` 当てたあとに `andon issue start <id>` で起動すると、何をしたかの行（`<id> を <address>（…）で起動した。`）のあと、最後の `出た場所` の行の手前に、次の1手の行（`次: 報告と問いは dispatcher が届ける。担当が止まったら andon issue resume <id> --project <slug>`）を出す。`andon issue resume` と `andon design start` も次の1手の行を出す（ADR-0053 決めたこと 14）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/issue/start.go`、`internal/issue/resume.go`、`internal/chiefengineer/chiefengineer.go`
+
 - `wl-wiki` セルの wiki の目録の Entities か Topics の節にページの行があるとき、当てたあとに起動した担当（`launch` が `start`）の最初のメッセージに、目録のパスを持つ1行があり、その担当が確認を求められずに目録を読める（ADR-0061 受け入れ条件 12）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/spawn/spawn.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`package/skills/worker/`、`package/settings.json`
 
@@ -44,6 +47,10 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - **resume の最初のメッセージを読む（`wl-resume`）。** 同じ `drive.sh` の出力の `wl-resume` の行を読む。道は、当てたあとの `launch` が `resume` の起動ごとに最初のメッセージを読む。Claude Code の担当は、起動の記録の `session` のセッションの記録（`<CLAUDE_CONFIG_DIR>/projects/*/<session>.jsonl`）から、起動の `at` から同じ課題の次の起動か次に当てた時刻の前までの、最初のオーナーの印（`origin.kind` が `human`）の user の文を読む。貼った文の包みを外した文の頭か最後の段落の頭が `[resume] ` なら印つき（製品の `spawn.Marked` と振り返りの見分け方と同じ）。セッションの記録が読めないとき（Codex など）は、`hc read <address> --lines 5000` の画面の、その課題の「課題 `<slug>/<id>` の続き」の行が全部印つきかを参考に出すだけで、その起動は未確認にする。`ok   wl-resume` が見えれば動いた。`FAIL wl-resume` はセッションの記録の最初のメッセージに印が無いもので、壊れ。当てたあとの resume の起動が無いか、どれも確かめられなければ `note wl-resume` を出して終了コード 3（未確認）で終わる（`wl-record` と `wl-terminal` の行は確かめてある）。報告の `## Next` に「担当を `andon issue resume` で起動し直したあとで打ち直す」と書く。
 - **最初の turn を読む（`wl-first-turn`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）のうち `role` が `worker`、`launch` が `start` のものを `hc read <address>` で読み、依頼書のパスの入った最初のメッセージのあとに turn が進んだことを確かめる。担当が課題に書いたことは kanban の履歴で読む。`jq -c 'select(.id == "<id>" and .by == "terminal:<address>" and .at >= "<起動の at>" and .change.status != "doing")' <kanban>/log.jsonl` に行（`report`・`ask`・`status: review` など）が1行以上あり、`<kanban>/issues/<id>/library/report.json` の `plan` が1件以上あれば、担当が skill に従って依頼書を読んで動いた。`plan` は worker skill の計画の写しで、Stop フック（`andon issue stop-check`）は報告を促すが `plan` は促さない。報告の行だけで `plan` が無ければ、skill が効いた証拠にならないので未確認と書く。`doing` の行は数えない（start が担当の端末の名前で打った行で、担当は `doing` を見て `kanban start` を打たない。worker skill §1 の 4）。1行も無ければ、まだ最初の報告の前なので未確認と書き、壊れに数えない。起動したばかりの端末が無ければ、報告の `## Next` に「試しの課題を1件起動する」と書く。
   - 検証の担当自身も、当てたあとに Chief of Staff が起動した担当にあたる（`wl-record` に自分の課題が出る）。ほかに起動した担当が無ければ、自分の端末を `hc read <自分の address>` で読む。依頼書のパスの入った最初のメッセージのあとに turn が進んだことと、最初のメッセージの起動の文が `/opt/andon/templates/<プロファイル>.md` の今の文と同じことを確かめる。見たのが自分の端末だということを `evidence` に書く。課題に書いた行は、自分の `andon issue report` の行で足りる（ふだんの手順で報告を書いてから確かめる）。証拠を作るために `kanban start` を打たない。
+
+- **起動の出力を読む（`wl-next`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が `andon issue start` を打った画面を、Chief of Staff の端末（kanban の `config.yaml` の `chief_of_staff`）の `hc read <address>` で読む。`andon issue: <id> を <address>（…）で起動した。` の行のすぐ後に `andon issue: 次: 報告と問いは dispatcher が届ける。担当が止まったら andon issue resume <id> --project <slug>` の行があり、その次が最後の `andon issue: 出た場所 …` の行なら動いた。
+  - 検証の担当自身の起動も、当てたあとに Chief of Staff が打った `andon issue start` にあたる。画面から流れて読めなければ未確認と書き、報告の `## Next` に「次に担当を起動したとき、出力の最後の3行を検証の課題に写す」と書く。
+  - `andon issue resume` と `andon design start` を当てたあとに打っていれば、同じく `次:` の行（`andon issue resume <id> --project <slug>` を含む）を読む。
 
 - **wiki の目録を読む（`wl-wiki`）。** まず `/workspace/wiki/index.md` の Entities と Topics の節に `- ` で始まる行があるかを見る（`sed -n '/^## Entities$/,/^## Sources$/p' /workspace/wiki/index.md | grep -c '^- '`）。0 なら、担当の最初のメッセージに行が付かないのが正しいので、`wl-wiki` は未確認と書く。1 以上なら、`wl-first-turn` と同じく当てたあとに Chief of Staff が起動した対話の Claude Code の担当（プロファイル `claude`・`claude-medium`。`role` が `worker`、`launch` が `start`）を `hc read <address>` で読み、次の3つを確かめる。
   1. 最初のメッセージの依頼書の行の後ろに「セルの wiki の目録 `/workspace/wiki/index.md` の Entities と Topics の節を読み、課題に当たるページがあれば読む。」の1行がある。
@@ -89,7 +96,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 ## 既に見ている検査
 
 - `go test ./internal/spawn/ ./internal/issue/ ./internal/dispatcher/ ./internal/chiefengineer/`（wiki の目録の行が、担当の起動・前の会話を続けない起動し直し・dispatcher の送り直しにだけ付き、レビュアーと Chief Engineer と会話を続ける起動し直しには付かない）
-- `tests/andon-issue.sh`（start を偽の hc で起動し、finish で片付くまで）
+- `tests/andon-issue.sh`（start を偽の hc で起動し、finish で片付くまで。start と resume が出た場所の手前に出す次の1手の行）
+- `go test ./internal/chiefengineer/`（design start が出た場所の手前に出す次の1手の行）
 - `tests/andon-chief-of-staff.sh`
 - `go test ./internal/issue/ ./internal/launch/`
 

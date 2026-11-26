@@ -8,7 +8,10 @@
 #      名詞だけの形が古い名前の名詞（andon waiting）は、名詞だけで書くと落ちる（tests/lib/andon-refs.sh の andon_retired_nouns）。
 #      ホストの部品（package/host/*/main.js）が打つ引数は、waiting list --json・waiting answer・issue board --json・issue history --json で、
 #      どれも表にある（ADR-0053 受け入れ条件 A8・ADR-0059 受け入れ条件 12）。
-# 道具は andon（tests/lib/andon.sh）と perl。kanban も hc も起動しない。
+#   A5・A11 プロジェクトを読む葉は全部 --project を受け、決まらなければ終了コード 2。
+#   A6 JSON を出せる葉（--help の「JSON: 」の行で選ぶ）は全部 --json を受け、標準出力を jq -e . で読める（決めたこと 13）。
+#   A11 3 以上の終了コードは --help に数と意味が出る。フックが打つ dispatcher wait・rewake は知らない引数でも 0（決めたこと 15）。
+# 道具は andon（tests/lib/andon.sh）・kanban・git・jq・perl と、偽の gh・hc。本物の hc と GitHub には出ない。
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 tmp=$(mktemp -d)
@@ -166,5 +169,110 @@ while IFS= read -r l; do
 done <"$tmp/project-leaves"
 [ -z "$bad" ] && pass "プロジェクトを読む葉は全部 --project を受け、2つのセルの根で省くと終了コード 2 と2つの slug を出す" \
   || fail "プロジェクトを読む葉:"$'\n'"$bad"
+
+# === A6 JSON を出せる葉は全部 --json を受け、標準出力が JSON として読める（決めたこと 13） ===
+# 表の欄で選ぶ: JSON を出せる葉は --help に「JSON: 」の行を持つ（go test ./internal/cli が欄と突き合わせる）。
+# 一時のセルに、PR の課題（report.json と、マージした PR を返す偽の gh）・起動する課題（予約キーを Chief of Staff の端末が書いた）・
+# 起動し直す課題（doing で端末が素のシェル、セッションの記録あり。偽の hc）を作り、葉ごとに --json を付けて打つ。
+: >"$tmp/json-leaves"
+while IFS= read -r l; do
+  # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
+  h=$("$andon" $l --help)
+  [[ "$h" == *$'\nJSON: '* ]] && echo "$l" >>"$tmp/json-leaves"
+done <"$tmp/leaves"
+nj=$(wc -l <"$tmp/json-leaves")
+grep -qx 'gate' "$tmp/json-leaves" && grep -qx 'issue start' "$tmp/json-leaves" && grep -qx 'waiting list' "$tmp/json-leaves" \
+  && ! grep -qx 'issue finish' "$tmp/json-leaves" && [ "$nj" -ge 17 ] \
+  && pass "JSON を出せる葉 $nj を --help の行から選ぶ" || fail "JSON を出せる葉が選べない（$nj）"
+
+jc=$tmp/cell3 jp=$tmp/cell3/projects/j
+mkdir -p "$tmp/jbin" "$tmp/ghq" "$jp" "$HOME/.claude/projects/-x"
+export GHQ_ROOT=$tmp/ghq GIT_CONFIG_GLOBAL=$tmp/gitconfig GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
+git init -q -b main "$tmp/origin" && git -C "$tmp/origin" commit -q --allow-empty -m base && echo a >"$tmp/origin/a.md" \
+  && git -C "$tmp/origin" add -A && git -C "$tmp/origin" commit -qm pr && git clone -q "$tmp/origin" "$GHQ_ROOT/github.com/example/app" \
+  || fail "案件 repo の origin と clone を作れない"
+sha=$(git -C "$tmp/origin" rev-parse HEAD)
+cat >"$tmp/jbin/gh" <<EOF
+#!/bin/sh
+case "\$*" in
+  "pr view https://github.com/example/app/pull/1 --json state,mergeCommit,files") echo '{"state":"MERGED","mergeCommit":{"oid":"$sha"},"files":[{"path":"a.md"}]}' ;;
+  "api --paginate --slurp repos/example/app/pulls/1/files") echo '[[{"filename":"a.md"}]]' ;;
+  *) echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
+EOF
+cat >"$tmp/jbin/hc" <<'EOF'
+#!/bin/sh
+case $1 in
+  templates) echo '{"templates":[{"name":"claude"},{"name":"claude-resume"}]}' ;;
+  get) echo '{"state":"live","argv":["/bin/bash"],"foreground":{"argv":["/bin/bash"]},"labels":{}}' ;;
+  ls) echo '{"terminals":[]}' ;;
+  *) echo "unexpected hc $*" >&2; exit 9 ;;
+esac
+EOF
+chmod +x "$tmp/jbin/gh" "$tmp/jbin/hc"
+sess=11111111-2222-4333-8444-555555555555
+jk() { KANBAN_ROOT=$jp HC_TERMINAL_ID=t1 "$kanban" "$@" >/dev/null; } # Chief of Staff（t1）の端末で打つ
+"$kanban" init --root "$jp" --prefix J --repo github.com/example/app >/dev/null && jk config set chief_of_staff=t1 \
+  && jk add "PR の課題" --repo github.com/example/app && mkdir -p "$jp/kanban/issues/J-0001/library" \
+  && printf '{"commit":"%s","pr":"https://github.com/example/app/pull/1"}\n' "$sha" >"$jp/kanban/issues/J-0001/library/report.json" \
+  && jk add "起動する課題" --profile claude --brief - <<<'# 起動する課題' && jk set J-0002 review=off estimate=small must_fix=major merge=person \
+  && jk add "起動し直す課題" --profile claude --brief - <<<'# 起動し直す課題' && jk set J-0003 status=doing agent=t9 "session=$sess" \
+  && : >"$HOME/.claude/projects/-x/$sess.jsonl" || fail "JSON の葉を打つ一時のセルを作れない"
+bad= seen=0
+while IFS= read -r l; do
+  case "$l" in # 葉ごとの引数（--json と --project は下で足す）。JSON の葉を足したら、ここに引数を足す
+    version | waiting\ list | delegation\ show | metrics\ show | triage\ collect | retro\ collect | issue\ history) a=() ;;
+    issue\ show | issue\ trace | issue\ impact | issue\ merge | issue\ settle) a=(J-0001) ;;
+    gate) a=(J-0001 --dry-run) ;;
+    issue\ board) a=(--since 2026-01-01T00:00:00Z) ;;
+    issue\ start) a=(J-0002 --dry-run) ;;
+    issue\ resume) a=(J-0003 --dry-run) ;;
+    process\ json) a=("$PWD/process/states/issue.yaml") ;;
+    *) bad+="$l: 打つ引数を tests/commands.sh の A6 に足していない"$'\n'; continue ;;
+  esac
+  # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
+  h=$("$andon" $l --help)
+  [[ "$h" == *$'\nプロジェクト: '* ]] && a+=(--project j)
+  # shellcheck disable=SC2086
+  out=$(cd "$jc" && PATH="$tmp/jbin:$PATH" ANDON_WORKSPACE=$jc CLAUDE_CONFIG_DIR= "$andon" $l "${a[@]}" --json </dev/null 2>"$tmp/json-err")
+  rc=$?
+  if [[ "$out" == [\{\[]* ]] && jq -e . >/dev/null 2>&1 <<<"$out"; then seen=$((seen + 1))
+  else bad+="$l --json: 終了コード $rc、標準出力が JSON でない: $(sed -n 1p "$tmp/json-err")"$'\n'; fi
+  # --dry-run と組む葉は、--dry-run の無い --json を使い方の誤りとして断る
+  if [[ "$h" == *$'\nJSON: --dry-run --json'* ]]; then
+    # shellcheck disable=SC2086
+    (cd "$jc" && PATH="$tmp/jbin:$PATH" ANDON_WORKSPACE=$jc "$andon" $l "${a[0]}" --project j --json </dev/null >/dev/null 2>&1)
+    rc=$?
+    [ "$rc" = 2 ] || bad+="$l --json（--dry-run 無し）: 終了コード $rc"$'\n'
+  fi
+done <"$tmp/json-leaves"
+[ -z "$bad" ] && [ "$seen" = "$nj" ] && pass "JSON を出せる葉 $seen が全部 --json を受け、標準出力を jq -e . で読める" \
+  || fail "JSON を出せる葉（$seen/$nj）:"$'\n'"$bad"
+# 読み方が何も見ていなくても通らないこと: JSON でない出力と、JSON を出せない葉の --json は落ちる
+out=$(cd "$jc" && ANDON_WORKSPACE=$jc "$andon" issue finish J-0001 --project j --json 2>&1); rc=$?
+[ "$rc" = 2 ] && [[ "$out" == usage:* ]] && ! jq -e . >/dev/null 2>&1 <<<'andon issue: 起動した' \
+  && pass "JSON でない出力は jq -e . で読めない。JSON を出せない葉の --json は使い方の誤りで断られる" || fail "JSON の読み方が何も見ていない: $rc $out"
+
+# === A11 3 以上の終了コードは --help に出る。フックの wait と rewake は知らない引数でも 0（決めたこと 15） ===
+# 葉のパッケージが返す 3 以上の数（grep で拾って表と突き合わせたもの）が、--help の終了コードの行に意味と一緒に出る
+got=
+while IFS= read -r l; do
+  # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
+  line=$("$andon" $l --help | sed -n 's/^終了コード: //p')
+  codes=$(sed 's/・/\n/g' <<<"$line" | sed -n 's/^\([3-9]\) ..*/\1/p' | tr '\n' ',')
+  if [ -n "$codes" ]; then got+="$l:$codes|"; fi
+done <"$tmp/leaves"
+want='open:3,|design start:3,|issue start:3,|issue impact:4,|gate:3,4,5,|triage collect:4,|'
+[ "$got" = "$want" ] && pass "3 以上の終了コードを使う葉（open・design start・issue start・issue impact・gate・triage collect）は --help にその数と意味を出す" \
+  || fail "--help の 3 以上の終了コード: got=[$got] want=[$want]"
+h=$("$andon" schema check --help)
+grep -qx '終了コード: 0 成功・1 合わない（理由は標準出力）・2 検査できない（使い方の誤りも）' <<<"$h" \
+  && pass "schema check の 2（検査できない）は --help に意味が出る" || fail "schema check の --help の終了コード"
+for v in wait rewake; do
+  (cd "$two" && ANDON_WORKSPACE=$two HC_TERMINAL_ID= "$andon" dispatcher "$v" --bogus </dev/null >/dev/null 2>&1)
+  rc=$?
+  [ "$rc" = 0 ] && pass "dispatcher $v は知らない引数でも 0（終了コード 2 はフックの合図）" || fail "dispatcher $v --bogus: $rc"
+done
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

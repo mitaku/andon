@@ -141,6 +141,10 @@ func TestStartsChiefOfStaff(t *testing.T) {
 	if !strings.HasSuffix(out, "andon open: 出た場所 sample-site / CoS（t42）\n") {
 		t.Errorf("出た場所が最後に無い: out=%q", out)
 	}
+	// 出た場所の手前に次の1手の行（ADR-0053 決めたこと 14・受け入れ条件 A12）
+	if !strings.HasSuffix(out, "andon open: 次: 出た場所の端末で Chief of Staff に話す。オーナー待ちは andon waiting list --project sample-site で出す\nandon open: 出た場所 sample-site / CoS（t42）\n") {
+		t.Errorf("次の1手（andon waiting list）が出た場所の手前に無い: out=%q", out)
+	}
 	want := []string{
 		"kanban root",
 		"hc ls --json --label role=chief-of-staff --label project=sample-site",

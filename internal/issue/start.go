@@ -140,6 +140,7 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 		fmt.Fprintf(stdout, " branch %s", p.Branch)
 	}
 	fmt.Fprintln(stdout)
+	fmt.Fprintf(stdout, "andon issue: 次: 報告と問いは dispatcher が届ける。担当が止まったら andon issue resume %s --project %s\n", id, c.l.Slug)
 	fmt.Fprintf(stdout, "andon issue: 出た場所 %s（%s）\n", place, run.Address)
 	return nil
 }

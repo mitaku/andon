@@ -672,6 +672,9 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$lc --label p
 ! grep -q 'SKILL.md\|先に' "$tmp/hc/log" || die '最初のメッセージに skill を読ませる行が残る（ADR-0001）'
 grep -q "$s1 を t42（demo-$lc・claude）で起動した。cwd $wt branch $br" "$tmp/out" || die "out: $(cat "$tmp/out")"
 [ "$(tail -n 1 "$tmp/out")" = "andon issue: 出た場所 $s1 Add the button / $s1（t42）" ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
+# 何をしたかの1行と、出た場所の手前に次の1手の行（ADR-0053 決めたこと 14・受け入れ条件 A12）
+[ "$(tail -n 2 "$tmp/out" | sed -n 1p)" = "andon issue: 次: 報告と問いは dispatcher が届ける。担当が止まったら andon issue resume $s1 --project demo" ] \
+  || die "start が次の1手（andon issue resume）を出さない: $(cat "$tmp/out")"
 jq -e --arg id "$s1" 'select(.id == $id and .change.status == "doing") | .by == "terminal:t42"' kanban/log.jsonl >/dev/null || die 'doing にしたのが担当の端末でない'
 [ "$(cat "$ANDON_WORKSPACE/.worktrees/.gitignore")" = '*' ] && ! git -C "$ANDON_WORKSPACE" status --short | grep -q worktrees \
   || die "置き場の .gitignore が * でないか、セルの repo の git status に出る: $(git -C "$ANDON_WORKSPACE" status --short)"
@@ -983,6 +986,10 @@ order=$(grep -n "^keep $a1 --off\|^kill $a1\|^rm $a1\|^run " "$tmp/hc/log" | cut
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-$(tr A-Z a-z <<<"$r1") --label project=demo --label issue=$r1 --label title=Resume me --label herdr.space=andon-demo-$r1 --label herdr.tab=andon-demo-$r1 --label session=$sess --cwd $rwt claude-resume \[resume\] 課題 \`demo/$r1\` の続き。" "$tmp/hc/log" \
   || die "hc run の形: $(grep ^run "$tmp/hc/log")"
 jq -e --arg id "$r1" --arg a "$a2" 'select(.id == $id and .change.agent == $a) | .by == "terminal:t5"' kanban/log.jsonl >/dev/null || die 'kanban の agent を新しい端末にしていない'
+# 何をしたかの1行のあとに次の1手の行（ADR-0053 決めたこと 14・受け入れ条件 A12）
+grep -q "^andon issue: $r1 を $a2（.*）で続きから起動した。" "$tmp/out" \
+  && [ "$(tail -n 1 "$tmp/out")" = "andon issue: 次: 報告と問いは dispatcher が届ける。また止まったら andon issue resume $r1 --project demo" ] \
+  || die "resume が何をしたかと次の1手（andon issue resume）を出さない: $(cat "$tmp/out")"
 ok 'resume: worktree を同じパスに branch で戻し、素のシェルを片付け、同じ名前・ラベルで <profile>-resume を起動し、届いてから kanban の agent を書く（doing のまま・session は同じ）'
 r1rec=$(launches "$r1")
 [ "$(nlaunch "$r1")" = 2 ] && [ "$(head -n 1 "$r1rec")" = "$r1first" ] || die "起動し直しで起動の記録が2件にならないか、1件目が変わった: $(cat "$r1rec")"
