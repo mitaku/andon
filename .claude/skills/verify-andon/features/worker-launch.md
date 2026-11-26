@@ -28,7 +28,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   - 見るファイル: `internal/tools/tools.go`、`internal/tools/env.go`、`internal/cli/leaves.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/dispatcher/loop.go`、`internal/dispatcher/resume.go`、`internal/chiefengineer/chiefengineer.go`、`package/templates/`
 
 - `wl-settings` 当てたあとに Chief of Staff が `andon issue create` で足した担当の課題の依頼書に `## Settings` の欄があり、その行が課題の予約キーの写しと合う。起動（start・resume）のあとも合う（ADR-0053 受け入れ条件 A9・A10）。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/issue/create.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/ledger/ledger.go`、`internal/cli/leaves.go`、`package/skills/chief-of-staff/playbooks/brief.md`
+  - 見るファイル: `internal/issue/create.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/ledger/ledger.go`、`internal/cli/leaves.go`、`package/skills/chief-of-staff/playbooks/brief.md`、`package/skills/chief-of-staff/playbooks/cut.md`、`package/skills/chief-of-staff/playbooks/start.md`、`package/skills/chief-of-staff/playbooks/verify.md`
 
 ## 辿り着き方（利用者から）
 
@@ -88,6 +88,9 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `internal/issue/create.go`
 - `internal/ledger/ledger.go`
 - `package/skills/chief-of-staff/playbooks/brief.md`
+- `package/skills/chief-of-staff/playbooks/cut.md`
+- `package/skills/chief-of-staff/playbooks/start.md`
+- `package/skills/chief-of-staff/playbooks/verify.md`
 - `internal/dispatcher/loop.go`
 - `internal/dispatcher/fallback.go`
 - `internal/launch/`
