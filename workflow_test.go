@@ -367,10 +367,18 @@ func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
 		}
 		wfs[f] = string(b)
 	}
+	// tests/ の下の検査と置き場。検査が走る間の一時の置き場（.task-tmp。job isolation は go のビルドの出力も置く）と
+	// node_modules は、検査のコードではないので読まない（tests/words.sh と同じ）
 	tests := map[string]string{}
 	if err := filepath.WalkDir("tests", func(p string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
 			return err
+		}
+		if d.IsDir() {
+			if p != "tests" && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		b, err := os.ReadFile(p)
 		tests[p] = string(b)
