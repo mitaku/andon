@@ -5,6 +5,45 @@
 set -uo pipefail
 . "$(dirname "$0")/../cell.sh"
 
+# wl-settings: 当てたパッケージの andon issue create が、予約キーでないキーを課題を足さずに断り、--dry-run で予約キーから書いた欄と
+# 足りないもの（profile）を書く次の1手を出す（何も書かない）。当てたあとに足した課題のうち、まだ起動していない（todo）もので、
+# 足した直後のほかに予約キーを書いていないもの（あとの kanban set の値は次の起動まで欄に写らないのが正しい）は、依頼書が
+# start --dry-run の写し（予約キーから書き直した欄）と同じで、欄を持つ。
+wa=$pkg/bin/andon
+if [ ! -x "$wa" ]; then
+  echo "note wl-settings: 当てたパッケージの andon（$wa）が無い。wl-settings は未確認"
+else
+  sfails=$fails
+  kb0=$(ls -d "$ws"/projects/*/kanban 2>/dev/null | sed -n 1p)
+  sout=$("$wa" issue create "verify wl-settings" who=person --dry-run 2>&1); src=$?
+  if [ "$src" = 1 ] && grep -qF '予約キーでない' <<<"$sout"; then echo "  | create who=person: 終了コード 1 で断った"
+  else fail "wl-settings: andon issue create が予約キーでない who=person を断らない（終了コード $src）: $sout"; fi
+  if [ -n "$kb0" ]; then
+    sout=$(env KANBAN_ROOT="${kb0%/kanban}" "$wa" issue create "verify wl-settings" --brief - review=off estimate=small --dry-run <<<'# verify' 2>&1); src=$?
+    if [ "$src" = 0 ] && grep -qx -- '- Review: off' <<<"$sout" && grep -qx -- '- Estimate: 小' <<<"$sout" && grep -qF "次: kanban set <足した id> 'profile=<名前>'" <<<"$sout"; then
+      echo "  | create --dry-run: 欄を予約キーから書き、profile を書く次の1手を出した"
+    else fail "wl-settings: andon issue create --dry-run が欄か次の1手を出さない（終了コード $src）: $sout"; fi
+  fi
+  ncmp=0
+  for kb in "$ws"/projects/*/kanban; do
+    [ -f "$kb/log.jsonl" ] || continue
+    while read -r id; do
+      [ -n "$id" ] && grep -qx 'status: todo' "$kb/issues/$id/issue.yaml" 2>/dev/null || continue
+      nk=$(jq -c --arg id "$id" 'select(.id == $id and ((.change // {}) | keys | any(IN("review", "must_fix", "reviewer", "review_rounds", "merge", "deliverable", "acceptance", "estimate"))))' "$kb/log.jsonl" | grep -c . || true)
+      [ "$nk" = 1 ] || continue
+      d=$(env KANBAN_ROOT="${kb%/kanban}" "$wa" issue start "$id" --dry-run --json 2>/dev/null) || continue # 起動の確かめで断る課題（after・profile が無いなど）は比べない
+      ncmp=$((ncmp + 1))
+      if cmp -s <(jq -j '.brief // ""' <<<"$d") "$kb/issues/$id/brief.md" && grep -qx '## Settings' "$kb/issues/$id/brief.md"; then echo "  | $id: 依頼書の欄は予約キーの写し"
+      else fail "wl-settings: $id の依頼書の ## Settings 欄が予約キーの写しでない（start --dry-run が書き直す）"; fi
+    done < <(since "$kb/log.jsonl" | jq -r 'select(.change.add) | .id' | sort -u)
+  done
+  if [ "$fails" = "$sfails" ]; then
+    ok "wl-settings: andon issue create は予約キーでないキーを断り、--dry-run で欄と次の1手を出す。当てたあとに足した起動前の課題 $ncmp 件の依頼書は予約キーの写し"
+    [ "$ncmp" -gt 0 ] || echo "note wl-settings: 比べられる課題（当てたあとに足し、起動前で、そのあと予約キーを書き直していない）が無かった。Chief of Staff が andon issue create で課題を足したあとで打ち直すと、依頼書の欄も確かめられる"
+  fi
+fi
+
+wfails=$fails # wl-settings の失敗を wl-terminal の判定に数えない
 lines=$(since "$ws"/projects/*/kanban/issues/*/library/launches.jsonl)
 n=$(grep -c . <<<"$lines" || true)
 echo "-- wl-record: 当てたあとの起動の記録 $n 件"
@@ -21,7 +60,7 @@ while IFS=$'\t' read -r addr issue; do
   echo "  | $addr（$issue）: $(jq -c '{state, labels: (.labels | {issue, role})}' <<<"$t")"
   [ "$(jq -r '.labels.issue // empty' <<<"$t")" = "$issue" ] || fail "wl-terminal: $addr のラベル issue= が $issue でない"
 done < <(jq -r '[.terminal, .issue] | @tsv' <<<"$lines" | sort -u)
-[ "$fails" = 0 ] && ok "wl-terminal: 動いている端末は、起動した課題のラベルを持つ"
+[ "$fails" = "$wfails" ] && ok "wl-terminal: 動いている端末は、起動した課題のラベルを持つ"
 
 # wl-review-brief: 当てたあとに dispatcher が起動したレビュアーの課題の依頼書が、対象の repo の REVIEW.md を先に読む指示を持つ（読むだけ）。
 # レビュアーの起動が無ければ note を出して先へ進む（wl-resume は別に見る）

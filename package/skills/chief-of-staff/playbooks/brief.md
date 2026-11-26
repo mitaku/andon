@@ -64,7 +64,7 @@
 - Estimate: 小
 ```
 
-- `andon issue create "<id> 調べる: <問い>" … --brief - review=off deliverable=candidates estimate=small --reason deliverable=調べる` で足す（正は `issue.yaml`。Settings の欄は command が予約キーから書く）。型の既定は `pr`。
+- `andon issue create "調べる: <問い>" … --brief - review=off deliverable=candidates estimate=small --reason deliverable=調べる` で足す（正は `issue.yaml`。Settings の欄は command が予約キーから書く）。型の既定は `pr`。
 - 調べる課題は repo を持ってよい（worktree で読む・走らせる。push はしない）。読むだけで足りるなら repo の無い課題でもよい（`--repo` を付けない。cwd は `issues/<id>/`、読むのは `.ghq/` の checkout）。
 - 担当は `andon issue candidates`（`library/candidates.json`）→ `andon issue report` → `andon issue ready` で終える。`ready` は PR の代わりに `candidates.json` を確かめる。gate は回らず、独立レビューも無い（`Review: off`）。通知は `<id> report` で届く。
 - 届いたら `candidates.json` と報告を読み、候補を `blocked.md` の範囲の判断と同じ表（場所・レベル・種類・直し方）で直す課題に切り、調べる課題は `andon issue finish <id>`（`finish.md`）。切らなかった候補は捨てない（担当の報告の Next に1行ずつ残っていて、トリアージが拾う）。
@@ -98,6 +98,7 @@ gate・dispatcher・担当が読むのは `issue.yaml` だけ。無い・知ら�
 command は予約キーを足す前に確かめ（予約キーでないキー・知らない値なら何も足さない）、依頼書の Settings の欄を予約キーから書き、次に打つ `andon issue start <id>` を出す:
 
 ```
+# issue.yaml の予約キー（依頼書の Settings の正）を書いて課題を足す
 andon issue create "<タイトル>" --repo <host/owner/repo> --profile <名前> [--parent <id>] [--after <id>] --brief - \
   review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium [--reason <key>=<理由>] < brief.md
 ```

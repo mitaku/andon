@@ -766,7 +766,7 @@ HC_TERMINAL_ID=t5 kanban set "$s14" review=off deliverable=report estimate=small
 expect_fail '無い・知らない値: must_fix・merge。' "$andon" issue start "$s14" --dry-run
 HC_TERMINAL_ID=t5 kanban set "$s14" must_fix=major merge=person >/dev/null
 "$andon" issue start "$s14" --dry-run --json > "$tmp/dry-report" || die "deliverable=report の課題の dry-run が落ちた: $(cat "$tmp/err" 2>/dev/null)"
-jq -e '(.brief | contains("\n- Deliverable: report\n")) and (.brief | contains("Deliverable: pr") | not)' "$tmp/dry-report" >/dev/null \
+jq -e '(.brief | contains("\n- Deliverable: report ★\n")) and (.brief | contains("Deliverable: pr") | not)' "$tmp/dry-report" >/dev/null \
   || die "依頼書の写しが Deliverable: report でない: $(jq -r .brief "$tmp/dry-report")"
 ok 'start: deliverable=report の課題は PR の課題と同じ予約キーを求め、--dry-run の依頼書の写しが Deliverable: report になる'
 
@@ -776,11 +776,15 @@ n0=$(kanban list --all --json | jq length); l0=$(wc -l < kanban/log.jsonl)
 expect_fail 'review=maybe' "$andon" issue create 'Bad value' --repo github.com/example/app --brief - review=maybe estimate=small <<<'# x'
 expect_fail 'who は andon issue create が受ける予約キーでない' "$andon" issue create 'Bad key' --repo github.com/example/app review=off who=person
 expect_fail 'estimate=huge' "$andon" issue create 'Bad estimate' review=off estimate=huge
+expect_fail 'タイトルが無い（最初の語 review=maybe' "$andon" issue create review=maybe --repo github.com/example/app
+expect_fail '依頼書（--brief -）が空' "$andon" issue create 'Empty brief' --repo github.com/example/app --profile claude --brief - review=off estimate=small </dev/null
+expect_fail '渡していない予約キーの値がある（- Acceptance: 9,10・- Deliverable: candidates ★調べる）' "$andon" issue create 'Only in brief' \
+  --repo github.com/example/app --profile claude --brief - review=off estimate=small <<<$'# x\n\n## Settings\n- Review: off\n- Acceptance: 9,10\n- Deliverable: candidates ★調べる\n- Estimate: 小'
 "$andon" issue create 'Dry' --repo github.com/example/app --brief - review=on estimate=small --dry-run --json <<<'# Dry' > "$tmp/dry-create" || die 'create --dry-run が落ちた'
 [ "$(kanban list --all --json | jq length)" = "$n0" ] && [ "$(wc -l < kanban/log.jsonl)" = "$l0" ] || die "断ったか --dry-run なのに課題を足した: $(kanban list --all --json | jq -c '.[-1]')"
 jq -e '.dry_run and .keys == ["review=on", "estimate=small"] and (.brief | endswith("\n## Settings\n- Review: on ★\n- Estimate: 小\n"))' "$tmp/dry-create" >/dev/null \
   || die "create --dry-run の中身: $(cat "$tmp/dry-create")"
-ok 'create: 知らない値（review=maybe・estimate=huge）・予約キーでないキー（who=person）は課題を足さずに終了コード 1。--dry-run は何も書かずに書く依頼書を出す（A9）'
+ok 'create: 知らない値（review=maybe・estimate=huge）・予約キーでないキー（who=person）・タイトルの抜け・空の依頼書・欄にだけある値は課題を足さずに終了コード 1。--dry-run は何も書かずに書く依頼書を出す（A9）'
 "$andon" issue create 'Create in one' --repo github.com/example/app --profile claude --brief - review=off estimate=small must_fix=major merge=person \
   <<<$'# Create in one\n完了条件: 押せる\n' > "$tmp/out" 2>"$tmp/err" || die "create が落ちた: $(cat "$tmp/err")"
 cr1=$(sed -n 's/^andon issue create: \([A-Z]*-[0-9]*\)（Create in one）を足した.*/\1/p' "$tmp/out")
@@ -810,9 +814,12 @@ ok 'create: 依頼書の Settings 欄を雛形の書き方で写し（estimate=m
 cr3=$(sed -n 's/^andon issue create: \([A-Z]*-[0-9]*\)（Needs keys）を足した.*/\1/p' "$tmp/out")
 [ "$(tail -n 1 "$tmp/out")" = "次: kanban set $cr3 'must_fix=<critical|major|minor|trivial>' 'reviewer=<codex-review|claude-review>' 'review_rounds=<1 以上の数>' 'merge=<auto|person>' 'estimate=<small|medium|large>' を打ってから andon issue start $cr3" ] \
   || die "足りない予約キーを書く行が出ない: $(cat "$tmp/out")"
-ok 'create: andon issue start が求める予約キーが足りなければ、次の1手にそれを書く kanban set の行を出す'
+"$andon" issue create 'No profile' --brief - review=off estimate=small <<<'# x' > "$tmp/out" || die 'profile の無い create が落ちた'
+cr4=$(sed -n 's/^andon issue create: \([A-Z]*-[0-9]*\)（No profile）を足した.*/\1/p' "$tmp/out")
+[ "$(tail -n 1 "$tmp/out")" = "次: kanban set $cr4 'profile=<名前>' を打ってから andon issue start $cr4" ] || die "profile を書く行が出ない: $(cat "$tmp/out")"
+ok 'create: andon issue start が求める予約キーか profile が足りなければ、次の1手にそれを書く kanban set の行を出す'
 ce0=$'# CE brief\n完了条件: 文書\n'
-ce2=$("$andon" issue create 'CE brief' --repo github.com/example/app --profile chief-engineer --brief - --json <<<"$ce0" | jq -r .id)
+ce2=$("$andon" issue create 'CE brief' --repo github.com/example/app --profile chief-engineer --brief - --json review=on estimate=small <<<"$ce0" | jq -r .id)
 printf '%s\n' "$ce0" > "$tmp/ce-brief"
 "$andon" issue start "$ce2" --dry-run --json > "$tmp/ce-dry" || die "Chief Engineer の課題の start --dry-run が落ちた: $(cat "$tmp/ce-dry")"
 cmp -s "$tmp/ce-brief" "kanban/issues/$ce2/brief.md" && [ "$(jq -r .brief "$tmp/ce-dry")" = "$(cat "$tmp/ce-brief")" ] \
@@ -1140,6 +1147,7 @@ jq -e --arg wt "$rvwt" --arg cwd "$rvcwd" --arg c "$rc" --arg s "$rvs" --arg id 
   || die "レビュアーの resume の計画: $(cat "$tmp/dry")"
 [ ! -e "$rvwt" ] || die 'dry-run が worktree を作った'
 : > "$tmp/hc/log"
+HC_TERMINAL_ID=t5 kanban set "$rv" estimate=small >/dev/null # 予約キーがあれば欄を書くので、書かないことが見える
 cp "kanban/issues/$rv/brief.md" "$tmp/rv-brief"
 "$andon" issue resume "$rv" > "$tmp/out" || die "レビュアーの resume が落ちた: $(cat "$tmp/out")"
 cmp -s "$tmp/rv-brief" "kanban/issues/$rv/brief.md" || die "resume がレビュアーの課題の依頼書を変えた: $(cat "kanban/issues/$rv/brief.md")"

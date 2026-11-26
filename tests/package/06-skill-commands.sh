@@ -97,11 +97,11 @@ sed -n '/^## オーナーの入口$/,/^## 切り方$/p' "$pb/cut.md" | grep 'adv
   && pass "Chief of Staff の skill の「オーナーの入口」に advisor に相談する場面（振り分けに迷うとき・2回差し戻して切り直すとき）" || fail "Chief of Staff の skill の「オーナーの入口」に advisor の1行が無い"
 
 # Chief of Staff の issue.yaml の予約キー: 全部書き、issue-keys.schema.json に合う
-set_line=$(block "$pb/brief.md" '# issue.yaml の予約キー' | grep '^kanban set ')
-printf '%s\n' "$set_line" | tr ' ' '\n' | grep '=' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
+set_line=$(block "$pb/brief.md" '# issue.yaml の予約キー' | sed -n '/^andon issue create /,$p' | tr -d '\\' | tr '\n' ' ')
+printf '%s\n' "$set_line" | tr ' ' '\n' | grep -E '^[a-z_]+=[a-z0-9-]+$' | jq -R 'split("=") | {(.[0]): .[1]}' | jq -s add >"$tmp/keys.json"
 if chk issue-keys "$tmp/keys.json" && jq -e 'keys == ["estimate","merge","must_fix","review","review_rounds","reviewer"]' "$tmp/keys.json" >/dev/null; then
   pass "Chief of Staff は予約キー6つ（review・must_fix・reviewer・review_rounds・merge・estimate）を issue.yaml に書く"
-else fail "Chief of Staff の kanban set: $set_line"; fi
+else fail "Chief of Staff の andon issue create: $set_line"; fi
 # ADR-0014 受け入れ条件 7（E1）: 雛形の Settings に Estimate の行（段の名）、起き直しで打ち直す予約キーに estimate
 block "$pb/brief.md" '# <id> <タイトル>' | grep -qx -- '- Estimate: 中' \
   && block "$pb/brief.md" '# <id> 調べる: ' | grep -qx -- '- Estimate: 小' \

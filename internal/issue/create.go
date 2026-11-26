@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -23,6 +24,9 @@ const CreateUsage = "usage: andon issue create \"<タイトル>\" [kanban add �
 
 // createFlags は kanban add に渡す、値を取る旗（kanban add の使い方のとおり）。
 var createFlags = []string{"--repo", "--profile", "--parent", "--round", "--after", "--phase", "--status", "--brief"}
+
+// keyWordRe は key=value の形の語（タイトルの書き忘れを見分ける）。
+var keyWordRe = regexp.MustCompile(`^[a-z][a-z_]*=`)
 
 // createKeys は andon issue create が受ける予約キー: 依頼書の ## Settings の行になるキー（playbooks/brief.md の表）。
 // machine（まだ使えない）・hold・later などの印は受けない（ADR-0053 決めたこと 18。オーナーの課題の印は andon issue ask --new）。
@@ -55,6 +59,10 @@ func Create(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		switch {
 		case words || !strings.HasPrefix(a, "-") || a == "-":
 			if !haveTitle {
+				// タイトルを書き忘れると最初の key=value がタイトルに吸われて課題が足される。= を含むタイトルは -- のあとに置く
+				if !words && keyWordRe.MatchString(a) {
+					return refuse(exitFail, "タイトルが無い（最初の語 %s が key=value の形）。= を含むタイトルなら -- のあとに置く。何も足していない", a)
+				}
 				title, haveTitle = a, true
 				continue
 			}
@@ -119,7 +127,7 @@ func Create(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 	p := &createPlan{DryRun: dry, Title: title, Add: append(append([]string{"add"}, add...), "--", title), Keys: keys}
-	if err := p.run(stdin, brief, reasons); err != nil {
+	if err := p.run(stdin, stderr, brief, reasons); err != nil {
 		return refuse(exitFail, "%v", err)
 	}
 	if asJSON {
@@ -143,7 +151,7 @@ func profileArg(add []string) string {
 // run は課題を足し（kanban add）、予約キーを書き（kanban set。書き手は打った端末）、依頼書の Settings 欄を書く。
 // --dry-run なら何も書かず、足すはずの課題と、Settings 欄を書いたあとの依頼書を作るだけ。
 // kanban add は旗の並べ方をそのまま受けるので、旗の確かめは kanban の CLI に任せる（--dry-run は確かめない）。
-func (p *createPlan) run(stdin io.Reader, brief string, reasons map[string]string) error {
+func (p *createPlan) run(stdin io.Reader, stderr io.Writer, brief string, reasons map[string]string) error {
 	var text string
 	if brief != "" {
 		b, err := readInput(stdin, brief)
@@ -152,21 +160,31 @@ func (p *createPlan) run(stdin io.Reader, brief string, reasons map[string]strin
 		}
 		text = string(b)
 	}
+	t := ledger.Issue{"profile": profileArg(p.Add)}
+	for i := 0; i+1 < len(p.Add) && p.Add[i] != "--"; i++ {
+		if p.Add[i] == "--repo" {
+			t["repo"] = p.Add[i+1]
+		}
+	}
+	for _, kv := range p.Keys {
+		k, v, _ := strings.Cut(kv, "=")
+		t[k] = v
+	}
+	if brief != "" {
+		// 空の依頼書に欄だけを書くと、start の「依頼書が無い」の断りを素通りして中身の無い依頼書で起動してしまう
+		if strings.TrimSpace(text) == "" {
+			return fmt.Errorf("依頼書（--brief %s）が空。< brief.md の付け忘れでないか。何も足していない", brief)
+		}
+		// 欄にだけ書いた値（渡し忘れた予約キー）を、欄の書き直しで黙って捨てない
+		if d := ledger.SettingsDropped(text, t); len(d) > 0 && !settingsKept(t.Str("profile")) {
+			return fmt.Errorf("依頼書の ## Settings 欄に、渡していない予約キーの値がある（%s）。key=value で渡すか、欄から消す。何も足していない", strings.Join(d, "・"))
+		}
+	}
 	l, err := ledger.Open()
 	if err != nil {
 		return err
 	}
 	if p.DryRun {
-		t := ledger.Issue{"profile": profileArg(p.Add)}
-		for i := 0; i+1 < len(p.Add) && p.Add[i] != "--"; i++ {
-			if p.Add[i] == "--repo" {
-				t["repo"] = p.Add[i+1]
-			}
-		}
-		for _, kv := range p.Keys {
-			k, v, _ := strings.Cut(kv, "=")
-			t[k] = v
-		}
 		if brief != "" && !settingsKept(t.Str("profile")) {
 			text, _ = ledger.RewriteSettings(text, t, reasons)
 		}
@@ -182,19 +200,20 @@ func (p *createPlan) run(stdin io.Reader, brief string, reasons map[string]strin
 	p.ID = ledger.CanonID(strings.TrimSpace(id))
 	if len(p.Keys) > 0 {
 		if _, err := l.Run("", append([]string{"set", p.ID}, p.Keys...)...); err != nil {
-			return fmt.Errorf("%s を足したが予約キーを書けない: %v。Chief of Staff の端末で kanban set %s %s を打つ", p.ID, err, p.ID, strings.Join(p.Keys, " "))
+			return fmt.Errorf("%s を足したが予約キーを書けない: %v。create は打ち直さず（課題が2件になる）、Chief of Staff の端末で kanban set %s %s を打つ", p.ID, err, p.ID, strings.Join(p.Keys, " "))
 		}
 	}
-	t, err := l.Show(p.ID)
+	t, err = l.Show(p.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s を足して予約キーを書いたが、課題を読み直せない: %v。create は打ち直さず（課題が2件になる）、andon issue start %s を打つ", p.ID, err, p.ID)
 	}
 	p.BriefPath = filepath.Join(l.Dir, "issues", p.ID, "brief.md")
 	_, statErr := os.Stat(p.BriefPath)
 	hasBrief := statErr == nil
 	if hasBrief && !settingsKept(t.Str("profile")) {
+		// 欄を書けなくても課題と予約キーは揃っている（start が起動の前に書く）。打ち直して課題を2件にしないよう、断らずに言うだけ
 		if p.Brief, err = writeSettings(l, p.BriefPath, t, reasons); err != nil {
-			return fmt.Errorf("%s を足して予約キーを書いたが、依頼書 %s の ## Settings 欄を書けない: %v。andon issue start が起動の前に書く", p.ID, p.BriefPath, err)
+			fmt.Fprintf(stderr, "andon issue create: 依頼書 %s の ## Settings 欄を書けない（続ける。andon issue start が起動の前に書く）: %v\n", p.BriefPath, err)
 		}
 	} else if hasBrief {
 		b, _ := os.ReadFile(p.BriefPath)
@@ -210,6 +229,11 @@ func (p *createPlan) next(t ledger.Issue, hasBrief bool) {
 	keys, optional := requiredSettings(t)
 	var args []string
 	p.Missing = []string{}
+	if t.Str("profile") == "" {
+		// profile が無いと andon issue start が断る
+		p.Missing = append(p.Missing, "profile")
+		args = append(args, "'profile=<名前>'")
+	}
 	for _, k := range keys {
 		if v := t.Str(k); v == "" && !optional[k] {
 			p.Missing = append(p.Missing, k)

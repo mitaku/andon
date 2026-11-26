@@ -274,10 +274,14 @@ func TestRewriteSettings(t *testing.T) {
 			"# タイトル\n\n## Settings\n- Review: on ★\n- Must fix: major\n- Merge: auto ★\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail,
 			Issue{"review": "on", "must_fix": "major", "reviewer": "codex-review", "review_rounds": "2", "merge": "auto", "estimate": "medium"}},
 		{"合っていれば変えない",
-			"## Settings\n- Review: on\n- Merge: person\n- Estimate: 小\n" + tail, "",
+			"## Settings\n- Review: on ★\n- Merge: person\n- Estimate: 小\n" + tail, "",
 			Issue{"review": "on", "merge": "person", "estimate": "small"}},
+		{"既定から変えたのに印の無い行には印を付ける",
+			"## Settings\n- Review: on\n- Merge: auto\n- Estimate: 小\n", "## Settings\n- Review: on ★\n- Merge: auto ★\n- Estimate: 小\n",
+			Issue{"review": "on", "merge": "auto", "estimate": "small"}},
+		{"空の依頼書には欄だけを書かない", " \n", "", Issue{"review": "on"}},
 		{"値の頭が同じ行は注釈ごと残す",
-			"## Settings\n- Deliverable: candidates ★調べる\n- Review: on", "",
+			"## Settings\n- Deliverable: candidates ★調べる\n- Review: on ★前からの注釈", "",
 			Issue{"deliverable": "candidates", "review": "on"}},
 		{"知らない行は残し、正に値の無い行と重なった行は消す",
 			"## Settings\n- Review: on\n- 横展開: 指された箇所だけ\n- Acceptance: 4\n- review: off\n",
@@ -319,7 +323,7 @@ func TestRewriteSettings(t *testing.T) {
 			"## Settings\n- Deliverable: survey\n- Merge: never\n- Review: maybe\n",
 			"## Settings\n- Deliverable: pr\n- Merge: person\n",
 			Issue{"deliverable": "survey", "merge": "never", "review": "maybe"}},
-		{"行の無いキーも知らない値は足さない", "## Settings\n- Review: on\n", "## Settings\n- Review: on\n- Merge: person\n",
+		{"行の無いキーも知らない値は足さない", "## Settings\n- Review: on ★\n", "## Settings\n- Review: on ★\n- Merge: person\n",
 			Issue{"review": "on", "merge": "never", "estimate": "huge"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -359,11 +363,26 @@ func TestRewriteSettingsMarks(t *testing.T) {
 		}
 	}
 	// Codex の担当の既定のレビュアーは claude-review なので印を付けず、codex-review に印を付ける
-	if got, _ := RewriteSettings("", Issue{"profile": "codex", "reviewer": "claude-review"}, nil); got != "## Settings\n- Reviewer: claude-review\n" {
+	if got, _ := RewriteSettings("# x\n", Issue{"profile": "codex", "reviewer": "claude-review"}, nil); got != "# x\n\n## Settings\n- Reviewer: claude-review\n" {
 		t.Errorf("codex の既定のレビュアー: %q", got)
 	}
-	if got, _ := RewriteSettings("", Issue{"profile": "codex", "reviewer": "codex-review"}, nil); got != "## Settings\n- Reviewer: codex-review ★\n" {
+	if got, _ := RewriteSettings("# x\n", Issue{"profile": "codex", "reviewer": "codex-review"}, nil); got != "# x\n\n## Settings\n- Reviewer: codex-review ★\n" {
 		t.Errorf("codex と同じブランドのレビュアー: %q", got)
+	}
+}
+
+// 欄にだけ値のある行（課題に無いキーで、書き直すと値が変わるか消える行）を返す。課題にあるキーの行・既定と同じ値の行・
+// 知らない行・コードの囲みの中の行は返さない。andon issue create が渡し忘れた予約キーを断るのに使う。
+func TestSettingsDropped(t *testing.T) {
+	brief := "# x\n\n```\n## Settings\n- Review: on\n```\n\n## Settings\n- Review: off\n- Merge: person\n- Deliverable: candidates ★調べる\n" +
+		"- Acceptance: 9,10\n- Estimate: 中\n- 横展開: 指された箇所だけ\n\n- Merge: auto\n"
+	got := SettingsDropped(brief, Issue{"profile": "claude", "estimate": "medium"})
+	want := []string{"- Review: off", "- Deliverable: candidates ★調べる", "- Acceptance: 9,10"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	if got := SettingsDropped(brief, Issue{"review": "off", "deliverable": "candidates", "acceptance": "9,10", "estimate": "small"}); !slices.Equal(got, []string(nil)) {
+		t.Errorf("全部のキーを渡したのに: %q", got)
 	}
 }
 
