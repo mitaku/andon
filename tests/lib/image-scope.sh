@@ -26,6 +26,8 @@ while IFS= read -r p; do
     .yomiyasu-words/*) ;;
     # 課題の一生のモデルと検査器のバージョン（ADR-0025。image に入らず、job model が回す）
     model/*) ;;
+    # tray（ADR-0064）。まだ image に入らず、job tray が回す。image に入れるときは要る（true）に直す（tests/ci.sh が見る）
+    tray/*) ;;
     # それ以外（image/・package/・schema/・cmd/・internal/・init/・go.mod・go.sum・embed.go・.dockerignore・
     # mise.toml・.github/ と、まだ無いパス）は要る
     *) need=true ;;

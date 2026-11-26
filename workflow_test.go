@@ -348,3 +348,111 @@ func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
 		t.Errorf("golangci-lint を回す step が %d 個（go.yml の job go の1つのはず）", found)
 	}
 }
+
+// tray の検査（tray/。外から取る npm の依存を Bun で入れて走らせる。ADR-0064 決めたこと 28・受け入れ条件 18）は
+// .github/workflows/tray.yml の job tray だけで回す。その job は PR と main の push で動き、秘密も token も参照せず、
+// 権限は contents: read だけ。依存は lock から、install のスクリプトを走らせずに入れる。ほかの job（tests・release・go・model）と
+// tests/*.sh は、Bun も tray の依存も走らせない（秘密と書き込みの権限がある所で外のコードを走らせない）。
+func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
+	type step struct {
+		Run  string         `yaml:"run"`
+		Uses string         `yaml:"uses"`
+		With map[string]any `yaml:"with"`
+	}
+	type job struct {
+		Permissions any    `yaml:"permissions"`
+		Steps       []step `yaml:"steps"`
+	}
+	readOnly := func(perm any) bool {
+		m, ok := perm.(map[string]any)
+		return ok && len(m) == 1 && m["contents"] == "read"
+	}
+	runsTray := func(s step) bool {
+		if strings.HasPrefix(s.Uses, "oven-sh/setup-bun@") {
+			return true
+		}
+		for _, w := range []string{"bun ", "bunx ", "playwright ", "tray/"} {
+			if strings.Contains(s.Run, w) {
+				return true
+			}
+		}
+		return false
+	}
+	files, _ := filepath.Glob(".github/workflows/*.y*ml")
+	found := 0
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wf struct {
+			On          map[string]any `yaml:"on"`
+			Permissions any            `yaml:"permissions"`
+			Jobs        map[string]job `yaml:"jobs"`
+		}
+		if err := yaml.Unmarshal(b, &wf); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		for name, j := range wf.Jobs {
+			runs := false
+			for _, s := range j.Steps {
+				runs = runs || runsTray(s)
+			}
+			if !runs {
+				continue
+			}
+			if filepath.Base(f) != "tray.yml" || name != "tray" {
+				t.Errorf("%s の job %s が Bun か tray の依存を走らせる（tray.yml の job tray だけのはず）", f, name)
+				continue
+			}
+			found++
+			if strings.Contains(string(b), "secrets.") || strings.Contains(string(b), "github.token") {
+				t.Errorf("%s が秘密か token を参照する", f)
+			}
+			if !readOnly(wf.Permissions) || !readOnly(j.Permissions) {
+				t.Errorf("%s の job %s の権限が contents: read だけでない（top %v・job %v）", f, name, wf.Permissions, j.Permissions)
+			}
+			pr := wf.On["pull_request"]
+			push, _ := wf.On["push"].(map[string]any)
+			branches, _ := push["branches"].([]any)
+			if _, ok := wf.On["pull_request"]; !ok || pr != nil || len(branches) != 1 || branches[0] != "main" {
+				t.Errorf("%s が PR と main の push の両方で動かない（on: %v）", f, wf.On)
+			}
+			installs := 0
+			for _, s := range j.Steps {
+				if strings.HasPrefix(s.Uses, "actions/checkout@") && s.With["persist-credentials"] != false {
+					t.Errorf("%s の job %s の checkout が persist-credentials: false でない", f, name)
+				}
+				if strings.Contains(s.Run, "bun install") || strings.Contains(s.Run, "bun add") || strings.Contains(s.Run, "bun i ") {
+					installs++
+					if !strings.Contains(s.Run, "bun install --frozen-lockfile --ignore-scripts") {
+						t.Errorf("%s の job %s が依存を lock のとおりに入れない、か install のスクリプトを走らせる: %q", f, name, s.Run)
+					}
+				}
+			}
+			if installs != 1 {
+				t.Errorf("%s の job %s で依存を入れる step が %d 個（bun install --frozen-lockfile --ignore-scripts の1つのはず）", f, name, installs)
+			}
+		}
+	}
+	// tray.yml の job tray の1つ（この検査が何も見ていなくても通るのを防ぐ）
+	if found != 1 {
+		t.Errorf("Bun か tray の依存を走らせる job が %d 個（tray.yml の job tray の1つだけのはず）", found)
+	}
+	scripts, _ := filepath.Glob("tests/*.sh")
+	libs, _ := filepath.Glob("tests/lib/*.sh")
+	if len(scripts) == 0 {
+		t.Fatal("tests/*.sh が無い")
+	}
+	for _, f := range append(append(scripts, libs...), "tests/run") {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range []string{"bun ", "bunx ", "tray/scripts", "tray/node_modules"} {
+			if strings.Contains(string(b), w) {
+				t.Errorf("%s が %q を含む（tray の依存は tests と release の job で走らせない）", f, w)
+			}
+		}
+	}
+}

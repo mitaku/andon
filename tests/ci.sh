@@ -25,6 +25,12 @@ grep -q 'yomiyasu-words' .dockerignore && die ".yomiyasu-words/ を image に入
 grep -q '^!package/$' .dockerignore || die ".dockerignore の !package/ の行が読めない（上の否定が何も見ていない）"
 grep -q 'COPY .*image/apply-main' image/Dockerfile && die "image/apply-main.sh を image に入れるなら image-scope.sh も直す"
 grep -q 'COPY .*image/' image/Dockerfile || die "Dockerfile の COPY image/ の行が読めない（上の否定が何も見ていない）"
+# tray（ADR-0064）: まだ image に入らないので、tray/ だけの変更で image を焼かない。名前の似た別の置き場は知らないパス
+[ "$(scope tray/src/list.ts tray/bun.lock tray/package.json)" = false ] || die "tray/ だけで true"
+[ "$(scope trayx/a)" = true ] || die "tray/ でない名前の似た置き場で false"
+grep -q 'tray' .dockerignore && die "tray/ を image に入れるなら image-scope.sh も直す"
+grep -q 'tray' image/Dockerfile && die "tray を image に焼くなら image-scope.sh も直す"
+grep -q 'package' image/Dockerfile || die "Dockerfile が読めない（上の否定が何も見ていない）"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
   internal/issue/issue.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
   package/lib/andon/x_test.go init/x_test.go image/x_test.go \
@@ -74,6 +80,8 @@ done
 [ "$(printf '%s\n' AGENTS.md | bash tests/lib/docs-scope.sh)" = true ] || die "AGENTS.md だけが文書だけにならない"
 has "$(pick AGENTS.md)" tests/agents-md.sh || die "AGENTS.md だけで agents-md.sh が無い: $(pick AGENTS.md)"
 [ "$(pick AGENTS.md)" = "$always" ] || die "AGENTS.md だけ: $(pick AGENTS.md)"
+# tray/ は tests/*.sh が読まず、job tray が回す（ADR-0064）。いつもの分だけ
+[ "$(pick tray/src/list.ts tray/bun.lock)" = "$always" ] || die "tray/ だけ: $(pick tray/src/list.ts tray/bun.lock)"
 # contract.md は schema.sh・package.sh。schema.sh を選んだら、読ませる emitters も並べる（schema.sh が1本ずつ回し直さない）
 got=$(pick docs/contract.md)
 for t in tests/package.sh tests/schema.sh $emitters; do has "$got" "$t" || die "contract.md で $t が無い: $got"; done
@@ -174,7 +182,7 @@ for p in internal/issue/issue.go cmd/andon/main.go internal/issue/issue_test.go 
   [ "$(iso "$p")" = "tests/smoke.sh " ] || die "Go の $p で smoke.sh だけにならない: $(iso "$p")"
 done
 for p in docs/image.md README.md README.ja.md AGENTS.md tests/README.md package/skills/worker/SKILL.md schema/report.schema.json image/Dockerfile \
-  model/IssueLife.tla mise.toml tests/lib/scope.sh tests/lib/docs-scope.sh tests/lib/image-scope.sh tests/lib/pty-probe.py tests/image.sh tests/no-such.sh; do
+  model/IssueLife.tla tray/src/list.ts mise.toml tests/lib/scope.sh tests/lib/docs-scope.sh tests/lib/image-scope.sh tests/lib/pty-probe.py tests/image.sh tests/no-such.sh; do
   [ -z "$(iso "$p")" ] || die "$p で偽のセルの検査を選ぶ: $(iso "$p")"
 done
 [ -z "$(iso)" ] || die "変更が無いのに偽のセルの検査を選ぶ"

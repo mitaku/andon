@@ -132,6 +132,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`README.ja.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | `image/apply-main.sh` | 飛ばす | セルに main の commit を当てる道具（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`image/` の下だが Dockerfile は COPY しない |
 | `model/` | 飛ばす | 課題の一生のモデルと検査器のバージョン。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |
+| `tray/` | 飛ばす | tray（[ADR-0064](adr/0064-tray.md)）。まだ image に入らず、`tests/image.sh` も読まない。回すのは tray の workflow の job。image に入れるときは「走らせる」に移す（`tests/ci.sh` が `.dockerignore` と Dockerfile を見る） |
 | `.claude/skills/`・`.agents/skills/` | 飛ばす | repo の中の skill の置き場（検証の skill。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 4）。image にも `andon` にも入らない。ほかの `.claude/` は知らないパスとして走らせる |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 
@@ -179,7 +180,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `tests/adr-new`（ADR の番号を取る command） | `adr-new.sh` を足す |
 | `tests/<x>.sh` | その `tests/<x>.sh` を足す |
 | `image/apply-main.sh` | `apply-main.sh` を足す |
-| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`README.ja.md`・`.claude/skills/`・`.agents/skills/` など | 足さない |
+| `docs/` のほか・`tests/README.md`・`cmd/`・`internal/`・root の `*_test.go`・root の `README.md`・`README.ja.md`・`.claude/skills/`・`.agents/skills/`・`tray/`（tray の workflow の job が回す）など | 足さない |
 | `tests/lib/scope.sh`・`docs-scope.sh`・`image-scope.sh` | 足さない（判定の道具は、いつも走る `ci.sh` が見る） |
 | `tests/lib/` のほか | `image.sh` 以外の全部 |
 | `cmd/`・`internal/`・`package/`・`schema/`・`init/`・`image/`・`embed.go`・andon に埋め込む `process/states/issue.yaml` | 重い検査を除く全部と、変えたパスを見る重い検査（下の表） |
@@ -212,7 +213,7 @@ andon issue が使う Go の package は、`cmd/andon`・`cmd/kanban`・`interna
 | `package/host/`（`host.sh` が回す plugin。HOME や上のフォルダの kanban を読む） | `host.sh` |
 | `tests/<x>.sh` | その `tests/<x>.sh`（`schema.sh` なら出力を読む11本も） |
 | Go（`cmd/`・`internal/`・root の `*.go`・`go.mod`・`go.sum`） | `smoke.sh`（`go test ./...` の隔離を見る。数分） |
-| それ以外（文書・`package/` のほか・`schema/`・`image/`・`model/`・`mise.toml` など） | 回さない |
+| それ以外（文書・`package/` のほか・`schema/`・`image/`・`model/`・`tray/`・`mise.toml` など） | 回さない |
 
 `image.sh` は docker が要るので番兵の中では回さない（tests の job が回す）。main の push では回さない。main で隔離が壊れていないかは、Andon を開発するセルの週1回の点検 `check-isolation`（[ADR-0047](adr/0047-idle-slots-run-upkeep.md) 決めたこと 18）が全部を回して見る。
 
