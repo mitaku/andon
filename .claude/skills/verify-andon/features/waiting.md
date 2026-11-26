@@ -62,6 +62,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - `tests/andon-waiting.sh`（バイナリの入口・人が読む行・何も書かないことを見る）
 - `tests/andon-issue.sh`（`ask --new` の出力・`who: person`・打ち直し・`--now`・`--later`・`--until` と断る打ち方）
 - `tests/andon-waiting.sh` の置いてあるものの段（印 later を Chief of Staff が書いた行と担当が書き直した行）
+- `go test ./internal/cli/` の `TestRetiredNames`（古い名前ごとに、終了コード 2・新しい名前の1行・葉を実行しないこと）
 - `go test ./internal/waiting/`（マージの依頼・判断・手作業の数え方と枠。置いておく印と呼ぶ日は `later_test.go`）と `go test ./internal/ledger/`
 
 ## 落とし穴
