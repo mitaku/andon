@@ -56,7 +56,10 @@ elif [ "$fails" = "$f0" ]; then
   ok "gt-answer: dispatcher が閉じた問い $closed 件は全部 gate の問いで、dispatcher の答えは印が machine、名指す gate の記録が在る"
 fi
 # gt-skip: 当てたあとに PR 無しで review に入った課題（report.json に pr が無い。検証・マージ後のレビュー）のうち、
-# 報告の commit が既定の branch に入っているもの（自分の commit が無い）には、dispatcher が gate を回さず fix を送らない。
+# 報告の課題（deliverable: report を書いた時点の Chief of Staff が書いた。ADR-0066 決めたこと 7）と、報告の commit が既定の branch に
+# 入っているもの（自分の commit が無い）には、dispatcher が gate を回さず fix を送らない。報告の課題は commit を見ずに数える。
+# 報告の課題と読むのは、review に入った行より前の deliverable を最後に変えた行が report で、その行の書き手がその行の時点の
+# Chief of Staff の端末だったときだけ（印の無い間に正しく fix を受けた行を、あとから書いた印で数えない。照合は ledger.TrustedThen と同じ辿り方）。
 # pr が無いときの gate の fix は、gate の記録も通知の記録も書かない。後から残るのは kanban の履歴で、fix を受けた担当は
 # 自分の端末で kanban start を打って doing に戻す。そこで review に入った行の次の status の行が、同じ端末の doing でないことを見る。
 # andon issue merge の記録（<slug>.merge.json）がその行の分を残していれば（課題が片付くと消える）、decision が fix でないことも見る。
@@ -66,6 +69,7 @@ skipped=0 f0=$fails
 for k in "$ws"/projects/*/kanban; do
   [ -f "$k/log.jsonl" ] || continue
   slug=${k%/kanban}; slug=${slug##*/}
+  cos=$(sed -n 's/^chief_of_staff: *//p' "$k/config.yaml" 2>/dev/null | tr -d '"'"'"' | sed -n 1p)
   rows=$(jq -c -n '[inputs] | to_entries[] | select(.value.change.status) | .value + {row: (.key + 1)}' "$k/log.jsonl")
   while IFS=$'\t' read -r id row by; do
     rep=$k/issues/$id/library/report.json
@@ -74,20 +78,34 @@ for k in "$ws"/projects/*/kanban; do
     repo=$(jq -r '.issue.repo // empty' <<<"$show")
     [ -n "$repo" ] && [ "$(jq -r '.issue.deliverable // "pr"' <<<"$show")" != candidates ] || continue
     commit=$(jq -r '.commit // empty' "$rep")
-    git -C "$ws/.ghq/$repo" merge-base --is-ancestor "$commit" refs/remotes/origin/HEAD 2>/dev/null || continue
+    form=$(jq -rs --arg id "$id" --argjson r "$row" --arg cur "$cos" '
+      def coss: [.[] | select(.config) | .config | select(has("chief_of_staff") or has("coordinator")) | (.coordinator // .chief_of_staff)];
+      . as $all
+      | ([$all[0:$r - 1] | to_entries[] | select(.value.id == $id and ((.value.change // {}) | has("deliverable")))] | last) as $d
+      | if $d == null or $d.value.change.deliverable != "report" then "pr" else
+          ($all[0:$d.key] | coss | last) as $then
+          | (if $then != null then $then elif ($all | coss | length) > 0 then null else $cur end) as $c
+          | if $c != null and $c != "" and $d.value.by == "terminal:" + $c then "report" else "pr" end
+        end' "$k/log.jsonl" 2>/dev/null)
+    if [ "$form" = report ]; then
+      what="報告の課題（commit ${commit:0:12} は見ない）"
+    else
+      git -C "$ws/.ghq/$repo" merge-base --is-ancestor "$commit" refs/remotes/origin/HEAD 2>/dev/null || continue
+      what="commit ${commit:0:12}（既定の branch に入っている）"
+    fi
     skipped=$((skipped + 1))
     dec=$(jq -r --arg id "$id" --argjson r "$row" '.[$id] | select(. != null and .row == $r) | .decision // "決まっていない"' "$state/$slug.merge.json" 2>/dev/null)
     next=$(jq -r --arg id "$id" --argjson r "$row" 'select(.id == $id and .row > $r) | "\(.change.status) \(.by)"' <<<"$rows" | sed -n 1p)
-    echo "  | $id: pr 無し・commit ${commit:0:12}（既定の branch に入っている）・review にした $by・次の status ${next:-無し（review のまま）}・merge の記録 ${dec:-無し}"
-    [ "$dec" != fix ] || fail "gt-skip: 自分の commit の無い PR 無しの課題 $id に gate が fix を返した（merge の記録）"
-    [ "$next" != "doing $by" ] || fail "gt-skip: 自分の commit の無い PR 無しの課題 $id を、review のあと担当（$by）が doing に戻した（fix を受けた形。Chief of Staff が戻したなら担当の画面で確かめる）"
+    echo "  | $id: pr 無し・$what・review にした $by・次の status ${next:-無し（review のまま）}・merge の記録 ${dec:-無し}"
+    [ "$dec" != fix ] || fail "gt-skip: PR を出さない課題 $id に gate が fix を返した（merge の記録）"
+    [ "$next" != "doing $by" ] || fail "gt-skip: PR を出さない課題 $id を、review のあと担当（$by）が doing に戻した（fix を受けた形。Chief of Staff が戻したなら担当の画面で確かめる）"
   done < <(jq -c 'select(.change.status == "review")' <<<"$rows" | dsince | jq -r '[.id, (.row | tostring), .by] | @tsv')
 done
-echo "-- gt-skip: 当てたあとに PR 無しで review に入った、自分の commit の無い課題 $skipped 件"
+echo "-- gt-skip: 当てたあとに PR 無しで review に入った、報告の課題か自分の commit の無い課題 $skipped 件"
 if [ "$skipped" = 0 ]; then
-  echo "note gt-skip: 当てたあとに、自分の commit の無い課題が PR 無しで review に入っていない。検証の課題が kanban review で返ったあとで打ち直す"
+  echo "note gt-skip: 当てたあとに、報告の課題か自分の commit の無い課題が PR 無しで review に入っていない。検証の課題が kanban review で返ったあとで打ち直す"
 elif [ "$fails" = "$f0" ]; then
-  ok "gt-skip: 自分の commit の無い PR 無しの課題 $skipped 件は、gate の fix を受けた形（担当が doing に戻す・merge の記録の fix）が無い"
+  ok "gt-skip: PR 無しで返った報告の課題か自分の commit の無い課題 $skipped 件は、gate の fix を受けた形（担当が doing に戻す・merge の記録の fix）が無い"
 fi
 [ "$fails" = 0 ] || exit 1
 [ "$nrec" -gt 0 ] || exit 3

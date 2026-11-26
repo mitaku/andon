@@ -30,7 +30,7 @@ const Usage = "usage: andon gate <id> [--dry-run]\n" +
 	"kanban の課題の PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は issues/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
 	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
-	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates の課題も。回さない）。\n"
+	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates の課題と、PR の無い deliverable: report の課題も。回さない）。\n"
 
 const (
 	exitFix   = 1
@@ -104,6 +104,14 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	stdout.Write(b)
 	return ExitCode(rec.Decision)
+}
+
+// withWhy は理由の文 s に、添える句 why（空なら添えない）を「。」でつなぐ。
+func withWhy(s, why string) string {
+	if why == "" {
+		return s
+	}
+	return s + "。" + why
 }
 
 // holding は、Chief of Staff が止めている課題で gate を回さなかった印（run が誤りの形で返し、Main が wait を出す）。値は理由の1文。
@@ -291,6 +299,15 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		}
 		return nil, "", errors.New("deliverable: candidates の課題に gate は無い（候補の一覧は Chief of Staff が読む）")
 	}
+	// 報告の課題（deliverable: report を書いた時点の Chief of Staff が書いた課題）は PR が無くてよい。PR が無ければ回さず、
+	// 記録も書かない（ADR-0066 決めたこと 8）。PR があれば PR の課題と同じに回す。照合の外れた report は PR の課題として読み、
+	// PR を求める理由の文に外れた理由（notReport）を添える
+	form, notReport := l.Deliverable(t)
+	if form == "report" {
+		if rep, err := contract.ReadReport(filepath.Join(l.Library(id), "report.json")); errors.Is(err, os.ErrNotExist) || (err == nil && rep.PR == "") {
+			return nil, "", errors.New("deliverable: report の課題で PR が無い。gate を回すものが無い")
+		}
+	}
 	if !dry {
 		// 記録を書いて PR に写す run は課題ごとに1つずつ（G2 を塞いだ。dispatcher.md §7.2 #4）。
 		// 待った間にほかの run が同じ head の記録を書いていれば、それを返して書かない・写さない（下の written）。
@@ -325,11 +342,11 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	// L1 kanban: PR の場所は report.json の pr だけ（Markdown も issue.yaml の pr も読まない）
 	rep, err := contract.ReadReport(filepath.Join(l.Library(id), "report.json"))
 	if err != nil {
-		return nil, "report.json が無い・形が違う（andon issue report）", nil
+		return nil, withWhy("report.json が無い・形が違う（andon issue report）", notReport), nil
 	}
 	owner, name, number, ok := contract.ParsePR(rep.PR)
 	if !ok {
-		return nil, "report.json に pr が無い（andon issue report --pr）", nil
+		return nil, withWhy("report.json に pr が無い（andon issue report --pr）", notReport), nil
 	}
 	repo := t.Str("repo")
 	switch {

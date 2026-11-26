@@ -56,5 +56,5 @@ outside todo done andon issue finish — 起動する前にやめる。モデル
 outside todo done kanban done — トリアージの close。トリアージの一生はモデルに入れていない（やらないこと 5）
 outside doing doing andon issue candidates — 調べる課題の候補の一覧。PR の無い課題はモデルに入れていない（やらないこと 5）
 outside doing doing andon issue record — 走らせた記録（ADR-0035 決めたこと 11）。status も、モデルが見る PR・CI・レビューも動かさない
-outside doing review kanban review — Chief Engineer・トリアージ・観察の課題と、repo の課題のうち PR を出さないもの（当てたあとの検証・マージ後のレビュー）が返す。PR を出さない repo の課題には dispatcher が gate を回さない（internal/issue/merge.go mergeOne）。PR の無い課題はモデルに入れていない（やらないこと 5）
+outside doing review kanban review — Chief Engineer・トリアージ・観察の課題と、repo の課題のうち PR を出さないもの（当てたあとの検証・マージ後のレビュー）が返す。PR を出さない repo の課題（報告の課題〈deliverable: report〉か、報告の commit が既定の branch に入っている課題）には dispatcher が gate を回さない（internal/issue/merge.go mergeOne。ADR-0066 決めたこと 7）。PR の無い課題はモデルに入れていない（やらないこと 5）
 outside done [*] - — kanban から消えるのはモデルの外（モデルは done で止まる）

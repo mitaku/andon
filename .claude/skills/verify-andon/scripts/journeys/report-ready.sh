@@ -45,6 +45,28 @@ step "rr-report: ほかの branch の PR を報告に書く" "$andon" issue repo
     || fail "rr-report: 断る理由が「この課題の PR でない」でないか、report.json を書いた"; }
 # rr-report: 前の report.json の pr がほかの課題の PR（この直しより前に書かれたもの）なら、--pr を付けずに書き直すと引き継がずに外す
 step "rr-report: 報告を書く（pr 無し）" "$andon" issue report "$id" <<<"## Report" >/dev/null
+# rr-ready-report: 報告の課題（Chief of Staff が deliverable=report を書いた）で pr の無い報告の ready は、kanban review で返すと案内して
+# 断り（--pr を案内しない）、手で打った gate も回さずに終了コード 3 で記録を書かない（ADR-0066 決めたこと 8）。PR の課題に戻して続ける
+HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null
+step "rr-ready-report: 報告の課題で pr の無い報告の ready を打つ" "$andon" issue ready "$id" \
+  && fail "rr-ready-report: 報告の課題で pr が無いのに ready が通った" \
+  || { grep -q "deliverable: report の課題で PR が無いときは kanban review $id で返す" "$tmp/step.out" \
+    && ! grep -q -- '--pr' "$tmp/step.out" \
+    && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
+    && ok "rr-ready-report: 報告の課題で pr が無ければ、ready は kanban review で返すと案内して断り（--pr を案内しない）、課題は doing のまま" \
+    || fail "rr-ready-report: 断る理由が kanban review の案内でないか、--pr を案内したか、status が動いた"; }
+grc=0; step "rr-ready-report: 報告の課題で pr の無い報告に gate を打つ" "$andon" gate "$id" || grc=$?
+[ "$grc" = 3 ] && grep -q 'deliverable: report の課題で PR が無い。gate を回すものが無い' "$tmp/step.out" && [ ! -e "$lib/gate" ] \
+  && ok "rr-ready-report: 報告の課題で pr が無ければ、手で打った gate は回さずに終了コード 3 で、記録を書かない" \
+  || fail "rr-ready-report: 報告の課題で pr が無いのに、gate が終了コード 3 でないか、理由が違うか、記録を書いた"
+# 上の「--pr を案内しない」の確かめが何も見ない形でないこと: 担当が書いた report は PR の課題として --pr を案内する
+"$kanban" set "$id" deliverable=report >/dev/null
+step "rr-ready-report: 担当が書いた report で pr の無い報告の ready を打つ" "$andon" issue ready "$id" \
+  && fail "rr-ready-report: 担当が report を書いた課題で pr が無いのに ready が通った" \
+  || { grep -q -- '--pr' "$tmp/step.out" && grep -q 'Chief of Staff でない' "$tmp/step.out" \
+    && ok "rr-ready-report: 担当が書いた report は PR の課題として --pr を案内し、外れた理由を添える" \
+    || fail "rr-ready-report: 担当が書いた report の ready が --pr を案内しないか、外れた理由を添えない"; }
+HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=pr >/dev/null
 jq --arg pr "$pr" '.pr = $pr' "$lib/report.json" >"$tmp/rep.new" && mv "$tmp/rep.new" "$lib/report.json"
 step "rr-report: ほかの課題の PR が入った報告を、--pr を付けずに書き直す" "$andon" issue report "$id" <<<"## Report" \
   && grep -q 'この課題の PR でないので引き継がない' "$tmp/step.out" && jq -e '(.pr // "") == ""' "$lib/report.json" >/dev/null \

@@ -455,6 +455,46 @@ func TestDeliverableOf(t *testing.T) {
 	}
 }
 
+// Ledger.Deliverable は kanban の履歴を読んで DeliverableOf を呼び、report を pr と読んだときは理由の句を返す。
+// 履歴に読めない行があれば（Chief of Staff の交代の行が抜けうる）report を pr と読む（ADR-0066 決めたこと 7・8・10）。
+func TestLedgerDeliverable(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("version: 3\nprefix: S\nchief_of_staff: t6\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	l := &Ledger{Dir: dir, Slug: "demo"}
+	write := func(lines ...string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "log.jsonl"), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report := Issue{"id": "S-0007", "deliverable": "report"}
+	for _, c := range []struct {
+		name      string
+		lines     []string
+		issue     Issue
+		form, why string
+	}{
+		{"Chief of Staff が書いて起き直した", []string{`{"by":"andon","config":{"chief_of_staff":"t5"}}`,
+			`{"by":"terminal:t5","id":"S-0007","change":{"deliverable":"report"}}`, `{"by":"andon","config":{"chief_of_staff":"t6"}}`},
+			report, "report", ""},
+		{"担当が書いた", []string{`{"by":"andon","config":{"chief_of_staff":"t6"}}`, `{"by":"terminal:t9","id":"S-0007","change":{"deliverable":"report"}}`},
+			report, "pr", "Chief of Staff でない"},
+		{"読めない行がある", []string{`{"by":"andon","config":{"chief_of_staff":"t5"}}`,
+			`{"by":"terminal:t5","id":"S-0007","change":{"deliverable":"report"}}`, `{broken`},
+			report, "pr", "確かめられない"},
+		{"candidates は履歴を見ない", []string{`{broken`}, Issue{"id": "S-0007", "deliverable": "candidates"}, "candidates", ""},
+		{"値の無い課題", []string{`{broken`}, Issue{"id": "S-0007"}, "pr", ""},
+	} {
+		write(c.lines...)
+		form, why := l.Deliverable(c.issue)
+		if form != c.form || (c.why == "") != (why == "") || !strings.Contains(why, c.why) {
+			t.Errorf("%s: %q %q（want %q と %q を含む理由）", c.name, form, why, c.form, c.why)
+		}
+	}
+}
+
 // TrustedThen は、キーを最後に変えた行の書き手を、その行の時点の Chief of Staff と比べる（ADR-0062 決めたこと 3）。
 func TestTrustedThen(t *testing.T) {
 	cos := func(v any) Row { return Row{By: "andon", Config: map[string]any{"chief_of_staff": v}} }

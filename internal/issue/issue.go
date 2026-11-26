@@ -533,6 +533,15 @@ func (c *ctx) ready(stdout io.Writer) error {
 		return c.readyCandidates(r, stdout)
 	}
 	if r.PR == "" {
+		// 報告の課題（deliverable: report を書いた時点の Chief of Staff が書いた課題）は PR が無くてよく、kanban review で返す。
+		// ready は PR の無い課題を review にしない（ADR-0066 決めたこと 8）。照合の外れた report は PR の課題として PR を求め、外れた理由を添える
+		form, why := c.l.Deliverable(c.issue)
+		if form == "report" {
+			return fail("deliverable: report の課題で PR が無いときは kanban review %s で返す", c.id)
+		}
+		if why != "" {
+			return fail("report.json に pr が無い（andon issue report <id> --pr <url>）。%s", why)
+		}
 		return fail("report.json に pr が無い（andon issue report <id> --pr <url>）")
 	}
 	head, err := c.head()

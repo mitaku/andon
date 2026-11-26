@@ -419,6 +419,24 @@ func DeliverableOf(rows []Row, t Issue, cos string) string {
 	return v
 }
 
+// Deliverable は課題 t の成果の形を、kanban の履歴を読んで DeliverableOf で返す（PR の無い報告の課題を分ける andon issue merge・
+// andon gate・andon issue ready の読み手。ADR-0066 決めたこと 7・8・10）。値が report なのに pr と読んだときは、why にその理由の
+// 1 句を返す（読み手が理由の文に添える）。履歴を読み切れない・読めない行があるときは、report を書いたのが Chief of Staff か
+// 確かめられない（交代の行が抜けると前の端末を Chief of Staff と読む）ので pr と読む。pr と読むのは今までの動きに戻るだけである。
+func (l *Ledger) Deliverable(t Issue) (form, why string) {
+	if t.Str("deliverable") != "report" {
+		return DeliverableOf(nil, t, ""), ""
+	}
+	rows, err := l.ReadWholeLog()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "pr", "kanban の履歴を読み切れず、deliverable: report を書いたのが Chief of Staff か確かめられない"
+	}
+	if form = DeliverableOf(rows, t, l.ChiefOfStaff()); form != "report" {
+		return form, "deliverable: report を書いたのが Chief of Staff でない"
+	}
+	return form, ""
+}
+
 // Estimate は、課題の見込みの段（予約キー estimate の small・medium・large）を、最後に書いたのが Chief of Staff のときだけ返す
 // （contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは空（見込み無し）。ADR-0014 決めたこと 2・11 の 5。
 func (l *Ledger) Estimate(rows []Row, t Issue) string {

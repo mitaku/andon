@@ -559,6 +559,29 @@ got=$(gate "$sid")
 [ ! -e "kanban/issues/$sid/library/gate" ] && [ ! -e "$tmp/gh/posted" ] || die '照合が外れた candidates なのに記録・GitHub に書いた'
 ok 'deliverable: candidates は回さず終了コード 3（記録しない）。最後に書いたのが Chief of Staff でなくても PR を求めない'
 
+# 12b. deliverable: report（報告の課題）で report.json に pr が無ければ、gate は回さず理由1行と終了コード 3、記録も GitHub への書き込みもしない
+#      （ADR-0066 決めたこと 8・受け入れ条件 5）。report.json が無くても同じ。照合が外れた report（担当が書いた）は PR の課題として fix を返し、
+#      外れた理由を添える。pr のある報告の課題は PR の課題と同じに回す
+rid=$(HC_TERMINAL_ID=t5 kanban add '当てたあとの検証' --profile claude)
+HC_TERMINAL_ID=t5 kanban set "$rid" deliverable=report status=doing review=on must_fix=major branch=verify "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
+rlib=kanban/issues/$rid/library
+rm -f "$tmp/gh/posted"
+for with_report in false true; do
+    if [ "$with_report" = true ]; then mkdir -p "$rlib" && jq -n --arg c "$(git -C "$tmp/wt" rev-parse HEAD)" '{commit: $c}' > "$rlib/report.json"; fi
+    got=$(gate "$rid")
+    [ "$got" = 3 ] && [ ! -s "$tmp/out" ] && [ "$(wc -l < "$tmp/err")" = 1 ] && grep -q 'deliverable: report の課題で PR が無い' "$tmp/err" ||
+        { cat "$tmp/out" "$tmp/err" >&2; die "PR の無い報告の課題（report.json あり: $with_report）に rc $got"; }
+    [ ! -e "$rlib/gate" ] && [ ! -e "$tmp/gh/posted" ] || die "PR の無い報告の課題（report.json あり: $with_report）なのに記録・GitHub に書いた"
+done
+HC_TERMINAL_ID=t7 kanban set "$rid" deliverable=report >/dev/null
+got=$(gate "$rid"); expect 1 fix 'report.json に pr が無い'
+grep -q 'deliverable: report を書いたのが Chief of Staff でない' "$tmp/out" || { cat "$tmp/out" >&2; die '照合が外れた report の fix に外れた理由が無い'; }
+[ ! -e "$rlib/gate" ] || die '照合が外れた report の PR 無しで記録を書いた'
+HC_TERMINAL_ID=t5 kanban set "$id" deliverable=report >/dev/null
+got=$(gate "$id" --dry-run); expect 1 fix '受け入れ条件 A4 の記録 runs/9.json が無い'
+HC_TERMINAL_ID=t5 kanban set "$id" deliverable=pr >/dev/null
+ok 'deliverable: report で PR が無ければ回さず終了コード 3（記録しない）。担当が書いた report は PR の課題として fix、pr があれば PR の課題と同じに回す'
+
 # 13. 止めている課題（予約キー hold。ADR-0056 決めたこと 9・10。受け入れ条件 A4）: gate は GitHub を読まずに wait を返し、記録も印も書かない
 HC_TERMINAL_ID=t5 kanban set "$id" agent=t7 >/dev/null   # 担当の端末は t7
 HC_TERMINAL_ID=t5 kanban set "$id" hold="$sid" >/dev/null
