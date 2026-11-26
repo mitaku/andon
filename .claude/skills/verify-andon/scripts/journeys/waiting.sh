@@ -44,6 +44,12 @@ jq -e --arg a "$a" --arg b "$b" '[.items[] | select(.kind == "decision" and .ans
 step "ow-waiting: andon waiting list を打つ（人が読む出力）" "$andon" waiting list \
   && grep -qF "$a" "$tmp/step.out" && ok "ow-waiting: 人が読む出力にも $a が出る" || fail "ow-waiting: 人が読む出力に $a が無い"
 
+# ow-old-name: 名前を変える前の andon waiting --json（古いホストの部品が打つ形）は、新しい名前を1行で言って終了コード 2 で終わり、何も出さない
+rc=0; step "ow-old-name: 古い名前 andon waiting --json を打つ" "$andon" waiting --json || rc=$?
+[ "$rc" = 2 ] && [ "$(wc -l <"$tmp/step.out")" = 1 ] && grep -qF 'andon waiting list に名前が変わった' "$tmp/step.out" \
+  && ok "ow-old-name: andon waiting --json は andon waiting list を1行で言って終了コード 2 で終わり、オーナー待ちを出さない" \
+  || fail "ow-old-name: 古い名前が終了コード 2 と新しい名前の1行で断られない（終了コード $rc）"
+
 # ow-later: Chief of Staff が印 later を書いたオーナーの課題は、呼ばずに置いてある行になる。日（later_until）が来るか、
 # 印を担当の端末が書き直すと、また呼ぶ
 row_of() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, call, later, later_until}' "$tmp/step.out" 2>/dev/null; }
