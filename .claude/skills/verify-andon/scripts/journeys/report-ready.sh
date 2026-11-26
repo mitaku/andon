@@ -58,6 +58,13 @@ step "rr-report: 見出しの無い報告を書く" "$andon" issue report "$id" 
   || { grep -q '見出し「## Report」の行が無い' "$tmp/step.out" && cmp -s "$tmp/rep.before" "$lib/report.json" \
     && ok "rr-report: 見出し「## Report」の行が無ければ、report.json を書かずに断る" \
     || fail "rr-report: 断る理由が「見出しの行が無い」でないか、report.json を書いた"; }
+# rr-report: review-request が stdin なしで引き継ぐ前の報告（report.md）に見出しが無くても、書かずに断る
+printf 'PR: %s\n' "$pr" >"$tmp/project/kanban/issues/$id/report.md"
+step "rr-report: 見出しの無い前の報告で review-request を打つ" "$andon" issue review-request "$id" </dev/null \
+  && fail "rr-report: 前の報告に見出し「## Report」の行が無いのに review-request が通った" \
+  || { grep -q '見出し「## Report」の行が無い' "$tmp/step.out" && cmp -s "$tmp/rep.before" "$lib/report.json" \
+    && ok "rr-report: 前の報告に見出し「## Report」の行が無ければ、review-request は書かずに断る" \
+    || fail "rr-report: review-request の断る理由が「見出しの行が無い」でないか、report.json を書いた"; }
 # rr-report: 報告が report.json と report.md になる
 data='{"acceptance":[{"id":"A1","result":"pass","evidence":"git log -1（記録 runs/1.json）","run":1}],"next":[{"to":"chief-of-staff","text":"検証の跡を片付ける"}]}'
 step "rr-report: 報告を書く" "$andon" issue report "$id" --pr "$pr" --data "$data" <<<"## Report
