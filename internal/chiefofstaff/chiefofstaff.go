@@ -165,6 +165,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		return exitFirst
 	}
 	fmt.Fprintf(stdout, "andon open: %s の Chief of Staff は %s（%s・%s）。config.yaml の chief_of_staff: %s\n", slug, addr, name, how, addr)
+	fmt.Fprintf(stdout, "andon open: 次: 出た場所の端末で Chief of Staff に話す。オーナー待ちは andon waiting list --project %s で出す\n", slug)
 	fmt.Fprintf(stdout, "andon open: 出た場所 %s（%s）\n", where, addr)
 	return 0
 }

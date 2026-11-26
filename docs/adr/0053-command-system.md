@@ -21,8 +21,8 @@
 | 10 | 機械だけが打つ葉は、名詞を分けずに、表の「打つ者」の欄で分ける | この ADR | まだ実装していない |
 | 11 | 葉の表を1つ持ち、振り分けと help と人向けの一覧と補完をそこから作る | この ADR | まだ実装していない |
 | 12 | `andon help` は例を先に出し、誰が打つかの3群に分ける | この ADR | まだ実装していない |
-| 13 | フラグは `--project`・`--json`・`--dry-run`・`--help` を全部の葉で同じ意味にする | この ADR | まだ実装していない |
-| 14 | 状態を変えた葉は、何をしたかと次に打つ1手を出す。断るときは直す1手を出す | この ADR | まだ実装していない |
+| 13 | フラグは `--project`・`--json`・`--dry-run`・`--help` を全部の葉で同じ意味にする | `internal/cli/leaves.go`・`internal/cli/cli.go`・`internal/cli/project.go` | 生きている |
+| 14 | 状態を変えた葉は、何をしたかと次に打つ1手を出す。断るときは直す1手を出す | `internal/issue/start.go`・`internal/issue/resume.go`・`internal/chiefofstaff/chiefofstaff.go`・`internal/chiefengineer/chiefengineer.go` | 生きている |
 | 15 | 終了コードは 0・1・2 の意味を揃え、3 以上は葉ごとに help に書く。フックが打つ葉は 2 を使わない | `internal/cli/leaves.go`・`internal/cli/project.go` | 生きている |
 | 16 | 人向けの文書は生成した一覧 `docs/commands.md` の1枚だけ。詳細は `--help` が持つ | この ADR | まだ実装していない |
 | 17 | 名前は群ごとに一度に替え、別名は作らない。古い名前を打つと新しい名前を言って断る | この ADR | まだ実装していない |

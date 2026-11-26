@@ -58,6 +58,23 @@ for pair in 'delegate show --json|andon delegation show' 'delegate|andon delegat
     || fail "ow-old-name: andon $old が終了コード 2 と $neu の1行で断られない（終了コード $rc）"
 done
 
+# ow-json: JSON を出せる葉は --json を受け、標準出力が JSON として読める（ADR-0053 決めたこと 13）。いつも JSON を出す葉（issue show・version・
+# gate）は葉が --json を読まず、振り分けが外して渡す。--help は JSON の出し方の行を持ち、JSON を出せない葉は持たない
+step "ow-json: andon issue show $p1 --json を打つ" "$andon" issue show "$p1" --json \
+  && jq -e --arg p "$p1" '.id == $p' "$tmp/step.out" >/dev/null \
+  && step "ow-json: andon version --json を打つ" "$andon" version --json && jq -e '.root' "$tmp/step.out" >/dev/null \
+  && ok "ow-json: いつも JSON を出す issue show と version は --json を受けて JSON を出す" \
+  || fail "ow-json: issue show か version が --json を受けないか、JSON を出さない"
+rc=0; step "ow-json: andon gate $p1 --dry-run --json を打つ（report.json が無いので fix）" "$andon" gate "$p1" --dry-run --json || rc=$?
+[ "$rc" = 1 ] && jq -e '.decision == "fix"' "$tmp/step.out" >/dev/null \
+  && ok "ow-json: gate は --json を受け、判定を JSON で出す（fix は終了コード 1）" \
+  || fail "ow-json: gate が --json を受けないか、判定を JSON で出さない（終了コード $rc）"
+step "ow-json: andon issue show --help を打つ" "$andon" issue show --help >/dev/null \
+  && grep -qx 'JSON: --json を付けても付けなくても、JSON を標準出力に出す' "$tmp/step.out" \
+  && step "ow-json: andon issue finish --help を打つ" "$andon" issue finish --help >/dev/null && ! grep -q '^JSON: ' "$tmp/step.out" \
+  && ok "ow-json: JSON を出せる葉の --help は JSON の行を持ち、JSON を出せない葉は持たない" \
+  || fail "ow-json: --help の JSON の行が違う"
+
 # ow-later: Chief of Staff が印 later を書いたオーナーの課題は、呼ばずに置いてある行になる。日（later_until）が来るか、
 # 印を担当の端末が書き直すと、また呼ぶ
 row_of() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, call, later, later_until}' "$tmp/step.out" 2>/dev/null; }
