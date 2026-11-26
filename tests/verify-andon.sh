@@ -357,8 +357,7 @@ if [ "$self" = true ]; then
   [ "$(feat "$c10..$c11")" = gate ] || die "features.sh: 名前が test で終わるだけの置き場（internal/gate/latest/）の差分で gate を返さない: $(feat "$c10..$c11" | tr '\n' ' ')"
   # git は ASCII でないパスを既定で "…\346…" と引用符で包んで出す。包んだまま読むと、どの機能にも当たらず黙って抜ける
   c12=$(put internal/gate/新しい.go x)
-  got=$(feat "$c11..$c12" | tr '\n' ' ')
-  [[ " $got" == *" gate "* ]] || die "features.sh: ASCII でない名前のファイル（internal/gate/新しい.go）の差分で gate を返さない: $got"
+  gatepkg "$c11..$c12" || die "features.sh: ASCII でない名前のファイル（internal/gate/新しい.go）の差分で gate hold report-ready にならない: $(feat "$c11..$c12" | tr '\n' ' ')"
   # 目次の「地図が覆わないもの」は機能のパス（cmd/kanban/）より先に効く。kanban migrate を通らない report-ready を選ばない
   c13=$(put cmd/kanban/migrate.go x)
   out=$(feat "$c12..$c13") || die "features.sh: 地図が覆わないものだけの範囲で 0 で終わらない"
@@ -427,7 +426,8 @@ if [ "$self" = true ]; then
   mrepo=$tmp/mod
   git init -q "$mrepo"
   mput() { mkdir -p "$mrepo/$(dirname "$1")" && printf '%s\n' "$2" >"$mrepo/$1" && git -C "$mrepo" add -A && git -C "$mrepo" commit -qm "$1" && git -C "$mrepo" rev-parse HEAD; }
-  mput go.mod $'module example.com/m\n\ngo 1.22' >/dev/null
+  # module の行の行末のコメントは module の名前に入れない（読み損ねると import を全く辿らずに 0 で終わる）
+  mput go.mod $'module example.com/m // 試しの module\n\ngo 1.22' >/dev/null
   mput internal/issue/hold.go $'package issue\n\nfunc Hold() {}' >/dev/null
   mput internal/digest/digest.go $'package digest\n\nimport (\n\t"fmt"\n\n\t"example.com/m/internal/ledger"\n)\n\nvar _ = fmt.Sprint(ledger.X)' >/dev/null
   mput internal/measure/measure.go $'package measure\n\nimport "example.com/m/internal/ledger"\n\nvar _ = ledger.X' >/dev/null
@@ -456,12 +456,15 @@ if [ "$self" = true ]; then
   drop measure internal/ledger/
   drop create internal/spawn/
   drop create internal/delegate/
-  mkdir -p "$tmp/mgobin" && printf '#!/usr/bin/env bash\n[ "$PWD" = "%s" ] || { echo "go: 打った所の外で呼ばれた: $PWD" >&2; exit 1; }\nexec "%s" "$@"\n' "$mrepo" "$realgo" >"$tmp/mgobin/go" && chmod +x "$tmp/mgobin/go"
-  mfeat() { (cd "$mrepo" && PATH="$tmp/mgobin:$PATH" bash "$cut/verify-andon/scripts/features.sh" "$1") | tr '\n' ' '; }
+  mkdir -p "$tmp/mgobin" && printf '#!/usr/bin/env bash\ncase "$PWD" in "%s" | "%s"/*) ;; *) echo "go: 打った所の外で呼ばれた: $PWD" >&2; exit 1 ;; esac\nexec "%s" "$@"\n' "$mrepo" "$mrepo" "$realgo" >"$tmp/mgobin/go" && chmod +x "$tmp/mgobin/go"
+  mfeat() { (cd "$mrepo${2:+/$2}" && PATH="$tmp/mgobin:$PATH" bash "$cut/verify-andon/scripts/features.sh" "$1") | tr '\n' ' '; }
   got=$(mfeat "$m0..$m1")
   [[ " $got" == *" hold "* ]] || die "features.sh: hold.md が名指す internal/issue/hold.go と同じ package の settle.go の差分で hold を返さない（地図の行から漏れた呼び出し元）: $got"
   got=$(mfeat "$m1..$m2")
   [[ " $got" == *" digest "* && " $got" == *" measure "* ]] || die "features.sh: digest と measure の package が import する internal/ledger/ の差分で digest と measure を返さない（地図の行から漏れた共通の部品）: $got"
+  # repo の下のフォルダで打っても、木は repo の根から読む（打った所の下だけを読むと、import を黙って辿らずに 0 で終わる）
+  got=$(mfeat "$m1..$m2" internal) || die "features.sh: repo の下のフォルダ（internal/）で打つと 0 で終わらない（木を repo の根から読まない）"
+  [[ " $got" == *" digest "* && " $got" == *" measure "* ]] || die "features.sh: repo の下のフォルダ（internal/）で打つと、internal/ledger/ の差分で digest と measure を返さない: $got"
   got=$(mfeat "$m2..$m3")
   [[ " $got" == *" create "* ]] || die "features.sh: create の package が2段先で import する internal/spawn/ の差分で create を返さない（推移的な import）: $got"
   # 当たらない package（どの機能の package も import しない internal/triage/ は triage のパスだけ）では、import を辿った機能を出さない

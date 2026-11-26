@@ -46,17 +46,28 @@ func git(repo string, args ...string) ([]byte, error) {
 	return exec.Command("git", append([]string{"-C", repo}, args...)...).Output()
 }
 
-func read(repo, rev, p string) []byte {
+// read は木の中のファイルを読む。読めなければ誤りを返す（読めないものを空のファイルと取り違えない）。
+func read(repo, rev, p string) ([]byte, error) {
 	if rev == "" {
-		b, _ := os.ReadFile(path.Join(repo, p))
-		return b
+		return os.ReadFile(path.Join(repo, p))
 	}
-	b, _ := git(repo, "show", rev+":"+p)
-	return b
+	b, err := git(repo, "show", rev+":"+p)
+	if err != nil {
+		return nil, fmt.Errorf("%s:%s を読めない: %v", rev, p, err)
+	}
+	return b, nil
 }
 
+// module は go.mod の module の行を読む。go.mod が無ければ空（import は辿らず、同じ package だけを読む）。
 func module(repo, rev string) string {
-	for _, l := range strings.Split(string(read(repo, rev, "go.mod")), "\n") {
+	src, err := read(repo, rev, "go.mod")
+	if err != nil {
+		return ""
+	}
+	for _, l := range strings.Split(string(src), "\n") {
+		if i := strings.Index(l, "//"); i >= 0 {
+			l = l[:i] // 行末のコメント
+		}
 		if f := strings.Fields(l); len(f) == 2 && f[0] == "module" {
 			if m, err := strconv.Unquote(f[1]); err == nil {
 				return m
@@ -91,7 +102,11 @@ func load(repo, rev string, t *tree) error {
 		if mod == "" {
 			continue
 		}
-		f, err := parser.ParseFile(token.NewFileSet(), p, read(repo, rev, p), parser.ImportsOnly)
+		src, err := read(repo, rev, p)
+		if err != nil {
+			return err
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), p, src, parser.ImportsOnly)
 		if err != nil || f == nil {
 			continue
 		}
@@ -144,7 +159,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "使い方: go run gopkgs.go <repo> <commit>… < 機能とパス（1行1つ。<機能><TAB><パス>）")
 		os.Exit(2)
 	}
-	repo := os.Args[1]
+	// 打った所が repo の下のフォルダでも、木は repo の根から読む（ls-tree と ls-files は打った所の下だけを出す）
+	top, err := git(os.Args[1], "rev-parse", "--show-toplevel")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gopkgs:", os.Args[1], "は git の repo の中でない:", err)
+		os.Exit(1)
+	}
+	repo := strings.TrimSpace(string(top))
 	t := &tree{files: map[string]bool{}, deps: map[string]map[string]bool{}}
 	for _, rev := range os.Args[2:] {
 		if err := load(repo, rev, t); err != nil {
