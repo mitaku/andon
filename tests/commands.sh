@@ -235,14 +235,15 @@ while IFS= read -r l; do
   h=$("$andon" $l --help)
   [[ "$h" == *$'\nプロジェクト: '* ]] && a+=(--project j)
   # shellcheck disable=SC2086
-  out=$(cd "$jc" && PATH="$tmp/jbin:$PATH" ANDON_WORKSPACE=$jc CLAUDE_CONFIG_DIR= "$andon" $l "${a[@]}" --json </dev/null 2>"$tmp/json-err")
+  # 条件表（gate.json）はセルの /opt/andon でなく repo の package から読む（CI と切り離した検査にはセルのパッケージが無い）
+  out=$(cd "$jc" && PATH="$tmp/jbin:$PATH" ANDON_HOME="$andon_root/package" ANDON_WORKSPACE=$jc CLAUDE_CONFIG_DIR= "$andon" $l "${a[@]}" --json </dev/null 2>"$tmp/json-err")
   rc=$?
   if [[ "$out" == [\{\[]* ]] && jq -e . >/dev/null 2>&1 <<<"$out"; then seen=$((seen + 1))
   else bad+="$l --json: 終了コード $rc、標準出力が JSON でない: $(sed -n 1p "$tmp/json-err")"$'\n'; fi
   # --dry-run と組む葉は、--dry-run の無い --json を使い方の誤りとして断る
   if [[ "$h" == *$'\nJSON: --dry-run --json'* ]]; then
     # shellcheck disable=SC2086
-    (cd "$jc" && PATH="$tmp/jbin:$PATH" ANDON_WORKSPACE=$jc "$andon" $l "${a[0]}" --project j --json </dev/null >/dev/null 2>&1)
+    (cd "$jc" && PATH="$tmp/jbin:$PATH" ANDON_HOME="$andon_root/package" ANDON_WORKSPACE=$jc "$andon" $l "${a[0]}" --project j --json </dev/null >/dev/null 2>&1)
     rc=$?
     [ "$rc" = 2 ] || bad+="$l --json（--dry-run 無し）: 終了コード $rc"$'\n'
   fi
