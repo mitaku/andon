@@ -367,23 +367,8 @@ func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
 		}
 		wfs[f] = string(b)
 	}
-	// tests/ の下の検査と置き場。検査が走る間の一時の置き場（.task-tmp。job isolation は go のビルドの出力も置く）と
-	// node_modules は、検査のコードではないので読まない（tests/words.sh と同じ）
-	tests := map[string]string{}
-	if err := filepath.WalkDir("tests", func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if p != "tests" && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		b, err := os.ReadFile(p)
-		tests[p] = string(b)
-		return err
-	}); err != nil {
+	tests, err := readTestFiles("tests")
+	if err != nil {
 		t.Fatal(err)
 	}
 	if len(tests) == 0 {
@@ -445,6 +430,76 @@ func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
 			t.Errorf("%s: 書き換えた YAML が読めない（形の誤りで当たっただけ）: %s", c.what, got)
 		}
 	}
+}
+
+// readTestFiles: root（tests/）の下の検査と置き場のパスと中身。検査が走る間の一時の置き場（.task-tmp。job isolation は
+// go のビルドの出力も置く）などの隠れた置き場と node_modules は、検査のコードではないので読まない（tests/words.sh と同じ）。
+func readTestFiles(root string) (map[string]string, error) {
+	out := map[string]string{}
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if p != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		b, err := os.ReadFile(p)
+		out[p] = string(b)
+		return err
+	})
+	return out, err
+}
+
+// job isolation が tests/.task-tmp に置く生成物（go のビルドの出力）や node_modules に Bun と tray の字面があっても、
+// job tray の検査は読まずに通る。tests/ の下の検査のファイルにあれば落ちる。
+func TestReadTestFilesSkipsGenerated(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "tests")
+	put := func(rel, body string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gen := "bun run tray\n"
+	put(".task-tmp/go-build1/b001/_pkg_.a", gen)
+	put("node_modules/x/index.js", gen)
+	put("host/.cache/y", gen)
+	put("ok.sh", "echo ok\n")
+	got, err := readTestFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[filepath.Join(root, "ok.sh")] == "" {
+		t.Fatalf("読んだファイル: %v（ok.sh の1つのはず）", slices.Collect(maps.Keys(got)))
+	}
+	wfs := map[string]string{".github/workflows/tray.yml": mustRead(t, ".github/workflows/tray.yml")}
+	if p := trayProblems(wfs, got); len(p) > 0 {
+		t.Errorf("生成物だけなのに落ちた: %v", p)
+	}
+	// 検査が当たる場合があること: 同じ字面を検査のファイルに置くと落ちる
+	put("bad.sh", gen)
+	got, err = readTestFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := trayProblems(wfs, got); len(p) == 0 {
+		t.Error("検査のファイルに Bun と tray の字面を置いても通った")
+	}
+}
+
+func mustRead(t *testing.T, p string) string {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 // trayProblems: job tray の守りが破れている理由を返す。wfs は workflow のパスと中身、tests は tests/ の下のファイルのパスと中身。
