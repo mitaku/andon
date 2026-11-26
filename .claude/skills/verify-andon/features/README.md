@@ -90,7 +90,7 @@ Verify-features: wl-resume, wl-record
 - `package/host/andon/`・`package/host/andon-up`・`package/host/cloud-init.yaml`・`package/host/context-header/`・`package/host/files-plus/`・`package/host/herdr-config.toml`・`package/host/inbox/`・`package/host/kanban-board/`・`package/host/layouts/`・`package/host/ssh_config`・`package/host/streamdeck/`・`package/host/waiting/`（ホスト用の雛形、Herdr App の mod、Stream Deck の plugin。入口の本体 `package/host/bootstrap` は boot の `bt-entry`）。セルの外のオーナーの手元で動き、セルの中の検証の担当は動かせない。画面は、変えた PR でオーナーが見る。
 - `package/bin/`。焼いた andon を置く場所で、repo には空の印しか無い。
 - `internal/triage/unsorted.go`（トリアージの溜まった数）。dispatcher がトリアージのルーチンを撃つかを決める数え方で、`triage` の道は通らない。撃つところは `dispatcher-news` の `dn-idle` が見る。`go test ./internal/triage/` が見ている。
-- `internal/board/`・`internal/chiefofstaff/`・`internal/open/`（ボードと、Chief of Staff を起動して開く口）。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。Chief Engineer を起動する口（`internal/chiefengineer/`）は、起動の前に道具を入れる手を担当の起動の `wl-tools` が見る。
+- `internal/board/`・`internal/chiefofstaff/`（ボードと、Chief of Staff を起動する口）。開く口 `internal/open/` は、プロジェクトの一覧を出す `andon project list` を `create` の `cr-list` が見る。オーナーか Chief of Staff が端末で開く道で、機能のファイルはまだ無い。Chief Engineer を起動する口（`internal/chiefengineer/`）は、起動の前に道具を入れる手を担当の起動の `wl-tools` が見る。
 - `internal/plantinit/`（`andon cell init`）。新しいセルの repo を作る口で、動いているセルの検証の道には出てこない。`tests/andon-init.sh` が見ている。
 - `internal/schema/`（`andon schema check`）。schema の検査器を包む口で、`tests/schema.sh` が見ている。
 - `cmd/kanban/migrate.go`・`cmd/kanban/dispatcherstate.go`（`kanban migrate`）。前の形の kanban を移す口で、どの機能の道も打たない。`go test ./cmd/kanban/` と `tests/kanban.sh` が見ている。

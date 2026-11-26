@@ -49,6 +49,14 @@ rc=0; step "ow-old-name: 古い名前 andon waiting --json を打つ" "$andon" w
 [ "$rc" = 2 ] && [ "$(wc -l <"$tmp/step.out")" = 1 ] && grep -qF 'andon waiting list に名前が変わった' "$tmp/step.out" \
   && ok "ow-old-name: andon waiting --json は andon waiting list を1行で言って終了コード 2 で終わり、オーナー待ちを出さない" \
   || fail "ow-old-name: 古い名前が終了コード 2 と新しい名前の1行で断られない（終了コード $rc）"
+# 2語の古い名前・消えた名詞だけ・子の無い1語の古い名前も、同じく断る（振り分けの分かれ道ごとに1つ）
+for pair in 'delegate show --json|andon delegation show' 'delegate|andon delegation' 'measure --json|andon metrics show'; do
+  old=${pair%%|*} neu=${pair#*|}
+  rc=0; step "ow-old-name: 古い名前 andon $old を打つ" "$andon" $old || rc=$?
+  [ "$rc" = 2 ] && [ "$(wc -l <"$tmp/step.out")" = 1 ] && grep -qF "$neu に名前が変わった" "$tmp/step.out" \
+    && ok "ow-old-name: andon $old は $neu を1行で言って終了コード 2 で終わる" \
+    || fail "ow-old-name: andon $old が終了コード 2 と $neu の1行で断られない（終了コード $rc）"
+done
 
 # ow-later: Chief of Staff が印 later を書いたオーナーの課題は、呼ばずに置いてある行になる。日（later_until）が来るか、
 # 印を担当の端末が書き直すと、また呼ぶ

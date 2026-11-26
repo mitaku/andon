@@ -37,6 +37,11 @@ grep -q '^hc run --bg .*--name dispatcher .* dispatcher$' "$tmp/hc.calls" \
   && ok "cr-create: dispatcher が無いので、置き場を合わせて hc run で起動しようとした（偽の hc に届いた）" \
   || fail "cr-create: dispatcher の置き場合わせの hc run が無い"
 
+# cr-list: andon project list が、立てたプロジェクトの slug を1行で出す（読むだけ）
+step "cr-list: andon project list を打つ" "$andon" project list
+[ "$(cat "$tmp/step.out")" = "$slug" ] && ok "cr-list: andon project list が立てた $slug だけを1行で出す" \
+  || fail "cr-list: andon project list の出力が $slug の1行でない"
+
 # cr-exists-refuse: 同じ slug を打ち直すと、何も変えずに断る
 s0=$(find "$p" -type f -exec sha256sum {} + | sort)
 step "cr-exists-refuse: 同じ slug を打ち直す" env HC_TERMINAL_ID=to "$andon" project create "$slug" </dev/null \
