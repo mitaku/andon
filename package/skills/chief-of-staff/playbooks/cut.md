@@ -38,7 +38,7 @@ EOF
   例: 「docs の誤字を1つ直して」→ 直す課題（`sonnet`）。担当が同じ種類を3つ見つけ、小さければ3つとも直して報告する（止まらない）。種類や直し方が違えば `## 範囲の問い` で止まる（`blocked.md`）。
 - 1つの依頼に関係の無い仕事が2つあれば、課題も2つにする。順番があれば `--after <id>`（`queued` になり、前が done で `todo` に戻る）。
 - オーナーの判断とオーナーにしかできない手作業は、担当の課題にせずオーナーの課題にする（ask-one-by-one skill §3）。判断は、問いの JSON を `andon issue ask --new --now -` か `andon issue ask --new --later "<置いておく理由>" -` に渡し、課題と問いを1回で置く（前の課題のあとで go をもらう判断は `--after <id>`）。手作業は `kanban add "<何をしてほしいか>" --brief -`（依頼書に期限の目安）のあと、`kanban set <id> who=person only_owner="<オーナーにしかできない理由>"` で印を付け、置いておくなら同じ `kanban set` に `later="<理由>"` を足す。呼ぶか置いておくかは ask-one-by-one skill §3 の3つの基準で決め、迷ったら呼ぶ。
-- `kanban add "<タイトル>" --repo <host/owner/repo> --profile <名前> [--after <id>]`。`profile` は Andon のプロファイルの名前だけ（`hc templates` に出るもの:
+- `andon issue create "<タイトル>" --repo <host/owner/repo> --profile <名前> [--after <id>] --brief - <予約キー>…`（予約キーと依頼書は `brief.md`）。`profile` は Andon のプロファイルの名前だけ（`hc templates` に出るもの:
   `claude`・`claude-medium`・`sonnet`・`fable`・`codex`・`codex-review`・`claude-review`。`chief-of-staff`・`chief-engineer` は課題には書かない）。repo の無い課題は `--repo` を付けない（`issues/<id>/` で起動する）。
 - プロファイルの選び方（迷ったら `claude`）:
 
@@ -65,10 +65,10 @@ Chief Engineer（`role=chief-engineer` の課題。案件の repo の worktree �
 1. `issues/<id>/library/report.json` の `pr` から文書を読む（「依頼書に切る案」「受け入れ条件」「やらないこと」「開いている問い」「価値の仮説」と、「決めたこと」の各行の誰が決めたかの印）。会話の記録は読まない（渡されるのは文書だけ。例外として、検討で調べたモデルのファイルは、資料として添えてよい。依頼書はそのパスを指してよい）。
 2. 切る前に（3〜5 より先に）、chief-engineer skill の「オーナーに聞く線」（a〜g）に当たる決定が「（Chief Engineer が決めた）」の印で書かれていないかを見る。見つけたら、切らずにオーナーへ知らせる。「（オーナーが決めた）」の行がオーナーの言っていないことを言っている・受け入れ条件がテストできない形のときも同じ（Chief Engineer に戻すかはオーナーが決める）。線に当たらない作り方の決定に Chief Engineer の印があるのは、正しい形。
 3. 「価値の仮説」の節が見出しだけ（空）なら、**切らずに Chief Engineer へ戻す**: `hc send <Chief Engineer の address>`（`kanban show <id> --json` の `.issue.agent`）「価値の仮説が空。6 項目か『無し: <理由>』を書いて返して」。「無し: <理由>」なら観察の課題は足さない。
-4. 「依頼書に切る案」を縦に薄く、依存だけ `--after` で並べて切る。依頼書は文書の節を `links` で指し、完了条件に受け入れ条件の番号を書く。同じ番号を **Chief of Staff の端末で** `kanban set <id> acceptance=4,13` で課題に持たせる（正は `issue.yaml`。`brief.md` の Settings の表。持たせないと、報告に行が無くても `andon issue ready` が通る）。`next` に「最初の実装の課題の依頼書に <モデルのパス> を添える」があれば、最初の実装の課題の依頼書の手がかりにそのパスを書き、「担当はこのモデルを土台に実装する。repo にその流れのモデルがあれば、実装の PR でそこへ入れる。モデルが無い流れのモデルは資料のまま使い切り、repo に新しく置かない」と添える。
-   どの課題も Chief Engineer の課題に `--parent` で結ぶ（観察の課題と同じ結び方。Flow とリストの表示でテーマごとにまとまる）: `kanban add "<タイトル>" --repo <host/owner/repo> --profile <名前> --parent <Chief Engineer の id> [--after <id>]`。最初の課題は `--after <Chief Engineer の id>` で並べ、文書の PR が入る前に動き出さないようにする。すでに切った課題の `parent` は書き換えない。
+4. 「依頼書に切る案」を縦に薄く、依存だけ `--after` で並べて切る。依頼書は文書の節を `links` で指し、完了条件に受け入れ条件の番号を書く。同じ番号を `andon issue create` に `acceptance=4,13` で渡して課題に持たせる（正は `issue.yaml`。`brief.md` の Settings の表。持たせないと、報告に行が無くても `andon issue ready` が通る）。`next` に「最初の実装の課題の依頼書に <モデルのパス> を添える」があれば、最初の実装の課題の依頼書の手がかりにそのパスを書き、「担当はこのモデルを土台に実装する。repo にその流れのモデルがあれば、実装の PR でそこへ入れる。モデルが無い流れのモデルは資料のまま使い切り、repo に新しく置かない」と添える。
+   どの課題も Chief Engineer の課題に `--parent` で結ぶ（観察の課題と同じ結び方。Flow とリストの表示でテーマごとにまとまる）: `andon issue create "<タイトル>" --repo <host/owner/repo> --profile <名前> --parent <Chief Engineer の id> [--after <id>] --brief - <予約キー>…`。最初の課題は `--after <Chief Engineer の id>` で並べ、文書の PR が入る前に動き出さないようにする。すでに切った課題の `parent` は書き換えない。
 5. 価値の仮説が 6 項目なら、**観察の課題を1件**足す（1仮説1課題。`brief.md` の観察の課題の雛形。repo の無い課題）。Chief Engineer の課題に `--parent` で結び、(3) の見る日を `not_before` に置く:
-   `kanban add "観察: <タイトル>の価値の仮説" --parent <Chief Engineer の id> [--after <実装の課題, …>] --brief -` → `kanban set <新しい id> not_before=<(3) の日付>`。
+   `andon issue create "観察: <タイトル>の価値の仮説" --parent <Chief Engineer の id> [--after <実装の課題, …>] --brief - review=off estimate=small` → `kanban set <新しい id> not_before=<(3) の日付>`。
    `--after` があれば `queued`（実装が done で `todo`）、無ければ `todo`。`not_before` は status を変えず、その日まで `kanban ready` に出さないだけ（日付は `config.yaml` の `timezone` で読む）。見る日が来ると `<id> ready` で届くので、ほかの課題と同じく `andon issue start`。
 6. Chief Engineer の課題は**検収しない**（検収は、オーナーが Chief Engineer の出口の最後の確かめでした）。文書の PR をオーナーがマージすると、dispatcher が見回りで `andon issue settle` を打って片付け、`<id> merged` が届く（`docs/dispatcher.md` §2.7）。自分で `andon issue finish` は打たない。`merged` が届いたら、オーナーにマージを頼むのをやめ、文書から切った課題を進める。`held` の付いた `merged` だけは `watch.md` のとおり理由を読んで片付ける。
 7. `pr` が無く、`next` に `to: chief-of-staff`「直す課題に切る: …」だけがある（Chief Engineer が決断の無い小さな話と見て、文書を書かずに返した）なら、それを直す課題に切り、オーナーの go 無しで `andon issue finish <id>`（調べる課題と同じ扱い）。

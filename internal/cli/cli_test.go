@@ -346,7 +346,7 @@ func TestHelpAll(t *testing.T) {
 		}
 	}
 	_, bash, _ := run("help", "--all", "--bash")
-	if !strings.Contains(bash, "complete -F _andon andon") || !strings.Contains(bash, "issue) COMPREPLY=($(compgen -W \"start ") || !strings.Contains(bash, "    open)\n") {
+	if !strings.Contains(bash, "complete -F _andon andon") || !strings.Contains(bash, "issue) COMPREPLY=($(compgen -W \"create start ") || !strings.Contains(bash, "    open)\n") {
 		t.Errorf("--bash:\n%s", bash)
 	}
 }

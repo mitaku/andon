@@ -1,11 +1,12 @@
 ---
 読む時: 依頼書と Settings を書くとき（直す課題・調べる課題・観察の課題）
-消す条件: Settings の写しと `kanban set` の二度書きの段は「依頼書の Settings を `issue.yaml` から作るようになったら」（`deliverable=candidates` の二度書きも同じ）。雛形と欄の読み方は「素のバージョン（原則と目次だけ）で依頼書を書かせて、欄と中身が変わらなかったら」
+消す条件: 雛形と欄の読み方は「素のバージョン（原則と目次だけ）で依頼書を書かせて、欄と中身が変わらなかったら」
 ---
 
 # 依頼書を書く
 
-`issues/<id>/brief.md` に次の雛形を埋める（`kanban add … --brief -` で渡してもよい）。完了条件は必ず書く（規約2）。
+次の雛形を埋め、`andon issue create … --brief -` で課題と一緒に渡す（下の「Settings の埋め方」）。完了条件は必ず書く（規約2）。
+`## Settings` の欄は書かなくてよい。`andon issue create` が予約キーから書き、雛形の欄はその書き方を示す。
 
 ```
 # <id> <タイトル>
@@ -63,7 +64,7 @@
 - Estimate: 小
 ```
 
-- 依頼書の Settings に `Deliverable: candidates` を書き、**Chief of Staff の端末で** `kanban set <id> deliverable=candidates estimate=small` も打つ（正は `issue.yaml`。写しだけでは dispatcher と `andon issue ready` は `pr` として読む）。型の既定は `pr`。
+- `andon issue create "<id> 調べる: <問い>" … --brief - review=off deliverable=candidates estimate=small --reason deliverable=調べる` で足す（正は `issue.yaml`。Settings の欄は command が予約キーから書く）。型の既定は `pr`。
 - 調べる課題は repo を持ってよい（worktree で読む・走らせる。push はしない）。読むだけで足りるなら repo の無い課題でもよい（`--repo` を付けない。cwd は `issues/<id>/`、読むのは `.ghq/` の checkout）。
 - 担当は `andon issue candidates`（`library/candidates.json`）→ `andon issue report` → `andon issue ready` で終える。`ready` は PR の代わりに `candidates.json` を確かめる。gate は回らず、独立レビューも無い（`Review: off`）。通知は `<id> report` で届く。
 - 届いたら `candidates.json` と報告を読み、候補を `blocked.md` の範囲の判断と同じ表（場所・レベル・種類・直し方）で直す課題に切り、調べる課題は `andon issue finish <id>`（`finish.md`）。切らなかった候補は捨てない（担当の報告の Next に1行ずつ残っていて、トリアージが拾う）。
@@ -86,19 +87,22 @@
 - Estimate: 小
 ```
 
-- repo の無い課題（`--repo` を付けない。cwd は `issues/<id>/`）。予約キーは `kanban set <id> review=off estimate=small`（`deliverable` は書かない）。gate は回らない。
+- repo の無い課題（`--repo` を付けない。cwd は `issues/<id>/`）。予約キーは `andon issue create` に `review=off estimate=small` を渡す（`deliverable` は渡さない）。gate は回らない。
 - 担当は worker skill §2 の「観察の課題のとき」で終える（`andon issue report --data '{"observation": …}'` → `kanban review`）。
 
 ## Settings の埋め方
 
 Chief of Staff が毎回埋める。**正は `issue.yaml` の予約キー**（contract.md §2）で、依頼書の Settings は人が読む写し。
 gate・dispatcher・担当が読むのは `issue.yaml` だけ。無い・知らない値、または最後に書いたのが Chief of Staff でない（kanban の `log.jsonl` の `by`）なら、gate はオーナーへ回す（needs_human）。
-依頼書を書いたら、**Chief of Staff の端末で**予約キーを全部書く（値は全部文字列。変えるときは依頼書の写しと両方を変える）:
+依頼書を書いたら、**Chief of Staff の端末で** `andon issue create` を打ち、課題を足すのと予約キーを書くのを1回で済ませる（値は全部文字列）。
+command は予約キーを足す前に確かめ（予約キーでないキー・知らない値なら何も足さない）、依頼書の Settings の欄を予約キーから書き、次に打つ `andon issue start <id>` を出す:
 
 ```
-# issue.yaml の予約キー（依頼書の Settings の正）
-kanban set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium
+andon issue create "<タイトル>" --repo <host/owner/repo> --profile <名前> [--parent <id>] [--after <id>] --brief - \
+  review=off must_fix=major reviewer=codex-review review_rounds=2 merge=person estimate=medium [--reason <key>=<理由>] < brief.md
 ```
+
+足したあとで値を変えるときは、自分の端末で `kanban set <id> <key>=<値>` だけを打つ。依頼書の欄は `andon issue start`・`resume` が起動の前に予約キーから書き直すので、手で揃えない。
 
 | キー（依頼書の行） | 値 | 既定 | 変えるとき |
 |---|---|---|---|
@@ -107,11 +111,11 @@ kanban set <id> review=off must_fix=major reviewer=codex-review review_rounds=2 
 | `reviewer`（Reviewer） | `codex-review` / `claude-review` | `codex-review` | 実装と別ブランドにする。Codex が書く課題（profile `codex`）なら `claude-review` |
 | `review_rounds`（Review rounds） | 1 以上の数 | `2` | オーナーが変えたときだけ |
 | `merge`（Merge） | `auto` / `person` | `person` | `auto` は**委譲がこのプロジェクトのマージを任せているときだけ**（委譲の `merge` が無ければ `person`）。`auto` でも、マージするのは gate が approve し、変更のレベルが委譲の範囲の中のときだけ（委譲を広げることはできない）。オーナーが課題を名指しして `merge` を委譲したら（`andon delegation show` の「名指し」の行）、名指しされた課題は担当が `andon issue ready` を打つ前に `merge=auto` にする |
-| `deliverable`（Deliverable） | `pr` / `candidates` / `report` | `pr` | 調べる課題（成果が候補の一覧で PR が無い。上の雛形）のときだけ `candidates`。`kanban set <id> deliverable=candidates`。成果が報告で PR は無くてもよい課題（当てたあとの検証〈`verify.md`〉・点検のルーチンが足した課題〈`idle.md`〉・マージ後のレビュー・報告だけを求める repo のある課題）は `report`。`kanban set <id> deliverable=report`。直す課題には、直さずに返すかもしれなくても書かない。自分の端末で書いたときだけ効き、起き直しても打ち直さなくてよい。切ったあとで成果が報告になったと判断したら、片付ける前に書いてよい（ADR-0066 決めたこと 4・5・10） |
+| `deliverable`（Deliverable） | `pr` / `candidates` / `report` | `pr` | 調べる課題（成果が候補の一覧で PR が無い。上の雛形）のときだけ `candidates`（`deliverable=candidates` を渡す）。成果が報告で PR は無くてもよい課題（当てたあとの検証〈`verify.md`〉・点検のルーチンが足した課題〈`idle.md`〉・マージ後のレビュー・報告だけを求める repo のある課題）は `report`（`deliverable=report` を渡す）。直す課題には、直さずに返すかもしれなくても書かない。自分の端末で書いたときだけ効き、起き直しても打ち直さなくてよい。切ったあとで成果が報告になったと判断したら、片付ける前に書いてよい（ADR-0066 決めたこと 4・5・10） |
 | `estimate`（Estimate） | `small` / `medium` / `large`（依頼書には段の名 小・中・大） | 無し（書かないと見込み無しと数える） | 担当の課題（直す・調べる）には毎回書く。小 30 分・中 60 分・大 120 分（待ちを除いた実働の目安。上限ではない）。大雑把でよい。大を超えそうなら課題を分けることも検討する（Stacked PR も使える。分けるかは決まりにせず、ズレの記録から学んで決める）。レビュアー・Chief Engineer の課題には書かない |
-| `acceptance`（Acceptance） | 受け入れ条件の番号のコンマの並び（`4,13`。Chief Engineer の文書の番号のまま。空白を入れない。`A4` と書いても同じ番号と読む） | 書かない（番号を持たない課題） | Chief Engineer の文書から切る課題で、完了条件に受け入れ条件の番号を書いたら毎回書く（`cut.md` の「Chief Engineer の文書を受けたら」の4）。`kanban set <id> acceptance=4,13`。`andon issue ready` は、番号ごとに報告の受け入れ条件の行が無ければ断る。「13 の前半」のように一部だけ満たす条件も番号で書き、どこまでかは完了条件に書く |
+| `acceptance`（Acceptance） | 受け入れ条件の番号のコンマの並び（`4,13`。Chief Engineer の文書の番号のまま。空白を入れない。`A4` と書いても同じ番号と読む） | 書かない（番号を持たない課題） | Chief Engineer の文書から切る課題で、完了条件に受け入れ条件の番号を書いたら毎回書く（`cut.md` の「Chief Engineer の文書を受けたら」の4）。`acceptance=4,13` を渡す。`andon issue ready` は、番号ごとに報告の受け入れ条件の行が無ければ断る。「13 の前半」のように一部だけ満たす条件も番号で書き、どこまでかは完了条件に書く |
 | `machine` | マシンの名前 | 書かない（指揮側と同じ） | **まだ使えない**。`machine` を書いた課題は `andon issue start` が断る（作業側を別のマシンで起動する仕組みが無い）。足さない |
 
-- **既定から変えた行には、行末に `★` と短い理由を付ける**（例 `- Review: on ★新しい module`）。
+- **既定から変えたキーには `--reason <key>=<短い理由>` を付ける**。command が欄の行末に `★` と理由を書く（例 `- Review: on ★新しい module`）。理由を付けなくても、既定から変えた行には `★` だけが付く。
 - `Review: on` のとき、レビューは担当の工程になる。担当がレビューを頼み、指摘の重さが `Must fix` 以上なら自分で直す（worker skill の §4）。レビュアーを起動するのと gate は dispatcher（`gate.md`）。
-- `AGENTS.md` の Chief of Staff の節にプロジェクトの既定があれば、それを既定として使う（`★` はその既定から変えた行に付ける）。
+- `AGENTS.md` の Chief of Staff の節にプロジェクトの既定があれば、それを既定として値を選ぶ（command の `★` は上の表の既定から変えた行に付く）。

@@ -26,8 +26,8 @@
 | 15 | 終了コードは 0・1・2 の意味を揃え、3 以上は葉ごとに help に書く。フックが打つ葉は 2 を使わない | `internal/cli/leaves.go`・`internal/cli/project.go` | 生きている |
 | 16 | 人向けの文書は生成した一覧 `docs/commands.md` の1枚だけ。詳細は `--help` が持つ | この ADR | まだ実装していない |
 | 17 | 名前は群ごとに一度に替え、別名は作らない。古い名前を打つと新しい名前を言って断る | この ADR | まだ実装していない |
-| 18 | `andon issue create` を足す。担当の課題を足すのと予約キーを書くのを1回で打つ | この ADR | まだ実装していない |
-| 19 | 依頼書の Settings 欄は command が予約キーから書く | この ADR | まだ実装していない |
+| 18 | `andon issue create` を足す。担当の課題を足すのと予約キーを書くのを1回で打つ | `internal/issue/create.go` | 生きている |
+| 19 | 依頼書の Settings 欄は command が予約キーから書く | `internal/ledger/ledger.go` の `RewriteSettings` | 生きている |
 | 20 | kanban の CLI は名前を変えない。足すのは、kanban の場所の探し方の最後の1段だけ。`hc` は案内だけ | `cmd/kanban/ledger.go`・`docs/ledger.md` の Finding the root | 生きている |
 | 21 | 配る文の中の andon のコマンドが表にあることを、検査で見る | この ADR | まだ実装していない |
 | 22 | CLI の枠組みは入れず、表は自作する | この ADR | まだ実装していない |

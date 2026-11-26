@@ -27,9 +27,12 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `wl-tools` worktree の根に `mise.toml` がある課題で、当てたあとに起動した担当・レビュアー・Chief Engineer の端末が、誰も `mise install` を打たずに `mise.toml` のバージョンの道具を引く。端末の環境の `MISE_SYSTEM_CONFIG_FILE` が自分の worktree の `mise.toml` を指し、一時の置き場でも同じバージョンを引く（ADR-0063 決めたこと 6・10）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/tools/tools.go`、`internal/tools/env.go`、`internal/cli/leaves.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/dispatcher/loop.go`、`internal/dispatcher/resume.go`、`internal/chiefengineer/chiefengineer.go`、`package/templates/`
 
+- `wl-settings` 当てたあとに Chief of Staff が `andon issue create` で足した担当の課題の依頼書に `## Settings` の欄があり、その行が課題の予約キーの写しと合う。起動（start・resume）のあとも合う（ADR-0053 受け入れ条件 A9・A10）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/create.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/ledger/ledger.go`、`internal/cli/leaves.go`、`package/skills/chief-of-staff/playbooks/brief.md`
+
 ## 辿り着き方（利用者から）
 
-- Chief of Staff が `andon issue start <id>` を打つ。
+- Chief of Staff が `andon issue create "<タイトル>" … <予約キー>…` で担当の課題を足し、`andon issue start <id>` を打つ。
 - dispatcher がレビューの頼みを見てレビュアーを起動する（`role` が `reviewer`、`launch` が `start`。使用量の上限で別のプロファイルに起動し直すと `fallback`）。
 - 起き直した担当を Chief of Staff が `andon issue resume <id>` で起動し直す（`launch` が `resume`。`--fresh` を付けると `fresh`）。
 
@@ -72,6 +75,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   見たのが自分の端末なら、そう `evidence` に書く。
   道具がもう入っているセルでは、1 と 2 は入れる手を通らなくても ok になる。入れる手（「道具を入れた」の1行と、入れられないときの警告）を通すには、試しの課題の branch の `mise.toml` に、セルにまだ入っていない小さな道具のバージョンを足してから起動してもらい、起動を打った Chief of Staff の出力か dispatcher の端末のログに「道具を入れた」の1行が出ることを見る。dispatcher が `andon issue resume` で起動し直した回の行は、dispatcher の端末のログに「<課題> の resume: 」を頭に付けて出る。行が無ければ、入れる手は未確認と書き、1 と 2 だけを ok にする。
 
+- **依頼書の欄を読む（`wl-settings`）。** 当てた時刻より後に `<kanban>/log.jsonl` で足された（`change.add` の行）担当の課題のうち、同じ課題の予約キー（`review`・`estimate` など）を書いた最初の行の `by` が足した行の `by` と同じもの（`andon issue create` で足した課題）を選ぶ。課題ごとに `kanban show <id> --json` の予約キーと、`<kanban>/issues/<id>/brief.md` の `## Settings` の行を比べる。行が予約キーの写しで（見込みは小・中・大。既定から変えた行の行末に `★`）、起動した課題でも合っていれば動いた。予約キーと食い違う行か、欄の無い依頼書があれば壊れとして `fail` に書く。そうした課題が無ければ未確認と書き、報告の `## Next` に「Chief of Staff が `andon issue create` で課題を足したあとで打ち直す」と書く。
+
 ## 変えたら動かすパス
 
 - `internal/tools/`
@@ -80,6 +85,9 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `internal/chiefofstaff/chiefofstaff.go`
 - `internal/issue/start.go`
 - `internal/issue/resume.go`
+- `internal/issue/create.go`
+- `internal/ledger/ledger.go`
+- `package/skills/chief-of-staff/playbooks/brief.md`
 - `internal/dispatcher/loop.go`
 - `internal/dispatcher/fallback.go`
 - `internal/launch/`
