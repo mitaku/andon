@@ -358,7 +358,7 @@ Andon が自分を設計するとき（セルフホスト、Andon のセルの k
 | 何か | Oz: クラウドで coding agent を走らせ・管理・編成する基盤（Docker の sandbox、run ごとの共有リンクと監査の跡、CLI と API、enterprise は self-host、2026-05 から Claude Code・Codex・Warp Agent を1つの control plane で）。Factories: その上の「cloud software factory」（バージョン管理された定義・SDLC の自動化・multi-model／harness・指標と記憶つきの self-improvement・custom agent／skill／automation・Slack／Teams／Linear／Jira／GitHub／GitLab の入口・factory app の画面・$10,000 分の利用枠） | 1人のためのソフトウェアファクトリーの**道具と約束と文書**（§0）。製品ではなく public の repo。セルは自前（WSL・クラウド常駐）。価格は無い |
 | ハーネス | どのモデル・どのハーネスでも（実装役を Claude Code や Codex に替えられる） | 同じ（プロファイル＝hcの template。実装とレビューは別ブランド） |
 | 作業の場 | headless の sandbox。人間は共有リンクで跡を見る | **永続する端末**（hc の PTY）。オーナーが担当の端末に入れる（規約で入らないが、入れる）。別マシンへは hc 越し |
-| 記憶・指標 | hosted の data plane（会話・評価・記憶）。cost・throughput・quality の自動の指標。judge で run を採点 | **ファイル**（kanban・記録・wiki。形式が約束）。指標は履歴から数える（§5.1）。judge は入れない（上の 4） |
+| 記憶・指標 | hosted の data plane（会話・評価・記憶）。cost・throughput・quality の自動の指標。judge で run を採点 | **ファイル**（kanban・記録・wiki。形式が約束）。指標は履歴から数える（§5.1）。judge は入れない（上の 4）。ハーネス（Claude Code・Codex）が自分で出す OpenTelemetry のトレースとログは、セルの中の受け口 `andon otel serve` が受け、kanban の外の置き場に課題ごとのファイルで 30 日だけ貯める。課題が片付くと、dispatcher がそれを課題ごとの内訳 `breakdown`（モデルとツールの時間・トークン・失敗・時間を使ったツール・待ちの内訳）にまとめ、結果の記録に残す。課題 1 件の流れは `andon issue trace` で 1 本の木として引け、`andon measure` と振り返りは内訳を読む（[ADR-0060](adr/0060-otel-trace.md)）。内訳は読むための数で、gate の判定にも委譲にも使わない |
 | 人間の接点 | 段に固定（spec・code・product review）。「いつでも入れる」 | **変更ごとに gate がレベルを決める**。灯りがつく条件（§1.3 の決断） |
 | 自己改善 | observer agent が skill を直す | **振り返り → PR**（オーナーか Chief of Staff の判断を通る。上の 5） |
 | 入口 | トラッカー・chat・監視・端末 | オーナーと Chief Engineer の対話と振り返りに加え、外の信号（GitHub の main の CI の失敗と issue。ADR-0011）。外の人の issue・PR を受ける公開の窓口は無い |
@@ -527,15 +527,15 @@ andon/
     question.schema.json     問いの形
     notification.schema.json 通知
     gate.schema.json         gate の条件表と記録
-    project.schema.json      プロジェクトの事実と委譲（§1.10。contract.md §11）
+    project.schema.json      プロジェクトの事実と委譲（§1.10。contract.md §11）。受け口へ送るかと生の記録の寿命の otel も
     candidates.schema.json   候補の一覧（調べる課題の成果。contract.md §12。ADR-0006）
     corrections.schema.json  オーナーの手直し（dispatcher が finish のあとの巡で集める。contract.md §14。§1.9 の (b)）
-    measure.schema.json      流れの数え（andon measure --json の出力。contract.md §13）
+    measure.schema.json      流れの数え（andon measure --json の出力。内訳の節とプロファイルごとの節も。contract.md §13）
     signal.schema.json       信号の記録（contract.md §15。ADR-0011）
     delivered.schema.json    届けた通知の記録（contract.md §17）
     launch.schema.json       起動の記録（エージェントを起動する command が起動のたびに1行足す。contract.md §18。ADR-0028）
-    outcome.schema.json      結果の記録（dispatcher が finish のあとの巡で1回だけ書く。contract.md §19。ADR-0028）
-    retro.schema.json        振り返りの入力（andon retro collect の出力。読むだけ。contract.md §20。ADR-0028）
+    outcome.schema.json      結果の記録（dispatcher が finish のあとの巡で1回だけ書く。課題ごとの内訳 breakdown も。contract.md §19。ADR-0028・ADR-0060）
+    retro.schema.json        振り返りの入力（andon retro collect の出力。読むだけ。内訳と直しの前後の数字も。contract.md §20。ADR-0028・ADR-0060）
     patterns.schema.json     パターンの一覧（振り返りの library/retro.json。andon retro patterns が書き、andon retro apply が読む。contract.md §21。ADR-0028）
   process/                   仕事の流れ（workstreams/）と状態（states/）の定義（YAML。ADR-0017。states/issue.yaml は andon に埋め込む）
   package/                   セルに配るもの（image に COPY され /opt/andon になる）
@@ -567,6 +567,7 @@ andon/
 ```
 
 - **`package/` はセルに効くもの、それ以外は Andon を建てる人と担当のためのもの。** `/opt/andon` の中身は `package/` と同じ構成（`/opt/andon/bin/andon` …）。
+- **ハーネスのトレースとログの受け口は andon のバイナリの中にある**（`internal/otel`。OpenTelemetry Collector は入れない。[ADR-0060](adr/0060-otel-trace.md)）。受け口 `andon otel serve` は boot と役の起動の行が起動し、役の起動の行は `andon otel env` が出す送る設定を Claude Code と Codex に渡す。生の記録は repo にも kanban にも置かず、セルの volume の `~/.local/state/andon/otel/<slug>/` に置く（[contract.md](contract.md) §30。寿命の片付けは dispatcher）。課題 1 件の流れを組む部品と課題ごとの内訳を数える部品は `internal/trace` にあり、`andon issue trace`・dispatcher（結果の記録の内訳）・`andon measure`・`andon retro collect` が使う。
 - 仮設の command 6本と入口・起動・bootstrap・ラッパーは、`package/lib/andon/` と `init/` に名前を変えて移る（§3）。
 - `wiki/` は**セルの repo** に置く（Andon 本体の repo ではない）。セルフホストのセル（Andon 自身の）の wiki は、そのセルの repo にある。形（元資料の `raw/` と育つページ・`index.md`・`log.md`）は [ADR-0016](adr/0016-cell-wiki-llm-wiki.md)。
 
@@ -858,13 +859,15 @@ andon/
 | 一方通行の申告 | `report.json` の `risk`（`one_way`・`impact`） | 担当 | gate（`one_way` だけ）・オーナー（`impact`） | `one_way: true` でレベルを C に上げる。`false`・無しで下げない（[decisions/2026-11-09-report-risk-one-way.md](decisions/2026-11-09-report-risk-one-way.md)）。任意キー（バージョンは上げない） |
 | オーナーの手直し | `issues/<id>/library/corrections.json`（問いの答えが推奨案と違った・PR の上のオーナーの直し・指摘の覆し） | dispatcher（finish のときに集める） | 振り返り | §1.9 の (b)。Warp のスキルループを「記録＋PR」で。形は [contract.md](contract.md) §14 |
 | パターンの一覧 | 振り返りの課題の `issues/<id>/library/retro.json`（パターンごとの要約・根拠・直す先の段・判定と、前の直しの再発の数）。当てた記録は `retro-applied.json` | 振り返りの担当（`andon retro patterns`。根拠の数・実在・新しさを command が確かめる） | Chief of Staff（検収と `andon retro apply`）・次の振り返り | ADR-0028。[contract.md](contract.md) §21 |
+| ハーネスのトレースとログ | kanban の外の `~/.local/state/andon/otel/<slug>/` の `issues/<id>/traces.jsonl`・`logs.jsonl` と、課題の無い役の `roles/<role>/<日付>.traces.jsonl`・`.logs.jsonl`（OpenTelemetry の OTLP の JSON を 1 行に resource 1 つ分。schema は無い） | 受け口 `andon otel serve`（書く前に個人の属性を落とし、秘密の形を伏せる）。消すのは dispatcher の寿命の片付けだけ（既定は 30 日と 10 GB。`project.json` の `otel`） | `andon issue trace`・dispatcher（内訳をまとめる）・`andon measure` と振り返り（Chief of Staff のトークンだけ）。gate と dispatcher の判定は読まない | [ADR-0060](adr/0060-otel-trace.md)。使い捨ての入力で、止まっていても課題を止めない。[contract.md](contract.md) §30 |
+| 課題ごとの内訳 | 結果の記録 `issues/<id>/library/outcome.json` の任意キー `breakdown`（役・記録のあったセッションの数・プロンプトの数・モデルとツールの時間・トークン・失敗の数・時間を使ったツールの上から 10 個・待ちの内訳・wiki の読み）。生の記録が無ければ `null` | dispatcher（`outcome.json` を書くとき、その課題の生の記録だけからまとめる。レビュアーの分は親に入れない） | `andon measure`（内訳の節・プロファイルごとの節）・振り返り（`andon retro collect` の課題ごとの内訳と、前の直しのマージの前後の数字） | [ADR-0060](adr/0060-otel-trace.md) 決めたこと 15〜17。読むための数で、gate の判定と委譲の入力にしない。[contract.md](contract.md) §19・§13・§20 |
 | gate の条件表と記録 | `package/gate.json` ＋ `gate.local.json`。記録は `issues/<id>/library/gate/<sha>.json` ＋ PR のコメントと status。PR の head の GitHub の checks（CI）も事実に入る（ブランチ保護（ruleset）はサーバー側で効くが、gate も CI の結果を見る） | オーナー（条件表）・gate（記録） | gate・dispatcher（マージの直前に head と checks を読み直す）・振り返り・オーナー | 仮設の gate の条件表と出力・仮設で Chief of Staff が `statusCheckRollup` を目で見てからマージしていた所 |
 | hcとの約束 | 端末の名前 `<slug>-<id>`・ラベル `role`・`project`・`issue`・`title`・`news.replied`・template の名前＝プロファイル | command・dispatcher | ボード・dispatcher | 今のまま |
 | フック | managed settings の `hooks`。Chief of Staff の `Stop`・`UserPromptSubmit`（dispatcher が通知を渡す）・`Stop` の待ち役（離席中に合図で起動する）・`StopFailure`（プロバイダに切られたら起動し直す）、担当の `Stop`（報告か問いが無ければ止まれない。contract.md §9） | boot が生成 | Claude Code | 要実測 |
 | 委譲 | セルの repo の `projects/<slug>/project.json` の `delegation`（型 ＋ `grants[]`: 範囲・値・付与した人・日付・期限・根拠・取り消し） | オーナー（`andon delegate`。照合は commit の author） | Chief of Staff（起動するたび）・gate（`merge` の最大レベル）・dispatcher と command（デプロイ・公開・不可逆の前） | §1.10。[contract.md](contract.md) §11 |
 | 仕様・設計の受け渡し | Chief Engineer の課題の `report.json`（`pr`＝文書の PR・`next[{to: chief-of-staff}]`）と端末のラベル `role=chief-engineer`。**新しい約束は足さない** | Chief Engineer | dispatcher（通知）・Chief of Staff（文書を読んで依頼書に切る） | §1.8 |
 
-原則は6つ（contract.md §0）: Markdown は人と AI のもので、機械は読まない／無い・読めない・知らない値は安全側／1つの約束に1人の書き手／読み手は知らないキーを無視し、書き手は保つ（ledger-format と同じ）／置き場は kanban の中／形は小さく、テストで固定する。
+原則は6つ（contract.md §0）: Markdown は人と AI のもので、機械は読まない／無い・読めない・知らない値は安全側／1つの約束に1人の書き手／読み手は知らないキーを無視し、書き手は保つ（ledger-format と同じ）／置き場は kanban の中（ハーネスの生のトレースとログだけは kanban の外。[ADR-0060](adr/0060-otel-trace.md) 決めたこと 24）／形は小さく、テストで固定する。
 
 ---
 ## 5. 仮設からの引っ越しとセルフホストの線

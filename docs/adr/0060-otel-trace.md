@@ -8,7 +8,7 @@
 
 | # | 何を決めたか | 今の正 | 今 |
 |---|---|---|---|
-| 1 | 範囲は、受け口と保存、課題 1 件の流れを引く command、measure と振り返りへの内訳、直しの前後の比較までにする | この ADR | まだ実装していない |
+| 1 | 範囲は、受け口と保存、課題 1 件の流れを引く command、measure と振り返りへの内訳、直しの前後の比較までにする | この ADR・`docs/design.md` §1.9・§2.2・§4 | 生きている |
 | 2 | 受け口は andon のバイナリの中に作り、OpenTelemetry Collector は入れない | `internal/otel/otel.go`・`internal/otel/serve.go` | 生きている |
 | 3 | 受けるのは OTLP/HTTP の JSON のトレースとログだけで、metrics は受けない | `internal/otel/otel.go`・`docs/contract.md` §30 | 生きている |
 | 4 | 受け口は boot と役の起動のたびに確かめて起動し、止まっていても課題を止めない | `internal/otel/env.go`・`internal/boot/start.go`・`docs/dispatcher.md` §7.2 | 生きている |
@@ -31,7 +31,7 @@
 | 21 | ダイジェストと通知には、このテーマで何も足さない | この ADR | 生きている |
 | 22 | トレースの閲覧器は常設しない | `docs/operate.md` §11 | 生きている（閲覧器は `otel-tui` をセルの `local/aqua.yaml` で入れる） |
 | 23 | このテーマでは statechart のモデルを書かない | この ADR | 生きている |
-| 24 | 改善のループの前提のうち、受け口と保存先と常駐の 3 つを、この範囲で改める | この ADR | まだ実装していない |
+| 24 | 改善のループの前提のうち、受け口と保存先と常駐の 3 つを、この範囲で改める | `docs/adr/0028-improvement-loop.md`（前提の注）・`docs/design.md` §4 | 生きている |
 
 ## 問題（オーナーの言葉で。言い直しの段落）
 
