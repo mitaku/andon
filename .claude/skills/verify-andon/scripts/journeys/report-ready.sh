@@ -51,6 +51,13 @@ step "rr-report: ほかの課題の PR が入った報告を、--pr を付けず
   && ok "rr-report: 前の報告のほかの課題の PR は、書き直すと引き継がずに外す" \
   || fail "rr-report: 前の報告のほかの課題の PR を引き継いだか、外したことを書かない"
 echo "$branch" >"$tmp/gh/branch"
+# rr-report: 見出し「## Report」の行の無い報告（本文が消えて PR の行だけが残ったもの）は、書かずに断る
+cp "$lib/report.json" "$tmp/rep.before"
+step "rr-report: 見出しの無い報告を書く" "$andon" issue report "$id" --pr "$pr" <<<"PR: $pr" \
+  && fail "rr-report: 見出し「## Report」の行が無いのに report が通った" \
+  || { grep -q '見出し「## Report」の行が無い' "$tmp/step.out" && cmp -s "$tmp/rep.before" "$lib/report.json" \
+    && ok "rr-report: 見出し「## Report」の行が無ければ、report.json を書かずに断る" \
+    || fail "rr-report: 断る理由が「見出しの行が無い」でないか、report.json を書いた"; }
 # rr-report: 報告が report.json と report.md になる
 data='{"acceptance":[{"id":"A1","result":"pass","evidence":"git log -1（記録 runs/1.json）","run":1}],"next":[{"to":"chief-of-staff","text":"検証の跡を片付ける"}]}'
 step "rr-report: 報告を書く" "$andon" issue report "$id" --pr "$pr" --data "$data" <<<"## Report

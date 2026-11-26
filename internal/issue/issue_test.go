@@ -480,6 +480,50 @@ func TestReportRefusesOtherRepoPR(t *testing.T) {
 	}
 }
 
+// report は人が読む報告（Markdown）に見出し「## Report」の行が無ければ断り、report.json も kanban の報告も
+// 書かない。前の報告を sed で切り出して書き直し、本文が消えて PR の行だけが残った報告で置き換えたことがあった。
+func TestReportRefusesMarkdownWithoutReportHeading(t *testing.T) {
+	const pr = "PR: https://github.com/example/app/pull/7\n"
+	for _, c := range []struct {
+		name string
+		md   string
+		ok   bool
+	}{
+		{"本文が消えて PR の行だけが残った", pr, false},
+		{"見出しの無い本文", pr + "直した。\n## Next\n- x\n", false},
+		{"見出しが違う（### Report）", "### Report\n直した。\n", false},
+		{"見出しが違う（## Reports）", "## Reports\n直した。\n", false},
+		{"見出しが行の途中", "直した。## Report\n", false},
+		{"PR の行のあとに見出し", pr + "## Report\n直した。\n## Next\n- x\n", true},
+		{"見出しだけ", "## Report\n", true},
+		{"CRLF の見出し", "## Report\r\n直した。\r\n", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.task["repo"] = "github.com/example/app"
+			f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+			rp := filepath.Join(f.root, "kanban/issues/T-0001/library/report.json")
+			f.write("kanban/issues/T-0001/library/report.json", f.report)
+			var out, errb bytes.Buffer
+			rc := Main([]string{"report", "T-0001"}, strings.NewReader(c.md), &out, &errb)
+			got, _ := os.ReadFile(rp)
+			md, mdErr := os.ReadFile(filepath.Join(f.root, "reported-T-0001"))
+			if c.ok {
+				if rc != 0 || mdErr != nil || string(md) != c.md {
+					t.Fatalf("rc=%d err=%q reported=%q", rc, errb.String(), md)
+				}
+				return
+			}
+			if rc != 1 || !strings.Contains(errb.String(), "見出し「## Report」の行が無い") || strings.Count(strings.TrimSpace(errb.String()), "\n") != 0 {
+				t.Fatalf("want rc 1 with one line, got rc=%d err=%q", rc, errb.String())
+			}
+			if mdErr == nil || string(got) != f.report {
+				t.Fatalf("断ったのに書いた: reported=%v report=%s", mdErr == nil, got)
+			}
+		})
+	}
+}
+
 // report の引き継ぎ（ADR-0061 決めたこと 2・受け入れ条件 2）: 知識の欠けの申告 gaps は、--data に無ければ前の
 // report.json から引き継ぐ（途中の報告に書いた申告が、最後の書き直しで消えない）。空の配列を渡すと取り下げになり、
 // 次の打ち直しでも空のまま。--data に gaps があれば丸ごと置き換える。
@@ -670,6 +714,8 @@ func TestReviewRequestKeepsPreviousReport(t *testing.T) {
 		{"前のレビュー依頼の段は重ねない", oldHeader + body, "", []string{body}, []string{other}, ""},
 		{"stdin があれば置き換える", body, "## Report\n新しい報告\n", []string{"## Report\n新しい報告\n"}, []string{"## Next"}, ""},
 		{"stdin も前の報告も空なら断る", "", " \n", nil, nil, "前の報告（report.md）も空"},
+		{"stdin に見出し「## Report」の行が無ければ断る", body, "PR: https://github.com/example/app/pull/7\n", nil, nil, "見出し「## Report」の行が無い"},
+		{"前の報告に見出し「## Report」の行が無ければ断る", "PR: https://github.com/example/app/pull/7\n", "", nil, nil, "見出し「## Report」の行が無い"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := newFixture(t)

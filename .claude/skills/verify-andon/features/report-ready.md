@@ -8,7 +8,7 @@
   - 見るファイル: `internal/issue/record.go`、`internal/contract/runs.go`、`schema/run.schema.json`
 - `rr-ready-refuse` 報告の無い `ready` は断り、課題は `doing` のまま。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/transition.go`、`internal/process/process.go`、`process/states/issue.yaml`
-- `rr-report` 報告が `report.json`（commit は HEAD・`pr`・`acceptance[].run`）と `report.md` になる。PR の branch が課題の `branch` と違えば（ほかの課題の PR）、`report --pr` は書かずに断り、前の報告から引き継ぐ pr なら外す。見る道: 検証の担当だけ。
+- `rr-report` 報告が `report.json`（commit は HEAD・`pr`・`acceptance[].run`）と `report.md` になる。PR の branch が課題の `branch` と違えば（ほかの課題の PR）、`report --pr` は書かずに断り、前の報告から引き継ぐ pr なら外す。人が読む報告に見出し「## Report」の行が無ければ（本文が消えて PR の行だけが残ったもの）、書かずに断る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/contract/contract.go`、`internal/contract/schema.go`、`schema/report.schema.json`
 - `rr-acceptance` 課題の予約キー `acceptance` が名指す受け入れ条件の番号のうち、報告に行の無い番号だけを名指して `ready` が断る。番号は数字だけの形（`1`）と A を付けた形（`A1`）を同じ番号と読む。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/contract/runs.go`
@@ -31,7 +31,7 @@
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready <検証する commit>` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として5つの細かい機能を順に動かす。
 - **記録を撮る。** `rr-record` の行に `andon issue record V-0001 -- git -C <worktree> log -1 --format=%H` が出る。`runs/1.json` の JSON（`exit_code` 0・`commit` が HEAD・`dirty` false）と `ok   rr-record` が見えれば動いた。
 - **断られる。** `rr-ready-refuse` の行に `andon issue ready` の終了コード 1 と理由1行（`report.json が無い`）が出る。`ok   rr-ready-refuse` が見えれば動いた。
-- **報告する。** 課題には `branch` を書いてある。偽の `gh` が初めにほかの branch（`other/branch`）を返すので、1回目の `rr-report` の行に `report --pr` の終了コード 1 と理由1行（`… この課題の PR でない …`）が出て、`report.json` は書かれない。続く `rr-report` の行で、ほかの課題の PR を入れた `report.json` を `--pr` を付けずに書き直し、「この課題の PR でないので引き継がない」の1行と、`pr` が空の `report.json` が出る。偽の `gh` を課題の branch に替えた最後の `rr-report` の行に、`report.json` の `commit`・`pr`・`acceptance` が出る。どちらも `ok   rr-report` が見えれば動いた。
+- **報告する。** 課題には `branch` を書いてある。偽の `gh` が初めにほかの branch（`other/branch`）を返すので、1回目の `rr-report` の行に `report --pr` の終了コード 1 と理由1行（`… この課題の PR でない …`）が出て、`report.json` は書かれない。続く `rr-report` の行で、ほかの課題の PR を入れた `report.json` を `--pr` を付けずに書き直し、「この課題の PR でないので引き継がない」の1行と、`pr` が空の `report.json` が出る。偽の `gh` を課題の branch に替えたあと、PR の行だけの報告を渡す `rr-report` の行に、終了コード 1 と理由1行（`… 見出し「## Report」の行が無い …`）が出て、`report.json` は変わらない。最後の `rr-report` の行に、`report.json` の `commit`・`pr`・`acceptance` が出る。どちらも `ok   rr-report` が見えれば動いた。
 - **受け入れ条件の番号で断られる。** 報告の行は `A1` だけのまま、`kanban set V-0001 acceptance=1,2`（Chief of Staff の端末 `tc` として）のあと `andon issue ready` を打つ。`rr-acceptance` の行に終了コード 1 と、足りない番号として `2` だけを名指す理由1行（`… review にしない: 2。…`）が出る。`ok   rr-acceptance` が見えれば動いた。そのあと予約キーを `acceptance=1` に書き直す。
 - **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`・`acceptance` が `1`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
 - **片付く。** 最後に `ok   片付けた` が出る。

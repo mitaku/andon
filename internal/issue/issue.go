@@ -194,7 +194,22 @@ func readMarkdown(stdin io.Reader) (string, error) {
 	if strings.TrimSpace(string(b)) == "" {
 		return "", fail("人が読む報告（Markdown）を stdin で渡す")
 	}
+	if err := checkReportHeading(string(b)); err != nil {
+		return "", err
+	}
 	return string(b), nil
+}
+
+// reportHeadingRe は人が読む報告の見出し「## Report」の行（worker skill §7 の書式。どの役の書式も持つ）。
+var reportHeadingRe = regexp.MustCompile(`(?m)^##[ \t]+Report[ \t]*\r?$`)
+
+// checkReportHeading は、見出し「## Report」の行を持たない Markdown を断る。前の報告を sed などで切り出して
+// 書き直すと、本文が消えて PR の行だけが残ることがある。その報告で kanban の報告を置き換えると、人が読む本文が無くなる
+func checkReportHeading(md string) error {
+	if !reportHeadingRe.MatchString(md) {
+		return fail("人が読む報告（Markdown）に見出し「## Report」の行が無い。本文が消えていないか確かめ、報告の全体を stdin で渡す（worker skill §7 の書式）")
+	}
+	return nil
 }
 
 func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
@@ -381,6 +396,9 @@ func (c *ctx) reviewMarkdown(stdin io.Reader) (string, error) {
 		in = string(b)
 	}
 	if strings.TrimSpace(in) != "" {
+		if err := checkReportHeading(in); err != nil {
+			return "", err
+		}
 		return in, nil
 	}
 	b, err := os.ReadFile(filepath.Join(c.l.Dir, "issues", c.id, "report.md"))
@@ -398,6 +416,9 @@ func (c *ctx) reviewMarkdown(stdin io.Reader) (string, error) {
 	}
 	if strings.TrimSpace(md) == "" {
 		return "", fail("stdin が空で、前の報告（report.md）も空。人が読む報告（Markdown）を stdin で渡す")
+	}
+	if err := checkReportHeading(md); err != nil {
+		return "", err
 	}
 	return md, nil
 }
