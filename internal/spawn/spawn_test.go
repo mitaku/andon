@@ -199,7 +199,7 @@ func TestMark(t *testing.T) {
 }
 
 // 目録の Entities か Topics の節にページの行があるときだけ、wiki の目録を引く1行を返す（ADR-0061 決めたこと 12）。
-// andon init の雛形（節だけ）と、Sources だけに行がある目録では返さない。
+// andon cell init の雛形（節だけ）と、Sources だけに行がある目録では返さない。
 func TestWiki(t *testing.T) {
 	ws := t.TempDir()
 	t.Setenv("ANDON_WORKSPACE", ws)

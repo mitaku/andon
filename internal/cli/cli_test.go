@@ -19,7 +19,7 @@ func run(args ...string) (int, string, string) {
 var wordRe = regexp.MustCompile(`^[a-z][a-z-]*$`)
 
 // stubLeaves は表の葉の中身を、打たれた名前と引数を控えるだけのものに差し替える。表を回す検査は葉を本物で打たない
-// （引数を取る葉 chief-engineer・init などは、本物ではプロジェクトに課題を足し、エージェントを起動する）。
+// （引数を取る葉 design start・cell init などは、本物ではプロジェクトに課題を足し、エージェントを起動する）。
 func stubLeaves(t *testing.T) *[]string {
 	t.Helper()
 	var calls []string
@@ -93,11 +93,11 @@ func TestLeafShapeRejects(t *testing.T) {
 		}
 	}
 	// 名前を変えるまでの例外は renames にあるものだけ。例外から外せば、今の名前は落ちる
-	saved := renames["measure"]
-	delete(renames, "measure")
-	defer func() { renames["measure"] = saved }()
-	if errs := shapeErrors(leaves); !slices.ContainsFunc(errs, func(e string) bool { return strings.HasPrefix(e, "measure:") }) {
-		t.Errorf("例外から外した measure が落ちない: %v", errs)
+	saved := renames["gate"]
+	delete(renames, "gate")
+	defer func() { renames["gate"] = saved }()
+	if errs := shapeErrors(leaves); !slices.ContainsFunc(errs, func(e string) bool { return strings.HasPrefix(e, "gate:") }) {
+		t.Errorf("例外から外した gate が落ちない: %v", errs)
 	}
 }
 
@@ -173,7 +173,8 @@ func TestUnlistedLeaf(t *testing.T) {
 	}
 }
 
-// A2: 名詞だけを打つと、その名詞の葉の一覧が出る（名詞だけで動く今の葉 waiting・dispatcher と、1語の葉 boot・version を除く）。
+// A2: 名詞だけを打つと、その名詞の葉の一覧が出る（名詞だけで動く今の葉 dispatcher と、1語の葉 boot・version を除く。
+// 名詞だけの形が古い葉だった waiting は、名詞だけでは断り、--help では一覧を出す）。
 func TestNounLists(t *testing.T) {
 	stubLeaves(t)
 	nouns := map[string]bool{}
@@ -187,6 +188,9 @@ func TestNounLists(t *testing.T) {
 			continue
 		}
 		for _, args := range [][]string{{n}, {n, "--help"}, {n, "-h"}} {
+			if _, old := retired[n]; old && len(args) == 1 {
+				continue
+			}
 			rc, out, errs := run(args...)
 			if rc != 0 || errs != "" || !strings.HasPrefix(out, "usage: andon "+n+" <動詞>") {
 				t.Errorf("%v: rc=%d out=%q err=%q", args, rc, out, errs)
@@ -199,8 +203,54 @@ func TestNounLists(t *testing.T) {
 		}
 	}
 	// 名詞だけで動く葉は、名詞の --help に同じ名詞の葉も並べる
-	if _, out, _ := run("waiting", "--help"); !strings.Contains(out, "\n  waiting answer  ") {
-		t.Errorf("waiting --help に waiting answer が無い:\n%s", out)
+	if _, out, _ := run("dispatcher", "--help"); !strings.Contains(out, "\n  dispatcher drain  ") {
+		t.Errorf("dispatcher --help に dispatcher drain が無い:\n%s", out)
+	}
+}
+
+// A3: 名前を変えた葉の古い名前は、どれも打つと新しい名前を含む1行を標準エラーに出し、終了コード 2 になる。実行はしない（決めたこと 17）。
+func TestRetiredNames(t *testing.T) {
+	calls := stubLeaves(t)
+	for old, neu := range retired {
+		if _, ok := find(old); ok {
+			t.Errorf("古い名前 %s が表にある（別名を作らない）", old)
+		}
+		if _, ok := find(neu); !ok {
+			t.Errorf("新しい名前 %s が表に無い", neu)
+		}
+		if _, ok := renames[old]; ok {
+			t.Errorf("%s が renames と retired の両方にある", old)
+		}
+		for _, args := range [][]string{strings.Fields(old), append(strings.Fields(old), "S-0012", "--json"), append(strings.Fields(old), "--help")} {
+			if old == "waiting" && len(args) > 1 {
+				continue // 名詞が生きている waiting は、--help で名詞の一覧（TestNounLists）、2語目で動詞を探す。フラグだけの形は下で見る
+			}
+			rc, out, errs := run(args...)
+			want := "andon " + neu + " "
+			if rc != 2 || out != "" || strings.Count(errs, "\n") != 1 || !strings.Contains(errs, want) || !strings.Contains(errs, "andon "+old+" ") {
+				t.Errorf("%v: rc=%d out=%q err=%q", args, rc, out, errs)
+			}
+		}
+	}
+	// 名詞だけの古い形とフラグだけの形（ホストの部品の古い写しが打つ andon waiting --json）
+	for _, args := range [][]string{{"waiting", "--json"}, {"waiting", "--json", "--project", "sample-site"}, {"delegate"}, {"delegate", "zzzz"}} {
+		rc, out, errs := run(args...)
+		if rc != 2 || out != "" || !regexp.MustCompile(`andon (waiting list|delegation) で打ち直す\n$`).MatchString(errs) {
+			t.Errorf("%v: rc=%d out=%q err=%q", args, rc, out, errs)
+		}
+	}
+	// 新しい名詞の葉と、古い名詞の下の残った葉は動く
+	for _, args := range [][]string{{"waiting", "list", "--json"}, {"waiting", "answer", "S-0012#1", "--option", "1"}, {"open"}, {"cell", "init", "x"}} {
+		if rc, _, errs := run(args...); rc != 0 || errs != "" {
+			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
+		}
+	}
+	if want := []string{"waiting list --json", "waiting answer S-0012#1 --option 1", "open", "cell init x"}; !slices.Equal(*calls, want) {
+		t.Errorf("打った葉: %v（%v のはず）", *calls, want)
+	}
+	// 切る案 3 で名前を変えた 10 個（delegate の 4 つを別に数える）が、どれも断りの表にある
+	if len(retired) != 10 {
+		t.Errorf("retired は %d 個（切る案 3 の 10 個のはず）", len(retired))
 	}
 }
 
@@ -302,8 +352,8 @@ func TestPassesArgsToLeaf(t *testing.T) {
 	if rc, _, errs := run("dispatcher", "--bogus"); rc != 2 || !strings.HasPrefix(errs, "usage: andon dispatcher") {
 		t.Errorf("dispatcher: rc=%d err=%q", rc, errs)
 	}
-	if rc, _, errs := run("chief-of-staff", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-of-staff") {
-		t.Errorf("chief-of-staff: rc=%d err=%q", rc, errs)
+	if rc, _, errs := run("open", "a", "b"); rc != 2 || !strings.HasPrefix(errs, "usage: andon open") {
+		t.Errorf("open: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("issue", "start", "X-1", "extra"); rc != 2 || !strings.HasPrefix(errs, "usage: andon issue start") {
 		t.Errorf("issue start: rc=%d err=%q", rc, errs)
@@ -311,8 +361,8 @@ func TestPassesArgsToLeaf(t *testing.T) {
 	if rc, _, errs := run("triage", "verdict", "X-1"); rc != 2 || !strings.HasPrefix(errs, "usage: andon triage verdict") {
 		t.Errorf("triage verdict: rc=%d err=%q", rc, errs)
 	}
-	if rc, _, errs := run("chief-engineer"); rc != 2 || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
-		t.Errorf("chief-engineer: rc=%d err=%q", rc, errs)
+	if rc, _, errs := run("design", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon design start") {
+		t.Errorf("design start: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("publish", "/nonexistent/none.html"); rc != 1 || !strings.Contains(errs, "not a file") {
 		t.Errorf("publish: rc=%d err=%q", rc, errs)

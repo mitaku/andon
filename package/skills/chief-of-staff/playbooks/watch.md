@@ -30,7 +30,7 @@
 
 枠が空いている（`slots.free` が 1 以上）のに、着手できる担当の課題が無い（`kanban ready` に出る担当の課題が無く、残りは `queued` で、オーナー待ちの課題の `after` の後ろにある）とき、**その時点で**オーナーに知らせる。夜や留守まで待たない。`<news>` の `ack` で黙らず、オーナーへ書く。
 
-- 数は `andon waiting --json` の `items[].holds` から読む（`holds` はその課題を待つ課題の id の並び。呼んでいる行〈`call` が真〉が先、置いてある行が後で、その中で `holds` の数の多い順に並んでいる）。新しい command は打たない。
+- 数は `andon waiting list --json` の `items[].holds` から読む（`holds` はその課題を待つ課題の id の並び。呼んでいる行〈`call` が真〉が先、置いてある行が後で、その中で `holds` の数の多い順に並んでいる）。新しい command は打たない。
 - 知らせる文は、どれをマージするか（か答えるか）で何件が動けるかを言う。例: 「着手できる課題が無く、残りは全部オーナー待ちの後ろです。S-0263（タイトル）をマージすると 5 件が動けます。S-0264（タイトル）をマージすると 2 件が動けます」。待っているとだけ書かない。
 - 後ろに並んだ数の多いものから書き、1度知らせたものは、数が変わるまで繰り返さない。
 
@@ -58,7 +58,7 @@ S-0009 の担当 t5 が止まったまま 21 分
 
 | 行 | dispatcher がしたこと | 受けたら |
 |---|---|---|
-| `<id> ready: 「…」（ルーチン tidy）` | `kanban ready` の前回との差（オーナーの課題とレビュアーの子課題を除く。ルーチンが足したもの・`queued` から戻ったものも） | 依頼書を確かめ、枠〈`andon waiting` の `slots.free`〉の中で `andon issue start`（`start.md`）。ルーチンが足したものはオーナーに聞かずに起動する |
+| `<id> ready: 「…」（ルーチン tidy）` | `kanban ready` の前回との差（オーナーの課題とレビュアーの子課題を除く。ルーチンが足したもの・`queued` から戻ったものも） | 依頼書を確かめ、枠〈`andon waiting list` の `slots.free`〉の中で `andon issue start`（`start.md`）。ルーチンが足したものはオーナーに聞かずに起動する |
 | `<id> ready: 「…」。待つ相手 <id> がやめになった`（か `…がマージされたか確かめられない`） | 待つ相手がマージされずに done になった（`andon issue finish`・トリアージの close）ので `queued` から戻った。確かめられないは、gh が読めず見分けられなかった | 起動する前に依頼書を読み直す。やめた課題の成果を前提にしていれば起動せず、依頼書に `## 追記（<日付>）` を足して前提を直すか、向きを決めるのが決断ならオーナーへ1問（ask-one-by-one skill）。前提にしていなければ上の行と同じく起動する |
 | `<id> report: 報告 <path>` | kanban の `log.jsonl` に report の書き込み。PR の無い課題（観察の課題〈repo の無い課題〉・調べる課題・トリアージ・振り返り・ダイジェスト）が `status: review` に入ったときも。レビュー依頼で dispatcher がレビュアーを起動しなかったときも（上限を超えた回など。理由は `hc read dispatcher`） | 報告を読む。起動しなかったレビュー依頼なら `gate.md` の「上限を超えた回」、`## オーナーに聞くこと` があれば `blocked.md` の「オーナーに聞くこと」。観察の課題なら `cut.md` の「観察の課題の報告を受けたら」。調べる課題なら候補を読む（`brief.md` の調べる課題）。ダイジェストの課題（`routine: daily-digest`）なら、そのターンで `digest.md` の 3。トリアージの課題なら `triage.md` の 3、振り返りの課題なら `retro.md` の 3 |
 | `<id> review: 報告 <path>（PR <url>）` | gate を回さない課題のうち PR のあるもの（Chief Engineer の課題）が `status: review` に入った（gate を回す課題の `review` は記録だけで届かない。PR の無い課題は上の `report` の行で届く） | `cut.md` の「Chief Engineer の文書を受けたら」 |
@@ -81,7 +81,7 @@ S-0009 の担当 t5 が止まったまま 21 分
 
 ## 留守のあと・dispatcher の様子
 
-この Chief of Staff の端末が live でない間（留守）も、dispatcher は拾う・レビュアーの起動・gate とマージと片付けを回し、届ける通知を待ちに積む。起動し直したら（`andon chief-of-staff` で address を合わせたら）最初の `<news>` の先頭に「留守の間（いつ〜いつ）に N 件」の1行が付く。
+この Chief of Staff の端末が live でない間（留守）も、dispatcher は拾う・レビュアーの起動・gate とマージと片付けを回し、届ける通知を待ちに積む。起動し直したら（`andon open` で address を合わせたら）最初の `<news>` の先頭に「留守の間（いつ〜いつ）に N 件」の1行が付く。
 留守の間の出来事は、起動したときに kanban を自分で読む（`wake.md`）。dispatcher の様子は `hc read dispatcher`。
 dispatcher の端末が素のシェルのまま（core が起動し直したあと）でも、自分の端末のフックが毎ターン確かめて、端末を片付けて起動し直す。`hc send dispatcher` で手で打ち込まない（二重に起動する・打ちかけに足す）。
 戻らなければ（`hc get dispatcher --json` の `foreground.argv` が `andon dispatcher` にならない）、オーナーへ「`andon boot` を打ち直すか」を1問。

@@ -55,8 +55,8 @@ plant '{"version": 1, "project": {"title": "Demo", "prefix": "S"}, "repos": ["gi
  "signals": [{"source": "github-ci", "repo": "github.com/example/app", "weight": "now"},
   {"source": "github-issues", "weight": "later", "every": 30, "filter": "label:bug -author:<owner>"},
   {"source": "sentry", "weight": "later", "org": "example", "project": "app"}]}'
-"$andon" delegate show --project demo --json | jq -e '.reason | contains("delegation が無い")' >/dev/null ||
-  die "signals 入りの project.json を delegate show が読めない: $("$andon" delegate show --project demo --json)"
+"$andon" delegation show --project demo --json | jq -e '.reason | contains("delegation が無い")' >/dev/null ||
+  die "signals 入りの project.json を delegation show が読めない: $("$andon" delegation show --project demo --json)"
 ok 'delegate show: signals 入りの project.json を読む（形の誤りに倒れない）'
 
 # 受け入れ条件 2（入口）: projects/<slug>/ で打てば slug が分かる。CI の失敗1件と issue 2件

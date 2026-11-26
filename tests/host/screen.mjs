@@ -548,7 +548,7 @@ await check('files-plus: 自分で読むもの（画像・図・Markdown の画�
   }
 });
 
-// The waiting mod against a fake exec: what `andon waiting --json` printed, drawn (ADR-0042 acceptance 10).
+// The waiting mod against a fake exec: what `andon waiting list --json` printed, drawn (ADR-0042 acceptance 10).
 const textOf = (root) => walk(root).flatMap((n) => args(n, 'child').map((a) => a[0])).filter((c) => typeof c === 'string');
 const SAMPLE_WAITING = {
   version: 1, at: '2026-11-21T10:00:00Z', project: 'sample-site',
@@ -594,9 +594,9 @@ async function waitingPane(reply, { cwd = '/srv/cell/projects/sample-site', term
 }
 const json = (o) => ({ code: 0, stdout: JSON.stringify(o), stderr: '' });
 
-await check('waiting: andon waiting --json をフォーカスした pane のフォルダで呼び、枠の行とオーナー待ちの行を出力の並びのまま描く（ADR-0042 受け入れ条件 10）', async () => {
+await check('waiting: andon waiting list --json をフォーカスした pane のフォルダで呼び、枠の行とオーナー待ちの行を出力の並びのまま描く（ADR-0042 受け入れ条件 10）', async () => {
   const { calls, draw } = await waitingPane(json(SAMPLE_WAITING));
-  assert.deepEqual(calls.exec, [['andon', ['waiting', '--json'], { cwd: '/srv/cell/projects/sample-site', on: null }]]);
+  assert.deepEqual(calls.exec, [['andon', ['waiting', 'list', '--json'], { cwd: '/srv/cell/projects/sample-site', on: null }]]);
   const tree = draw();
   assert.deepEqual(textOf(byId(tree, 'waiting-slots')), ['Slots 3/4 working · 2 waiting on you']);
   const rows = walk(tree).map((n) => last(n, 'id')).filter((id) => /^waiting-row-/.test(id ?? ''));
@@ -651,10 +651,14 @@ await check('waiting: 出力が読めない・version が 1 でない・command 
     [{ code: 0, stdout: 'not json', stderr: '' }, /not JSON/],
     [json({ ...SAMPLE_WAITING, version: 2 }), /version 2; this pane reads version 1/],
     [{ code: 127, stdout: '', stderr: 'sh: andon: not found' }, /^This cell has no andon: update/],
-    // An andon older than the waiting command: its usage error (exit 2).
-    [{ code: 2, stdout: '', stderr: 'andon: 知らない sub-command: waiting\nusage: andon <sub-command>' }, /^This cell's andon has no waiting command: update/],
-    [new Error('spawn andon ENOENT'), /^Can't run andon waiting: spawn andon ENOENT$/],
-    [{ code: 1, stdout: '', stderr: 'andon waiting: kanban が見つからない（projects/<slug>/ か担当の worktree で打つ）\nmore' }, /^andon waiting failed: andon waiting: kanban が見つからない/],
+    // The cell's andon refuses the name (exit 2): older (no such command) or newer (renamed) than the pane (ADR-0053 decision 9).
+    [{ code: 2, stdout: '', stderr: 'andon: 知らない sub-command: waiting\nusage: andon <sub-command>' }, /^This cell's andon and this pane are different versions: reinstall the host parts$/],
+    [{ code: 2, stdout: '', stderr: 'andon: 知らないコマンド: waiting list。近いのは andon waiting\nandon help で一覧を出す。' }, /^This cell's andon and this pane are different versions: reinstall the host parts$/],
+    [{ code: 2, stdout: '', stderr: 'andon: andon waiting は andon waiting list に名前が変わった（古い名前では動かない）。andon waiting list で打ち直す' }, /^This cell's andon and this pane are different versions: reinstall the host parts$/],
+    // Another exit 2 is a failure like any other, with its first line.
+    [{ code: 2, stdout: '', stderr: 'andon waiting list: プロジェクトが決まらない\nmore' }, /^andon waiting list failed: andon waiting list: プロジェクトが決まらない$/],
+    [new Error('spawn andon ENOENT'), /^Can't run andon waiting list: spawn andon ENOENT$/],
+    [{ code: 1, stdout: '', stderr: 'andon waiting list: kanban が見つからない（projects/<slug>/ か担当の worktree で打つ）\nmore' }, /^andon waiting list failed: andon waiting list: kanban が見つからない/],
     [json({ version: 1, project: 'sample-site' }), /no slots or items/],
   ];
   for (const [reply, want] of cases) {
@@ -730,7 +734,7 @@ await check('waiting: answerable が true でない判断の行（戻せない�
 await check('waiting: andon waiting answer が断ったときは理由を 1 行で出し、Answered にせず、選んだ選択肢を残す（ADR-0042 受け入れ条件 18）', async () => {
   const cases = [
     [{ code: 1, stdout: '', stderr: 'andon waiting answer: S-0030#1: 問いが開いていない（answered）。答え済みの問いには書かない\nmore' }, /^Not answered: andon waiting answer: S-0030#1: 問いが開いていない/],
-    [{ code: 2, stdout: '', stderr: 'andon: 知らない sub-command' }, /^This cell's andon can't answer from the pane: update/],
+    [{ code: 2, stdout: '', stderr: 'andon: 知らない sub-command' }, /^This cell's andon and this pane are different versions: reinstall the host parts$/],
     [{ code: 127, stdout: '', stderr: 'sh: andon: not found' }, /^This cell has no andon: update/],
     [new Error('spawn andon ENOENT'), /^Can't run andon waiting answer: spawn andon ENOENT$/],
   ];
@@ -1014,7 +1018,7 @@ function execTargets(src) {
 }
 const OPENER = 'platform === "windows" ? "explorer.exe" : platform === "macos" ? "open" : "xdg-open"';
 
-await check('kanban-board と waiting が呼ぶ command は決まった一覧のまま。kanban を書く command とネットワークが無く、waiting が呼ぶのは andon waiting --json と andon waiting answer と PR を開くものだけ（ADR-0042 受け入れ条件 12・18）', async () => {
+await check('kanban-board と waiting が呼ぶ command は決まった一覧のまま。kanban を書く command とネットワークが無く、waiting が呼ぶのは andon waiting list --json と andon waiting answer と PR を開くものだけ（ADR-0042 受け入れ条件 12・18）', async () => {
   const board = await readFile(`${HOST}/kanban-board/main.js`, 'utf8');
   const waiting = await readFile(`${HOST}/waiting/main.js`, 'utf8');
   // ADR-0059 acceptance 12: the list of ADR-0042 acceptance 12 with andon issue board and andon issue history added.
@@ -1022,8 +1026,8 @@ await check('kanban-board と waiting が呼ぶ command は決まった一覧の
   assert.equal(board.split('exec("andon", ["issue", "board", "--json", "--since", since, ...projectArgs(root)],').length, 2, 'kanban-board の andon issue board の引数が決まった形でない');
   assert.equal(board.split('exec("andon", ["issue", "history", "--json", "--limit", String(limit), ...text, ...projectArgs(root)],').length, 2, 'kanban-board の andon issue history の引数が決まった形でない');
   assert.deepEqual(execTargets(waiting), [OPENER, '"andon"', '"andon"'], 'waiting の exec の呼び先が変わった');
-  assert.equal(waiting.split('exec("andon", ["waiting", "--json"],').length, 2, 'andon waiting の引数が決まった形でない');
-  assert.equal(board.split('exec("andon", ["waiting", "--json"],').length, 2, 'kanban-board の andon waiting の引数が決まった形でない');
+  assert.equal(waiting.split('exec("andon", ["waiting", "list", "--json"],').length, 2, 'andon waiting list の引数が決まった形でない');
+  assert.equal(board.split('exec("andon", ["waiting", "list", "--json"],').length, 2, 'kanban-board の andon waiting list の引数が決まった形でない');
   // The one way to write: andon waiting answer with the question and the option's number, nothing else.
   assert.equal(waiting.split('exec("andon", ["waiting", "answer", q, "--option", String(n + 1)],').length, 2, 'andon waiting answer の引数が決まった形でない');
   // The extraction finds a call it should: a new exec in a copy changes the list.
@@ -1034,7 +1038,7 @@ await check('kanban-board と waiting が呼ぶ command は決まった一覧の
   assert.match('x = fetch(url)', /\bfetch\(|WebSocket/, '否定の式が当たらない');
   const readme = await readFile(`${HOST}/waiting/README.md`, 'utf8');
   assert.match(readme, /^## What it runs$/m, 'README に What it runs の表が無い');
-  assert.match(readme, /\| `exec\("andon", \["waiting", "--json"\], \{cwd, on\}\)` \|/, 'README の表に andon waiting の行が無い');
+  assert.match(readme, /\| `exec\("andon", \["waiting", "list", "--json"\], \{cwd, on\}\)` \|/, 'README の表に andon waiting list の行が無い');
   assert.match(readme, /\| `exec\("andon", \["waiting", "answer", question, "--option", n\], \{cwd, on\}\)` \|/, 'README の表に andon waiting answer の行が無い');
 });
 
@@ -1140,7 +1144,7 @@ await check('kanban-board: Flow は全部のプロジェクトでプロジェク
   assert.ok(!one.some((r) => r.kind === 'project'), 'ひとつのプロジェクトの表示にプロジェクトの段が出た');
 });
 
-await check('kanban-board: Flow の印は andon waiting --json（version 1）をプロジェクトのフォルダで呼んで描く。command が無い・違う version のときは印を出さず、ボードは今までどおり読む（ADR-0042 決めたこと 14）', async () => {
+await check('kanban-board: Flow の印は andon waiting list --json（version 1）をプロジェクトのフォルダで呼んで描く。command が無い・違う version のときは印を出さず、ボードは今までどおり読む（ADR-0042 決めたこと 14）', async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'kanban-flow-'));
   try {
     const root = `${tmp}/projects/sample-site`;
@@ -1178,7 +1182,7 @@ await check('kanban-board: Flow の印は andon waiting --json（version 1）を
     const items = (version) => JSON.stringify({ version, at: '2026-11-21T10:00:00Z', project: 'sample-site', slots: {}, items: [{ kind: 'merge', id: 'S-0008', title: 'Review', since: '2026-11-21T04:43:35Z', holds: ['S-0009'] }] });
     let b = await read({ code: 0, stdout: items(1), stderr: '' });
     assert.equal(b.failure, null, `ボードが読めない: ${JSON.stringify(b.failure)}`);
-    assert.deepEqual(calls.at(-1), ['andon', ['waiting', '--json'], root], 'andon waiting --json をプロジェクトのフォルダで呼んでいない');
+    assert.deepEqual(calls.at(-1), ['andon', ['waiting', 'list', '--json'], root], 'andon waiting list --json をプロジェクトのフォルダで呼んでいない');
     assert.deepEqual(fromMod(b.waits), new Map([['sample-site/S-0008', 'merge']]));
     const marks = (board) => fromMod(ns.flowRows(board.data.ledgers, board.data.tasks, board.waits).filter((r) => r.wait).map((r) => r.task.id));
     assert.deepEqual(marks(b), ['S-0008']);
@@ -1196,8 +1200,8 @@ await check('kanban-board: Flow の印は andon waiting --json（version 1）を
     const cx = { notify: () => {}, spawn: (fn) => { spawned.push(fn(cx)); } };
     hung.refresh(cx);
     await Promise.race([spawned[0], new Promise((r) => setTimeout(r, 3000))]);
-    assert.equal(hung.reading, false, '返らない andon waiting でボードの読みが止まった');
-    assert.equal(hung.data?.tasks.length, 2, '返らない andon waiting で課題を読んでいない');
+    assert.equal(hung.reading, false, '返らない andon waiting list でボードの読みが止まった');
+    assert.equal(hung.data?.tasks.length, 2, '返らない andon waiting list で課題を読んでいない');
     hung.refresh(cx);
     await spawned.at(-1);
     assert.ok(hung.checkedAt, '読み直していない');
@@ -1770,26 +1774,26 @@ await check('kanban-board: exec を空白や別名で呼ばず、呼び先は決
   }
   assert.deepEqual([...programs].sort(), ['andon', 'explorer.exe', 'git', 'ls', 'open', 'powershell', 'sh', 'xdg-open']);
   const andon = [...src.matchAll(/\bexec\s*\(\s*"andon",\s*(\[[^\]]*\])/g)].map((m) => m[1]);
-  assert.deepEqual(andon, ['["waiting", "--json"]', '["issue", "board", "--json", "--since", since, ...projectArgs(root)]',
+  assert.deepEqual(andon, ['["waiting", "list", "--json"]', '["issue", "board", "--json", "--since", since, ...projectArgs(root)]',
     '["issue", "history", "--json", "--limit", String(limit), ...text, ...projectArgs(root)]'], `andon の呼び方: ${andon}`);
   // What the spread arguments can be: --project <slug> and --match <text>, nothing that writes.
   assert.match(src, /const m = root\.match\(CELL_PROJECT\);\n  return m \? \["--project", m\[1\]\] : \[\];/, 'projectArgs が --project のほかを渡しうる');
   assert.match(src, /const text = match && [^\n]* \? \["--match", match\] : \[\];/, 'History の text が --match のほかを渡しうる');
   assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|WebSocket|from "(node:)?(http|https|net)"/, 'ネットワークを使う');
   const readme = await readFile(`${HOST}/kanban-board/README.md`, 'utf8');
-  assert.match(readme, /^\| `exec\("andon", \["waiting", "--json"\], \{cwd: <project>, on\}\)`/m, 'README の What it runs に andon waiting の行が無い');
+  assert.match(readme, /^\| `exec\("andon", \["waiting", "list", "--json"\], \{cwd: <project>, on\}\)`/m, 'README の What it runs に andon waiting list の行が無い');
   assert.match(readme, /^\| `exec\("andon", \["issue", "board", "--json", "--since", <a day ago>, "--project", <slug>\], \{cwd: <project>, on, timeout: 2000\}\)`/m, 'README の What it runs に andon issue board の行が無い');
   assert.match(readme, /^\| `exec\("andon", \["issue", "history", "--json", "--limit", <n>, "--match", <text>, "--project", <slug>\], \{cwd: <project>, on, timeout: 2000\}\)`/m, 'README の What it runs に andon issue history の行が無い');
 });
 
-// The inbox reading owner waits (ADR-0043): a fake exec answers `andon waiting --json --project <slug>`,
+// The inbox reading owner waits (ADR-0043): a fake exec answers `andon waiting list --json --project <slug>`,
 // a fake clock moves the 10-second window, and copies can share one store as the App's shared() does.
 const T0 = Date.parse('2026-11-21T12:00:00Z');
 const waitOut = (project, items) => ({ code: 0, stdout: JSON.stringify({ version: 1, at: '2026-11-21T12:00:00Z', project,
   slots: { limit: 4, working: 1, waiting: items.length, free: 3 }, items }), stderr: '' });
 const wait = (kind, id, since) => ({ kind, id, title: `title of ${id}`, since, holds: [] });
 const PANE_LAYOUT = { id: 'root', children: [{ id: 'panel', children: [{ id: 'panel-body', type: 'stack', children: [{ id: 'waiting', type: 'block', content: { mod: 'waiting' } }] }] }] };
-async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => waitOut(a[3], state.items?.[a[3]] ?? []), layoutTree = null, ui = recordingUi(), calls = { exec: [], run: [] } } = {}) {
+async function inboxCell(state, { store = {}, clock = { t: T0 }, reply = (a) => waitOut(a.at(-1), state.items?.[a.at(-1)] ?? []), layoutTree = null, ui = recordingUi(), calls = { exec: [], run: [] } } = {}) {
   const FakeDate = class extends Date { static now() { return clock.t; } };
   const ns = await load(`${HOST}/inbox`, {
     agents: () => state.agents ?? [], terminals: () => state.terms ?? [], spaces: () => [], panes: () => [], machines: () => state.machines ?? [],
@@ -1964,12 +1968,12 @@ await check('inbox: 件数の行を押すとオーナー待ちのペインを開
   assert.deepEqual(lampOf(without.store), before, '検索で行燈の値が変わった');
 });
 
-await check('inbox: andon waiting が 3 回続けて読めない（失敗・JSON でない・version 2・project 違い）と、役の返事が Reply で Needs you に出て琥珀、理由の 1 行が出る。2 回までは前の出力、読めれば戻る。Chief of Staff の無いプロジェクトの Chief Engineer も Reply（ADR-0043 受け入れ条件 5・6）', async () => {
-  const good = (a) => waitOut(a[3], [wait('merge', 'S-0021', '2026-11-21T10:00:00Z')]);
+await check('inbox: andon waiting list が 3 回続けて読めない（失敗・JSON でない・version 2・project 違い）と、役の返事が Reply で Needs you に出て琥珀、理由の 1 行が出る。2 回までは前の出力、読めれば戻る。Chief of Staff の無いプロジェクトの Chief Engineer も Reply（ADR-0043 受け入れ条件 5・6）', async () => {
+  const good = (a) => waitOut(a.at(-1), [wait('merge', 'S-0021', '2026-11-21T10:00:00Z')]);
   const bad = {
-    'fails': () => ({ code: 1, stdout: '', stderr: 'andon waiting: kanban が見つからない\nmore' }),
+    'fails': () => ({ code: 1, stdout: '', stderr: 'andon waiting list: kanban が見つからない\nmore' }),
     'not JSON': () => ({ code: 0, stdout: 'usage: andon', stderr: '' }),
-    'version 2': (a) => ({ code: 0, stdout: JSON.stringify({ version: 2, project: a[3], items: [] }), stderr: '' }),
+    'version 2': (a) => ({ code: 0, stdout: JSON.stringify({ version: 2, project: a.at(-1), items: [] }), stderr: '' }),
     'another project': () => waitOut('other-site', []),
     'throws': () => { throw new Error('spawn andon ENOENT'); },
   };
@@ -2015,7 +2019,7 @@ await check('inbox: andon waiting が 3 回続けて読めない（失敗・JSON
   assert.deepEqual(lampOf(alone.store), { ...LAMP0, light: 'amber', reply: 1, unreadable: 1 });
 });
 
-await check('inbox: exec で呼ぶのは andon waiting --json --project <名前> だけ。名前が決めた形でなければ呼ばず、同じ組の Chief of Staff が 2 つでも 1 回、写しが 2 つでも 10 秒に 1 回で行燈は同じ。タイマーは 1 本（ADR-0043 受け入れ条件 7）', async () => {
+await check('inbox: exec で呼ぶのは andon waiting list --json --project <名前> だけ。名前が決めた形でなければ呼ばず、同じ組の Chief of Staff が 2 つでも 1 回、写しが 2 つでも 10 秒に 1 回で行燈は同じ。タイマーは 1 本（ADR-0043 受け入れ条件 7）', async () => {
   const state = { terms: [cos('cell/t1', 'sample-site'), cos('cell/t2', 'sample-site'), cos('cell/t3', 'Bad/../x'), cos('t4', 'sample-site')],
     machines: [{ name: 'cell' }], items: { 'sample-site': [wait('decision', 'S-0030', '2026-11-21T09:00:00Z')] } };
   const store = {}, calls = { exec: [], run: [] }, clock = { t: T0 };
@@ -2025,7 +2029,7 @@ await check('inbox: exec で呼ぶのは andon waiting --json --project <名前>
   await one.look();
   await two.look();
   await two.tick();
-  const want = [['andon', ['waiting', '--json', '--project', 'sample-site'], { on: 'cell' }], ['andon', ['waiting', '--json', '--project', 'sample-site'], { on: null }]];
+  const want = [['andon', ['waiting', 'list', '--json', '--project', 'sample-site'], { on: 'cell' }], ['andon', ['waiting', 'list', '--json', '--project', 'sample-site'], { on: null }]];
   assert.deepEqual(calls.exec, want, '呼び出しが決まった一覧でない（組ごとに 1 回、名前の形の違うものは呼ばない）');
   assert.equal(lit(one.store), 'amber');
   assert.deepEqual(one.store, two.store);
@@ -2043,12 +2047,12 @@ await check('inbox: exec で呼ぶのは andon waiting --json --project <名前>
   await two.look();
   assert.equal(calls.exec.length, 3, '10 秒の中で 2 回呼んだ');
   const src = await readFile(`${HOST}/inbox/main.js`, 'utf8');
-  assert.deepEqual(plain(src.match(/(?<![.\w])exec\([^)]*/g)), ['exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT }'], 'main.js の exec の呼び出しが 1 つでない');
+  assert.deepEqual(plain(src.match(/(?<![.\w])exec\([^)]*/g)), ['exec("andon", ["waiting", "list", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT }'], 'main.js の exec の呼び出しが 1 つでない');
   assert.doesNotMatch(src, /\bfetch\(|WebSocket|writeTextFile|\bhc\(/);
   // The andon mod's lantern still reads only inbox.lantern.
   assert.match(await readFile(`${HOST}/andon/brand.js`, 'utf8'), /const LANTERN = "inbox\.lantern";/);
   const readme = await readFile(`${HOST}/inbox/README.md`, 'utf8');
-  assert.match(readme, /\| `exec\("andon", \["waiting", "--json", "--project", slug\], \{on, timeout: 15000\}\)` \|/, 'README の What it runs に andon waiting の行が無い');
+  assert.match(readme, /\| `exec\("andon", \["waiting", "list", "--json", "--project", slug\], \{on, timeout: 15000\}\)` \|/, 'README の What it runs に andon waiting list の行が無い');
 });
 
 await check('inbox: 名前の形が違うラベル（空白・大文字・引用符・パス）では呼ばず、出力の version・project の変種は読めない扱い。返らない呼び出しは 60 秒で諦めて読み直し、形の違う控えでは落ちない', async () => {
@@ -2062,7 +2066,7 @@ await check('inbox: 名前の形が違うラベル（空白・大文字・引用
   // An underscore in the slug: its merge reaches the count line and the lantern.
   const team = await inboxCell({ terms: [cos('cell/t1', 'sample_team')], machines: [{ name: 'cell' }], items: { sample_team: [wait('merge', 'S-0021', '2026-11-21T10:00:00Z')] } });
   assert.deepEqual(plain((await team.look()).owed.map((w) => [w.project, w.merge])), [['sample_team', 1]], 'sample_team の件数の行が無い');
-  assert.deepEqual(plain(team.calls.exec), [['andon', ['waiting', '--json', '--project', 'sample_team'], { on: 'cell' }]]);
+  assert.deepEqual(plain(team.calls.exec), [['andon', ['waiting', 'list', '--json', '--project', 'sample_team'], { on: 'cell' }]]);
   assert.equal(lit(team.store), 'amber', 'sample_team のマージの依頼で琥珀にならない');
   // Each call carries a timeout, so the App stops one that never comes back.
   assert.deepEqual(plain(team.calls.timeouts), [15000], 'exec に timeout を渡していない');
@@ -2072,7 +2076,11 @@ await check('inbox: 名前の形が違うラベル（空白・大文字・引用
     [out({ version: '1', project: 'sample-site', items: [] }), /version 1$/], [out({ project: 'sample-site', items: [] }), /version undefined/],
     [out({ version: 1, project: 'sample-site ', items: [] }), /answered for sample-site$/], [out({ version: 1, project: 'Sample-site', items: [] }), /answered for/],
     [out({ version: 1, project: 'sample-site', items: {} }), /no items/], [{ code: 0, stdout: '', stderr: '' }, /no JSON/],
-    [{ code: 127, stdout: '', stderr: '\nsh: andon: not found\n' }, /exited 127: sh: andon: not found$/]]) {
+    [{ code: 127, stdout: '', stderr: '\nsh: andon: not found\n' }, /exited 127: sh: andon: not found$/],
+    // The cell's andon refuses the name, older or newer than the inbox (ADR-0053 decision 9); another exit 2 is a failure.
+    [{ code: 2, stdout: '', stderr: 'andon: 知らないコマンド: waiting list。近いのは andon waiting\n' }, /^the cell's andon and these host parts are different versions: reinstall the host parts$/],
+    [{ code: 2, stdout: '', stderr: 'andon: andon waiting は andon waiting list に名前が変わった（古い名前では動かない）。andon waiting list で打ち直す\n' }, /^the cell's andon and these host parts are different versions: reinstall the host parts$/],
+    [{ code: 2, stdout: '', stderr: 'andon waiting list: 決まらない\n' }, /exited 2: andon waiting list: 決まらない$/]]) {
     const [items, why] = plain(parseWaiting(r, 'sample-site'));
     assert.equal(items, null, `読めない出力を読んだ: ${JSON.stringify(r)}`);
     assert.match(why, want);
@@ -2080,7 +2088,7 @@ await check('inbox: 名前の形が違うラベル（空白・大文字・引用
   assert.deepEqual(plain(parseWaiting(out({ version: 1, project: 'sample-site', items: [{ kind: 'merge', since: 'x', title: 't' }] }), 'sample-site')), [[{ kind: 'merge', since: 'x' }], null]);
   // A call that never comes back: after a minute, the timer calls again.
   let hang = true;
-  const c = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }] }, { reply: (a) => (hang ? new Promise(() => {}) : waitOut(a[3], [])) });
+  const c = await inboxCell({ terms: [cos('cell/t1', 'sample-site')], machines: [{ name: 'cell' }] }, { reply: (a) => (hang ? new Promise(() => {}) : waitOut(a.at(-1), [])) });
   c.v.render(c.cx);
   c.forget();
   assert.equal(c.calls.exec.length, 1);
@@ -2163,7 +2171,7 @@ await check('inbox.lamp: version と at、置き直しの決まり（ADR-0045 �
   }
 });
 
-await check('inbox.lamp: andon waiting の結果で、描画もタイマーも待たずに merge が変わる（ADR-0045 受け入れ条件 10）', async () => {
+await check('inbox.lamp: andon waiting list の結果で、描画もタイマーも待たずに merge が変わる（ADR-0045 受け入れ条件 10）', async () => {
   const state = oneCell();
   let answer;
   const c = await inboxCell(state, { reply: () => new Promise((resolve) => { answer = resolve; }) });

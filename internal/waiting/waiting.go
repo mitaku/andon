@@ -1,4 +1,4 @@
-// Package waiting は andon waiting: オーナー待ち（マージの依頼・判断・手作業）と並行の枠を数える（ADR-0042 決めたこと 8・9）。
+// Package waiting は andon waiting list: オーナー待ち（マージの依頼・判断・手作業）と並行の枠を数える（ADR-0042 決めたこと 8・9）。
 // 読むだけで、何も書かない。kanban のファイル（config.yaml・issues/<id>/issue.yaml・questions.yaml・log.jsonl）と、
 // 課題の library/（report.json・gate/<head>.json・questions/<n>.json）と、project.json の chief_of_staff.parallel を直に読む。
 // GitHub は読まず、git も呼ばない。kanban の CLI は、数えるのには使わない（置き場が分からないときに入口が kanban root で根を聞くだけ）。
@@ -325,7 +325,7 @@ func (t *issue) placeable(rows []ledger.Row, cos string) bool {
 }
 
 // Placeable は課題 raw（issue.yaml。id を入れたもの）が置いておける課題か（placeable と同じ規則）。cos は config.yaml の
-// chief_of_staff。andon measure が、問いが開いていた時間から置いておける課題の問いを外すのに使う（ADR-0062 決めたこと 9）。
+// chief_of_staff。andon metrics show が、問いが開いていた時間から置いておける課題の問いを外すのに使う（ADR-0062 決めたこと 9）。
 func Placeable(raw ledger.Issue, rows []ledger.Row, cos string) bool {
 	if st := raw.Str("status"); raw.Str("who") != "person" && st != "todo" && st != "queued" {
 		return false
@@ -559,7 +559,7 @@ func brief(dir string) (string, []string) {
 const maxBriefBytes = 1 << 20
 
 // readBrief は依頼書を読む。普通のファイルでなければ（FIFO・装置を指す symlink）読まない: 読むと止まるか際限なく読み、
-// andon waiting と、それを呼ぶ dispatcher が止まる。上限を超えた分は読まず、末尾で切れた文字を落とす。
+// andon waiting list と、それを呼ぶ dispatcher が止まる。上限を超えた分は読まず、末尾で切れた文字を落とす。
 func readBrief(path string) ([]byte, error) {
 	fh, err := openRegular(path)
 	if err != nil {

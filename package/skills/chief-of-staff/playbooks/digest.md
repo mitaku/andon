@@ -11,7 +11,7 @@
 1. **足す**: ルーチン `daily-digest`（`routines/daily-digest.yaml`。例は digest skill の `assets/daily-digest.yaml`。kanban へ写すのはオーナーの go で。名前は `daily-digest` のまま）が毎朝1件足す。
    オーナーが臨時に頼んだら `kanban routine run daily-digest`（`kanban add` で足さない。`routine` が付かないと期間が前の1枚から続かない）。
    `skipped (open)` なら前の課題が片付いていない。その課題が `todo` なら 2 で起動し（新しく足さない）、`doing`・`review` なら 3 で片付けてから打ち直す。`open` は 1 のまま変えない。
-2. **起動する**: オーナーに聞かずに起動する。起動できる課題が複数あれば、ダイジェストの課題を先に起動する（並行の枠を別に持たない。枠〈`andon waiting` の `slots.free`〉が無ければ空くまで待つ）。
+2. **起動する**: オーナーに聞かずに起動する。起動できる課題が複数あれば、ダイジェストの課題を先に起動する（並行の枠を別に持たない。枠〈`andon waiting list` の `slots.free`〉が無ければ空くまで待つ）。
    ルーチンは予約キーを書かないので、先に `kanban set <id> review=off estimate=small`、それから `andon issue start <id>`（`start.md`）。
 3. **報告が届いたら、そのターンで片付ける**: 通知は `<id> report`（PR の無い課題なので `review` の通知は来ない。報告を書いたときと `review` に入ったときの2度届きうる）。課題の状態で分ける:
 

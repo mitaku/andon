@@ -102,10 +102,10 @@ Andon は一人のソフトウェア工場を、2 つの面で言い分ける。
 
 ## 始め方
 
-セルの repo は `andon init <slug>` で作る。手順の本体（ホストで打つ順と、各段で見えるもの）は [docs/operate.md](docs/operate.md) にある。
+セルの repo は `andon cell init <slug>` で作る。手順の本体（ホストで打つ順と、各段で見えるもの）は [docs/operate.md](docs/operate.md) にある。
 
 ```bash
-andon init <slug> --image ghcr.io/<owner>/andon:<バージョン> --owner <email>
+andon cell init <slug> --image ghcr.io/<owner>/andon:<バージョン> --owner <email>
 cd <slug>-cell && bin/bootstrap            # イメージを焼き、入口の本体と compose.yaml をイメージから取り出して起動する
 bin/bootstrap host-install                  # ホストの andon-up・ssh config・herdr の設定などを置く（今あるものは上書きしない）
 ```
@@ -130,7 +130,7 @@ bin/bootstrap host-install                  # ホストの andon-up・ssh config
 | [AGENTS.md](AGENTS.md)・[REVIEW.md](REVIEW.md) | この repo で働く担当の指針と、レビュアーの観点 |
 | `cmd/`・`internal/` | `andon` と `kanban` の CLI（Go） |
 | `package/` | セルの `/opt/andon` に入るもの（skill・プロファイル・gate の条件表・settings・フック・compose・ホスト用の雛形）。中身は design.md §2.2 と image.md |
-| `image/`・`init/` | ベースイメージと、`andon init` が写すセルの repo の雛形 |
+| `image/`・`init/` | ベースイメージと、`andon cell init` が写すセルの repo の雛形 |
 | [tests/](tests/README.md) | PR ごとに回すシェルの検査 |
 
 ## 開発と履歴

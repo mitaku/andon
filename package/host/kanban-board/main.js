@@ -54,7 +54,7 @@ const psQuote = (a) => `'${a.replace(/['‘’‚‛]/g, (m) => m + m)}'`;
 const ps = (script, ...args) =>
   exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `& { ${script} } ${args.map(psQuote).join(" ")}`]);
 const REPO = /^[^/]+\/[^/]+\/[^/]+$/;
-// Flow (ADR-0042 decision 13): owner waits come from `andon waiting --json` (decision 14), which alone
+// Flow (ADR-0042 decision 13): owner waits come from `andon waiting list --json` (decision 14), which alone
 // counts them; the board draws its mark and nothing else. Another version is not guessed at.
 // A wait the output leaves for later (`call` false) is marked "Later", not amber (ADR-0062 decision 8).
 const WAITING_VERSION = 1;
@@ -161,13 +161,13 @@ function readConfig(text) {
   };
 }
 
-// What `andon waiting --json` says about one project, run in the cell with the project's folder as
+// What `andon waiting list --json` says about one project, run in the cell with the project's folder as
 // the working folder: issue id → kind of owner wait, or "later" when every wait of the issue is left for
 // later (`call` false; an item without `call` calls). null when the command is missing, fails or
 // prints another version: Flow then shows no marks and the board works as before (decision 14).
 export async function readWaiting(root, on) {
   if (local(on)) return null;
-  const r = await exec("andon", ["waiting", "--json"], { cwd: root, on }).catch(() => null);
+  const r = await exec("andon", ["waiting", "list", "--json"], { cwd: root, on }).catch(() => null);
   if (r?.code !== 0) return null;
   try {
     const out = JSON.parse(r.stdout);
@@ -593,7 +593,7 @@ export default class KanbanBoard extends View {
     });
   }
 
-  // Flow's owner-wait marks: one `andon waiting --json` per project shown (decision 14), after each
+  // Flow's owner-wait marks: one `andon waiting list --json` per project shown (decision 14), after each
   // good read. Apart from reading the ledger, so a command that hangs stops only the marks.
   readWaits(ledgers, on, cx) {
     if (this.waitReading) return;

@@ -56,7 +56,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   - 検証の道の疑い: 同じ担当のセッションの記録で、反論の段の呼び出しの結果（その Agent の `tool_use_id` の `tool_result`）に、`REVIEW.md` の検証の道の項目（Andon の repo では項目 10。当てたあとの検証の道・地図・細かい機能の段が変えた振る舞いを通らない、という疑い）から出た疑いがあるかを見る。無ければこの見方の対象にしない。あれば、`反論:` の行に「検証の道の疑いは、地図に足した J 件（…）と、足さずにトレードオフに書いた G 件」があるかを見て、無ければ捨てない決まりに反したので壊れとして `fail` に書く（既にある細かい機能が通していて捨てた疑いだけなら、J と G が 0 の行がある）。J が 1 以上なら、行の括弧に疑いごとの細かい機能の名前が J 個あり、名前ごとに、PR の差分（`gh pr diff <PR>`）がその細かい機能の行か動かし方の手順か段（その repo の地図の置き場の下。Andon の repo では `.claude/skills/verify-andon/`）を変え、変えた中身が反論役の返した疑いの振る舞いを打つか、その見える証拠を挙げることを読む。地図の置き場の下が変わっていても、疑いと別の細かい機能だけなら合わない。G が 1 以上なら PR の本文の「トレードオフ」（`Tradeoffs`）の節に検証の道を足さない理由があることを見る。全部合えば動いた。合わなければ壊れとして `fail` に書く。
   - そうした担当が無い（反論の段がまだ走っていない・`REVIEW.md` の無い repo）なら未確認と書き、報告の `## Next` に「`Review: on` か差分がレベル B・C の課題の担当が1回目のレビューを頼んだあとで打ち直す」と書く。
 
-- **道具を読む（`wl-tools`）。** 案件の repo の根に `mise.toml` がある課題で、当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）か、dispatcher が起動したそのレビュアーの端末か、Chief of Staff が `andon chief-engineer "<タイトル>"` で起動した Chief Engineer の端末（worktree は案件の repo の Chief Engineer の worktree）で、次の3つを打ってもらうか、検証の担当が自分の端末で打つ。
+- **道具を読む（`wl-tools`）。** 案件の repo の根に `mise.toml` がある課題で、当てたあとに Chief of Staff が起動した担当（`wl-record` に出た端末）か、dispatcher が起動したそのレビュアーの端末か、Chief of Staff が `andon design start "<タイトル>"` で起動した Chief Engineer の端末（worktree は案件の repo の Chief Engineer の worktree）で、次の3つを打ってもらうか、検証の担当が自分の端末で打つ。
   1. `printenv MISE_SYSTEM_CONFIG_FILE` が、その課題の kanban の `worktree` の根の `mise.toml` を指す（レビュアーは cwd が `issues/<課題>/` でも、PR の head の worktree を指す）。
   2. worktree の中の `go version` と、`cd "$(mktemp -d)" && go version` の両方が、`mise.toml` の go のバージョンを出す。
   3. 起動を打った Chief of Staff の出力か dispatcher の端末のログ（`hc read dispatcher`）に `mise install` の失敗の警告が無い。道具が消えたあとの最初の起動なら「道具を入れた」の1行がある。
@@ -96,7 +96,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 ## 落とし穴
 
 
-- `wl-wiki` の行は、目録の Entities と Topics の節にページの行があるときだけ付く。`andon init` の雛形のままのセルや、Sources にしか行が無いセルで行が無いのは正しい。行の有無は最初のメッセージを組んだときの目録で決まる。起動のあとに目録を直しても、届いた担当の最初のメッセージは変わらない（dispatcher が送り直すときは、送るときの目録で決まる）。
+- `wl-wiki` の行は、目録の Entities と Topics の節にページの行があるときだけ付く。`andon cell init` の雛形のままのセルや、Sources にしか行が無いセルで行が無いのは正しい。行の有無は最初のメッセージを組んだときの目録で決まる。起動のあとに目録を直しても、届いた担当の最初のメッセージは変わらない（dispatcher が送り直すときは、送るときの目録で決まる）。
 - 当てる前から動いている担当は前のパッケージで動いている。`wl-record` は当てた時刻より後の行だけを見る。前の行を証拠にしない。
 - `package.drift` と、記録の一番外の `drift` は別のもの。外の `drift` はセルの repo の commit していない変更でも true になるので見ない。
 - `andon issue start` は起動した担当の端末の名前で `kanban start` を1回打つ。`doing` の行は `by` が担当の端末でも start が打ったもので、担当が動いた証拠にしない。担当は `doing` を見て打ち直さないので、`doing` の行の数も見ない。

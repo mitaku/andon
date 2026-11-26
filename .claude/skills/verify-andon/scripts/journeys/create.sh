@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# プロジェクトを立てる（features/create.md）。切り離したセルの repo で、オーナーと同じく andon create を端末でなく打つ。
+# プロジェクトを立てる（features/create.md）。切り離したセルの repo で、オーナーと同じく andon project create を端末でなく打つ。
 # repo の clone は先に一時の GHQ_ROOT に置き、ghq get（ネットワーク）を打たせない。
 # dispatcher の置き場合わせは偽の hc に届き、本物の dispatcher には触れない（偽の hc get dispatcher は Gone を返す）。
 set -uo pipefail
@@ -15,13 +15,13 @@ echo '{"state":"exited","labels":{}}' >"$tmp/hc/dispatcher.json"
 
 # cr-role-refuse: 役の端末（ラベル role=）では打てず、何も作らない
 echo '{"labels":{"role":"chief-of-staff"}}' >"$tmp/hc/tc.json"
-step "cr-role-refuse: Chief of Staff の端末で打つ" env HC_TERMINAL_ID=tc "$andon" create "$slug" --repo "$repo" </dev/null \
+step "cr-role-refuse: Chief of Staff の端末で打つ" env HC_TERMINAL_ID=tc "$andon" project create "$slug" --repo "$repo" </dev/null \
   && fail "cr-role-refuse: 役の端末で create が通った" \
   || { [ ! -e "$p" ] && ok "cr-role-refuse: 役の端末では断り、projects/$slug を作らない" || fail "cr-role-refuse: 断ったのに projects/$slug が在る"; }
 
 # cr-create: オーナーの端末（役のラベルの無い端末）で打つと、kanban・project.json の下書き・AGENTS.md ができる
 echo '{"labels":{}}' >"$tmp/hc/to.json"
-step "cr-create: オーナーの端末で打つ" env HC_TERMINAL_ID=to "$andon" create "$slug" --repo "$repo" --prefix VC --title "$run のプロジェクト" </dev/null
+step "cr-create: オーナーの端末で打つ" env HC_TERMINAL_ID=to "$andon" project create "$slug" --repo "$repo" --prefix VC --title "$run のプロジェクト" </dev/null
 rc=$?
 echo "  | projects/$slug: $(cd "$p" 2>/dev/null && find . -maxdepth 2 | sort | tr '\n' ' ')"
 jq -c . "$p/project.json" 2>/dev/null | sed 's/^/  project.json: /'
@@ -39,7 +39,7 @@ grep -q '^hc run --bg .*--name dispatcher .* dispatcher$' "$tmp/hc.calls" \
 
 # cr-exists-refuse: 同じ slug を打ち直すと、何も変えずに断る
 s0=$(find "$p" -type f -exec sha256sum {} + | sort)
-step "cr-exists-refuse: 同じ slug を打ち直す" env HC_TERMINAL_ID=to "$andon" create "$slug" </dev/null \
+step "cr-exists-refuse: 同じ slug を打ち直す" env HC_TERMINAL_ID=to "$andon" project create "$slug" </dev/null \
   && fail "cr-exists-refuse: 在る slug で create が通った" \
   || { grep -qF "projects/$slug が既にある" "$tmp/step.out" && [ "$s0" = "$(find "$p" -type f -exec sha256sum {} + | sort)" ] \
     && ok "cr-exists-refuse: 在る slug は断り、projects/$slug の中身を変えない" || fail "cr-exists-refuse: 理由が違うか、中身が変わった"; }

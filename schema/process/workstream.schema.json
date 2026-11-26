@@ -32,7 +32,7 @@
       "items": { "$ref": "#/$defs/step" }
     },
     "counts": {
-      "description": "What is counted for this workstream: keys of andon measure.",
+      "description": "What is counted for this workstream: keys of andon metrics show.",
       "type": "array",
       "items": { "$ref": "#/$defs/text" }
     }

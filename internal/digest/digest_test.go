@@ -131,7 +131,7 @@ func str(p *string) string {
 	return *p
 }
 
-// 受け入れ条件 1: dispatcher がマージした課題とオーナーがマージした課題で merged_by が分かれ、waiting は同じ時刻の andon waiting と同じ。
+// 受け入れ条件 1: dispatcher がマージした課題とオーナーがマージした課題で merged_by が分かれ、waiting は同じ時刻の andon waiting list と同じ。
 func TestCollect(t *testing.T) {
 	f := newFake(t)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
@@ -190,7 +190,7 @@ func TestCollect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if a, b := contract.Marshal(in.Waiting), contract.Marshal(want); !bytes.Equal(a, b) {
-		t.Errorf("waiting が andon waiting と違う:\n%s\n%s", a, b)
+		t.Errorf("waiting が andon waiting list と違う:\n%s\n%s", a, b)
 	}
 	if len(in.Waiting.Items) == 0 {
 		t.Errorf("待っているものが無い（S-0009 のマージの依頼があるはず）: %+v", in.Waiting)

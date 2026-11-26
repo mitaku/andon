@@ -1,9 +1,9 @@
-// Package chiefengineer は andon chief-engineer: オーナーと仕様・設計を対話する Chief Engineer を
+// Package chiefengineer は andon design start: オーナーと仕様・設計を対話する Chief Engineer を
 // kanban の課題として起動する（docs/design.md §1.8）。
 //
-//	andon chief-engineer "<タイトル>"                           projects/<slug>/ で打つ。repo は kanban の repos が1つならそれ
-//	andon chief-engineer --repo <host/owner/repo> "<タイトル>"   kanban の repos が2つ以上（か無い）とき
-//	andon chief-engineer --brief - "<タイトル>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
+//	andon design start "<タイトル>"                           projects/<slug>/ で打つ。repo は kanban の repos が1つならそれ
+//	andon design start --repo <host/owner/repo> "<タイトル>"   kanban の repos が2つ以上（か無い）とき
+//	andon design start --brief - "<タイトル>"                 経緯（オーナーの言葉の写し・読んだもの・決めたこと・出典）を stdin で渡す
 //
 // することは4つ: kanban に課題を足す（kanban add）・案件の repo に worktree と branch を切る
 // （文書の PR をこの課題から出すため）・hc でプロファイル chief-engineer を起動する（hc run）・
@@ -36,7 +36,7 @@ import (
 	"andon/internal/tools"
 )
 
-const Usage = "usage: andon chief-engineer [--repo <host/owner/repo>] [--brief -] \"<タイトル>\"\n" +
+const Usage = "usage: andon design start [--repo <host/owner/repo>] [--brief -] \"<タイトル>\"\n" +
 	"projects/<slug>/ で打つ。--repo を省くと kanban の config.yaml の repos（1つのとき）。2つ以上なら --repo が要る。\n" +
 	"kanban に課題を足し（プロファイル chief-engineer）、repo に worktree を切り、\n" +
 	"hc で Chief Engineer を起動し、課題を doing にする。文書の PR はその課題から出る。\n" +
@@ -72,17 +72,17 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		b, err := io.ReadAll(stdin)
 		extra = strings.TrimSpace(strings.ReplaceAll(string(b), "\r\n", "\n"))
 		if err != nil || extra == "" {
-			fmt.Fprintf(stderr, "andon chief-engineer: --brief - の stdin が空（経緯を渡すか、--brief を省く）\n")
+			fmt.Fprintf(stderr, "andon design start: --brief - の stdin が空（経緯を渡すか、--brief を省く）\n")
 			return exitUsage
 		}
 	}
 	die := func(format string, a ...any) int {
-		fmt.Fprintf(stderr, "andon chief-engineer: "+format+"\n", a...)
+		fmt.Fprintf(stderr, "andon design start: "+format+"\n", a...)
 		return exitFail
 	}
 
 	if repo != "" && !repoRe.MatchString(repo) {
-		fmt.Fprintf(stderr, "andon chief-engineer: repo が不正: '%s'（<host>/<owner>/<repo>）\n", repo)
+		fmt.Fprintf(stderr, "andon design start: repo が不正: '%s'（<host>/<owner>/<repo>）\n", repo)
 		return exitUsage
 	}
 	cli := ledger.CLI
@@ -108,10 +108,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		repos := cfg.Repos
 		switch {
 		case err != nil:
-			fmt.Fprintf(stderr, "andon chief-engineer: kanban の config.yaml の repos が読めない。--repo <host/owner/repo> で渡す\n")
+			fmt.Fprintf(stderr, "andon design start: kanban の config.yaml の repos が読めない。--repo <host/owner/repo> で渡す\n")
 			return exitUsage
 		case len(repos) != 1:
-			fmt.Fprintf(stderr, "andon chief-engineer: kanban の repos が %d 個（%s）。--repo <host/owner/repo> で選ぶ\n", len(repos), strings.Join(repos, "・"))
+			fmt.Fprintf(stderr, "andon design start: kanban の repos が %d 個（%s）。--repo <host/owner/repo> で選ぶ\n", len(repos), strings.Join(repos, "・"))
 			return exitUsage
 		}
 		repo = repos[0]
@@ -169,7 +169,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	// 信頼の画面を出さない: boot のあとに追加した repo の根も、起動する前に足す（boot と同じ手。足りていれば何も書かない）
 	if err := boot.TrustFromOS(io.Discard); err != nil {
-		fmt.Fprintf(stderr, "andon chief-engineer: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
+		fmt.Fprintf(stderr, "andon design start: 信頼の設定を足せない（続ける。信頼の画面が出れば答える）: %v\n", err)
 	}
 	// セッションの id は Andon が決めて渡し（template の command が端末のラベルから読む）、kanban の session に書く（ADR-0012 決めたこと 11）
 	session := spawn.NewSession()
@@ -177,7 +177,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	rec := launch.Gather(launch.Spec{Role: launch.RoleChiefEngineer, Launch: launch.LaunchStart, Issue: id, Profile: Profile, Template: Profile,
 		Command: &command, Session: session, Repo: repo, RepoPath: wt.Path, Brand: ledger.Brand(Profile)})
 	// 宣言を満たす: worktree の mise.toml の道具を、hc run の前に入れる（ADR-0063 決めたこと 6・7。満たせなくても起動は続ける）
-	tools.Warn(stderr, "andon chief-engineer", wt.Path)
+	tools.Warn(stderr, "andon design start", wt.Path)
 	run, err := spawn.Run(name, labels, cwd, Profile, msg)
 	if err != nil {
 		undo()
@@ -185,7 +185,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	rec.Terminal = run.Address
 	if err := launch.Append(launch.IssuePath(filepath.Join(root, "kanban"), id), rec); err != nil {
-		fmt.Fprintf(stderr, "andon chief-engineer: 起動の記録を書けない（起動は続ける）: %v\n", err)
+		fmt.Fprintf(stderr, "andon design start: 起動の記録を書けない（起動は続ける）: %v\n", err)
 	}
 
 	if _, err := spawn.OutputIn(cwd, append(env, "HC_TERMINAL_ID="+run.Address), "", cli, "start", id); err != nil {
@@ -198,13 +198,13 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	place := where(slug, id, title)
 	if !run.First.Delivered() {
 		// 手で送る行（ResendHint の最後）は shell にそのまま貼れるよう、文の最後に置く
-		fmt.Fprintf(stderr, "andon chief-engineer: %s（%s）に最初のメッセージが届いていない: %s（App では %s）。%s\n",
+		fmt.Fprintf(stderr, "andon design start: %s（%s）に最初のメッセージが届いていない: %s（App では %s）。%s\n",
 			run.Address, name, run.Reason(), place, spawn.ResendHint(run.Address, Profile, msg))
-		fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
+		fmt.Fprintf(stdout, "andon design start: 出た場所 %s（%s）\n", place, run.Address)
 		return exitFirst
 	}
-	fmt.Fprintf(stdout, "andon chief-engineer: %s（%s）を %s（%s）で起動した。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
-	fmt.Fprintf(stdout, "andon chief-engineer: 出た場所 %s（%s）\n", place, run.Address)
+	fmt.Fprintf(stdout, "andon design start: %s（%s）を %s（%s）で起動した。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
+	fmt.Fprintf(stdout, "andon design start: 出た場所 %s（%s）\n", place, run.Address)
 	return 0
 }
 

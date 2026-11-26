@@ -1,6 +1,6 @@
 tests/adr-index.sh	d41=$(ls docs/decisions/*-adr-0041-*.md 2>/dev/null | head -1)
 tests/andon-create.sh	[ "$(git -C "$ws" rev-parse HEAD)" = "$head0" ] && [ -z "$(git -C "$ws" diff --cached --name-only)" ] && git -C "$ws" status --porcelain --untracked-files=all | grep -qx '' && ! git -C "$ws" status --porcelain --untracked-files=all | grep -q kanban/ && pass "commit しない（project.json は未追跡、kanban/ は git の外）" || fail "git: $(git -C "$ws" status --porcelain --untracked-files=all)"
-tests/andon-create.sh	"$andon" delegate show --project sample-site 2>&1 | grep -q '' && pass "commit 前の andon delegate show は無委譲" || fail "delegate show"
+tests/andon-create.sh	"$andon" delegation show --project sample-site 2>&1 | grep -q '' && pass "commit 前の andon delegation show は無委譲" || fail "delegate show"
 tests/andon-dispatcher.sh	[ "$(git -C "$rwt" rev-parse HEAD)" = "$head" ] && git -C "$app" worktree list --porcelain | grep -qx "worktree $rwt" || die ''
 tests/andon-dispatcher.sh	grep "^run " "$tmp/hc/log" | grep -q -- "--label issue=$rev " && ! grep "^run " "$tmp/hc/log" | grep -q -- '' ||
 tests/andon-dispatcher.sh	grep "^run " "$tmp/hc/log" | grep -q -- "--label herdr.space=andon-demo-$id --label herdr.tab=andon-demo-$id --cwd " && ! grep "^run " "$tmp/hc/log" | grep -q '' ||
@@ -29,7 +29,7 @@ tests/andon-gate.sh	jq -r '' "$rec" | grep -qE "$inside" || die ''
 tests/andon-gate.sh	head -n 1 "$tmp/gh/bodies" | grep -q '' || die "コメントの見出しが違う: $(cat "$tmp/gh/bodies")"
 tests/andon-gate.sh	grep '' "$tmp/gh/posted" | grep -q '' || die "status の説明文が違う: $(cat "$tmp/gh/posted")"
 tests/andon-gate.sh	git -C "$tmp/plant" log -1 --format=%B | grep -q ''
-tests/andon-gate.sh	"$andon" delegate show | grep -q "名指し $grant merge C: $id" || die "show に名指しが出ない: $("$andon" delegate show)"
+tests/andon-gate.sh	"$andon" delegation show | grep -q "名指し $grant merge C: $id" || die "show に名指しが出ない: $("$andon" delegation show)"
 tests/andon-issue.sh	head -2 "kanban/issues/$id/report.md" | grep -q "^1 回目／上限 2。commit $c1"
 tests/andon-issue.sh	head -2 "kanban/issues/$id3/report.md" | grep -q ''
 tests/andon-issue.sh	"$andon" issue ask "$id" - <<<"$q" | grep -q "$id#1"
@@ -48,7 +48,7 @@ tests/andon-triage.sh	awk '' "$tmp/judge-md" | grep -q ''
 tests/andon-triage.sh	awk '' "$tmp/judge-md" | grep -q ''
 tests/andon-triage.sh	verdict "$again" "$(jq -r .key <<<"$r2")" overturn | grep -q ''
 tests/andon-triage.sh	tail -1 "kanban/issues/$o_open/report.md" | grep -q ''
-tests/andon-waiting.sh	KANBAN_ROOT=$tmp/empty "$andon" waiting | grep -q ''
+tests/andon-waiting.sh	KANBAN_ROOT=$tmp/empty "$andon" waiting list | grep -q ''
 tests/apply-main.sh	if [ "$(jq -r .commit "$rec")" = "$c1" ] && [ "$(jq -r .image_commit "$rec")" = "${c0:0:12}" ] && jq -r .applied_at "$rec" | grep -Eq ''; then
 tests/apply-main.sh	if [ "$(jq -c '' "$rec")" = "[\"$c3\",\"$c1\"]" ] && [ "$(jq -r '' "$rec")" = "$at1" ] && [ "$(jq -r .commit "$rec")" = "$c3" ] && [ "$(jq -r '' "$rec")" = true ] && [ "$(jq -r '' "$rec")" = true ] && [ "$(sed -n '' "$rec" | head -1)" = "$c3" ]; then
 tests/ci.sh	"$gobin" list -deps ./internal/dispatcher | grep -qx "$mod/internal/triage" || die "go list -deps が import を出さない"

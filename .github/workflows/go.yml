@@ -35,7 +35,7 @@ jobs:
           go-version-file: go.mod
       - name: go test (documents only)
         if: steps.scope.outputs.docs == 'true'
-        # docs/design.md・README.md に書いた andon chief-engineer の呼び出しを打つ
+        # docs/design.md・README.md に書いた andon design start の呼び出しを打つ
         run: go test -run '^TestDocumentedInvocations$' ./internal/chiefengineer
       - name: gofmt
         if: steps.scope.outputs.docs != 'true'

@@ -116,7 +116,7 @@ func cmdMigrate(e env, a args) error {
 		lines = append(lines, "dispatcher state renamed ids: "+state)
 	}
 	if project != "" {
-		lines = append(lines, "wrote a draft of "+project+" (not committed): check it, commit it as yours, then andon delegate show")
+		lines = append(lines, "wrote a draft of "+project+" (not committed): check it, commit it as yours, then andon delegation show")
 		if signals {
 			lines = append(lines, "the draft's signals read main's CI failures and tell the Chief of Staff now; remove them before committing if the project doesn't want that")
 		}
@@ -273,9 +273,9 @@ func moveCoordinatorMD(root string) (string, error) {
 // projectDraft is the project.json to write when the project has none (nil when it has one):
 // version 1, project (config.yaml title, else the folder's name; prefix), repos (config.yaml),
 // delegation (delegation.json as it is) and, when there is a repo, signals with one line that
-// reads main's CI failures now, as andon create's draft has (ADR-0051, 4); signals says it has
+// reads main's CI failures now, as andon project create's draft has (ADR-0051, 4); signals says it has
 // that line. The shape is Andon's schema/project.schema.json;
-// andon delegate show checks it once the person has committed it.
+// andon delegation show checks it once the person has committed it.
 func projectDraft(root, old string) ([]byte, bool, error) {
 	to := filepath.Join(root, "project.json")
 	if err := checkNoLink(to, true); err != nil {

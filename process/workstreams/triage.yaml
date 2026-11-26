@@ -47,7 +47,7 @@ steps:
   - id: start
     title: 仕分けの担当を起動する
     by: ai
-    input: [notification.ready, andon waiting --json（slots）]
+    input: [notification.ready, andon waiting list --json（slots）]
     output: [hc（担当の端末）, kanban（doing）]
     skill: [chief-of-staff/playbooks/triage.md, chief-of-staff/playbooks/start.md]
     decides: [オーナーに聞かずに起動する]

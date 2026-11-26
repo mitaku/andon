@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon measure`。一時の kanban（ファイルを直に置く）と偽の gh で回す。kanban の CLI も hc の端末も使わない。
+# `andon metrics show`。一時の kanban（ファイルを直に置く）と偽の gh で回す。kanban の CLI も hc の端末も使わない。
 # 数え方の細部は internal/measure/measure_test.go（手で数えた値と突き合わせる）。ここはバイナリの入口・表・終了コードを見る。
 # ANDON_EMIT_DIR があれば --json の出力を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -85,7 +85,7 @@ span s2 >"$o/2026-11-02.traces.jsonl"
 records=$(find "$tmp/claude" "$XDG_STATE_HOME/andon/otel" -type f -exec sha1sum {} + | sort)
 before=$(cd "$tmp/sample-site" && find . -type f -exec sha1sum {} + | sort)
 export KANBAN_ROOT=$tmp/sample-site
-"$andon" measure --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
+"$andon" metrics show --since 2026-11-01 --until 2026-11-02 --json >"$tmp/out.json"
 jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_observe: {count: 0, days: null}, no_hypothesis: 0}
   and .efficiency.merged_prs == 1 and .efficiency.auto_merge.rate == 1
   and .efficiency.human_touches == {total: 3, per_pr: 3, merge: 0, decision: 2, task: 1} and .prs[0].human_touches == 2
@@ -109,7 +109,7 @@ jq -e '.value == {observed: {count: 0, hit: 0, miss: 0, unknown: 0}, days_to_obs
       wheres: [{where: "AGENTS.md", count: 2, issues: ["S-0001"]}], repeated: [{where: "AGENTS.md", count: 2, issues: ["S-0001"]}]}}' "$tmp/out.json" >/dev/null
 emit "$tmp/out.json" measure.json
 echo 'ok --json: 自動マージ・revert・飛ばした行・通知の素通り・トークン（同じ requestId は1回）・内訳・Chief of Staff の 2 日分・プロファイル'
-"$andon" measure --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
+"$andon" metrics show --since 2026-11-01 --until 2026-11-02 >"$tmp/table"
 head -1 "$tmp/table" | grep -q '^価値: 仮説を確かめた数 記録なし'
 grep -q '^  オーナーの手直しがあった課題  *A 0・B 0・C 0・レベル無し 0' "$tmp/table"
 grep '自動マージ率' "$tmp/table" | grep -q '対抗: revert 1本'
@@ -135,7 +135,7 @@ mkdir -p "$tmp/empty/kanban"
 printf 'version: 3\n' >"$tmp/empty/kanban/config.yaml"
 printf '#!/bin/sh\necho forbidden-gh >&2\nexit 99\n' >"$tmp/bin/gh"
 export KANBAN_ROOT=$tmp/empty
-"$andon" measure --json >"$tmp/empty.json"
+"$andon" metrics show --json >"$tmp/empty.json"
 jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .flow.closed.count == 0
   and .efficiency.human_touches == {total: 0, per_pr: null, merge: 0, decision: 0, task: 0}
   and .efficiency.answers == {owner: 0, chief_of_staff: 0, machine: 0, unmarked: 0}
@@ -145,12 +145,12 @@ jq -e '.efficiency.merged_prs == 0 and .efficiency.auto_merge.rate == null and .
   and .knowledge == {issues: 0, briefed: 0, read: {issues: 0, index_only: 0, no_record: 0}, pages: [], unread: null,
     gaps: {count: 0, issues: 0, by_kind: {missing: 0, wrong: 0, hard_to_find: 0}, wheres: [], repeated: []}}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" measure-empty.json
-"$andon" measure >"$tmp/empty.table"
+"$andon" metrics show >"$tmp/empty.table"
 grep '自動マージ率' "$tmp/empty.table" | grep -q '記録なし'
 echo 'ok 空の kanban: 0・null・記録なし・終了コード 0'
 
 set +e
-"$andon" measure --since 2026-11-05 --until 2026-11-01 >/dev/null 2>&1; rc=$?
+"$andon" metrics show --since 2026-11-05 --until 2026-11-01 >/dev/null 2>&1; rc=$?
 set -e
 [[ $rc == 2 ]]
 echo 'ok --since が --until より後なら終了コード 2'

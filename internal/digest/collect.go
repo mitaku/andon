@@ -99,7 +99,7 @@ type Day struct {
 	Auto   int    `json:"auto"`
 }
 
-// Week は 7 日の数（andon measure と同じ数え方）。
+// Week は 7 日の数（andon metrics show と同じ数え方）。
 type Week struct {
 	Since        string   `json:"since"`
 	Until        string   `json:"until"`
@@ -224,7 +224,7 @@ func Collect(env Env, id string) (*Input, error) {
 		return nil, err
 	}
 	for _, w := range warn {
-		c.skip("andon waiting", "%s", w)
+		c.skip("andon waiting list", "%s", w)
 	}
 	in.Waiting = res
 	gh := c.cachedGH()
@@ -451,7 +451,7 @@ type ghPR struct {
 	MergedAt string `json:"mergedAt"`
 }
 
-// cachedGH は repo ごとに1回だけ GitHub を読む（andon measure を2回回し、revert も探すため）。
+// cachedGH は repo ごとに1回だけ GitHub を読む（andon metrics show を2回回し、revert も探すため）。
 func (c *collector) cachedGH() func(string) ([]byte, error) {
 	type got struct {
 		b   []byte
@@ -682,7 +682,7 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// numbers は直近 7 日とその前の 7 日を andon measure で数える（数え方を写さない）。
+// numbers は直近 7 日とその前の 7 日を andon metrics show で数える（数え方を写さない）。
 func (c *collector) numbers(now time.Time, gh func(string) ([]byte, error)) Numbers {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	week := func(since, until time.Time) (Week, *measure.Result) {
@@ -690,11 +690,11 @@ func (c *collector) numbers(now time.Time, gh func(string) ([]byte, error)) Numb
 		res, err := measure.Measure(measure.Options{Root: c.env.Root, Since: since, Until: until, Now: now, GH: gh,
 			State: c.env.State, Delivered: c.env.Delivered, ClaudeDir: c.env.ClaudeDir, CodexSessions: c.env.CodexSessions})
 		if err != nil {
-			c.skip("andon measure", "%s〜%s を数えられない: %v", w.Since, w.Until, err)
+			c.skip("andon metrics show", "%s〜%s を数えられない: %v", w.Since, w.Until, err)
 			return w, nil
 		}
 		if n := len(res.Skipped); n > 0 {
-			c.skip("andon measure", "%s〜%s で %d 件の記録を読めなかった（andon measure --since %s --until %s で見る）", w.Since, w.Until, n, w.Since, w.Until)
+			c.skip("andon metrics show", "%s〜%s で %d 件の記録を読めなかった（andon metrics show --since %s --until %s で見る）", w.Since, w.Until, n, w.Since, w.Until)
 		}
 		w.Merged, w.Auto, w.Closed = res.Efficiency.MergedPRs, res.Efficiency.AutoMerge.Count, res.Flow.Closed.Count
 		w.LeadTime, w.QuestionOpen = res.Flow.LeadTime.Value, res.Flow.QuestionOpen.Value

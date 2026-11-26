@@ -625,7 +625,7 @@ func (p *project) chiefCut(cos string) {
 }
 
 // sendFirst は最初のメッセージが届いていない担当（ラベル first_message.sent=false）へ、見回りで1回だけ送る
-// （dispatcher.md §5 の「起動しそこねたら続きから」。andon issue start・andon chief-engineer が終了コード 3 で預けたものと、
+// （dispatcher.md §5 の「起動しそこねたら続きから」。andon issue start・andon design start が終了コード 3 で預けたものと、
 // dispatcher が起動したレビュアーで届かなかったもの。hc run が送れなかったときも、送ったが動き出さなかったときも）。
 // 送る前に控えに「送りかけ」を書いて保存し、送ったら（オーナーが手で送って動き出していても）ラベルを外す。
 // 外しそこねたら true を返し、控えに「送った」を持って二度と送らない。

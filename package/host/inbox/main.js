@@ -1,6 +1,6 @@
 // Inbox: what needs you, longest waiting first, and the way to each project's roles.
 // Above Needs you: one line per project with owner waits that call you (ADR-0043, ADR-0062), read
-// from `andon waiting --json --project <slug>` in the cell; the mod counts nothing itself.
+// from `andon waiting list --json --project <slug>` in the cell; the mod counts nothing itself.
 // Needs you: blocked agents (ADR-0015). A role's reply is an unread mark on its Projects row, except
 // in a project whose waits can't be read, where it is a Reply in Needs you as before (ADR-0043).
 // Projects: the Chief of Staff and Chief Engineers, idle or working (ADR-0015).
@@ -55,25 +55,31 @@ const ASKS = { merge: "to merge", decision: "to decide", task: "to do" };
 // Whether an owner wait calls you (ADR-0062 decision 7): its `call` when andon gave one, else the rule
 // from before `call` (an older cell's andon): merges and decisions call, hand work doesn't.
 export const isCalling = (x) => (typeof x.call === "boolean" ? x.call : x.kind === "merge" || x.kind === "decision");
+// andon's refusal of a name it doesn't have (an older andon: "知らない", a newer one: "名前が変わった").
+const MISMATCH = /知らない|名前が変わった/;
+const VERSIONS_DIFFER = "the cell's andon and these host parts are different versions: reinstall the host parts";
 // Left for later: only what andon said doesn't call. An item without `call` is never left.
 const leftLater = (x) => x.call === false;
 
-// What `andon waiting --json --project <slug>` printed, as [items, null] or [null, why it can't be
+// What `andon waiting list --json --project <slug>` printed, as [items, null] or [null, why it can't be
 // read]. Only `version`, `project` and each item's `kind`, `since` and `call` (when it is true or false) are read.
+// Exit 2 with andon's "unknown" or "renamed" line: the cell's andon and these host parts are from different
+// versions (the arguments are fixed), and reinstalling the parts puts the cell's copy here (ADR-0053 decision 9).
 export function parseWaiting(r, project) {
+  if (r?.code === 2 && MISMATCH.test(String(r.stderr ?? ""))) return [null, VERSIONS_DIFFER];
   if (!r || r.code !== 0) {
     const said = String(r?.stderr ?? "").split("\n").find((l) => l.trim()) ?? "";
-    return [null, short(`andon waiting exited ${r?.code ?? "?"}${said ? `: ${said}` : ""}`)];
+    return [null, short(`andon waiting list exited ${r?.code ?? "?"}${said ? `: ${said}` : ""}`)];
   }
   let out;
   try {
     out = JSON.parse(String(r.stdout));
   } catch {
-    return [null, "andon waiting printed no JSON"];
+    return [null, "andon waiting list printed no JSON"];
   }
-  if (out?.version !== 1) return [null, short(`andon waiting printed version ${out?.version}`)];
-  if (out.project !== project) return [null, short(`andon waiting answered for ${out.project}`)];
-  if (!Array.isArray(out.items)) return [null, "andon waiting printed no items"];
+  if (out?.version !== 1) return [null, short(`andon waiting list printed version ${out?.version}`)];
+  if (out.project !== project) return [null, short(`andon waiting list answered for ${out.project}`)];
+  if (!Array.isArray(out.items)) return [null, "andon waiting list printed no items"];
   return [out.items.map((x) => ({ kind: String(x?.kind ?? ""), since: String(x?.since ?? ""),
     ...(typeof x?.call === "boolean" ? { call: x.call } : {}) })), null];
 }
@@ -222,7 +228,7 @@ export default class Inbox extends View {
         space: null,
         paneless: true,
       }));
-    // One machine and project pair per Chief of Staff terminal: where andon waiting is called.
+    // One machine and project pair per Chief of Staff terminal: where andon waiting list is called.
     const store = /** @type {Record<string, any>} */ (shared(WAITING) ?? {});
     const cosOf = new Map();
     for (const k of terms) {
@@ -441,10 +447,10 @@ export default class Inbox extends View {
       let items = null;
       let why = null;
       try {
-        const r = await exec("andon", ["waiting", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT });
+        const r = await exec("andon", ["waiting", "list", "--json", "--project", p.project], { on: p.machine === LOCAL ? null : p.machine, timeout: READ_TIMEOUT });
         [items, why] = parseWaiting(r, p.project);
       } catch (e) {
-        why = short(`can't run andon waiting: ${e?.message ?? e}`);
+        why = short(`can't run andon waiting list: ${e?.message ?? e}`);
       }
       this.reading.delete(p.key);
       put((was) => (items ? { fails: 0, why: null, ok: { at: Date.now(), items } } : { fails: (was.fails ?? 0) + 1, why }));

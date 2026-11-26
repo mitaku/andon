@@ -56,7 +56,7 @@ flowchart LR
 | id | 手順 | やる者 | 入るもの | 出るもの | 次 |
 |---|---|---|---|---|---|
 | `add` | オーナーの依頼でダイジェストの課題を足す | AI | `オーナーの言葉`・`kanban（片付いていないダイジェストの課題）` | `kanban（ダイジェストの課題。routine daily-digest）` | `start` |
-| `start` | ダイジェストの担当をほかの課題より先に起動する | AI | `notification.ready`・`andon waiting --json（slots）` | `kanban（予約キー review と estimate）`・`hc（担当の端末）`・`kanban（doing）` | `collect` |
+| `start` | ダイジェストの担当をほかの課題より先に起動する | AI | `notification.ready`・`andon waiting list --json（slots）` | `kanban（予約キー review と estimate）`・`hc（担当の端末）`・`kanban（doing）` | `collect` |
 | `collect` | 前に送った 1 枚のあとの記録を集める | 機械 | `kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）` | `library/digest/input.json` | `write` |
 | `write` | 要旨とテーマと気になることを書く | AI | `library/digest/input.json`・`入力にある課題と PR` | `担当の文の JSON` | `build` |
 | `build` | 担当の文を照らし、1 枚に組み立てる | 機械 | `担当の文の JSON`・`library/digest/input.json` | `library/digest/digest.json`・`library/digest/digest.html`・`library/digest/message.txt` | `send` |
@@ -84,7 +84,7 @@ flowchart LR
 | `report` | `digest#5`・`worker#7` | 報告の要約 |  |
 | `check` | `chief-of-staff/playbooks/digest.md` | done なら何もしない・doing なら待つ・review なら送れていなくても片付ける |  |
 
-見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（片付いていないダイジェストの課題）`・`notification.ready`・`andon waiting --json（slots）`・`kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）`・`library/digest/input.json`・`入力にある課題と PR`・`担当の文の JSON`・`library/digest/digest.html`・`library/digest/sent.json`・`project.json（digest）`・`notification.report`・`kanban（status）`・`報告`・`kanban（review）`
+見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（片付いていないダイジェストの課題）`・`notification.ready`・`andon waiting list --json（slots）`・`kanban（期間の記録）`・`dispatcher の記録`・`GitHub（マージされた PR）`・`library/digest/input.json`・`入力にある課題と PR`・`担当の文の JSON`・`library/digest/digest.html`・`library/digest/sent.json`・`project.json（digest）`・`notification.report`・`kanban（status）`・`報告`・`kanban（review）`
 
 残すもの（手順の出るものの和）: `kanban（ダイジェストの課題。routine daily-digest）`・`kanban（予約キー review と estimate）`・`hc（担当の端末）`・`kanban（doing）`・`library/digest/input.json`・`担当の文の JSON`・`library/digest/digest.json`・`library/digest/digest.html`・`library/digest/message.txt`・`files/（HTML）`・`Slack（送り先があるとき）`・`library/digest/sent.json`・`報告`・`kanban（review）`・`オーナーへの知らせ（送れなかったとき）`・`kanban（done）`
 

@@ -15,7 +15,7 @@ sed -n '/^## `<news>` の読み方$/,/^## 留守のあと/p' "$pb/watch.md" | gr
 steps=$(sed -n '/^## 受けたら（この順）$/,/^## オーナーへ$/p' "$pb/idle.md" 2>/dev/null)
 miss=
 n=0
-for want in '`andon waiting --json`' '`start.md` のとおりに起動する' 'Chief Engineer に渡す' 'オーナーに 1 回だけ言う' '残った枠の中で起動する' '`library/triage/`' 'Chief Engineer の課題' '`kanban lint` を打って読む' '`wiki.md` の lint の条件' '`andon news ack` を打って黙る'; do
+for want in '`andon waiting list --json`' '`start.md` のとおりに起動する' 'Chief Engineer に渡す' 'オーナーに 1 回だけ言う' '残った枠の中で起動する' '`library/triage/`' 'Chief Engineer の課題' '`kanban lint` を打って読む' '`wiki.md` の lint の条件' '`andon news ack` を打って黙る'; do
   at=$(grep -nF -- "$want" <<<"$steps" | sed -n 1p | cut -d: -f1)
   if [ -z "$at" ]; then miss="$miss [$want が無い]"; elif [ "$at" -lt "$n" ]; then miss="$miss [$want の順]"; else n=$at; fi
 done

@@ -125,7 +125,7 @@
 <text x="52" y="572.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">仕様・設計を詰め、決めたことだけを</text>
 <text x="52" y="590.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">文書（ADR）にしてラインへ渡す。</text>
 <text x="52" y="607.5" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">何を作るかは人（委譲できない）。</text>
-<text x="52" y="625.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">andon chief-engineer（台帳のタスク）</text>
+<text x="52" y="625.0" font-size="12.5" font-weight="normal" fill="#222222" text-anchor="start" font-family="sans-serif">andon design start（台帳のタスク）</text>
 <rect x="40" y="654" width="316" height="70" rx="6" fill="#f3f0ea" stroke="#9a958b" stroke-width="1.2"/>
 <rect x="316" y="661" width="32" height="17" rx="3" fill="#fbfaf7" stroke="#9a958b" stroke-width="0.8"/>
 <text x="332.0" y="673.5" font-size="10.5" font-weight="normal" fill="#222222" text-anchor="middle" font-family="sans-serif">ある</text>

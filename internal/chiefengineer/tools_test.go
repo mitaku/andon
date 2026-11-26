@@ -10,7 +10,7 @@ import (
 	"andon/internal/tools/toolstest"
 )
 
-// manifest は案件の repo の main に mise.toml を足して push する（andon chief-engineer が切る worktree に入る）。
+// manifest は案件の repo の main に mise.toml を足して push する（andon design start が切る worktree に入る）。
 func (f *fake) manifest() {
 	f.t.Helper()
 	toolstest.Manifest(f.t, f.repoDir)
@@ -49,7 +49,7 @@ func TestChiefEngineerSatisfiesDeclaration(t *testing.T) {
 			if rc != 0 {
 				t.Fatalf("rc=%d err=%q", rc, errs)
 			}
-			if c.warn == "" && errs != "" || c.warn != "" && !strings.Contains(errs, "andon chief-engineer: "+f.wt()+c.warn) {
+			if c.warn == "" && errs != "" || c.warn != "" && !strings.Contains(errs, "andon design start: "+f.wt()+c.warn) {
 				t.Errorf("err=%q", errs)
 			}
 			if got, want := f.order(), []string{"mise install | cwd=" + f.wt(), "hc run"}; !slices.Equal(got, want) {

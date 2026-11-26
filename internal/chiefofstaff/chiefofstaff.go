@@ -1,6 +1,5 @@
-// Package chiefofstaff は andon chief-of-staff: プロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う）。
-//
-//	andon chief-of-staff   projects/<slug>/ で打つ。最後に出た場所を「<Space 名> / <tab 名>」で出す
+// Package chiefofstaff はプロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う）。打つ口は andon open（internal/open）。
+// 最後に出た場所を「<Space 名> / <tab 名>」で出す。
 //
 // することは4つ（1〜3 は <slug>.cos.lock を持って1つずつ）:
 //  1. ラベル role=chief-of-staff project=<slug> の、動いている端末を探す。1つならそれを使う（名前と cwd が合うときだけ）。
@@ -30,33 +29,19 @@ import (
 	"andon/internal/spawn"
 )
 
-const Usage = "usage: andon chief-of-staff   projects/<slug>/ で打つ。オーナーの Herdr App の <slug> / CoS に出る\n" +
-	"動いていればそれを使い、無ければプロファイル chief-of-staff で起動する（名前 <slug>-cos）。\n" +
-	"kanban の config.yaml の chief_of_staff をその address に合わせる。2人いれば止まる（1プロジェクトに1人）。\n" +
-	"最初のメッセージが届かなかった（信頼の画面など）ときは終了コード 3 と、App のその tab で答えたあとに打つ hc send を出す。\n"
-
 // Profile は Chief of Staff のプロファイル（hc の template の名前）。
 const Profile = "chief-of-staff"
 
 const (
 	exitFail  = 1
-	exitUsage = 2
 	exitFirst = 3 // 起きたが、最初のメッセージが届いていない
 )
 
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) != 0 {
-		fmt.Fprint(stderr, Usage)
-		return exitUsage
-	}
-	return Start("", stdout, stderr)
-}
-
 // Start は dir（空なら今のディレクトリ）から kanban を探して、そのプロジェクトの Chief of Staff を起動する／使う。
-// andon open <slug> が projects/<slug> を指して呼ぶ（cd はしない）。
+// andon open <slug> が projects/<slug> を指して呼び、andon open が slug なしで今いるプロジェクトを開くときは空で呼ぶ（cd はしない）。
 func Start(dir string, stdout, stderr io.Writer) int {
 	die := func(format string, a ...any) int {
-		fmt.Fprintf(stderr, "andon chief-of-staff: "+format+"\n", a...)
+		fmt.Fprintf(stderr, "andon open: "+format+"\n", a...)
 		return exitFail
 	}
 
@@ -69,7 +54,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 	}
 	root, err := spawn.OutputIn(dir, nil, "", cli, "root")
 	if err != nil || root == "" {
-		return die("kanban が見つからない（projects/<slug>/ で打つ）")
+		return die("kanban が見つからない（andon open <slug> でプロジェクトを指す）")
 	}
 	l := ledger.At(root)
 	slug := l.Slug
@@ -126,7 +111,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		if err := spawn.Discard(a); err != nil {
 			return die("%s（Chief of Staff のラベルで中身がシェル）を片付けられない: %v", a, err)
 		}
-		fmt.Fprintf(stdout, "andon chief-of-staff: %s は Chief of Staff のラベルのまま中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた\n", a)
+		fmt.Fprintf(stdout, "andon open: %s は Chief of Staff のラベルのまま中身がシェルに替わっていた（作り直しで戻った端末）ので片付けた\n", a)
 	}
 
 	space, tab := "andon-"+slug, "andon-"+slug+"-cos"
@@ -162,7 +147,7 @@ func Start(dir string, stdout, stderr io.Writer) int {
 		}
 		rec.Terminal = run.Address
 		if err := launch.Append(launch.ChiefOfStaffPath(l.Dir), rec); err != nil {
-			fmt.Fprintf(stderr, "andon chief-of-staff: 起動の記録を書けない（起動は続ける）: %v\n", err)
+			fmt.Fprintf(stderr, "andon open: 起動の記録を書けない（起動は続ける）: %v\n", err)
 		}
 		addr, how = run.Address, "起動した"
 	}
@@ -174,17 +159,17 @@ func Start(dir string, stdout, stderr io.Writer) int {
 	}
 
 	if run != nil && !run.First.Delivered() {
-		fmt.Fprintf(stderr, "andon chief-of-staff: %s（%s）に最初のメッセージが届いていない: %s。App の %s で答えてから、次を送る: %s\n",
+		fmt.Fprintf(stderr, "andon open: %s（%s）に最初のメッセージが届いていない: %s。App の %s で答えてから、次を送る: %s\n",
 			addr, name, run.Reason(), where, spawn.SendCommand(addr, Profile, msg))
-		fmt.Fprintf(stdout, "andon chief-of-staff: 出た場所 %s（%s）\n", where, addr)
+		fmt.Fprintf(stdout, "andon open: 出た場所 %s（%s）\n", where, addr)
 		return exitFirst
 	}
-	fmt.Fprintf(stdout, "andon chief-of-staff: %s の Chief of Staff は %s（%s・%s）。config.yaml の chief_of_staff: %s\n", slug, addr, name, how, addr)
-	fmt.Fprintf(stdout, "andon chief-of-staff: 出た場所 %s（%s）\n", where, addr)
+	fmt.Fprintf(stdout, "andon open: %s の Chief of Staff は %s（%s・%s）。config.yaml の chief_of_staff: %s\n", slug, addr, name, how, addr)
+	fmt.Fprintf(stdout, "andon open: 出た場所 %s（%s）\n", where, addr)
 	return 0
 }
 
-// Lock は andon chief-of-staff が「数える→起動する→config.yaml に書く」の間持つ lock のパス（控えの置き場の <slug>.cos.lock）。
+// Lock は andon open が「数える→起動する→config.yaml に書く」の間持つ lock のパス（控えの置き場の <slug>.cos.lock）。
 func Lock(slug string) string {
 	return filepath.Join(filepath.Dir(dispatcher.StatePath(slug)), slug+".cos.lock")
 }

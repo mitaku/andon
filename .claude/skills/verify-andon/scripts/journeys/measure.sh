@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 流れの数え（features/measure.md）。切り離した kanban に数の分かっている履歴を作り、オーナーと同じく andon measure を打つ。
+# 流れの数え（features/measure.md）。切り離した kanban に数の分かっている履歴を作り、オーナーと同じく andon metrics show を打つ。
 # 読むだけの command なので、打つ前と後で kanban とセッションの記録が変わらないことも確かめる。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
@@ -50,7 +50,7 @@ sums() { find "$tmp/project" "$HOME/.claude" "$HOME/.local/state/andon/otel" -ty
 before=$(sums)
 
 # ms-flow: 期間の流れが履歴どおり数えられる（片付いた 1・残った WIP 1）
-step "ms-flow: andon measure --json を打つ" "$andon" measure --json
+step "ms-flow: andon metrics show --json を打つ" "$andon" metrics show --json
 jq -c '{project, since, until, closed: .flow.closed, wip_end: .flow.wip_end}' "$tmp/step.out" 2>/dev/null | sed 's/^/  measure: /'
 jq -e '.flow.closed.count == 1 and .flow.wip_end == 1' "$tmp/step.out" >/dev/null \
   && ok "ms-flow: 片付いた課題 1・期間の終わりの WIP 1 を数える" \
@@ -96,7 +96,7 @@ jq -e --arg d "$done_id" '.knowledge == {"issues": 1, "briefed": 1, "read": {"is
   || fail "ms-knowledge: 知識の節の数が置いた記録と違う"
 
 # ms-table: 人向けの表は価値の行で始まる
-step "ms-table: andon measure を打つ" "$andon" measure \
+step "ms-table: andon metrics show を打つ" "$andon" metrics show \
   && sed -n 1p "$tmp/step.out" | grep -q '^価値: ' \
   && grep -q '^内訳（' "$tmp/step.out" && grep -q '^  片付いた課題  *2件・内訳の無い課題 1件$' "$tmp/step.out" \
   && grep -q '^  chief-of-staff 1日分 ' "$tmp/step.out" && grep -q '^プロファイル（' "$tmp/step.out" && grep -q '^  claude  *1件・実働 ' "$tmp/step.out" \
@@ -110,14 +110,14 @@ step "ms-table: andon measure を打つ" "$andon" measure \
 # ms-knowledge（続き）: 内訳の読みが目録だけなら読んだ課題に入れず、内訳が null なら記録なしに入れて、読まれなかったページを null（記録なし）にする
 lib=$tmp/project/kanban/issues/$done_id/library
 jq '.breakdown.knowledge = {"index_reads": 2, "pages": []}' "$lib/outcome.json" >"$tmp/outcome.json" && mv "$tmp/outcome.json" "$lib/outcome.json"
-step "ms-knowledge: 目録だけの内訳で andon measure --json を打つ" "$andon" measure --json
+step "ms-knowledge: 目録だけの内訳で andon metrics show --json を打つ" "$andon" metrics show --json
 jq -c '.knowledge.read, .knowledge.unread' "$tmp/step.out" 2>/dev/null | sed 's/^/  knowledge: /'
 jq -e '.knowledge.read == {"issues": 0, "index_only": 1, "no_record": 0} and .knowledge.pages == []
   and .knowledge.unread == ["entities/owner.md", "topics/ci.md", "topics/shell.md"]' "$tmp/step.out" >/dev/null \
   && ok "ms-knowledge: 目録だけを読んだ $done_id を読んだ課題に入れず、目録だけの課題に数える" \
   || fail "ms-knowledge: 目録だけの課題を読んだ課題に数えたか、読まれなかったページが違う"
 jq '.breakdown = null' "$lib/outcome.json" >"$tmp/outcome.json" && mv "$tmp/outcome.json" "$lib/outcome.json"
-step "ms-knowledge: 内訳が null で andon measure を打つ" "$andon" measure \
+step "ms-knowledge: 内訳が null で andon metrics show を打つ" "$andon" metrics show \
   && grep -q '^  wiki のページを読んだ課題  *0件・目録だけ 0件・読みの記録なし 1件$' "$tmp/step.out" \
   && grep -q '^  1 回も読まれなかった Topics と Entities のページ  記録なし$' "$tmp/step.out" \
   && ok "ms-knowledge: 内訳が null の $done_id を読みの記録なしに数え、読まれなかったページを「記録なし」にする" \

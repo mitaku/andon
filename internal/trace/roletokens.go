@@ -13,7 +13,7 @@ import (
 
 // RoleTokens は、ハーネスの記録のプロジェクトの置き場 dir の、課題の無い役 role の生の記録
 // （roles/<role>/<日付>.traces.jsonl。docs/contract.md §30）のうち、日付が from から to まで（UTC の日付。両端を含む）のものから、
-// モデルの呼び出し（claude_code.llm_request）のトークンを合わせる（andon measure の Chief of Staff の分。ADR-0060 決めたこと 16）。
+// モデルの呼び出し（claude_code.llm_request）のトークンを合わせる（andon metrics show の Chief of Staff の分。ADR-0060 決めたこと 16）。
 // 数え方は内訳の tokens と同じで、同じ span（traceId と spanId が同じ）は 1 つに数える。
 // days は 1 行以上読めた日付のファイルの数（数えられた日数）。0 なら tokens は nil（記録が無いのと 0 を分ける）。
 // 在るのに読めないファイルと JSON として読めない行は skip に渡して飛ばす（file は置き場からの相対のパス）。

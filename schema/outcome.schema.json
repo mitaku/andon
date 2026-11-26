@@ -82,7 +82,7 @@
       "minimum": 0
     },
     "worked_minutes": {
-      "description": "Working time up to the last done, without the waits (the same as andon measure: questions open, reviews, dead terminals).",
+      "description": "Working time up to the last done, without the waits (the same as andon metrics show: questions open, reviews, dead terminals).",
       "type": "integer",
       "minimum": 0
     },
@@ -228,7 +228,7 @@
       }
     },
     "cost": {
-      "description": "Counted the same way as andon measure's tokens.",
+      "description": "Counted the same way as andon metrics show's tokens.",
       "type": "object",
       "required": [
         "models",
@@ -297,7 +297,7 @@
               "minimum": 0
             }
           },
-          "description": "Token counts, the same as andon measure's (not dollars)."
+          "description": "Token counts, the same as andon metrics show's (not dollars)."
         }
       }
     },

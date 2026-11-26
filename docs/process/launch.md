@@ -39,7 +39,7 @@ flowchart LR
   t_person --> s_count
   t_asked --> s_count
   t_merged --> s_count
-  s_count -->|"andon waiting --json（slots・items）"| g_count
+  s_count -->|"andon waiting list --json（slots・items）"| g_count
   g_count -->|"slots.free が 1 以上"| s_check
   g_count -->|"slots.free が 0"| s_hold
   s_check -->|"kanban（after・束ねた課題）"| s_start
@@ -53,17 +53,17 @@ flowchart LR
 
 | id | 手順 | やる者 | 入るもの | 出るもの | 次 |
 |---|---|---|---|---|---|
-| `count` | 枠を数える | 機械 | `kanban（doing・review の担当の課題・問い・log.jsonl）`・`library/report.json`・`library/gate/<head>.json`・`project.json（chief_of_staff.parallel）` | `andon waiting --json（slots・items）` | `check`（slots.free が 1 以上）・`hold`（slots.free が 0） |
-| `check` | 起動する課題とぶつかりを決める | AI | `andon waiting --json（slots・items）`・`kanban ready`・`依頼書`・`doing・review の課題の依頼書`・`出ている PR の files` | `kanban（after・束ねた課題）` | `start` |
+| `count` | 枠を数える | 機械 | `kanban（doing・review の担当の課題・問い・log.jsonl）`・`library/report.json`・`library/gate/<head>.json`・`project.json（chief_of_staff.parallel）` | `andon waiting list --json（slots・items）` | `check`（slots.free が 1 以上）・`hold`（slots.free が 0） |
+| `check` | 起動する課題とぶつかりを決める | AI | `andon waiting list --json（slots・items）`・`kanban ready`・`依頼書`・`doing・review の課題の依頼書`・`出ている PR の files` | `kanban（after・束ねた課題）` | `start` |
 | `start` | 担当を起動する | 機械 | `kanban（todo の課題）`・`brief.md` | `hc（担当の端末）`・`kanban（doing）`・`worktree と branch` | `tell` |
 | `tell` | 起動をオーナーへ知らせる | AI | `andon issue start の出た場所の行` | `オーナーへの返事` | 終わり |
-| `hold` | 起動せずに待ち、オーナー待ちを並びの順に出す | AI | `andon waiting --json（slots・items）` | `オーナーへの返事`・`オーナーへの 1 問` | 終わり |
+| `hold` | 起動せずに待ち、オーナー待ちを並びの順に出す | AI | `andon waiting list --json（slots・items）` | `オーナーへの返事`・`オーナーへの 1 問` | 終わり |
 
 ## 機械がやる手順
 
 | id | コマンド | 記録 | 2 回起きてはいけない |
 |---|---|---|---|
-| `count` | `andon waiting --json` |  |  |
+| `count` | `andon waiting list --json` |  |  |
 | `start` | `andon issue start` |  |  |
 
 ## AI がやる手順
@@ -74,9 +74,9 @@ flowchart LR
 | `tell` | `chief-of-staff/playbooks/start.md` | 知らせる文 |  |
 | `hold` | `chief-of-staff/playbooks/start.md`・`ask-one-by-one#3` | 待つわけ（動いている課題が上限の数）・問いを出す順（items の並び。holds の多い順）・マージ待ちの後ろに並べた課題を先に起動しない |  |
 
-見るもの（手順の入るものの和）: `kanban（doing・review の担当の課題・問い・log.jsonl）`・`library/report.json`・`library/gate/<head>.json`・`project.json（chief_of_staff.parallel）`・`andon waiting --json（slots・items）`・`kanban ready`・`依頼書`・`doing・review の課題の依頼書`・`出ている PR の files`・`kanban（todo の課題）`・`brief.md`・`andon issue start の出た場所の行`
+見るもの（手順の入るものの和）: `kanban（doing・review の担当の課題・問い・log.jsonl）`・`library/report.json`・`library/gate/<head>.json`・`project.json（chief_of_staff.parallel）`・`andon waiting list --json（slots・items）`・`kanban ready`・`依頼書`・`doing・review の課題の依頼書`・`出ている PR の files`・`kanban（todo の課題）`・`brief.md`・`andon issue start の出た場所の行`
 
-残すもの（手順の出るものの和）: `andon waiting --json（slots・items）`・`kanban（after・束ねた課題）`・`hc（担当の端末）`・`kanban（doing）`・`worktree と branch`・`オーナーへの返事`・`オーナーへの 1 問`
+残すもの（手順の出るものの和）: `andon waiting list --json（slots・items）`・`kanban（after・束ねた課題）`・`hc（担当の端末）`・`kanban（doing）`・`worktree と branch`・`オーナーへの返事`・`オーナーへの 1 問`
 
 ## 数えるもの
 

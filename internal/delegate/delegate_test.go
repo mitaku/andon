@@ -164,7 +164,7 @@ func signalsOf(sig string) string {
  "references": ["github.com/example/design-notes", "https://example.com/spec"], "signals": [` + sig + `]}`
 }
 
-// ADR-0011 受け入れ条件 1: signals の正しい形は通り、書き直しても（andon delegate grant）そのまま残る。
+// ADR-0011 受け入れ条件 1: signals の正しい形は通り、書き直しても（andon delegation grant）そのまま残る。
 func TestParseProjectSignals(t *testing.T) {
 	j := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": ["github.com/example/sample-site"],
  "references": ["github.com/example/design-notes"],
@@ -186,7 +186,7 @@ func TestParseProjectSignals(t *testing.T) {
 	}
 }
 
-// ADR-0044 受け入れ条件 13: digest の正しい形は通り、書き直しても（andon delegate grant）そのまま残る。
+// ADR-0044 受け入れ条件 13: digest の正しい形は通り、書き直しても（andon delegation grant）そのまま残る。
 func TestParseProjectDigest(t *testing.T) {
 	with := func(digest string) []byte {
 		return []byte(`{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": [], "digest": ` + digest + `}`)
@@ -328,7 +328,7 @@ func TestShowRefusesOtherCommandsOptions(t *testing.T) {
 	for _, o := range []string{"--reason", "--evidence", "--until"} {
 		out.Reset()
 		errb.Reset()
-		if rc := Main([]string{"show", o, "x"}, nil, &out, &errb); rc != exitUsage || out.Len() != 0 || !strings.HasPrefix(errb.String(), "usage: andon delegate") {
+		if rc := Main([]string{"show", o, "x"}, nil, &out, &errb); rc != exitUsage || out.Len() != 0 || !strings.HasPrefix(errb.String(), "usage: andon delegation") {
 			t.Errorf("show %s x: rc=%d out=%q err=%q", o, rc, out.String(), errb.String())
 		}
 	}

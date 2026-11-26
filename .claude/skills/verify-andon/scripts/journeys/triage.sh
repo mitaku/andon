@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # トリアージ（features/triage.md）。切り離した kanban で、担当の報告の「オーナーに聞くこと」を andon triage collect で集め、
 # Chief of Staff の端末で andon triage apply を打つ。person の項目が、later の理由なら置いてある行に、false なら呼ぶ行になるかを
-# andon waiting --json で読む。Chief of Staff でない端末の印と、later の無い前の形の person は、何も書かずに断るかを見る。
+# andon waiting list --json で読む。Chief of Staff でない端末の印と、later の無い前の形の person は、何も書かずに断るかを見る。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
 
@@ -67,7 +67,7 @@ rec=$(ls "$tmp/project/kanban/library/triage/"*-"$t1".json 2>/dev/null | sed -n 
 made() { [ -n "$rec" ] && jq -r --arg k "$1" '.items[] | select(.key == $k) | .created_issue // empty' "$rec"; }
 i1=$(made "$k1") i2=$(made "$k2") i3=$(made "$k3")
 for i in $i1 $i2 $i3; do echo "  | $i: $("$kanban" show "$i" --json | jq -c '.issue | {id, title, who, only_owner, later, later_until}')"; done
-step "tr-later: 当てたあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "tr-later: 当てたあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 row() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, kind, call, later, later_until}' "$tmp/step.out" 2>/dev/null; }
 echo "  waiting: $(row "$i1") $(row "$i2") $(row "$i3")"
 [ -n "$i1" ] && jq -e --arg id "$i1" --arg w "$why" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].call == false and .[0].later == $w and .[0].later_until == "2999-12-31"' "$tmp/step.out" >/dev/null \

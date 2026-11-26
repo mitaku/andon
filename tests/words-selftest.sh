@@ -224,7 +224,7 @@ expect ok 'docs/decisions/ の「」の中の 3 語と、新しい語は通る'
 for f in package/x.md docs/design.md tests/package/x.sh tests/andon-init.sh init/wiki/log.md \
   internal/x/x.go internal/x/x_test.go cmd/x/x.go tests/andon-x.sh tests/lib/x.sh tests/host/x.mjs tests/README.md \
   .claude/skills/verify-andon/scripts/x.sh .claude/skills/verify-andon/features/x.md; do
-  for w in 'S-7（題）を t42' 'この題では決めない' '`andon chief-engineer "<題>"`' '1人に1題' '題が空'; do
+  for w in 'S-7（題）を t42' 'この題では決めない' '`andon design start "<題>"`' '1人に1題' '題が空'; do
     setup; mkdir -p "$(dirname "$tmp/r/$f")"; echo "$w" >"$tmp/r/$f"; expect fail "$f の「$w」で落ちる"
   done
 done

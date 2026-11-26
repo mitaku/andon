@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon create`（ADR-0004 決めたこと 1 の予約名で projects/<slug>/ を立てる）。本物の kanban の CLI・一時のセルの repo・偽の ghq と hc で回す。
+# `andon project create`（ADR-0004 決めたこと 1 の予約名で projects/<slug>/ を立てる）。本物の kanban の CLI・一時のセルの repo・偽の ghq と hc で回す。
 # 作る中身（kanban lint が通る・project.json が schema を通る・AGENTS.md）・commit しない・既にあれば何も変えずに止まる・役の端末で拒む・
 # 端末でなければ聞かずに slug が無いと止まる。対話の中身は go test（internal/create）が見る。本物の hc と ghq には触らない。
 set -euo pipefail
@@ -42,7 +42,7 @@ git init -q "\$GHQ_ROOT/\$2"
 EOF
 cat >"$tmp/bin/hc" <<'EOF'
 #!/usr/bin/env bash
-# dispatcher の端末は無い（andon create のあとの置き場の確かめは run を打つだけ）
+# dispatcher の端末は無い（andon project create のあとの置き場の確かめは run を打つだけ）
 case "$1 $2" in
   'get dispatcher') echo '{"error":{"kind":"not_found"}}' >&2; exit 3 ;;
   run*) exit 0 ;;
@@ -55,7 +55,7 @@ head0=$(git -C "$ws" rev-parse HEAD)
 
 # === 全部渡す: 聞かずに作る ===
 p=$ws/projects/sample-site
-"$andon" create sample-site --repo example.com/o/have --repo example.com/o/new --prefix SS --title 'Sample site' </dev/null >"$tmp/out" 2>"$tmp/err" \
+"$andon" project create sample-site --repo example.com/o/have --repo example.com/o/new --prefix SS --title 'Sample site' </dev/null >"$tmp/out" 2>"$tmp/err" \
   && pass "引数を全部渡すと聞かずに作る" || fail "create: $(cat "$tmp/out" "$tmp/err")"
 [ ! -s "$tmp/err" ] && pass "何も聞かない（stderr が空）" || fail "聞いた: $(cat "$tmp/err")"
 (cd "$p" && kanban lint >/dev/null) && grep -qx 'prefix: SS' "$p/kanban/config.yaml" && grep -qx '  - example.com/o/new' "$p/kanban/config.yaml" \
@@ -77,31 +77,31 @@ grep -qx '# Sample site' "$p/AGENTS.md" && grep -qx '## Chief of Staff' "$p/AGEN
   && pass "commit しない（project.json は未追跡、kanban/ は git の外）" || fail "git: $(git -C "$ws" status --porcelain --untracked-files=all)"
 grep -q 'andon open sample-site' "$tmp/out" && grep -q 'git add projects/sample-site/project.json' "$tmp/out" \
   && pass "commit と andon open を案内する" || fail "案内: $(cat "$tmp/out")"
-"$andon" delegate show --project sample-site 2>&1 | grep -q '無委譲' && pass "commit 前の andon delegate show は無委譲" || fail "delegate show"
+"$andon" delegation show --project sample-site 2>&1 | grep -q '無委譲' && pass "commit 前の andon delegation show は無委譲" || fail "delegate show"
 
 # === 既にあれば何も変えずに止まる ===
 sum() { (cd "$p" && find . -type f -print0 | sort -z | xargs -0 sha256sum); }
 before=$(sum); : >"$tmp/ghq.log"
-r=0; "$andon" create sample-site --repo example.com/o/other </dev/null >/dev/null 2>"$tmp/err" || r=$?
+r=0; "$andon" project create sample-site --repo example.com/o/other </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 1 ] && grep -q '既にある' "$tmp/err" && [ "$(sum)" = "$before" ] && [ ! -s "$tmp/ghq.log" ] \
   && pass "既にあれば何も変えずに止まる（rc 1）" || fail "既にある: rc=$r $(cat "$tmp/err")"
 
 # === 役の端末で拒む ===
-r=0; HC_TERMINAL_ID=role-t1 "$andon" create sample-role </dev/null >/dev/null 2>"$tmp/err" || r=$?
+r=0; HC_TERMINAL_ID=role-t1 "$andon" project create sample-role </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 1 ] && grep -q 'role=chief-of-staff' "$tmp/err" && [ ! -e "$ws/projects/sample-role" ] \
   && pass "役の端末では打てない" || fail "役の端末: rc=$r $(cat "$tmp/err")"
 
 # === 端末でなければ聞かない: slug が無ければ止まり、slug だけなら既定 ===
-r=0; "$andon" create --prefix X </dev/null >/dev/null 2>"$tmp/err" || r=$?
+r=0; "$andon" project create --prefix X </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 2 ] && grep -q 'slug が無い' "$tmp/err" && pass "端末でなく slug が無ければ止まる（rc 2）" || fail "slug 無し: rc=$r $(cat "$tmp/err")"
-r=0; "$andon" create Bad_Slug </dev/null >/dev/null 2>"$tmp/err" || r=$?
+r=0; "$andon" project create Bad_Slug </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 2 ] && [ ! -e "$ws/projects/Bad_Slug" ] && pass "slug の形を確かめる" || fail "slug: rc=$r $(cat "$tmp/err")"
 # repo が 1 つでも入る（下の「signals が無い」の検査が当たる場合があることも、ここで確かめる）
-"$andon" create one-repo --repo example.com/o/have </dev/null >"$tmp/out" 2>"$tmp/err" \
+"$andon" project create one-repo --repo example.com/o/have </dev/null >"$tmp/out" 2>"$tmp/err" \
   && [ "$(jq -c 'has("signals")' "$ws/projects/one-repo/project.json")" = true ] \
   && grep -q signals "$tmp/out" \
   && pass "repo が 1 つでも signals と案内がある" || fail "repo が 1 つ: $(cat "$tmp/err" "$ws/projects/one-repo/project.json" 2>&1)"
-"$andon" create web-app </dev/null >"$tmp/out" 2>"$tmp/err" \
+"$andon" project create web-app </dev/null >"$tmp/out" 2>"$tmp/err" \
   && [ "$(jq -c '[.project, .repos, has("signals")]' "$ws/projects/web-app/project.json")" = '[{"title":"web-app","prefix":"WA"},[],false]' ] \
   && ! grep -q signals "$tmp/out" \
   && grep -qx 'prefix: WA' "$ws/projects/web-app/kanban/config.yaml" \
@@ -109,7 +109,7 @@ r=0; "$andon" create Bad_Slug </dev/null >/dev/null 2>"$tmp/err" || r=$?
 
 # === GHQ_ROOT の下に clone でないものがあれば止まる ===
 mkdir -p "$GHQ_ROOT/example.com/o/empty"
-r=0; "$andon" create sample-empty --repo example.com/o/empty </dev/null >/dev/null 2>"$tmp/err" || r=$?
+r=0; "$andon" project create sample-empty --repo example.com/o/empty </dev/null >/dev/null 2>"$tmp/err" || r=$?
 [ "$r" = 1 ] && grep -q 'git の clone でない' "$tmp/err" && [ ! -e "$ws/projects/sample-empty" ] \
   && pass "clone でない置き場があれば何も作らずに止まる" || fail "clone でない: rc=$r $(cat "$tmp/err")"
 

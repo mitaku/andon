@@ -172,7 +172,7 @@ func (l *Ledger) unfinished(title, parent string) (string, Issue, int, error) {
 
 // RestoreQuestion は、課題 id の 1 つ目の問いの控え（library/questions/1.json）が無く、kanban の 1 つ目の問いの文が q の文
 // （q.Text()）と同じなら、控えを q で書き、true を返す。kanban ask のあと控えを書く前に落ちた回の打ち直しで呼ぶ（控えが無いと
-// andon waiting に選択肢が出ず、オーナーが答えられない）。控えがあれば何も書かずに false。控えが無いのに文が違う（打ち直しの前に
+// andon waiting list に選択肢が出ず、オーナーが答えられない）。控えがあれば何も書かずに false。控えが無いのに文が違う（打ち直しの前に
 // 問いが変わった）・1 つ目の問いが無ければ、書き直せないので誤りを返す（控えの無い問いを残したまま進まない）。
 func (l *Ledger) RestoreQuestion(id string, q *contract.Question) (bool, error) {
 	p := filepath.Join(l.Library(id), "questions", "1.json")

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/launch/1",
   "title": "Launch record",
-  "description": "One line of issues/<id>/library/launches.jsonl (an issue's worker, reviewer or Chief Engineer) or of <ledger>/chief-of-staff/launches.jsonl (the Chief of Staff): one agent launch, with the versions it ran on. Written only by the command that launched the agent (andon issue start, andon issue resume, the dispatcher starting a reviewer, andon chief-engineer, andon chief-of-staff), after hc run started the terminal; appended only, earlier lines are never rewritten. A value that could not be read is null. Read by the retro; no gate or dispatcher decision reads it. Only these keys.",
+  "description": "One line of issues/<id>/library/launches.jsonl (an issue's worker, reviewer or Chief Engineer) or of <ledger>/chief-of-staff/launches.jsonl (the Chief of Staff): one agent launch, with the versions it ran on. Written only by the command that launched the agent (andon issue start, andon issue resume, the dispatcher starting a reviewer, andon design start, andon open), after hc run started the terminal; appended only, earlier lines are never rewritten. A value that could not be read is null. Read by the retro; no gate or dispatcher decision reads it. Only these keys.",
   "type": "object",
   "required": [
     "at",

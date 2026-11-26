@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # オーナー待ち（features/waiting.md）。切り離した kanban で、Chief of Staff がオーナーの課題を足し（andon issue ask --new --now）、
-# オーナーと同じく andon waiting で判断の行として読む。
+# オーナーと同じく andon waiting list で判断の行として読む。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
 
@@ -36,12 +36,12 @@ step "ow-same-title: 同じ問いを親 $p1 の下に打ち直す" "$andon" issu
     || fail "ow-same-title: 断った理由が同じ問いの課題でないか、断ったのに課題が増えた"; }
 
 # ow-waiting: オーナー待ちに、2つの課題が判断の行として出る（答えられる問い）
-step "ow-waiting: andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-waiting: andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 jq -c '{slots, items: [.items[] | {kind, id, question, answerable}]}' "$tmp/step.out" 2>/dev/null | sed 's/^/  waiting: /'
 jq -e --arg a "$a" --arg b "$b" '[.items[] | select(.kind == "decision" and .answerable == true) | .id] | sort == ([$a, $b] | sort)' "$tmp/step.out" >/dev/null \
   && ok "ow-waiting: オーナー待ちに $a と $b が答えられる判断の行として出る" \
   || fail "ow-waiting: 判断の行が足した2つの課題と違う"
-step "ow-waiting: andon waiting を打つ（人が読む出力）" "$andon" waiting \
+step "ow-waiting: andon waiting list を打つ（人が読む出力）" "$andon" waiting list \
   && grep -qF "$a" "$tmp/step.out" && ok "ow-waiting: 人が読む出力にも $a が出る" || fail "ow-waiting: 人が読む出力に $a が無い"
 
 # ow-later: Chief of Staff が印 later を書いたオーナーの課題は、呼ばずに置いてある行になる。日（later_until）が来るか、
@@ -49,30 +49,30 @@ step "ow-waiting: andon waiting を打つ（人が読む出力）" "$andon" wait
 row_of() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, call, later, later_until}' "$tmp/step.out" 2>/dev/null; }
 why="$run 急がない。次のリリースで決めればよい"
 step "ow-later: Chief of Staff（tc）が $a に印 later を書く" "$kanban" set "$a" later="$why"
-step "ow-later: 印のあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-later: 印のあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  waiting: $(row_of "$a") $(row_of "$b")"
 jq -e --arg a "$a" --arg b "$b" --arg w "$why" '[.items[] | select(.id == $a or .id == $b) | [.id, .call, (.later // "")]] == [[$b, true, ""], [$a, false, $w]]' "$tmp/step.out" >/dev/null \
   && ok "ow-later: $a は call: false で印の理由を持ち、呼んでいる $b の後に並ぶ" \
   || fail "ow-later: 印を書いた $a が置いてある行にならない・並びが違う"
-step "ow-later: 印のあとに andon waiting を打つ（人が読む出力）" "$andon" waiting
+step "ow-later: 印のあとに andon waiting list を打つ（人が読む出力）" "$andon" waiting list
 grep -q '^置いてあるもの 1 件' "$tmp/step.out" && grep -qF "置いた理由: $why" "$tmp/step.out" \
   && ok "ow-later: 人が読む出力に「置いてあるもの 1 件」と置いた理由が出る" \
   || fail "ow-later: 人が読む出力に置いてあるものの見出しか理由が無い"
 step "ow-later: Chief of Staff が $a に先の日 later_until=2999-12-31 を書く" "$kanban" set "$a" later_until=2999-12-31
-step "ow-later: 先の日のあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-later: 先の日のあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  waiting: $(row_of "$a")"
 jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == false and .later_until == "2999-12-31"' "$tmp/step.out" >/dev/null \
   && ok "ow-later: 日が先なら $a は置いたままで、呼ぶ日 2999-12-31 が出る" \
   || fail "ow-later: 日が先なのに $a を呼んだか、呼ぶ日が出ない"
 step "ow-later: Chief of Staff が $a に来た日 later_until=2000-01-01 を書く" "$kanban" set "$a" later_until=2000-01-01
-step "ow-later: 日が来たあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-later: 日が来たあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  waiting: $(row_of "$a")"
 jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == true' "$tmp/step.out" >/dev/null \
   && ok "ow-later: 日が来た $a はまた呼ぶ（call: true）" \
   || fail "ow-later: 日が来たのに $a を呼ばない"
 step "ow-later: Chief of Staff が later_until を消す" "$kanban" set "$a" later_until=
 step "ow-later: 担当の端末 tw が $a の印 later を書き直す" env HC_TERMINAL_ID=tw "$kanban" set "$a" later="$why"
-step "ow-later: 担当が書いたあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-later: 担当が書いたあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  waiting: $(row_of "$a")"
 jq -e --arg a "$a" '.items[] | select(.id == $a) | .call == true and (has("later") | not)' "$tmp/step.out" >/dev/null \
   && ok "ow-later: 担当の端末が書いた印は信じず、$a をまた呼ぶ" \
@@ -95,7 +95,7 @@ step "ow-ask-later: 担当の端末 tw が --later を打つ" env HC_TERMINAL_ID
     || fail "ow-ask-later: 担当の端末の --later の断りの理由が違うか、課題が増えた"; }
 step "ow-ask-later: Chief of Staff（tc）が --later --until で足す" "$andon" issue ask --new --later "$why2" --until 2999-12-31 --parent "$p2" - <<<"$q2"
 c=$(sed -n 's/^\([A-Z]*-[0-9]*\)#1$/\1/p' "$tmp/step.out")
-step "ow-ask-later: 足したあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-ask-later: 足したあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  waiting: $( [ -n "$c" ] && row_of "$c")"
 [ -n "$c" ] && jq -e --arg c "$c" --arg w "$why2" '.items[] | select(.id == $c) | .call == false and .later == $w and .later_until == "2999-12-31"' "$tmp/step.out" >/dev/null \
   && ok "ow-ask-later: --later --until で足した $c は、印の理由と呼ぶ日を持つ置いてある行（call: false）になる" \
@@ -107,12 +107,12 @@ for i in 1 2; do
   step "ow-slots: 担当の端末 tw$i が $w を doing にする" env HC_TERMINAL_ID="tw$i" "$kanban" start "$w"
   step "ow-slots: $w が判断の問いを出す" env HC_TERMINAL_ID="tw$i" "$kanban" ask "$w" "$run の担当 $i の問い" --kind users
 done
-step "ow-slots: andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "ow-slots: andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  slots: $(jq -c .slots "$tmp/step.out" 2>/dev/null)"
 jq -e '.slots.waiting >= .slots.limit and .slots.working < .slots.limit and .slots.free == .slots.limit - .slots.working and .slots.free > 0 and (.slots | has("waiting_full") | not)' "$tmp/step.out" >/dev/null \
   && ok "ow-slots: オーナー待ちが上限以上でも、空き（slots.free）は上限から動いている数を引いた正の数で、waiting_full は無い" \
   || fail "ow-slots: オーナー待ちが上限以上で空きが 0 か、waiting_full がある"
-step "ow-slots: andon waiting を打つ（人が読む出力）" "$andon" waiting
+step "ow-slots: andon waiting list を打つ（人が読む出力）" "$andon" waiting list
 if grep -q '起動しない' "$tmp/step.out"; then fail "ow-slots: 人が読む出力に、オーナー待ちで新しい課題を起動しないの文がある"
 elif grep -qE 'の枠: 上限 2、動いている 0、オーナー待ち 2、空き 2$' "$tmp/step.out"; then ok "ow-slots: 人が読む枠の行は空き 2 で、新しい課題を起動しないの文が無い"
 else fail "ow-slots: 人が読む枠の行が違う"; fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon gate` と `andon delegate`。本物の kanban の CLI と git・一時のセルの repo・偽の gh で回す。
+# `andon gate` と `andon delegation`。本物の kanban の CLI と git・一時のセルの repo・偽の gh で回す。
 # PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。kanban の CLI は tests/lib/kanban.sh が焼く。
 # ANDON_EMIT_DIR があれば、gate の記録と委譲を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -210,56 +210,56 @@ grep -q '^status .*state=success' "$tmp/gh/posted" || die "説明文の違う緑
 rollup COMPLETED/SUCCESS
 ok 'コメントが書けなくても印はリンク無しで書く。同じ状態と説明文でリンクのある印は書き直さず、リンクが無いか説明文が違えば書き直す（ADR-0054 A5・決めたこと 6・ADR-0056 決めたこと 3）'
 
-# 3. andon delegate: オーナーが委譲を書く（project.json の delegation。project.json は先にオーナーが書く）
-rc=0; as_owner "$andon" delegate grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+# 3. andon delegation: オーナーが委譲を書く（project.json の delegation。project.json は先にオーナーが書く）
+rc=0; as_owner "$andon" delegation grant merge B --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'project.json が無い' "$tmp/err" && [ ! -e project.json ] || die 'project.json が無いのに書けた'
 ok 'delegate: project.json が無ければ作らない（先にオーナーが書く）'
 # 移す前の delegation.json は、owner が commit していても読まない（無委譲）
 echo '{"version": 1, "project": "demo", "preset": "work", "grants": [{"id": "d1", "scope": "merge", "value": "B", "by": "owner", "at": "2026-11-05", "evidence": "x"}]}' > delegation.json
 as_owner git -C "$tmp/plant" add projects/demo/delegation.json; as_owner git -C "$tmp/plant" commit -qm 'legacy delegation.json'
-"$andon" delegate show --json | jq -e '(.trusted | not) and .effective.merge == "none" and (.reason | contains("delegation.json は読まない"))' >/dev/null || die "delegation.json を読んだ: $("$andon" delegate show --json)"
+"$andon" delegation show --json | jq -e '(.trusted | not) and .effective.merge == "none" and (.reason | contains("delegation.json は読まない"))' >/dev/null || die "delegation.json を読んだ: $("$andon" delegation show --json)"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=none < tier B'
 as_owner git -C "$tmp/plant" rm -q projects/demo/delegation.json; as_owner git -C "$tmp/plant" commit -qm 'legacy を消す'
 ok 'delegate show・gate: 移す前の delegation.json だけのセルは無委譲（読まない）'
 echo '{"version": 1, "project": {"title": "Demo", "prefix": "D"}, "repos": ["github.com/example/app"], "references": ["https://example.com/spec"]}' > project.json
 as_owner git -C "$tmp/plant" add projects/demo/project.json; as_owner git -C "$tmp/plant" commit -qm 'project.json'
-"$andon" delegate show --json | jq -e '(.trusted | not) and (.reason | contains("delegation が無い"))' >/dev/null || die 'delegation の無い project.json を委譲として読んだ'
+"$andon" delegation show --json | jq -e '(.trusted | not) and (.reason | contains("delegation が無い"))' >/dev/null || die 'delegation の無い project.json を委譲として読んだ'
 echo '{"role":"chief-of-staff"}' > "$tmp/labels"
-rc=0; HC_TERMINAL_ID=t5 "$andon" delegate grant merge B --evidence x --project demo >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; HC_TERMINAL_ID=t5 "$andon" delegation grant merge B --evidence x --project demo >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'role=chief-of-staff' "$tmp/err" && ! jq -e 'has("delegation")' project.json >/dev/null || die 'Chief of Staff の端末で書けた'
 ok 'delegate: Chief of Staff・担当の端末（role= / issue=）では打てない'
-as_owner "$andon" delegate grant merge B --evidence '2026-11-05 の対話' >/dev/null
+as_owner "$andon" delegation grant merge B --evidence '2026-11-05 の対話' >/dev/null
 jq -e '.delegation | .version == 1 and .project == "demo" and .grants[0].id == "d1" and .grants[0].value == "B" and .grants[0].until == null' project.json >/dev/null
 jq -e '.project == {title: "Demo", prefix: "D"} and .repos == ["github.com/example/app"] and .references == ["https://example.com/spec"]' project.json >/dev/null || die "オーナーが書いたキーを変えた: $(cat project.json)"
 [ ! -e delegation.md ] && [ "$(git -C "$tmp/plant" show --name-only --format= HEAD)" = projects/demo/project.json ] || die 'project.json のほかを書いた'
 git -C "$tmp/plant" log -1 --format=%B | grep -q 'evidence: 2026-11-05 の対話'
 emit project.json project.json
 ok 'delegate grant: project.json の delegation だけを書き、根拠つきで commit する（cwd から slug。ほかのキーはオーナーのまま）'
-rc=0; as_owner "$andon" delegate narrow merge C --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; as_owner "$andon" delegation narrow merge C --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q '広げない' "$tmp/err" || die 'narrow で広げられた'
-rc=0; as_owner "$andon" delegate grant irreversible delete-remote --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; as_owner "$andon" delegation grant irreversible delete-remote --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'delete-remote は委譲できない' "$tmp/err" || die 'delete-remote を委譲できた'
 mkdir -p "$tmp/plant/projects/andon"
 echo '{"version": 1, "project": {"title": "Andon", "prefix": "A"}, "repos": []}' > "$tmp/plant/projects/andon/project.json"
 as_owner git -C "$tmp/plant" add projects/andon/project.json; as_owner git -C "$tmp/plant" commit -qm 'andon の project.json'
 ok 'delegate: narrow は広げない・delete-remote は断る'
 # ADR-0041 受け入れ条件 1: slug が andon のプロジェクトも、ほかと同じ決まりで委譲を書く（merge C・line-change plant。型は書かなければ work）
-as_owner "$andon" delegate grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || die "andon プロジェクトに merge C を委譲できない: $(cat "$tmp/err")"
-as_owner "$andon" delegate grant line-change plant --evidence x --project andon >/dev/null 2>"$tmp/err" || die "andon プロジェクトに line-change plant を委譲できない: $(cat "$tmp/err")"
-"$andon" delegate show --json --project andon | jq -e '.trusted and .preset == "work" and .effective.merge == "C" and .effective["line-change"] == "plant"' >/dev/null ||
-    die "andon プロジェクトの委譲の読み方が違う: $("$andon" delegate show --json --project andon)"
+as_owner "$andon" delegation grant merge C --evidence x --project andon >/dev/null 2>"$tmp/err" || die "andon プロジェクトに merge C を委譲できない: $(cat "$tmp/err")"
+as_owner "$andon" delegation grant line-change plant --evidence x --project andon >/dev/null 2>"$tmp/err" || die "andon プロジェクトに line-change plant を委譲できない: $(cat "$tmp/err")"
+"$andon" delegation show --json --project andon | jq -e '.trusted and .preset == "work" and .effective.merge == "C" and .effective["line-change"] == "plant"' >/dev/null ||
+    die "andon プロジェクトの委譲の読み方が違う: $("$andon" delegation show --json --project andon)"
 ok 'delegate: slug が andon のプロジェクトにも merge C と line-change plant を委譲できる（型を書かなければ work）'
 # 作業ツリーの変更（エージェントが repos を足した、など）をオーナーの commit に混ぜない。HEAD が owner の commit でなければ書かない
 jq '.repos += ["github.com/example/other"]' project.json > "$tmp/p.json" && cp "$tmp/p.json" project.json
-rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; as_owner "$andon" delegation grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'commit していない変更がある' "$tmp/err" || die "未 commit の変更があるのに書けた: $(cat "$tmp/err")"
 as_agent git -C "$tmp/plant" commit -qm 'agent が repos を足した' -- projects/demo/project.json
-rc=0; as_owner "$andon" delegate grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; as_owner "$andon" delegation grant profile true --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'owner でない' "$tmp/err" || die "owner でない HEAD の上に書けた: $(cat "$tmp/err")"
 as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
 jq -e '.repos == ["github.com/example/app"] and (.delegation.grants | length) == 1' project.json >/dev/null || die "戻っていない: $(cat project.json)"
 ok 'delegate: project.json に未 commit の変更がある・HEAD が owner の commit でなければ書かない（ほかの変更をオーナーの commit に混ぜない）'
-"$andon" delegate show --json | jq -e '.trusted and .preset == "work" and .effective.merge == "B" and .effective.deploy == "none"' >/dev/null
+"$andon" delegation show --json | jq -e '.trusted and .preset == "work" and .effective.merge == "B" and .effective.deploy == "none"' >/dev/null
 ok 'delegate show: HEAD の委譲を読み手と同じに読む'
 
 # 4. 委譲の範囲内で揃えば approve
@@ -369,9 +369,9 @@ as_agent git -C "$tmp/plant" commit -qm 'agent が書いた' -- projects/demo/pr
 got=$(gate "$id" --dry-run); expect 4 needs_human 'merge=none'
 as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
 ok '委譲の commit の author が owner でなければ無委譲'
-as_owner "$andon" delegate revoke d1 --reason 'やめる' >/dev/null
+as_owner "$andon" delegation revoke d1 --reason 'やめる' >/dev/null
 got=$(gate "$id" --dry-run); expect 0 approve
-"$andon" delegate show --json | jq -e '.effective.merge == "B" and .grants == []' >/dev/null
+"$andon" delegation show --json | jq -e '.effective.merge == "B" and .grants == []' >/dev/null
 jq -e '.delegation.grants[0].revoked.reason == "やめる"' project.json >/dev/null
 ok 'delegate revoke: 行を残して取り消す（型 work の merge B に戻る）'
 
@@ -448,28 +448,28 @@ ok 'レベル C の変更は委譲 merge B の外で needs_human'
 cp project.json "$tmp/p0.json"
 jq '.delegation = {"version": 1, "project": "demo", "preset": "andon", "grants": []}' "$tmp/p0.json" > project.json
 as_owner git -C "$tmp/plant" commit -qm '型 andon・grant なし' -- projects/demo/project.json
-"$andon" delegate show --json | jq -e '.trusted and .preset == "andon" and .effective.merge == "B"' >/dev/null || die "型 andon の委譲を読めない: $("$andon" delegate show --json)"
+"$andon" delegation show --json | jq -e '.trusted and .preset == "andon" and .effective.merge == "B"' >/dev/null || die "型 andon の委譲を読めない: $("$andon" delegation show --json)"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and .delegation == {merge: "B", ok: false}' "$tmp/out" >/dev/null || die "型 andon の記録の形が違う: $(cat "$tmp/out")"
 as_owner git -C "$tmp/plant" revert --no-edit HEAD >/dev/null
 ok '型 andon で grant の無いプロジェクトのレベル C の変更は needs_human（delegation: merge=B < tier C）'
 
-# 11a. ADR-0041 受け入れ条件 6・7: 課題を名指しした merge の委譲（andon delegate grant merge C --issues）。
+# 11a. ADR-0041 受け入れ条件 6・7: 課題を名指しした merge の委譲（andon delegation grant merge C --issues）。
 # 別の課題だけを名指ししているあいだ、この課題の同じレベル C の PR は needs_human。この課題を名指しすると approve で、記録に grant の id
 oid=$(HC_TERMINAL_ID=t5 kanban add '名指しする別の課題' --profile claude)
-rc=0; as_owner "$andon" delegate grant merge C --issues D-9999 --evidence x >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; as_owner "$andon" delegation grant merge C --issues D-9999 --evidence x >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'D-9999 が kanban に無い' "$tmp/err" || die "kanban に無い課題を名指しできた: rc=$rc $(cat "$tmp/err")"
-as_owner "$andon" delegate grant merge C --issues "$oid" --evidence '2026-11-21 の対話' >/dev/null
+as_owner "$andon" delegation grant merge C --issues "$oid" --evidence '2026-11-21 の対話' >/dev/null
 o_grant=$(jq -r '.delegation.grants[-1].id' project.json)
 jq -e --arg o "$oid" '.delegation.grants[-1] | .scope == "merge" and .value == "C" and .issues == [$o]' project.json >/dev/null ||
     die "名指しの grant の形が違う: $(jq -c '.delegation.grants[-1]' project.json)"
-"$andon" delegate show --json | jq -e --arg o "$oid" '.effective.merge == "B" and any(.grants[]; .issues == [$o])' >/dev/null ||
-    die "名指しがプロジェクト全体の値に漏れた: $("$andon" delegate show --json)"
+"$andon" delegation show --json | jq -e --arg o "$oid" '.effective.merge == "B" and any(.grants[]; .issues == [$o])' >/dev/null ||
+    die "名指しがプロジェクト全体の値に漏れた: $("$andon" delegation show --json)"
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 jq -e '.tier == "C" and .delegation == {merge: "B", ok: false}' "$tmp/out" >/dev/null || die "名指ししていない課題の記録が違う: $(jq -c .delegation "$tmp/out")"
-as_owner "$andon" delegate grant merge C --issues "${id%%-*}-$((10#${id##*-}))" --evidence '2026-11-21 の対話' >/dev/null
+as_owner "$andon" delegation grant merge C --issues "${id%%-*}-$((10#${id##*-}))" --evidence '2026-11-21 の対話' >/dev/null
 grant=$(jq -r '.delegation.grants[-1].id' project.json)
-"$andon" delegate show | grep -q "名指し $grant merge C: $id" || die "show に名指しが出ない: $("$andon" delegate show)"
+"$andon" delegation show | grep -q "名指し $grant merge C: $id" || die "show に名指しが出ない: $("$andon" delegation show)"
 got=$(gate "$id" --dry-run); expect 0 approve
 jq -e --arg g "$grant" '.tier == "C" and .delegation == {merge: "C", ok: true, grant: $g}' "$tmp/out" >/dev/null ||
     die "名指しした課題の記録が違う: $(jq -c '{tier, delegation}' "$tmp/out")"
@@ -491,8 +491,8 @@ got=$(gate "$id" --dry-run); expect 0 approve
 jq -e --arg g "$grant" '.acceptance.manual == 1 and .delegation == {merge: "C", ok: true, grant: $g}' "$tmp/out" >/dev/null ||
     die "manual だけの課題で名指しが効かない: $(jq -c '{acceptance, delegation}' "$tmp/out")"
 rereport
-as_owner "$andon" delegate revoke "$grant" --reason '片付いた' >/dev/null
-as_owner "$andon" delegate revoke "$o_grant" --reason '片付いた' >/dev/null
+as_owner "$andon" delegation revoke "$grant" --reason '片付いた' >/dev/null
+as_owner "$andon" delegation revoke "$o_grant" --reason '片付いた' >/dev/null
 got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation: merge=B < tier C'
 ok '名指しした課題でも one_way の申告があれば needs_human、manual があるだけなら approve。revoke すれば名指しは効かない（ADR-0041 受け入れ条件 7）'
 

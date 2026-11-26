@@ -2,7 +2,7 @@
 
 What waits on you in the project you are in, as a screen of the right panel beside Files and Changes: pull requests waiting for your merge, decisions a question waits on, and owner tasks ([ADR-0042](../../../docs/adr/0042-owner-waits-do-not-stop-the-line.md) decision 12). You can answer a decision's question here by picking one of its options (decisions 17 and 18); everything else it only shows.
 
-The list is not counted here. The mod runs `andon waiting --json` in the cell, in the focused pane's folder, and draws its output in its order ([contract.md](../../../docs/contract.md) §25). The command holds the rule of what waits on you and how the parallel slots count, so the Chief of Staff and this pane never disagree (decision 14).
+The list is not counted here. The mod runs `andon waiting list --json` in the cell, in the focused pane's folder, and draws its output in its order ([contract.md](../../../docs/contract.md) §25). The command holds the rule of what waits on you and how the parallel slots count, so the Chief of Staff and this pane never disagree (decision 14).
 
 ## What it shows
 
@@ -12,7 +12,7 @@ The list is not counted here. The mod runs `andon waiting --json` in the cell, i
 - **Click a row to open it:** the question, its facts, why it is asked and its options (the recommended one marked), or the reason a merge waits; on a task, the steps from its brief (the brief's text, line by line) and the brief's links, each opening in your browser; the question's number; the issues waiting behind it by id. A merge row has **Open PR** (your browser). Every row has **Go to Chief of Staff** while the project's Chief of Staff (`role=chief-of-staff`, `project=<slug>`) runs on that machine.
 - **Answer a decision:** on a decision row the output marks `answerable` (it has options and isn't irreversible), click an option to pick it, then press **Answer "<option>"**. Picking alone writes nothing. The button runs `andon waiting answer <id>#<n> --option <n>` in the folder and machine the row was read from; the command checks the question again and writes the option's `label` as the answer. The row then shows `Answered: <option>` and leaves the list at the next read. If the command refuses (say the question was answered in the conversation meanwhile), the row shows its reason in one line in `blocked` and keeps your pick. A decision without `answerable: true` (an irreversible one, one without options, or an andon older than the field) shows `Answer it to the Chief of Staff.` and no button; so does any answer that isn't one of the options.
 - **Nothing waiting:** the slots line and `Nothing is waiting on you`.
-- **When it can't tell:** one line in `blocked` with the reason, and nothing else: the command failed (its first line of error, such as no ledger in this folder), its output isn't JSON, its `version` isn't 1, or the cell's `andon` is missing or older than `andon waiting` (update the cell's Andon).
+- **When it can't tell:** one line in `blocked` with the reason, and nothing else: the command failed (its first line of error, such as no ledger in this folder), its output isn't JSON, its `version` isn't 1, or the cell's `andon` is missing (update the cell's Andon). When the cell's `andon` doesn't know the command's name (an older or a newer `andon` than this pane: it refuses with exit 2), the line says the two are different versions: reinstall the host parts ([docs/operate.md](../../../docs/operate.md), ADR-0053 decision 9).
 
 It is not called "Needs you": the inbox's Needs you is terminal states, and a question on the ledger is not a state. Merges stay on GitHub: this pane opens the pull request and never merges.
 
@@ -34,7 +34,7 @@ To close it, press the close button at the right of its header, or Esc while the
 
 | Call | When |
 |---|---|
-| `exec("andon", ["waiting", "--json"], {cwd, on})` | every 10 s and when the focused folder or machine changes; `cwd` is the focused pane's folder, `on` its machine |
+| `exec("andon", ["waiting", "list", "--json"], {cwd, on})` | every 10 s and when the focused folder or machine changes; `cwd` is the focused pane's folder, `on` its machine |
 | `exec("andon", ["waiting", "answer", question, "--option", n], {cwd, on})` | **Answer** on an answerable decision row, once per press; `question` is the item's `question` from the output (`<id>#<n>`), `n` the picked option's number from 1, `cwd` and `on` where the row was read |
 | `exec("xdg-open" \| "open" \| "explorer.exe", [url])` | **Open PR** on a merge row, and a link under a task row's steps (only `http(s)` links) |
 | `run("agent.focus", {terminal})` | **Go to Chief of Staff** |

@@ -1,4 +1,4 @@
-// Package spawn はエージェントを起動する command（andon chief-of-staff・andon chief-engineer・andon issue start）が
+// Package spawn はエージェントを起動する command（andon open・andon design start・andon issue start）が
 // 共有するもの: コマンドを打つ・repo の置き場・worktree と branch を切る・hc の template を確かめる（起動行を読む）・hc run を打つ。
 //
 // 置き場（docs/contract.md §8）:
@@ -140,7 +140,7 @@ func (s *Started) Reason() string {
 // dispatcher が見回りで拾い、端末が入力を受けられるようになったら最初のメッセージを送って外す（contract.md §8・dispatcher.md §5）。
 const FirstLabel = "first_message.sent"
 
-// FirstMessage は担当（andon issue start）と Chief Engineer（andon chief-engineer）の最初のメッセージ（課題の2行）。
+// FirstMessage は担当（andon issue start）と Chief Engineer（andon design start）の最初のメッセージ（課題の2行）。
 // skill はプロファイルの command が system prompt に足すので、ここには書かない（ADR-0001 決定 3）。
 // dispatcher が送り直すときも同じ文を組む。brief は依頼書の絶対パス。
 func FirstMessage(slug, id, brief string) string {
@@ -169,7 +169,7 @@ const WikiIndex = "wiki/index.md"
 
 // Wiki は担当の最初のメッセージに足す、wiki の目録を引く1行（先頭の改行つき）を返す（ADR-0061 決めたこと 11・12）。
 // 目録の Entities か Topics の節にページの行（"- " で始まる行）が1つ以上あるときだけ返し、無ければ空。
-// andon init の雛形は節だけの目録を作るので、目録が在るかでは分けない。足すのは担当だけで、レビュアーと Chief Engineer には足さない。
+// andon cell init の雛形は節だけの目録を作るので、目録が在るかでは分けない。足すのは担当だけで、レビュアーと Chief Engineer には足さない。
 func Wiki() string {
 	ws := os.Getenv("ANDON_WORKSPACE")
 	if ws == "" {

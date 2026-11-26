@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/measure/2",
   "title": "Measure",
-  "description": "Output of `andon measure --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
+  "description": "Output of `andon metrics show --json`: the flow, efficiency and counter metrics of one project's ledger over a period, derived from log.jsonl, issue.yaml, questions.yaml, report.json, gate records, corrections.json, GitHub's merged pull requests and the dispatcher's notification records (<slug>.recorded.jsonl and <slug>.delivered.jsonl), and the agents' session records (Claude Code and Codex) for token counts. Printed only; never written or kept. A count is 0 and a rate, mean or median is null when there is no record to count. Records that could not be read are listed in skipped, not counted as 0. Only these keys.",
   "type": "object",
   "required": ["project", "since", "until", "days", "value", "flow", "efficiency", "counter", "news", "prs", "estimate", "issues", "tokens", "breakdown", "profiles", "knowledge", "skipped"],
   "additionalProperties": false,

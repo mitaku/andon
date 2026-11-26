@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// 依頼書が普通のファイルでない（FIFO・装置を指す symlink）と、読むと止まるか際限なく読む。andon waiting と dispatcher を止めないよう、
+// 依頼書が普通のファイルでない（FIFO・装置を指す symlink）と、読むと止まるか際限なく読む。andon waiting list と dispatcher を止めないよう、
 // 普通のファイルでない依頼書は読まずに行だけを出す。大きすぎる依頼書は頭だけを読む。
 func TestTaskBriefNotRegular(t *testing.T) {
 	f := newFake(t, 4)

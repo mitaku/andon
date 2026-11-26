@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/delivered/1",
   "title": "Delivered notifications",
-  "description": "One line of ~/.local/state/andon/dispatcher/<slug>.delivered.jsonl (under XDG_STATE_HOME when set): one turn in which the dispatcher handed <news> to the Chief of Staff through a hook and then saw that turn end. Written only by the dispatcher (andon dispatcher drain), appended only; read by andon measure. A turn whose end was not seen (the news is delivered again) is not written. Only these keys.",
+  "description": "One line of ~/.local/state/andon/dispatcher/<slug>.delivered.jsonl (under XDG_STATE_HOME when set): one turn in which the dispatcher handed <news> to the Chief of Staff through a hook and then saw that turn end. Written only by the dispatcher (andon dispatcher drain), appended only; read by andon metrics show. A turn whose end was not seen (the news is delivered again) is not written. Only these keys.",
   "type": "object",
   "required": [
     "at",

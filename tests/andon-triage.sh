@@ -261,7 +261,7 @@ while IFS=$'\t' read -r issue key; do
     kanban show "$issue" --json | jq -e '.issue.who == "person" and (.issue.title|endswith("（オーナーの判断待ち）"))
         and (.questions|length==1 and .[0].status=="open" and .[0].kind=="promise")' >/dev/null
     jq -e --arg k "$key" '.from=="chief-of-staff" and .facts[0]==$k and .options[0]=={label:"確認する",pick:true}' "kanban/issues/$issue/library/questions/1.json" >/dev/null
-    # later が false の判断は印を持たず、andon waiting で呼ぶ行（call が真）になる（ADR-0062 受け入れ条件 11）
+    # later が false の判断は印を持たず、andon waiting list で呼ぶ行（call が真）になる（ADR-0062 受け入れ条件 11）
     kanban show "$issue" --json | jq -e '.issue | has("later") or has("later_until") | not' >/dev/null || die "later が false の判断 $issue に印がある"
     "$script" waiting --json | jq -e --arg id "$issue" '[.items[]|select(.id==$id)] | length==1 and .[0].call==true and (.[0]|has("later")|not)' >/dev/null \
         || die "later が false の判断 $issue が呼ぶ行にならない: $("$script" waiting --json)"
@@ -488,7 +488,7 @@ grep -q '閉じた 1 ・ 直す 1（うち束ね 0） ・ オーナーへ 1（�
 hand=$(jq -r '.items[]|select(.decision=="person").created_issue' "$rec")
 kanban show "$hand" --json | jq -e '.issue.who == "person" and .issue.only_owner == "外のサービスの画面はオーナーのアカウントにだけある"
     and .issue.title == "外のサービスで約束を結ぶ（今週中）" and (.questions|length==0)' >/dev/null
-# later が文字列の項目は、課題に印 later と later_until を書き、andon waiting で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 11）
+# later が文字列の項目は、課題に印 later と later_until を書き、andon waiting list で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 11）
 kanban show "$hand" --json | jq -e '.issue.later == "急がない。答えを待つ仕事が無い" and .issue.later_until == "2999-12-31"' >/dev/null \
     || die "手作業の課題に印が無い: $(kanban show "$hand" --json | jq -c .issue)"
 "$script" waiting --json | jq -e --arg id "$hand" '[.items[]|select(.id==$id)] | length==1 and .[0].kind=="task" and .[0].call==false and .[0].later=="急がない。答えを待つ仕事が無い"' >/dev/null \
@@ -745,7 +745,7 @@ n_before=$(kanban list --all --json | jq length)
 HC_TERMINAL_ID=t50 "$script" triage apply "$td" >/dev/null
 [[ $(kanban list --all --json | jq length) == "$n_before" ]]
 kanban show "$bare" --json | jq -e '.questions|length==1 and .[0].status=="open"' >/dev/null
-# later が文字列の判断は、問いの前に印 later を書き、andon waiting で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 11）
+# later が文字列の判断は、問いの前に印 later を書き、andon waiting list で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 11）
 "$script" waiting --json | jq -e --arg id "$bare" '[.items[]|select(.id==$id)] | length==1 and .[0].kind=="decision" and .[0].call==false and .[0].later=="急がない。期限が無い"' >/dev/null \
     || die "later が文字列の判断が置いてある行にならない: $("$script" waiting --json)"
 jq -e --arg b "$bare" '.items[0].created_issue==$b' kanban/library/triage/*-"$td".json >/dev/null

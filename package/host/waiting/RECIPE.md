@@ -1,6 +1,6 @@
 # Waiting on you
 
-A right-panel screen that draws `andon waiting --json` (Andon's owner waits and parallel slots) for the focused pane's project, and counts nothing itself. On an answerable decision it can answer with one of the options through `andon waiting answer`.
+A right-panel screen that draws `andon waiting list --json` (Andon's owner waits and parallel slots) for the focused pane's project, and counts nothing itself. On an answerable decision it can answer with one of the options through `andon waiting answer`.
 
 ## What you see
 
@@ -17,7 +17,7 @@ On the theme's `background`:
 ## How it behaves
 
 - Place: the focused pane's folder and machine (Herdr's Files panel's `location()`); a new place drops what was read and the open rows. While this pane holds the keyboard (a click in it can take it), the place stays as it was, whatever `focused()` reports.
-- Reading: `exec("andon", ["waiting", "--json"], { cwd, on, timeout: 15000 })` at start, every 10 s (`cx.timer.every`), and when the place changes; one run at a time; a place that changed during a run is read as soon as the run ends. Exit 127: no `andon` in the cell. Exit 2 (andon's usage error, with fixed arguments): an andon older than `andon waiting`. Another non-zero exit: its first stderr line. Then JSON, `version` 1, `slots` and `items`, or a one-line reason.
+- Reading: `exec("andon", ["waiting", "list", "--json"], { cwd, on, timeout: 15000 })` at start, every 10 s (`cx.timer.every`), and when the place changes; one run at a time; a place that changed during a run is read as soon as the run ends. Exit 127: no `andon` in the cell. Exit 2 with andon's refusal of the name (`知らない` from an older andon, `名前が変わった` from a newer one; the arguments are fixed): the cell's andon and the pane are different versions, reinstall the host parts. The same for `andon waiting answer`. Another non-zero exit: its first stderr line. Then JSON, `version` 1, `slots` and `items`, or a one-line reason.
 - Order: the output's `items` as they are, split in two: `isLater(i)` (exported) is `i.call === false`; a row without `call` calls.
 - Links: a click on a task row's link opens it as **Open PR** does (`openWeb`: only `^https?://[^\s]+$`, through `xdg-open`, `open` or `explorer.exe`). A task row without `steps` or `links` (no brief, or an andon older than the fields) shows its `reason` only.
 - Answering: `answerable(i)` is `kind` `decision`, `answerable === true`, a `question` matching `^[A-Za-z0-9][A-Za-z0-9._-]*#[1-9][0-9]*$`, options in `ask`, and not answered here yet. A click on an option only sets the pick (per question). **Answer** runs `exec("andon", ["waiting", "answer", question, "--option", String(n + 1)], { cwd, on, timeout: 15000 })` with the place the row was read from, one run per question at a time. Exit 0: answered (kept per question until a read no longer lists it). Exit 127: no `andon`. Exit 2: an andon older than `andon waiting answer`. Another exit: `Not answered: <first stderr line>`. A place changed during the run drops the result with the rest. A click on a row drawn from output no longer on screen, or while the focused place differs from the place the output was read from (even before the pane reads again), does nothing.
@@ -38,6 +38,6 @@ On the theme's `background`:
 - `herdr-app check` passes.
 - In a project with a gate question open on a review issue, the pane shows a `Merge` row; **Open PR** opens it; the inbox's waiting button shows the panel on this screen.
 - On a task whose brief has steps and a link, opening the row shows the brief line by line and the link; pressing the link opens it in the browser.
-- In the cell's own folder (no project), the pane shows andon waiting's reason in one line.
+- In the cell's own folder (no project), the pane shows andon waiting list's reason in one line.
 - Pressing the header's close button hides the right panel, and the inbox's waiting button shows it again on this screen. With the pane holding the keyboard (`pane.go` right from the shown tab), Esc hides it too and the keyboard is back on the left. A row opened and an option picked before closing are still open and picked after showing it again.
 - On a decision with options, picking an option and pressing **Answer** writes that option as the answer (`kanban questions` shows it answered), the row shows `Answered: <label>`, and the Chief of Staff gets the `answered` notice.
