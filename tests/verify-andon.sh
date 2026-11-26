@@ -342,7 +342,7 @@ if [ "$self" = true ]; then
   [ "$got" = "dispatcher-news gate hold hooks report-ready " ] || die "features.sh: internal/gate/ と package/hooks/ の差分で dispatcher-news gate hold hooks report-ready にならない: $got"
   [ "$(feat "$c4..$c5")" = digest ] || die "features.sh: internal/digest/ の差分で digest だけにならない: $(feat "$c4..$c5" | tr '\n' ' ')"
   got=$(feat "$c5..$c6" | tr '\n' ' ')
-  [ "$got" = "digest hold measure otel report-ready waiting worker-launch " ] || die "features.sh: internal/ledger/ask.go の差分で digest hold measure otel report-ready waiting worker-launch にならない: $got"
+  [ "$got" = "digest dispatcher-news hold measure otel report-ready waiting worker-launch " ] || die "features.sh: internal/ledger/ask.go の差分で digest dispatcher-news hold measure otel report-ready waiting worker-launch にならない: $got"
   got=$(feat "$c6..$c7" | tr '\n' ' ')
   [[ " $got" == *" create "* ]] || die "features.sh: internal/spawn/ の差分で create を返さない: $got"
   got=$(feat "$c7..$c8" | tr '\n' ' ')
