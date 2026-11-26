@@ -10,7 +10,20 @@
 
 ### 変わったこと
 
-- **セルの入口 `bin/bootstrap` を、薄い入口と image の中の本体に分けた**（[ADR-0048](docs/adr/0048-thin-cell-entry.md)）: セルの repo の `bin/bootstrap` は薄い入口になり、打たれるたびにセルの image から本体（`/opt/andon/host/bootstrap`）を `.andon/bootstrap` に取り出して走らせる。sub-command の中身は本体が持つので、これからは Andon を上げて `rebuild` すれば入口の動きも新しくなる。`andon init --print <パス>` で雛形の 1 ファイルを出せる。image を見ずに本体を名指しする口 `ANDON_ENTRY_BODY` を足した。`--dry-run` は docker を打たず、焼く・取り出す・走らせるの 3 行だけを出す。
+- **セルの入口 `bin/bootstrap` を、薄い入口と image の中の本体に分けた**（[ADR-0048](docs/adr/0048-thin-cell-entry.md)）: セルの repo の `bin/bootstrap` は薄い入口になり、打たれるたびにセルの image から本体（`/opt/andon/host/bootstrap`）を `.andon/bootstrap` に取り出して走らせる。sub-command の中身は本体が持つので、これからは Andon を上げて `rebuild` すれば入口の動きも新しくなる。`andon cell init --print <パス>` で雛形の 1 ファイルを出せる。image を見ずに本体を名指しする口 `ANDON_ENTRY_BODY` を足した。`--dry-run` は docker を打たず、焼く・取り出す・走らせるの 3 行だけを出す。
+- **オーナーが打つコマンドの名前を変えた**（[ADR-0053](docs/adr/0053-command-system.md) の切る案 3）: 古い名前は別名にせず、打つと新しい名前を 1 行で言って終了コード 2 で終わる。名詞だけの `andon waiting` も断る。
+
+  | 古い名前 | 新しい名前 |
+  |---|---|
+  | `andon chief-of-staff` | `andon open`（slug を省くと今いるプロジェクト） |
+  | `andon chief-engineer` | `andon design start` |
+  | `andon create` | `andon project create` |
+  | `andon waiting` | `andon waiting list` |
+  | `andon delegate show`・`grant`・`narrow`・`revoke` | `andon delegation show`・`grant`・`narrow`・`revoke` |
+  | `andon measure` | `andon metrics show` |
+  | `andon init` | `andon cell init` |
+
+  プロジェクトの slug を 1 行ずつ出す `andon project list` を足した。
 
 ### 上げるときにすること
 
@@ -18,11 +31,13 @@
   - **置き換える前に `git diff bin/bootstrap` を見る**: 入口に手を入れていたら、置き換えでその行が消える。セルごとの違いは `.env`・`compose.override.yaml`・`local/` に書く。置き換えた `bin/bootstrap` はセルの repo に commit する。
   - **`host-install` は入口を置き換えてから打つ**: 古い入口の `host-install` は `docker compose` を打たないので止まらず、古い入口が知っている置き先だけを黙って置く。
   - v0.0.14 の「今あるセルの `bin/bootstrap` を置き換える」の手順（セルの中の `andon` で雛形を作る）は使わない。古い入口が止まったとき、セルの中の `andon` は前の image のもので、古い入口が出る。
+- **host-install（雛形が変わった）**: App の mod の `inbox`・`kanban-board`・`waiting` が `andon waiting list --json` を打つようになった。セルを `rebuild` してから、この 3 つを退避して `bin/bootstrap host-install` で入れ直す（[docs/operate.md](docs/operate.md) の「バージョンを上げるとき: host-install が置いたものを退避する」）。部品とセルの andon のバージョンが合わないと、`inbox` と `waiting` は部品を入れ直すよう 1 行で出す。
+- **古い名前を打っている手元のスクリプトや控えを直す**: 上の表のとおり新しい名前に書き換える。`rebuild` のあと、Chief of Staff は `andon open` で開く。
 - **入口を分ける前のバージョンへ戻すとき**: 入口も前のものに戻してから `rebuild` を打つ（[docs/operate.md](docs/operate.md) の「GHCR のバージョンへ戻す」）。
 
 ### 直したこと
 
-- **届けた通知の記録が、`answered` と `hold` を含むターンを落とした**: v0.0.14 と v0.0.15 の既知の不具合。`delivered`（届けた通知の記録）の schema に種類 `answered` と `hold` を足し、通知と記録の種類の一覧がずれたら検査が落ちるようにした。どちらかを渡したターンも、一緒に渡したほかの通知ごと記録に残り、`andon measure` の届けた通知の数と、ダイジェストの止まった担当に数えられる。直す前に落ちたターンは記録に戻らない。schema のバージョンは変わらない。
+- **届けた通知の記録が、`answered` と `hold` を含むターンを落とした**: v0.0.14 と v0.0.15 の既知の不具合。`delivered`（届けた通知の記録）の schema に種類 `answered` と `hold` を足し、通知と記録の種類の一覧がずれたら検査が落ちるようにした。どちらかを渡したターンも、一緒に渡したほかの通知ごと記録に残り、`andon metrics show` の届けた通知の数と、ダイジェストの止まった担当に数えられる。直す前に落ちたターンは記録に戻らない。schema のバージョンは変わらない。
 
 ## v0.0.15 — 2026-11-25
 

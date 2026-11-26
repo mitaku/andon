@@ -71,7 +71,7 @@ type Env struct {
 	GH func(repo string) ([]byte, error)
 	// Delivered・Signals・State は dispatcher の記録（届けた通知・外の信号・控え）。空なら読まない。
 	Delivered, Signals, State string
-	// ClaudeDir・CodexSessions はトークンを数えるセッションの記録（andon measure と同じ）。空なら読まない。
+	// ClaudeDir・CodexSessions はトークンを数えるセッションの記録（andon metrics show と同じ）。空なら読まない。
 	ClaudeDir, CodexSessions string
 	// SlackAPI は Slack の Web API の根、Tokens はトークンの置き場。空なら Slack へ送らない（検査が本物へ届かない）。
 	SlackAPI, Tokens string

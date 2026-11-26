@@ -16,7 +16,7 @@ import (
 
 // 振り返りの入力の内訳と、直しのマージの前後の数字（ADR-0060 決めたこと 17。docs/contract.md §20）。
 // 課題の内訳は、dispatcher が片付けのときに書いた outcome.json の breakdown を読む（生の記録は読まない。決めたこと 15）。
-// Chief of Staff には outcome.json が無いので、その分だけは役ごとの生の記録から数える（andon measure と同じ数え方）。
+// Chief of Staff には outcome.json が無いので、その分だけは役ごとの生の記録から数える（andon metrics show と同じ数え方）。
 
 const (
 	sideMax = 30 // 前と後のそれぞれで、マージの時刻に近いほうから数える課題の数
@@ -36,7 +36,7 @@ type Side struct {
 	Numbers *Numbers `json:"numbers"`
 }
 
-// Numbers は andon measure のプロファイルごとの節と同じ数え方の数字。
+// Numbers は andon metrics show のプロファイルごとの節と同じ数え方の数字。
 type Numbers struct {
 	WorkedMinutes Median    `json:"worked_minutes"` // outcome.json の worked_minutes（無い課題は数えない）
 	Tokens        Median    `json:"tokens"`         // 内訳の tokens の 4 つの和（内訳の無い課題と、モデルの呼び出しの記録の無い内訳は数えない）
@@ -134,7 +134,7 @@ func (n *nums) of(id string) *issueNums {
 			x.worked = &v
 		}
 		if b := n.r.breakdown(lib); b != nil && (tokenSum(b.Tokens) > 0 || b.LLMMs > 0) {
-			// モデルの呼び出しの記録の無い内訳（Codex の課題）を「トークン 0」と数えない（andon measure と同じ）
+			// モデルの呼び出しの記録の無い内訳（Codex の課題）を「トークン 0」と数えない（andon metrics show と同じ）
 			v := float64(tokenSum(b.Tokens))
 			x.tokens = &v
 		}

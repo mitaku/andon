@@ -29,7 +29,7 @@ steps:
   - id: start
     title: ダイジェストの担当をほかの課題より先に起動する
     by: ai
-    input: [notification.ready, andon waiting --json（slots）]
+    input: [notification.ready, andon waiting list --json（slots）]
     output: [kanban（予約キー review と estimate）, hc（担当の端末）, kanban（doing）]
     skill: [chief-of-staff/playbooks/digest.md, chief-of-staff/playbooks/start.md]
     decides: [オーナーに聞かずに起動する, 枠が空くまで待つ]

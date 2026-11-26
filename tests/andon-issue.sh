@@ -345,9 +345,9 @@ kanban show "$own" --json | jq -e '.questions | length == 1 and .[0].status == "
 jq -e --argjson q "$nq" '. == $q' "kanban/issues/$own/library/questions/1.json" >/dev/null || die 'ask --new: questions/1.json が渡した JSON でない'
 grep -qx 'kind: promise' "kanban/issues/$own/brief.md" && grep -qx '推奨案: 伝える' "kanban/issues/$own/brief.md" \
   && grep -q '^出どころ: T-0001（andon issue を足す） / docs/a.md$' "kanban/issues/$own/brief.md" || die "ask --new: 依頼書に種類・推奨案・出どころが無い: $(cat "kanban/issues/$own/brief.md")"
-"$andon" waiting --json | jq -e --arg id "$own" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1") and .[0].answerable == true' >/dev/null \
-  || die "ask --new: 判断の行に出ない: $("$andon" waiting --json)"
-ok 'ask --new: 課題を 1 つ足し、who: person・タイトル・依頼書（種類・推奨案）・開いた問い・questions/1.json を置き、andon waiting の判断の行に答えられる形で出る（受け入れ条件 7）'
+"$andon" waiting list --json | jq -e --arg id "$own" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1") and .[0].answerable == true' >/dev/null \
+  || die "ask --new: 判断の行に出ない: $("$andon" waiting list --json)"
+ok 'ask --new: 課題を 1 つ足し、who: person・タイトル・依頼書（種類・推奨案）・開いた問い・questions/1.json を置き、andon waiting list の判断の行に答えられる形で出る（受け入れ条件 7）'
 for bad in '.options = [.options[0]]|options が2つ未満' '.kind = "other"|kind が' '.kind = "scope"|scope の問いはオーナーの課題に置かない'; do
     expect_fail "${bad#*|}" as t5 "$andon" issue ask --new --now - <<<"$(jq -c "${bad%|*}" <<<"$nq")"
 done
@@ -371,20 +371,20 @@ out=$(as t5 "$andon" issue ask --new --now --after "$pre" --parent "$id" - <<<"$
 own2=${out%#*}
 kanban show "$own2" --json | jq -e --arg pre "$pre" --arg p "$id" '(.issue | .status == "queued" and .after == [$pre] and .parent == $p and .who == "person") and .questions[0].status == "open"' >/dev/null \
   || die "ask --new --after: queued・after・parent・開いた問いでない: $(kanban show "$own2" --json)"
-"$andon" waiting --json | jq -e --arg id "$own2" '[.items[] | select(.id == $id)] | length == 0' >/dev/null || die 'ask --new --after: 前の課題が片付く前に andon waiting に出た'
+"$andon" waiting list --json | jq -e --arg id "$own2" '[.items[] | select(.id == $id)] | length == 0' >/dev/null || die 'ask --new --after: 前の課題が片付く前に andon waiting list に出た'
 as t5 kanban done "$pre" >/dev/null
-"$andon" waiting --json | jq -e --arg id "$own2" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1")' >/dev/null \
+"$andon" waiting list --json | jq -e --arg id "$own2" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].question == ($id + "#1")' >/dev/null \
   || die 'ask --new --after: 前の課題が片付いても判断の行に出ない'
-ok 'ask --new --after --parent: queued で after と parent を持ち、問いを置き、前の課題が片付くまで andon waiting に出ず、片付くと判断の行に出る（受け入れ条件 9）'
+ok 'ask --new --after --parent: queued で after と parent を持ち、問いを置き、前の課題が片付くまで andon waiting list に出ず、片付くと判断の行に出る（受け入れ条件 9）'
 # ask --new は呼ぶか置いておくかを言い切らせる（ADR-0062 決めたこと 10。受け入れ条件 9）
 lq=$(jq -c '.question = "置いておける判断"' <<<"$nq")
 out=$(as t5 "$andon" issue ask --new --later '急がない。答えを待つ仕事が無い' --until 2099-12-31 - <<<"$lq")
 own3=${out%#*}
 kanban show "$own3" --json | jq -e '.issue | .who == "person" and .later == "急がない。答えを待つ仕事が無い" and .later_until == "2099-12-31"' >/dev/null \
   || die "ask --new --later --until: later と later_until を書いていない: $(kanban show "$own3" --json)"
-"$andon" waiting --json | jq -e --arg id "$own3" '[.items[] | select(.id == $id)] | length == 1 and .[0].call == false and .[0].later == "急がない。答えを待つ仕事が無い"' >/dev/null \
-  || die "ask --new --later: andon waiting で置いてある行（call が false）にならない: $("$andon" waiting --json)"
-"$andon" waiting --json | jq -e --arg id "$own" '[.items[] | select(.id == $id)] | length == 1 and .[0].call == true' >/dev/null \
+"$andon" waiting list --json | jq -e --arg id "$own3" '[.items[] | select(.id == $id)] | length == 1 and .[0].call == false and .[0].later == "急がない。答えを待つ仕事が無い"' >/dev/null \
+  || die "ask --new --later: andon waiting list で置いてある行（call が false）にならない: $("$andon" waiting list --json)"
+"$andon" waiting list --json | jq -e --arg id "$own" '[.items[] | select(.id == $id)] | length == 1 and .[0].call == true' >/dev/null \
   || die 'ask --new --now: 呼んでいる行（call が true）にならない'
 kanban show "$own" --json | jq -e '.issue | (has("later") or has("later_until")) | not' >/dev/null || die 'ask --new --now: 課題に印がある'
 ok 'ask --new: Chief of Staff の --later --until は later と later_until を書いて置いてある行になり、--now は印を書かず呼ぶ行になる（ADR-0062 受け入れ条件 9）'
@@ -416,8 +416,8 @@ for again in '--now|' '--later|今は急がない'; do
     kanban show "$th" --json | jq -e --argjson w "$want" '.issue | {later, later_until} | with_entries(select(.value != null)) == $w' >/dev/null \
       || die "ask --new $flag: 打ち直しで前の回の印が残る: $(kanban show "$th" --json | jq -c '.issue')"
 done
-"$andon" waiting --json | jq -e '[.items[] | select(.title | startswith("旗を変えて打ち直す判断 --now")) | .call] == [true]' >/dev/null \
-  || die "ask --new --now の打ち直し: 呼ぶ行にならない: $("$andon" waiting --json)"
+"$andon" waiting list --json | jq -e '[.items[] | select(.title | startswith("旗を変えて打ち直す判断 --now")) | .call] == [true]' >/dev/null \
+  || die "ask --new --now の打ち直し: 呼ぶ行にならない: $("$andon" waiting list --json)"
 ok 'ask --new: 前の回と旗の違う打ち直しは、前の回の later・later_until を消し、--now なら呼ぶ行になる'
 # kanban ask のあと控えを書く前に落ちた --later --until の回（問いはあり、questions/1.json が無い）を --now で打ち直しても、
 # 控えを書き直す道で前の回の印を消し、呼ぶ行になる
@@ -430,7 +430,7 @@ out=$(as t5 "$andon" issue ask --new --now - <<<"$cq")
 [ -f "kanban/issues/$ch/library/questions/1.json" ] || die 'ask --new --now: 控えを書き直していない'
 kanban show "$ch" --json | jq -e '.issue | (has("later") or has("later_until")) | not' >/dev/null \
   || die "ask --new --now: 控えを書き直す打ち直しで前の回の印が残る: $(kanban show "$ch" --json | jq -c '.issue')"
-"$andon" waiting --json | jq -e --arg id "$ch" '[.items[] | select(.id == $id) | .call] == [true]' >/dev/null \
+"$andon" waiting list --json | jq -e --arg id "$ch" '[.items[] | select(.id == $id) | .call] == [true]' >/dev/null \
   || die 'ask --new --now: 控えを書き直す打ち直しのあと、呼ぶ行にならない'
 ok 'ask --new: 控えを書く前に落ちた回を旗を変えて打ち直すと、控えを書き直し、前の回の印を消して呼ぶ行になる'
 pre2=$(as t5 kanban add '前の課題 2' --profile claude)
@@ -1116,14 +1116,14 @@ wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'resume �
 flock -n "$HOME/.local/state/andon/dispatcher/demo.json.lock" true || die 'dispatcher の控えの lock を持ったまま'
 ok 'resume: kanban の issue lock を命令の間持つ（finish・start と同じ。dispatcher の控えの lock は取らない）'
 
-# andon chief-engineer（ADR-0028 受け入れ条件 2）: Chief Engineer の課題に起動の記録が1件
-"$andon" chief-engineer --repo github.com/example/app 'Design topic' > "$tmp/out" || die "andon chief-engineer が落ちた: $(cat "$tmp/out")"
+# andon design start（ADR-0028 受け入れ条件 2）: Chief Engineer の課題に起動の記録が1件
+"$andon" design start --repo github.com/example/app 'Design topic' > "$tmp/out" || die "andon design start が落ちた: $(cat "$tmp/out")"
 ce=$(kanban list --json | jq -r '.[] | select(.title == "Design topic") | .id')
 [ -n "$ce" ] && [ "$(nlaunch "$ce")" = 1 ] && jq -e --arg id "$ce" --arg s "$(field "$ce" session)" --arg wt "$(field "$ce" worktree)" \
   '.role == "chief-engineer" and .launch == "start" and .issue == $id and .profile == "chief-engineer" and .session == $s and .repo.path == $wt and .repo.commit != null' "$(launches "$ce")" >/dev/null \
-  || die "andon chief-engineer の起動の記録: $(cat "$(launches "$ce")" 2>/dev/null) $(cat "$tmp/out")"
+  || die "andon design start の起動の記録: $(cat "$(launches "$ce")" 2>/dev/null) $(cat "$tmp/out")"
 emit "$(launches "$ce")" launch-chief-engineer.json
-ok 'andon chief-engineer: Chief Engineer の課題に起動の記録が1件（役 chief-engineer・session・worktree の commit。ADR-0028 受け入れ条件 2）'
+ok 'andon design start: Chief Engineer の課題に起動の記録が1件（役 chief-engineer・session・worktree の commit。ADR-0028 受け入れ条件 2）'
 
 # 止める口（ADR-0056 決めたこと 7・8。受け入れ条件 A5）: andon issue hold・unhold。偽の gh を止めの場面のものに替える:
 # pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository は $tmp/hold-view を返し、

@@ -54,7 +54,7 @@ usage() {
 # andon.toml の key = "value" の値（TOML の1行の文字列だけを読む）
 toml() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" andon.toml | head -n 1; }
 
-[ -f andon.toml ] || die "andon.toml が無い（andon init で作ったセルの repo の中で打つ）"
+[ -f andon.toml ] || die "andon.toml が無い（andon cell init で作ったセルの repo の中で打つ）"
 slug=$(toml slug)
 case "$slug" in
   '' | *[!a-z0-9-]* | -*) die "andon.toml の slug が無いか、英小文字・数字・- でない: '$slug'" ;;
@@ -75,7 +75,7 @@ case "$ANDON_ENTRY" in
 esac
 if [ "$entry_ok" = 0 ]; then
   die "セルの入口 bin/bootstrap が古い（入口の形 $ANDON_ENTRY。この本体は $need_entry 以上が要る）。セルの repo で次の 1 行を打って入口を置き換え、打った command を打ち直す（手を入れていた入口なら先に git diff で見る。docs/operate.md の 4）
-docker run --rm $image andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new"
+docker run --rm $image andon cell init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new"
 fi
 
 run() {
@@ -101,7 +101,7 @@ require_owner() {
   owner=$(stat -c %u "$root") || die "セルの repo（$root）のオーナーが読めない"
   [ "$owner" = 1000 ] && return 0
   die "セルの repo（$root）のオーナーが uid $owner。セルの andon は uid 1000 で動くので、/workspace を読み書きできない。
-  回り道: uid 1000 の利用者でセルの repo を作り直して（andon init）、そこから打つ（docs/operate.md の 3）"
+  回り道: uid 1000 の利用者でセルの repo を作り直して（andon cell init）、そこから打つ（docs/operate.md の 3）"
 }
 
 # extract <イメージの中の /opt/andon からのパス> <置き場>
@@ -171,7 +171,7 @@ pull_flag() {
 }
 
 # FROM の image と、その元の commit（image/build.sh が付ける label。前のバージョンの image には無い）
-# （go の template の開き括弧を2つ並べて書かない。andon init は雛形にそれが残っていないことを確かめる）
+# （go の template の開き括弧を2つ並べて書かない。andon cell init は雛形にそれが残っていないことを確かめる）
 show_from() {
   local rev fmt
   fmt=$(printf '%s%s index .Config.Labels "org.opencontainers.image.revision" }}' '{' '{')

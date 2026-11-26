@@ -1,4 +1,4 @@
-// Package create は andon create [slug]: セルの repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
+// Package create は andon project create [slug]: セルの repo に projects/<slug>/ を立てる（ADR-0004 決めたこと 1 の予約名）。
 //
 //	projects/<slug>/kanban/      kanban（`kanban init` で作る。prefix と repos を渡す）
 //	projects/<slug>/project.json 下書き（version・project〈タイトル・接頭字〉・repos・repo があれば signals。delegation は無し＝無委譲）。commit しない
@@ -30,7 +30,7 @@ import (
 	"andon/internal/spawn"
 )
 
-const Usage = "usage: andon create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <タイトル>]\n" +
+const Usage = "usage: andon project create [slug] [--repo <host>/<owner>/<repo>]… [--prefix X] [--title <タイトル>]\n" +
 	"オーナーがセルの repo（ANDON_WORKSPACE。既定 /workspace）で打つ。projects/<slug>/ に kanban（projects/<slug>/kanban/）・project.json の下書き・\n" +
 	"AGENTS.md の雛形を作り、repo を ghq get で追加する（無いものだけ）。project.json と AGENTS.md は commit しない（オーナーが見て commit する）。\n" +
 	"repo が 1 つ以上あれば、下書きの signals に main の CI の失敗を読む 1 行（github-ci・now）を入れる（要らなければ commit の前に消す）。\n" +
@@ -201,7 +201,7 @@ func fill(in *input, a *asker) error {
 	var err error
 	if in.slug == "" {
 		if a == nil {
-			return errors.New("slug が無い（端末でないので聞かない）。andon create <slug> と打つ")
+			return errors.New("slug が無い（端末でないので聞かない）。andon project create <slug> と打つ")
 		}
 		if in.slug, err = a.ask("slug（英小文字・数字・_・-・28字まで。projects/<slug> になる）", "", checkSlug); err != nil {
 			return err
@@ -366,17 +366,17 @@ func quote(s string) string {
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	in, err := parse(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon create: %v\n%s", err, Usage)
+		fmt.Fprintf(stderr, "andon project create: %v\n%s", err, Usage)
 		return exitUsage
 	}
 	if err := delegate.AgentTerminal("project.json を書くのはオーナーだけ。オーナーの端末で打つ"); err != nil {
-		fmt.Fprintf(stderr, "andon create: %v\n", err)
+		fmt.Fprintf(stderr, "andon project create: %v\n", err)
 		return exitFail
 	}
 	ws := delegate.Workspace()
 	projects := filepath.Join(ws, "projects")
 	if st, err := os.Stat(projects); err != nil || !st.IsDir() {
-		fmt.Fprintf(stderr, "andon create: %s が無い（セルの repo で打つ。ANDON_WORKSPACE）\n", projects)
+		fmt.Fprintf(stderr, "andon project create: %s が無い（セルの repo で打つ。ANDON_WORKSPACE）\n", projects)
 		return exitFail
 	}
 	var a *asker
@@ -389,27 +389,27 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	// 聞く前に分かるなら聞かずに止める
 	if in.slug != "" && checkSlug(in.slug) == nil && exists() {
-		fmt.Fprintf(stderr, "andon create: projects/%s が既にある。何も変えていない（そのまま使うなら andon open %s）\n", in.slug, in.slug)
+		fmt.Fprintf(stderr, "andon project create: projects/%s が既にある。何も変えていない（そのまま使うなら andon open %s）\n", in.slug, in.slug)
 		return exitFail
 	}
 	if err := fill(in, a); errors.Is(err, errCanceled) {
-		fmt.Fprintf(stderr, "andon create: %v\n", err)
+		fmt.Fprintf(stderr, "andon project create: %v\n", err)
 		return exitFail
 	} else if err != nil {
-		fmt.Fprintf(stderr, "andon create: %v\n", err)
+		fmt.Fprintf(stderr, "andon project create: %v\n", err)
 		return exitUsage
 	}
 	if exists() {
-		fmt.Fprintf(stderr, "andon create: projects/%s が既にある。何も変えていない（そのまま使うなら andon open %s）\n", in.slug, in.slug)
+		fmt.Fprintf(stderr, "andon project create: projects/%s が既にある。何も変えていない（そのまま使うなら andon open %s）\n", in.slug, in.slug)
 		return exitFail
 	}
 	draft, err := Draft(in.slug, in.title, in.prefix, in.repos)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon create: %v\n", err)
+		fmt.Fprintf(stderr, "andon project create: %v\n", err)
 		return exitFail
 	}
 	if err := create(ws, in, draft, stdout, stderr); err != nil {
-		fmt.Fprintf(stderr, "andon create: %v\n", err)
+		fmt.Fprintf(stderr, "andon project create: %v\n", err)
 		return exitFail
 	}
 	placeDispatcher(ws, stdout, stderr)
@@ -423,14 +423,14 @@ func placeDispatcher(ws string, stdout, stderr io.Writer) {
 	if err == nil {
 		var did string
 		waiting := func() {
-			fmt.Fprintln(stderr, "andon create: dispatcher の見回りが終わるのを待ってから置き場を合わせる（Ctrl-C で抜けてよい。kanban はできている。次の Chief of Staff のフックか boot が合わせる）")
+			fmt.Fprintln(stderr, "andon project create: dispatcher の見回りが終わるのを待ってから置き場を合わせる（Ctrl-C で抜けてよい。kanban はできている。次の Chief of Staff のフックか boot が合わせる）")
 		}
 		if did, err = dispatcher.EnsureAfterCreate(self, ws, 5*time.Second, waiting); err == nil && did != "" {
 			fmt.Fprintf(stdout, "%s\n", did)
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "andon create: dispatcher の置き場を確かめられなかった（次の Chief of Staff のフックか boot で合わせる）: %v\n", err)
+		fmt.Fprintf(stderr, "andon project create: dispatcher の置き場を確かめられなかった（次の Chief of Staff のフックか boot で合わせる）: %v\n", err)
 	}
 }
 
@@ -494,7 +494,7 @@ func create(ws string, in *input, draft []byte, stdout, stderr io.Writer) error 
 	}
 	fmt.Fprintf(stdout, "project.json と AGENTS.md はオーナーのファイルで、commit していない。中身を見て、andon.toml の owner の email で commit する:\n")
 	fmt.Fprintf(stdout, "  cd %s && git add %s/project.json %s/AGENTS.md && git commit -m %s\n", quote(ws), rel, rel, rel)
-	fmt.Fprintf(stdout, "確かめる: andon delegate show --project %s（無委譲と出る）\n", in.slug)
+	fmt.Fprintf(stdout, "確かめる: andon delegation show --project %s（無委譲と出る）\n", in.slug)
 	fmt.Fprintf(stdout, "Chief of Staff を起動する: andon open %s\n", in.slug)
 	return nil
 }

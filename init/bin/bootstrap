@@ -35,7 +35,7 @@ die() { echo "✗ $*" >&2; exit 1; }
 # andon.toml の key = "value" の値（TOML の1行の文字列だけを読む）
 toml() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" andon.toml | head -n 1; }
 
-[ -f andon.toml ] || die "andon.toml が無い（andon init で作ったセルの repo の中で打つ）"
+[ -f andon.toml ] || die "andon.toml が無い（andon cell init で作ったセルの repo の中で打つ）"
 slug=$(toml slug)
 case "$slug" in
   '' | *[!a-z0-9-]* | -*) die "andon.toml の slug が無いか、英小文字・数字・- でない: '$slug'" ;;

@@ -1,6 +1,6 @@
 # 流れの数え
 
-オーナーか役が `andon measure` を打つと、kanban の記録から期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・gate の差し戻し率）と対抗の指標と、通知の素通りの数と、課題ごとのトークン数と、知識（wiki）が依頼書に載り読まれたかと知識の欠けの申告の数を数えて出す。読むだけで、何も書かない。
+オーナーか役が `andon metrics show` を打つと、kanban の記録から期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・gate の差し戻し率）と対抗の指標と、通知の素通りの数と、課題ごとのトークン数と、知識（wiki）が依頼書に載り読まれたかと知識の欠けの申告の数を数えて出す。読むだけで、何も書かない。
 
 ## 細かい機能
 
@@ -21,7 +21,7 @@
 
 ## 辿り着き方（利用者から）
 
-- オーナーか役が、プロジェクトの置き場（`projects/<slug>/`）か担当の worktree で `andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` を打つ。
+- オーナーか役が、プロジェクトの置き場（`projects/<slug>/`）か担当の worktree で `andon metrics show [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]` を打つ。
 - `andon digest collect` が、同じ数え方で直近 7 日とその前の 7 日を数える（`features/digest.md`）。
 
 ## 動かし方
@@ -31,7 +31,7 @@
 - `scripts/doctor.sh` が終了コード 0。
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh measure <検証する commit>` を打つ。切り離した kanban に、片付いた課題（todo → doing → review → done）と doing のまま残る課題を作り、片付いた課題の担当のセッションの記録を一時の HOME の `.claude/projects/` に置いてから打つ。
-- **流れを読む。** `ms-flow` の行に `andon measure --json` の出力と、`closed`・`wip_end` の要約が出る。`closed.count` が 1、`wip_end` が 1 で、`ok   ms-flow` が見えれば動いた。
+- **流れを読む。** `ms-flow` の行に `andon metrics show --json` の出力と、`closed`・`wip_end` の要約が出る。`closed.count` が 1、`wip_end` が 1 で、`ok   ms-flow` が見えれば動いた。
 - **置いてある問いを外す。** 打つ前に、Chief of Staff の端末が呼ぶ判断（`andon issue ask --new --now`）と置いておく判断（`--later`）を 1 件ずつ足してある。どちらの問いも開いたまま。`ms-question-later` の行に `flow.question_open` が出る。`count` が 1 で、`ok   ms-question-later` が見えれば動いた。
 - **トークンを読む。** `ms-tokens` の行に課題ごとの `tokens` が出る。片付いた課題が入力 11・出力 22・キャッシュの読み 33・書き 44、残った課題が `null` で、`ok   ms-tokens` が見えれば動いた。
 - **内訳を読む。** 打つ前に、片付いた課題の結果の記録に内訳（担当。入力 1・出力 2・キャッシュの読み 3・書き 4。待ちとツール 2 つ）を置き、結果の記録の無いレビュアーの課題を片付け、一時の HOME の `.local/state/andon/otel/project/roles/chief-of-staff/` に今日の日付の Chief of Staff の記録（入力 5・出力 6・キャッシュの読み 7・書き 8）を置いてある。`ms-breakdown` の行に `breakdown` と `profiles` が出る。片付いた課題 2・内訳の無い課題 1、担当の行と待ちとツールが置いた数どおり、Chief of Staff が 1 日分で割合 0.72、プロファイル `claude` が 1 件で周回 1 で、`ok   ms-breakdown` が見えれば動いた。

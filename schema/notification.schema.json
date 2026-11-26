@@ -237,7 +237,7 @@
       "description": "kind idle: slots stayed free at two looks in a row (idle_minutes apart), and some issue stayed startable unstarted, some routine was fired, or kanban lint found new problems. No issue.",
       "type": "object", "required": ["free", "unstarted", "fired", "lint"], "additionalProperties": false,
       "properties": {
-        "free": { "description": "Free slots at this look (andon waiting's slots.free).", "type": "integer", "minimum": 1 },
+        "free": { "description": "Free slots at this look (andon waiting list's slots.free).", "type": "integer", "minimum": 1 },
         "unstarted": { "description": "Issues in kanban ready at the previous look and at this one, told once each (owner issues and reviewers' children excluded).", "type": "array", "items": { "$ref": "#/$defs/id" } },
         "fired": { "description": "Names of the routines fired at this look (kanban routine run), in the order fired.", "type": "array", "items": { "type": "string", "minLength": 1 } },
         "lint": { "description": "Number of kanban lint problems, when they differ from the ones told before; else 0.", "type": "integer", "minimum": 0 }

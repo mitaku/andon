@@ -1,14 +1,14 @@
 # トリアージ
 
-トリアージの担当は、kanban に溜まったもの（報告の Next・Remember・オーナーに聞くことなど）を `andon triage collect` で集め、項目ごとの判定を `library/decisions.json` に書く。Chief of Staff は `andon triage apply <id>` で判定を kanban に当てる。オーナーへ回す判定（`person`）は、急がないなら置いておく理由の 1 行を、呼ぶなら `false` を、キー `later` に必ず持つ。理由のある判定は、オーナーの課題に印 `later`（と `later_until`）を書いて足し、`andon waiting` で呼ばずに置いてある行になる。`false` の判定は印を持たず、呼ぶ行になる。印を書く apply は Chief of Staff の端末でだけ通り、`later` の無い前の形の `person` は何も書かずに断る。
+トリアージの担当は、kanban に溜まったもの（報告の Next・Remember・オーナーに聞くことなど）を `andon triage collect` で集め、項目ごとの判定を `library/decisions.json` に書く。Chief of Staff は `andon triage apply <id>` で判定を kanban に当てる。オーナーへ回す判定（`person`）は、急がないなら置いておく理由の 1 行を、呼ぶなら `false` を、キー `later` に必ず持つ。理由のある判定は、オーナーの課題に印 `later`（と `later_until`）を書いて足し、`andon waiting list` で呼ばずに置いてある行になる。`false` の判定は印を持たず、呼ぶ行になる。印を書く apply は Chief of Staff の端末でだけ通り、`later` の無い前の形の `person` は何も書かずに断る。
 
 ## 細かい機能
 
 - `tr-collect` `andon triage collect` が、片付いた担当の報告の「オーナーに聞くこと」を `question` の項目として出す。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/triage.go`、`internal/triage/collect.go`、`internal/triage/memory.go`、`internal/triage/signals.go`
-- `tr-later` Chief of Staff の端末の apply は、`later` に理由のある判断と手作業の `person` を、印 `later`（と `later_until`）を持つオーナーの課題にし、`andon waiting --json` でその行が `call: false` になる。見る道: 検証の担当だけ。
+- `tr-later` Chief of Staff の端末の apply は、`later` に理由のある判断と手作業の `person` を、印 `later`（と `later_until`）を持つオーナーの課題にし、`andon waiting list --json` でその行が `call: false` になる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/apply.go`、`internal/triage/decisions.go`、`internal/triage/verdict.go`
-- `tr-call` `later` が `false` の判断は、印を持たないオーナーの課題になり、`andon waiting --json` でその行が `call: true` になる。見る道: 検証の担当だけ。
+- `tr-call` `later` が `false` の判断は、印を持たないオーナーの課題になり、`andon waiting list --json` でその行が `call: true` になる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/apply.go`、`internal/triage/decisions.go`
 - `tr-not-cos` 印を書く判定を Chief of Staff でない端末で当てると、Chief of Staff の端末だけと言って断り、課題も記録も増やさない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/triage/apply.go`
@@ -21,7 +21,7 @@
 
 - dispatcher がルーチン triage を撃ち、トリアージの担当が `andon triage collect` で集めて `library/items.json` に置き、判定を `library/decisions.json` に書く（skill `triage`）。
 - Chief of Staff が `andon triage apply <id> --dry-run` で読んでから、`andon triage apply <id>` で当てる（手引き `package/skills/chief-of-staff/playbooks/triage.md`）。
-- オーナーと役が `andon waiting` で、足したオーナーの課題を、呼んでいる行か置いてある行として読む。
+- オーナーと役が `andon waiting list` で、足したオーナーの課題を、呼んでいる行か置いてある行として読む。
 
 ## 動かし方
 
@@ -33,7 +33,7 @@
 - **集める。** `tr-collect` の行に、`andon triage collect` の出力と 3 つの `question` の項目が出る。`ok   tr-collect` が見えれば動いた。
 - **前の形を読む。** `tr-old-shape` の行に、`later` の無い `person` の断り（「person に later が無い」）と、`keep` だけの判定を `tw` で当てた記録の表が出る。`ok   tr-old-shape` が2行見えれば動いた。
 - **Chief of Staff でない端末を断る。** `tr-not-cos` の行に、`tw` の apply の断り（「later で置いておく印を書くのは Chief of Staff の端末だけ」）が出る。`ok   tr-not-cos` が見えれば動いた。
-- **置いておく・呼ぶ。** `tr-later`・`tr-call` の行に、`tc` の apply の記録の表と、足したオーナーの課題の `who`・`only_owner`・`later`・`later_until` と、`andon waiting --json` の行（`kind`・`call`・`later`）が出る。`ok   tr-later` が2行と `ok   tr-call` が1行見えれば動いた。
+- **置いておく・呼ぶ。** `tr-later`・`tr-call` の行に、`tc` の apply の記録の表と、足したオーナーの課題の `who`・`only_owner`・`later`・`later_until` と、`andon waiting list --json` の行（`kind`・`call`・`later`）が出る。`ok   tr-later` が2行と `ok   tr-call` が1行見えれば動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
 - **報告を受ける（`tr-report`）。** 本物のトリアージの課題が `review` に入ったあと、`~/.local/state/andon/dispatcher/<slug>.delivered.jsonl` にその課題の `report` の行があり、`review` の行が無いことを読む。`hc read <Chief of Staff の address>` で、その通知を `<news>` で読んだ turn が `andon triage apply <id> --dry-run` を打ったかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
 
@@ -45,7 +45,7 @@
 
 ## 既に見ている検査
 
-- `tests/andon-triage.sh`（collect の8種類の項目・apply の判定ごとの当て方・Chief of Staff でない端末の印を断る・`later` の印と `andon waiting` の行）
+- `tests/andon-triage.sh`（collect の8種類の項目・apply の判定ごとの当て方・Chief of Staff でない端末の印を断る・`later` の印と `andon waiting list` の行）
 - `go test ./internal/triage/`（`later` の形の断りは `person_test.go`、1 件目の閉じは `gap_test.go`）
 - `bash tests/package.sh` の `tests/package/41-triage-later.sh`（skill `triage` の置いておく基準の文）
 

@@ -33,7 +33,7 @@
 - **配った先を読む。** `bt-managed` と `bt-skills` の行に、hook の置き場と skill の symlink の先が出る。`ok   bt-managed` が見え、`bt-skills` に FAIL が無ければ動いた。
 
 - **入口を見る（`bt-entry`）。** ホストで動くので、検証の担当は動かせない。報告の `acceptance[]` に `manual` と書き、オーナーがセルのホストで見る次の証拠を `evidence` に書く。
-  - 分ける前の入口のセル: `bin/bootstrap rebuild`（Andon を開発するセルでは `rebuild --from <checkout>`）が、image を焼いたあと `セルの入口 bin/bootstrap が古い` の行で止まり、行の最後の「: 」のあとに `docker run --rm andon-<slug>:local andon init --print bin/bootstrap …` の 1 行が出る。`docker ps` のセルのコンテナの ID は前後で同じ。
+  - 分ける前の入口のセル: `bin/bootstrap rebuild`（Andon を開発するセルでは `rebuild --from <checkout>`）が、image を焼いたあと `セルの入口 bin/bootstrap が古い` の行で止まり、行の最後の「: 」のあとに `docker run --rm andon-<slug>:local andon cell init --print bin/bootstrap …` の 1 行が出る。`docker ps` のセルのコンテナの ID は前後で同じ。
   - その 1 行を打ったあと: `grep -x 'entry=[0-9]*' bin/bootstrap` が番号を出し、`bin/bootstrap rebuild` が作り直す。`cmp .andon/bootstrap <(docker run --rm andon-<slug>:local cat /opt/andon/host/bootstrap)` が何も出さない。そのあとの `bin/bootstrap host-install` で mod `waiting` が置かれる。
 
 ## 変えたら動かすパス

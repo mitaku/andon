@@ -24,16 +24,16 @@ const (
 	scopes = "scope: merge(none/A/B/C)・deploy(none/preview/production)・publish(none/internal/public)・\n" +
 		"       irreversible(delete-branch,force-push,rewrite-history の , 区切り)・external-requests・profile・package-update(true/false)・\n" +
 		"       line-change(none/project/plant)。\n"
-	GrantUsage = "usage: andon delegate grant <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
-		"       andon delegate grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+	GrantUsage = "usage: andon delegation grant <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+		"       andon delegation grant merge <A|B|C> --issues <id,…> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
 		"委譲を足す。\n" + scopes +
 		"--issues は名指し: 並べた課題（kanban にあり done でないもの）の判定にだけ merge の値を足す（プロジェクト全体の値は変えない）。\n" +
 		"       grant merge だけが取る。担当が戻せない（risk.one_way）と申告した課題には効かない。名指しは gate が回る前に出す。\n" + owner
-	NarrowUsage = "usage: andon delegate narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
+	NarrowUsage = "usage: andon delegation narrow <scope> <value> --evidence <path|text> [--until YYYY-MM-DD] [--project <slug>]\n" +
 		"委譲を狭める。今の値より広げない。\n" + scopes + owner
-	RevokeUsage = "usage: andon delegate revoke <id> --reason <text> [--project <slug>]\n" +
+	RevokeUsage = "usage: andon delegation revoke <id> --reason <text> [--project <slug>]\n" +
 		"委譲を1件取り消す。\n" + owner
-	ShowUsage = "usage: andon delegate show [--json] [--project <slug>]\n" +
+	ShowUsage = "usage: andon delegation show [--json] [--project <slug>]\n" +
 		"HEAD の委譲を読み手と同じに読んで出す（読むだけ）。--project を省くと cwd の projects/<slug>/。\n"
 )
 
@@ -85,7 +85,7 @@ func run(sub string, args []string, stdout, stderr io.Writer) int {
 	ws := Workspace()
 	slug, err := project(ws, opt["--project"])
 	if err != nil {
-		fmt.Fprintf(stderr, "andon delegate: %v\n", err)
+		fmt.Fprintf(stderr, "andon delegation: %v\n", err)
 		return exitUsage
 	}
 	today := time.Now().UTC().Format("2006-01-02")
@@ -116,7 +116,7 @@ func run(sub string, args []string, stdout, stderr io.Writer) int {
 		var issues []string
 		if withIssues {
 			if issues = splitIssues(opt["--issues"]); len(issues) == 0 {
-				fmt.Fprintf(stderr, "andon delegate %s: --issues が空\n", sub)
+				fmt.Fprintf(stderr, "andon delegation %s: --issues が空\n", sub)
 				return exitFail
 			}
 		}
@@ -134,7 +134,7 @@ func run(sub string, args []string, stdout, stderr io.Writer) int {
 		return usage()
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "andon delegate %s: %v\n", sub, err)
+		fmt.Fprintf(stderr, "andon delegation %s: %v\n", sub, err)
 		return exitFail
 	}
 	return 0

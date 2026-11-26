@@ -13,7 +13,7 @@ import (
 	"andon/internal/ledger"
 )
 
-const Usage = "usage: andon waiting [--json] [--project <slug>]\n" +
+const Usage = "usage: andon waiting list [--json] [--project <slug>]\n" +
 	"オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す。読むだけで、何も書かない。GitHub も git も読まない。\n" +
 	"判断の問いにペインから選択肢で答える口は andon waiting answer。\n" +
 	"kanban の履歴（log.jsonl）が読めなければ数えずに終了コード 1。\n" +
@@ -36,21 +36,21 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	root, err := projectRoot(slug)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon waiting: %v\n", err)
+		fmt.Fprintf(stderr, "andon waiting list: %v\n", err)
 		return 1
 	}
 	res, warn, err := Read(root, time.Now())
 	if err != nil {
-		fmt.Fprintf(stderr, "andon waiting: %v\n", err)
+		fmt.Fprintf(stderr, "andon waiting list: %v\n", err)
 		return 1
 	}
 	for _, w := range warn {
-		fmt.Fprintf(stderr, "andon waiting: %s\n", w)
+		fmt.Fprintf(stderr, "andon waiting list: %s\n", w)
 	}
 	if asJSON {
 		b, err := contract.Encode(contract.SchemaWaiting, res)
 		if err != nil {
-			fmt.Fprintf(stderr, "andon waiting: 出力が schema/waiting.schema.json に合わない: %v\n", err)
+			fmt.Fprintf(stderr, "andon waiting list: 出力が schema/waiting.schema.json に合わない: %v\n", err)
 			return 1
 		}
 		_, _ = stdout.Write(b)

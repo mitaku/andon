@@ -83,15 +83,15 @@ done)
 [ "$r" = 2 ] && grep -q '^usage: andon triage verdict' "$tmp/err" && pass "andon triage verdict（引数なし）は中身の usage で rc 2" || fail "andon triage verdict: rc=$r $(cat "$tmp/err")"
 "$andon" dispatcher --bogus >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon dispatcher' "$tmp/err" && pass "andon dispatcher（知らない引数）は usage で rc 2" || fail "andon dispatcher: rc=$r $(cat "$tmp/err")"
-"$andon" chief-of-staff start >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" && pass "andon chief-of-staff（知らない引数）は usage で rc 2" || fail "andon chief-of-staff: rc=$r $(cat "$tmp/err")"
+"$andon" open sample-site extra >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon open' "$tmp/err" && pass "andon open（余分な引数）は usage で rc 2" || fail "andon open: rc=$r $(cat "$tmp/err")"
 "$andon" issue start X-1 extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon issue' "$tmp/err" && pass "andon issue start（余分な引数）は usage で rc 2" || fail "andon issue start: rc=$r $(cat "$tmp/err")"
 "$andon" task start X-1 >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '知らないコマンド: task' "$tmp/err" && pass "andon task は知らない command（別名なし。ADR-0008 決めたこと 7）" || fail "andon task: rc=$r $(cat "$tmp/err")"
 { "$andon" --help; "$andon" issue --help; } 2>&1 | grep -qiw 'task' && fail "andon --help・andon issue --help に task が出る" || pass "andon --help・andon issue --help に task が出ない"
-"$andon" chief-engineer >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '^usage: andon chief-engineer' "$tmp/err" && pass "andon chief-engineer（引数なし）は usage で rc 2" || fail "andon chief-engineer: rc=$r $(cat "$tmp/err")"
+"$andon" design start >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon design start' "$tmp/err" && pass "andon design start（引数なし）は usage で rc 2" || fail "andon design start: rc=$r $(cat "$tmp/err")"
 "$andon" publish >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon publish' "$tmp/err" && pass "andon publish（引数なし）は usage で rc 2" || fail "andon publish: rc=$r $(cat "$tmp/err")"
 "$andon" publish "$tmp/none.html" >/dev/null 2>"$tmp/err"; r=$?

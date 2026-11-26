@@ -40,9 +40,9 @@
   オーナーに答えたもののうち次も使えるものは `topics/` のページにして（戻すかは自分の判断）、`index.md` に足し、`log.md` に `## [YYYY-MM-DD] query | <問い>` を足す。
 - **lint**: ingest 約10件ごと（`log.md` の前の `lint` の項から `ingest` の項を数える）と、オーナーが頼んだとき。定期の課題は作らない。数えるきっかけは、通知 `idle` を受けたターン（`idle.md` の 6）。
   見るもの: ページ間の矛盾・新しい元資料に覆された古い主張・孤立ページ（入るリンクが無い）・名前は出るのにページが無い重要な概念・リンク漏れ。
-  読まれていないページも見る: `andon measure --since <30日前の日付> --json` の `knowledge.unread` のうち `topics/` のページ（30 日のあいだ担当が 1 回も読まなかったもの。`null` なら読みの記録が無く、この見る物は飛ばす）。ページごとに、ほかのページへまとめる・repo へ移す課題に切る・そのまま残す、のどれかを決める。ページは消さない。数で自動に決めない。
+  読まれていないページも見る: `andon metrics show --since <30日前の日付> --json` の `knowledge.unread` のうち `topics/` のページ（30 日のあいだ担当が 1 回も読まなかったもの。`null` なら読みの記録が無く、この見る物は飛ばす）。ページごとに、ほかのページへまとめる・repo へ移す課題に切る・そのまま残す、のどれかを決める。ページは消さない。数で自動に決めない。
   矛盾は古いページを上書きせず、末尾に `→ 覆された（<新しいページ>）` を1行足す。終わったら `log.md` に `## [YYYY-MM-DD] lint | <見つけた数と直した数>`。
 - **目録の並べ替え**（Sources の節が Entities・Topics より先にある目録のセルで1回）: 節を Overview・Entities・Topics・Sources の順に並べ替える。行の中身は変えない。`log.md` に `## [YYYY-MM-DD] lint | 目録の節を並べ替えた` を足し、下の commit・push をする。
-- **移行**（前の形の `wiki/<日付>-<短い名>.md` が残るセルで1回）: 無いフォルダと `log.md` を足す（形は `andon init` の雛形と同じ）。
+- **移行**（前の形の `wiki/<日付>-<短い名>.md` が残るセルで1回）: 無いフォルダと `log.md` を足す（形は `andon cell init` の雛形と同じ）。
   前のページのオーナーの言葉の部分を `raw/` に発言の写しとして置き直し、上の ingest をし直す（`entities/owner.md` と `topics/` ができる）。repo に置くべき手順は直す課題に切り、wiki のページは skill・ADR を指すだけにする。前のページは消す（git に残る）。
 - **commit・push**: `git -C /workspace add wiki && git -C /workspace commit --only -m "wiki: <要点>" -- wiki && git -C /workspace push`（`--only -- wiki` で、wiki の外が staged でも commit に入れない）。

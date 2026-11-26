@@ -8,7 +8,7 @@ import (
 )
 
 // estimateMinutes は予約キー estimate の段→分（contract.md §2 の表。待ちを除いた実働の目安で、規則ではない）。
-// Go の定数はここだけ。dispatcher（ズレの通知）と andon measure（記録）が EstimateMinutes で読む。ADR-0014 決めたこと 3・11 の 7。
+// Go の定数はここだけ。dispatcher（ズレの通知）と andon metrics show（記録）が EstimateMinutes で読む。ADR-0014 決めたこと 3・11 の 7。
 var estimateMinutes = map[string]int{"small": 30, "medium": 60, "large": 120}
 
 // EstimateMinutes は見込みの段 v の分。知らない値・空は 0（見込み無し）。
@@ -157,7 +157,7 @@ func LastStatus(rows []Row, id, status string) (int, time.Time, bool) {
 }
 
 // LastStatusUntil は LastStatus のうち、時刻が until まで（含む）の最後の行。until が零なら限らない。
-// 閉じた時刻を別に読んだ履歴で決めた読み手（andon measure）が、そのあとに足された done の行まで伸ばさないために使う。
+// 閉じた時刻を別に読んだ履歴で決めた読み手（andon metrics show）が、そのあとに足された done の行まで伸ばさないために使う。
 func LastStatusUntil(rows []Row, id, status string, until time.Time) (int, time.Time, bool) {
 	for i := len(rows) - 1; i >= 0; i-- {
 		r := rows[i]

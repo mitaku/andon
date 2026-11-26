@@ -61,7 +61,7 @@ flowchart LR
 | id | 手順 | やる者 | 入るもの | 出るもの | 次 |
 |---|---|---|---|---|---|
 | `add` | オーナーの依頼で振り返りの課題を足す | AI | `オーナーの言葉`・`kanban（動いている振り返り）` | `kanban（振り返りの課題。routine retro）` | `start` |
-| `start` | 振り返りの担当を起動する | AI | `notification.ready`・`andon waiting --json（slots）` | `hc（担当の端末）`・`kanban（doing）` | `collect` |
+| `start` | 振り返りの担当を起動する | AI | `notification.ready`・`andon waiting list --json（slots）` | `hc（担当の端末）`・`kanban（doing）` | `collect` |
 | `collect` | 期間の記録とオーナーが打った文を集める | 機械 | `kanban（片付いた課題の記録）`・`セッションログ`・`GitHub（マージ後のこと）` | `振り返りの入力（標準出力）` | `find` |
 | `find` | 繰り返しを拾い、直す先の段と判定を決める | AI | `振り返りの入力`・`根拠の課題の記録` | `パターンの一覧の JSON` | `write` |
 | `write` | パターンの一覧を検査して書く | 機械 | `パターンの一覧の JSON`・`振り返りの入力（集め直す）` | `library/retro.json` | `report` |
@@ -91,7 +91,7 @@ flowchart LR
 | `check` | `chief-of-staff/playbooks/retro.md` | 担当に戻す・当てる |  |
 | `follow` | `chief-of-staff/playbooks/retro.md`・`chief-of-staff/playbooks/start.md`・`ask-one-by-one` | 直す課題の Settings を書いて起動する | Andon のパッケージの直しを Andon へ伝えるか（Andon の repo を持たないプロジェクト）（line） |
 
-見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（動いている振り返り）`・`notification.ready`・`andon waiting --json（slots）`・`kanban（片付いた課題の記録）`・`セッションログ`・`GitHub（マージ後のこと）`・`振り返りの入力`・`根拠の課題の記録`・`パターンの一覧の JSON`・`振り返りの入力（集め直す）`・`library/retro.json`・`andon retro apply --dry-run の出力`・`notification.report`・`報告`・`振り返りの入力（同じ期間で集め直す）`・`kanban（review）`・`library/retro-applied.json`・`kanban（直す課題とオーナーの課題）`
+見るもの（手順の入るものの和）: `オーナーの言葉`・`kanban（動いている振り返り）`・`notification.ready`・`andon waiting list --json（slots）`・`kanban（片付いた課題の記録）`・`セッションログ`・`GitHub（マージ後のこと）`・`振り返りの入力`・`根拠の課題の記録`・`パターンの一覧の JSON`・`振り返りの入力（集め直す）`・`library/retro.json`・`andon retro apply --dry-run の出力`・`notification.report`・`報告`・`振り返りの入力（同じ期間で集め直す）`・`kanban（review）`・`library/retro-applied.json`・`kanban（直す課題とオーナーの課題）`
 
 残すもの（手順の出るものの和）: `kanban（振り返りの課題。routine retro）`・`hc（担当の端末）`・`kanban（doing）`・`振り返りの入力（標準出力）`・`パターンの一覧の JSON`・`library/retro.json`・`報告`・`kanban（review）`・`kanban（直す課題。parent は振り返りの課題）`・`kanban（オーナーの課題）`・`library/retro-applied.json`・`kanban（done）`・`kanban（直す課題の Settings）`・`オーナーへの 1 問`
 

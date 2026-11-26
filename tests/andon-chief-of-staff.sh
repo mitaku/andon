@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon chief-of-staff`（docs/design.md §1.8 の Chief of Staff を起動する）。本物の kanban の CLI・一時の kanban・偽の hc で回す。
+# `andon open`（docs/design.md §1.8 の Chief of Staff を起動する。slug を省くと今いるプロジェクト）。本物の kanban の CLI・一時の kanban・偽の hc で回す。
 # 起動する・動いていれば起動しない（二重に起動しない）・起き直したら chief_of_staff が直る・2人なら止まる・最初のメッセージが届かないときの案内。
 # 本物の hc には触らない。
 set -euo pipefail
@@ -52,7 +52,7 @@ case \$1 in
        echo "t\$n \$name \$cwd \$role \$project \$space \$tab" >> \$d/live
        sent=\$(cat \$d/first 2>/dev/null || echo true)
        echo "{\"address\":\"t\$n\",\"first_message\":{\"sent\":\$sent,\"reason\":\"trust prompt\"}}" ;;
-  attach) echo "attach \$2" >> \$d/attached ;;  # 打てば印が残る（andon chief-of-staff は打たない。ADR-0002 決めたこと 14）
+  attach) echo "attach \$2" >> \$d/attached ;;  # 打てば印が残る（andon open は打たない。ADR-0002 決めたこと 14）
   *) echo "unexpected hc \$1" >&2; exit 9 ;;
 esac
 EOF
@@ -66,10 +66,10 @@ emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }   # tes
 runs() { cat "$tmp/hc/log" 2>/dev/null | grep -c '^run' || true; }
 cos() { sed -n 's/^chief_of_staff: *//p' kanban/config.yaml; }
 
-# kanban の外で打つと止まる
+# kanban の外で slug を省くと、今いるプロジェクトが無いので起動しない
 cd "$tmp"
-rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 1 ] && grep -q 'kanban が見つからない' "$tmp/err" && [ "$(runs)" = 0 ] || die "kanban の外で: rc=$rc $(cat "$tmp/err")"
+rc=0; ANDON_WORKSPACE="$tmp" "$andon" open >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 1 ] && grep -q 'kanban のあるプロジェクトが無い' "$tmp/err" && [ "$(runs)" = 0 ] || die "kanban の外で: rc=$rc $(cat "$tmp/err")"
 ok 'kanban の外では起動せずに止まる'
 
 cd "$tmp/projects/demo"
@@ -77,7 +77,7 @@ kanban init --prefix D >/dev/null
 root=$PWD
 
 # 1. 起動する
-"$andon" chief-of-staff >"$tmp/out"
+"$andon" open >"$tmp/out"
 [ "$(runs)" = 1 ] || die "hc run の回数: $(runs)"
 grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label role=chief-of-staff --label project=demo --label herdr.space=andon-demo --label herdr.tab=andon-demo-cos --cwd $root chief-of-staff プロジェクト \`demo\` の Chief of Staff。" "$tmp/hc/log" \
   || die "hc run の形が違う: $(cat "$tmp/hc/log")"
@@ -85,7 +85,7 @@ grep -q "^run --json --bg --outlive-parent --no-notify --name demo-cos --label r
 [ "$(cos)" = t42 ] || die "chief_of_staff: $(cos)"
 jq -e 'select(.config) | .config.chief_of_staff == "t42"' kanban/log.jsonl >/dev/null || die 'log.jsonl に config の行が無い'
 grep -q 'demo の Chief of Staff は t42（demo-cos・起動した）' "$tmp/out" && [ ! -e "$tmp/hc/attached" ] || die "out: $(cat "$tmp/out")"
-[ "$(tail -n 1 "$tmp/out")" = 'andon chief-of-staff: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
+[ "$(tail -n 1 "$tmp/out")" = 'andon open: 出た場所 demo / CoS（t42）' ] || die "出た場所が最後に無い: $(cat "$tmp/out")"
 ok '起動する: hc run（ラベル role=chief-of-staff project=demo herdr.space=andon-demo herdr.tab=andon-demo-cos・cwd は kanban の root）・config.yaml の chief_of_staff・hc attach を打たず出た場所「demo / CoS」を出す'
 
 # 起動の記録（contract.md §18。ADR-0028 決めたこと 7）: Chief of Staff は課題を持たないので kanban の chief-of-staff/launches.jsonl に1件
@@ -98,7 +98,7 @@ ok '起動する: kanban の chief-of-staff/launches.jsonl に起動の記録が
 
 # 2. 動いていれば起動しない（Chief of Staff 自身が起動したときに打つ形）
 lines=$(wc -l < kanban/log.jsonl)
-"$andon" chief-of-staff >"$tmp/out"
+"$andon" open >"$tmp/out"
 [ "$(runs)" = 1 ] || die '二重に起動した'
 [ "$(wc -l < "$crec")" = 1 ] || die '起動していないのに起動の記録を足した'
 [ "$(wc -l < kanban/log.jsonl)" = "$lines" ] || die 'chief_of_staff が合っているのに kanban を書いた'
@@ -107,21 +107,21 @@ ok '動いていれば起動しない（二重に起動しない）。chief_of_s
 
 # 3. 起き直した（端末が変わった）: chief_of_staff が直る
 sed -i 's/^t42 /t50 /' "$tmp/hc/live"
-"$andon" chief-of-staff >/dev/null
+"$andon" open >/dev/null
 [ "$(runs)" = 1 ] && [ "$(cos)" = t50 ] || die "chief_of_staff が直らない: $(cos) runs=$(runs)"
 ok '起き直して address が変わったら chief_of_staff を直す'
 
 # 4. 名前か cwd が合わない端末は使わない
 cp "$tmp/hc/live" "$tmp/live.bak"
 sed -i "s| $root | /elsewhere |" "$tmp/hc/live"
-rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" open >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'cwd（/elsewhere）が合わない' "$tmp/err" && [ "$(cos)" = t50 ] || die "合わない端末: rc=$rc $(cat "$tmp/err")"
 cp "$tmp/live.bak" "$tmp/hc/live"
 ok 'ラベルが合っても名前か cwd が違う端末は使わない（kanban を書かない）'
 
 # 5. 2人なら止まる
 echo "t51 demo-cos2 $root chief-of-staff demo" >> "$tmp/hc/live"
-rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" open >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q 'Chief of Staff が 2 人いる: t50 t51' "$tmp/err" && [ "$(runs)" = 1 ] || die "2人: rc=$rc $(cat "$tmp/err")"
 cp "$tmp/live.bak" "$tmp/hc/live"
 ok '2人いれば止まる（1プロジェクトに1人）'
@@ -129,7 +129,7 @@ ok '2人いれば止まる（1プロジェクトに1人）'
 # 6. 最初のメッセージが届かない（信頼の画面など）
 : > "$tmp/hc/live"
 echo false > "$tmp/hc/first"
-rc=0; "$andon" chief-of-staff >/dev/null 2>"$tmp/err" || rc=$?
+rc=0; "$andon" open >/dev/null 2>"$tmp/err" || rc=$?
 [ "$rc" = 3 ] || die "rc=$rc $(cat "$tmp/err")"
 grep -q "最初のメッセージが届いていない: trust prompt。App の demo / CoS で答えてから、次を送る: hc send t43 'プロジェクト \`demo\` の Chief of Staff。" "$tmp/err" || die "案内: $(cat "$tmp/err")"
 [ "$(cos)" = t43 ] || die "届かなくても kanban に載せる: $(cos)"
@@ -139,7 +139,7 @@ ok '最初のメッセージが届かなければ終了コード 3・送り直�
 
 # 7. 作り直しで戻った端末（ラベルと名前はそのまま、中身が素のシェル）: 使わずに片付けて起動し直し、chief_of_staff を合わせる
 echo t43 > "$tmp/hc/shells"
-"$andon" chief-of-staff >"$tmp/out"
+"$andon" open >"$tmp/out"
 [ "$(runs)" = 3 ] && [ "$(cos)" = t44 ] || die "戻った端末: runs=$(runs) chief_of_staff=$(cos) $(cat "$tmp/out")"
 grep -qx 'keep t43 --off' "$tmp/hc/log" && grep -qx 'kill t43' "$tmp/hc/log" && grep -qx 'rm t43' "$tmp/hc/log" || die "片付けていない: $(cat "$tmp/hc/log")"
 grep -q 't43 は Chief of Staff のラベルのまま中身がシェルに替わっていた' "$tmp/out" && grep -q 't44（demo-cos・起動した）' "$tmp/out" || die "out: $(cat "$tmp/out")"
@@ -147,8 +147,8 @@ rm "$tmp/hc/shells"
 ok '中身がシェルに替わって戻った端末は使わず、keep を外して kill・rm し、起動し直して chief_of_staff を合わせる'
 
 # 8. --no-attach は消した（ADR-0002 決めたこと 14）
-rc=0; "$andon" chief-of-staff --no-attach >/dev/null 2>"$tmp/err" || rc=$?
-[ "$rc" = 2 ] && grep -q '^usage: andon chief-of-staff' "$tmp/err" || die "--no-attach: rc=$rc $(cat "$tmp/err")"
+rc=0; "$andon" open --no-attach >/dev/null 2>"$tmp/err" || rc=$?
+[ "$rc" = 2 ] && grep -q '^usage: andon open' "$tmp/err" || die "--no-attach: rc=$rc $(cat "$tmp/err")"
 ok '--no-attach は使い方の誤り（attach をやめたので要らない）'
 
 echo "all passed ($pass)"

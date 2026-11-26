@@ -36,7 +36,7 @@ type Idle struct {
 }
 
 var (
-	// slotsOf は空いた枠の数（andon waiting と同じ式。ADR-0042 決めたこと 9）
+	// slotsOf は空いた枠の数（andon waiting list と同じ式。ADR-0042 決めたこと 9）
 	slotsOf = func(root string, now time.Time) (int, error) {
 		res, _, err := waiting.Read(root, now)
 		return res.Slots.Free, err

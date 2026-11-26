@@ -90,13 +90,13 @@ func TestMainArgs(t *testing.T) {
 	}
 	for _, args := range [][]string{nil, {"a", "b"}, {"--bogus", "a"}} {
 		errb.Reset()
-		if rc := Main(args, nil, &out, &errb); rc != 2 || !strings.Contains(errb.String(), "usage: andon init") {
+		if rc := Main(args, nil, &out, &errb); rc != 2 || !strings.Contains(errb.String(), "usage: andon cell init") {
 			t.Errorf("%v: rc=%d err=%s", args, rc, errb.String())
 		}
 	}
 }
 
-// andon init --print は、andon init が置くのと同じ中身を出し、作業フォルダに何も書かない（ADR-0048 受け入れ条件 9）
+// andon cell init --print は、andon cell init が置くのと同じ中身を出し、作業フォルダに何も書かない（ADR-0048 受け入れ条件 9）
 func TestPrint(t *testing.T) {
 	cell := filepath.Join(t.TempDir(), "x-cell")
 	if err := Init(Options{Slug: "x", Dir: cell, Image: "example.com/andon:test"}); err != nil {
@@ -113,7 +113,7 @@ func TestPrint(t *testing.T) {
 		t.Fatalf("rc=%d err=%s", rc, errb.String())
 	}
 	if !bytes.Equal(out.Bytes(), want) {
-		t.Errorf("--print bin/bootstrap が andon init の置くものと違う（%d バイト / %d バイト）", out.Len(), len(want))
+		t.Errorf("--print bin/bootstrap が andon cell init の置くものと違う（%d バイト / %d バイト）", out.Len(), len(want))
 	}
 	if ents, _ := os.ReadDir(wd); len(ents) != 0 {
 		t.Errorf("--print が作業フォルダに書いた: %v", ents)
@@ -121,7 +121,7 @@ func TestPrint(t *testing.T) {
 	for _, p := range []string{"Dockerfile.tmpl", "andon.toml.tmpl", "no-such-file", "bin", "../go.mod", "/bin/bootstrap"} {
 		out.Reset()
 		errb.Reset()
-		if rc := Main([]string{"--print", p}, nil, &out, &errb); rc != 1 || out.Len() != 0 || !strings.Contains(errb.String(), "andon init: ") {
+		if rc := Main([]string{"--print", p}, nil, &out, &errb); rc != 1 || out.Len() != 0 || !strings.Contains(errb.String(), "andon cell init: ") {
 			t.Errorf("--print %s: rc=%d out=%q err=%q（理由を言って 1 で断る）", p, rc, out.String(), errb.String())
 		}
 	}

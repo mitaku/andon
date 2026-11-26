@@ -640,7 +640,7 @@ func TestFastAndOffline(t *testing.T) {
 	code := Main([]string{"--json"}, nil, &out, &errb)
 	took := time.Since(start)
 	if code != 0 {
-		t.Fatalf("andon waiting --json: 終了コード %d %s", code, errb.String())
+		t.Fatalf("andon waiting list --json: 終了コード %d %s", code, errb.String())
 	}
 	if took > time.Second {
 		t.Errorf("課題 500 件で %v かかった（1 秒以内）", took)

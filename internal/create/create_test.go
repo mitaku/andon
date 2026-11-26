@@ -256,7 +256,7 @@ func TestBadInputsStopBeforeAnything(t *testing.T) {
 	for _, args := range [][]string{
 		{"Sample"}, {"-x"}, {"a.b"}, {"sample", "--prefix", "s1"}, {"sample", "--repo", "github.com/o"},
 		{"sample", "--repo", "example.com/o/r", "--repo", "example.com/o/r"}, {"sample", "--title", " "}, {"sample", "other"}, {"sample", "--repo"},
-		{strings.Repeat("a", 29)}, // andon chief-of-staff takes 28 at most (<slug>-cos is a terminal name of 32 at most)
+		{strings.Repeat("a", 29)}, // andon open takes 28 at most (<slug>-cos is a terminal name of 32 at most)
 	} {
 		if rc, _, errs := run(strings.NewReader(""), args...); rc != exitUsage {
 			t.Errorf("%v: rc=%d %s", args, rc, errs)
@@ -446,7 +446,7 @@ func TestRollbackKeepsHumanFilesInsideKanban(t *testing.T) {
 	}
 }
 
-// kanban が無いまま起きた dispatcher（セルの名前の Space）は、andon create のあとこのプロジェクトの Space に起動し直す（#98）。
+// kanban が無いまま起きた dispatcher（セルの名前の Space）は、andon project create のあとこのプロジェクトの Space に起動し直す（#98）。
 // 見回りの途中（PassLock を持っている）なら、待つと1行知らせ、終わるのを待ってから起動し直す（期限は無い）。
 func TestCreateMovesDispatcherToProjectSpace(t *testing.T) {
 	ws, _ := setup(t)

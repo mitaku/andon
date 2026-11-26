@@ -18,7 +18,7 @@ transitions:
   - { from: queued, to: todo, on: "待つ課題が全部 done になった", by: kanban, command: kanban done }
   - { from: queued, to: todo, on: "after を書き換えて待つ課題が無くなった", by: kanban, command: kanban set }
   - { from: todo, to: doing, on: "担当を起動した（§7.2 #10）", by: ai, command: andon issue start, once: true }
-  - { from: todo, to: doing, on: "Chief Engineer・レビュアーを起動した（andon chief-engineer・dispatcher がレビュアーの課題に打つ）", by: kanban, command: kanban start }
+  - { from: todo, to: doing, on: "Chief Engineer・レビュアーを起動した（andon design start・dispatcher がレビュアーの課題に打つ）", by: kanban, command: kanban start }
   - { from: todo, to: todo, on: "オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3）", by: ai, command: andon issue ask }
   - { from: queued, to: queued, on: "前の課題を待つオーナーの課題（who: person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る）", by: ai, command: andon issue ask }
   - { from: doing, to: doing, on: "報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた", by: ai, command: andon issue report・review-request・candidates・record・ask }

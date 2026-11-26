@@ -125,7 +125,7 @@ flowchart TB
 | 段（出典の語） | Andon の工程 | 役 | 仕組み（機械に置いた形） | 今あるか |
 |---|---|---|---|---|
 | 人が規則を定める | 委譲・ゲートの条件表・skill とプロファイル・依頼書の Settings・managed settings | 人（レベル C。Andon のパッケージは常に人。注: [ADR-0041](adr/0041-delegation-cap-out-of-command.md) で、オーナーが委譲で広げられる既定に変えた） | `project.json`（委譲）・`gate.json`／`gate.local.json`・`package/skills`・`templates`・`settings.json` の deny・`task.yaml` の予約キー | **ある** |
-| Signals（入口） | 人と Chief Engineer の対話 → 仕様・設計文書（ADR）。振り返りの記録 | 人・Chief Engineer | `andon chief-engineer`（台帳のタスク）・`report.json` の `next` | **ある**（Chief Engineer の実測は未。ADR-0007 D2。2026-11-10: 済。CE は台帳の課題として動いている） |
+| Signals（入口） | 人と Chief Engineer の対話 → 仕様・設計文書（ADR）。振り返りの記録 | 人・Chief Engineer | `andon design start`（台帳のタスク）・`report.json` の `next` | **ある**（Chief Engineer の実測は未。ADR-0007 D2。2026-11-10: 済。CE は台帳の課題として動いている） |
 | | 外の信号（案件 repo の main の CI の失敗・issue・エラー監視の webhook）が自分から入る口 | dispatcher → Chief of Staff | 通知 `kind: signal`（contract.md §6） | **無い**（最初の版の後。decisions.md §1 問い23、design.md §1.9 (a)） |
 | Triage（切る） | Chief of Staff が文書と依頼を依頼書に切る（課題の完了条件・横展開・守ること）。タスクの型は 調べる／直す／決める | Chief of Staff | `kanban add`・`andon task start`・`deliverable`（提案） | **ある**（`deliverable`・候補の一覧は PR #76 で提案中） |
 | | トリアージ（溜まった `next`・見送り・学びを仕分ける） | トリアージの担当・Chief of Staff | `andon triage collect`／`apply`・ルーチン `triage.yaml`・`kanban tick` | **一部**（command と skill はある。ルーチンを撃つ `kanban tick` は dispatcher が 1 巡ごとに打つ〈ADR-0007 C1・R1。2026-11-11〉。残るのは台帳に `routines/triage.yaml` を写すこと〈R4〉） |
@@ -135,7 +135,7 @@ flowchart TB
 | Ship（入れる） | ゲートが通し委譲の範囲ならマージして片付ける。レベル C と不可逆は人（灯り） | dispatcher・人 | `gh pr merge --match-head-commit`・`andon task finish`・ゲートの記録 | **ある** |
 | and observe（見る） | 本番が示したものを次の信号にする（障害を PR まで遡る） | — | — | **無い**（ADR-0006 前提 11。デプロイは案件の CI の仕事で Andon は持たない） |
 | アウターループ | 記録（報告・指摘・ゲートの記録・問い・人の手直し）→ 振り返り → 分類（テスト／観点／指針／skill）→ 環境の変更の PR | 振り返りのルーチン・Chief of Staff（案件側）・人（Andon のライン） | `report.json`・`findings.json`・`gate/<sha>.json`・`questions.yaml`・`corrections.json`・ルーチン `retro` | **一部**（記録はある。`corrections.json` と `retro` は設計だけ＝ADR-0007 C3。2026-11-10: `corrections.json` は入った〈#105〉。`retro` は残る＝R8） |
-| 測る | PR あたりの人の介在回数（一次。人の答え 2026-11-07）。自動マージ率・ゲートの差し戻し率は並べて見る。依頼書からマージまでの時間 | 振り返り | `andon measure`（`log.jsonl`・`issue.yaml`・`questions.yaml`・`report.json`・ゲートの記録から数える。介在回数の数え方は [ADR-0049](adr/0049-owner-touches-by-kind.md)。2026-11-09 に待ち時間・流量・WIP・対抗の指標を足した。[decisions/2026-11-09-measure-flow-metrics.md](decisions/2026-11-09-measure-flow-metrics.md)） | **ある**（command。実測の記録はこれから） |
+| 測る | PR あたりの人の介在回数（一次。人の答え 2026-11-07）。自動マージ率・ゲートの差し戻し率は並べて見る。依頼書からマージまでの時間 | 振り返り | `andon metrics show`（`log.jsonl`・`issue.yaml`・`questions.yaml`・`report.json`・ゲートの記録から数える。介在回数の数え方は [ADR-0049](adr/0049-owner-touches-by-kind.md)。2026-11-09 に待ち時間・流量・WIP・対抗の指標を足した。[decisions/2026-11-09-measure-flow-metrics.md](decisions/2026-11-09-measure-flow-metrics.md)） | **ある**（command。実測の記録はこれから） |
 | | 後悔しないマージの率 | — | — | **測らない**（人の答え 2026-11-07: 後悔は測りにくい。本番からの戻りも無い） |
 | その先 | クラウド常駐・通知の口（最終形）・作業側を別のマシンに | — | `machine`・通知の JSON | **設計だけ**（design.md §5.1「その先」、ADR-0007 E5） |
 
@@ -150,7 +150,7 @@ flowchart TB
 | 1 | README 冒頭（英語・日本語）・repo の description（decisions.md §17）・social preview | 「一人で使うソフトウェア工場。エージェントが台帳のタスクを実装・レビュー・マージまで流し、人は自分にしかできない判断のときだけ呼ばれる」 | ビジョン＋ミッションの1文 | **重複**（同じ向き）。ビジョン A と同じ文になっている。人が A と決めれば、README はこのまま vision.md を指すだけでよい |
 | 2 | design.md §0「一言で」・README 日本語「選択的 Dark Factory」・decisions.md D7 | 「止められるものは機械、**判断が要るものは LLM**、残りだけ人」 | ビジョン（像） | **食い違い（語）**: D6「**判断だけする人**」と並べると「判断」が LLM と人の両方を指す。ADR-0006 決めたこと 14 は 判断（情報があれば理屈で出る。LLM と担当の標準）と 決断（情報が無い中で決める。人か委譲の中の Chief of Staff）に分けた。D6・D7 は当時の言葉のまま。→ §6 問い2（答え: この文書は脚注で添え、語の統一は別タスク） |
 | 3 | design.md §1.3（判断は5種）・README 英語（five kinds）／ask-one-by-one skill §1（「灯りがつく判断の**4種**」）・ADR-0006 前提 4（「4種・レベル C」）・chief-of-staff skill | 5種／4種＋レベル C | バリュー 1 | **重複（言い方が2通り）**: 5種のうち 2〜4 が問い、1 が Chief Engineer、5 がゲートのレベル C。skill は「問いになる4種」と「レベル C」を分けて数える。意味は同じだが、初めて読む人は数が違って見える。→ §6 問い5 |
-| 4 | design.md §1.2（KPI は人の介在率）・§1.9 の 4／§5.1（自動マージ率・PR あたりの人の介在回数・時間・差し戻し率）・ADR-0006 前提 11（後悔しないマージの率）・README「Who it is for」 | 指標の名前が 3 系統 | ビジョンの特徴 3 | **重複（正が未定）**: どれが一次の指標か決まっておらず、最初の1回も未集計（ADR-0007 E6。2026-11-10: E6 は `andon measure`〈#103〉と ADR-0011 に引き継いだ）。→ §6 問い4（答え: 一次は PR あたりの人の介在回数。3 系統の名前を揃えるのは別タスク） |
+| 4 | design.md §1.2（KPI は人の介在率）・§1.9 の 4／§5.1（自動マージ率・PR あたりの人の介在回数・時間・差し戻し率）・ADR-0006 前提 11（後悔しないマージの率）・README「Who it is for」 | 指標の名前が 3 系統 | ビジョンの特徴 3 | **重複（正が未定）**: どれが一次の指標か決まっておらず、最初の1回も未集計（ADR-0007 E6。2026-11-10: E6 は `andon metrics show`〈#103〉と ADR-0011 に引き継いだ）。→ §6 問い4（答え: 一次は PR あたりの人の介在回数。3 系統の名前を揃えるのは別タスク） |
 | 5 | design.md 冒頭（人の決定 2026-11-04「Andon は工場そのもの（構造）の名前」）／README 英語「Andon … **is** the package, the contracts and the documents」・glossary（Andon ＝ 工場そのもの。部品の名前には使わない） | Andon ＝ 工場 ／ Andon ＝ パッケージと約束と文書 | ミッション | **重複（ニュアンス）**: design.md §1.6 が「Andon が持つのはパッケージ・約束・文書と建屋の形。hc と App は外部の部品」と解いている。README の英語は「repo の中身」を言い、design.md は「構造」を言う。食い違いではないが、英語の段だけ読むと Andon ＝ repo に見える |
 | 6 | design.md §1.1（「夜も回る（クラウド常駐）」）・§1.5（手元とクラウド）／§5.1（クラウド常駐は「その先」）・ADR-0007 E5 | 回り続ける像 ／ 今は手元だけ | ビジョンの特徴 2 | **重複（像と今の差）**: 食い違いではなく、ビジョンと現状の差。図では破線にした |
 | 7 | worker skill 前置き（「方針は自工程完結（built-in quality）」）・design.md §1.2 の 3・§1.7 | 品質を作り込む | バリュー 4 | **重複**（同じ向き。語も揃っている） |

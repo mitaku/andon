@@ -15,7 +15,7 @@ kanban に溜まったもの（報告の Next・見送り・Remember・For AGENT
    枠が空いたままのときは、仕分けていない項目が 1 回分（50 件）以上で、片付いていないトリアージが無ければ、dispatcher が同じルーチンを撃つ（`idle.md`。ADR-0047 決めたこと 7）。足されたものは週1の回と同じく扱う。
    `memory` の通知（memory が線を超えた）を受けたら、臨時のトリアージを同じ形で足す（ゴールは「memory を蒸留して線の下に戻す」）。
    `todo`／`doing`／`review` のトリアージがあれば足さない（同時に1つ）。
-2. **起動する**: ルーチンが足したものもオーナーが言ったものも、オーナーに聞かずに `andon issue start <id>`（`start.md`。枠〈`andon waiting` の `slots.free`〉とぶつかりは守る）。
+2. **起動する**: ルーチンが足したものもオーナーが言ったものも、オーナーに聞かずに `andon issue start <id>`（`start.md`。枠〈`andon waiting list` の `slots.free`〉とぶつかりは守る）。
 3. **報告が届いたら**: 通知は `<id> report`（PR の無い課題なので `review` の通知は来ない。報告を書いたときと `review` に入ったときの2度届きうる）。課題が `doing` のままなら待つ。`review` に入っていれば、報告の要約表と `issues/<id>/library/decisions.json` を読み、`andon triage apply <id> --dry-run` を打つ。
    閉じる理由が読めない・オーナーへのものが ask-one-by-one §1 の線に合わない・判断の推奨案と選択肢がオーナーがペインで答えられるほど具体でない・`person` の `later`（置いておく理由か、呼ぶ `false`）が置いておく基準（triage skill §3。ask-one-by-one §3 と同じ文）に合わない、なら担当に `hc send` で戻す。迷うものは呼ぶ（`false`）に直させる。
    Andon の skill とパッケージの直し（`remember`・`next`・`memory` の項目）は、オーナーの決定を覆すもの・オーナーの持ち物を変えるもの・権限か秘密か信頼の境界を弱めるもの（`person` のまま）のほかは、オーナーへの問いでなく直す課題か「1 件目」になっているかを見る（ADR-0062 決めたこと 13・14）。
@@ -30,7 +30,7 @@ kanban に溜まったもの（報告の Next・見送り・Remember・For AGENT
    `review` の全部に「閉じてよい」が揃うまで `apply` は kanban に手を入れずに断る（覆したものが残っていても断る）。終了コード 1 は理由を読み、判定が足りなければ 3 に戻り、ほかは担当に戻す。
    閉じるオーナーの課題に、答えられてまだ受け取られていない問いがあると、`apply` は何も書かずに断る。答えを受け取ってから（ask-one-by-one §3）、担当にその項目を仕分け直させる。
    要約は `library/triage/<日付>-<id>.md`、記録は同じ名前の `.json`。適用したら `andon issue finish <id>`（PR の無い課題。端末を片付けて done にする）。
-5. **続ける**: `apply` が足した fix／bundle の課題は、予約キーを既定（`review` は決定の値・`merge=person`・`estimate=medium` など）で持って足される。既定から変えるものだけ書き直し（`review=on` の課題の profile を替えたら、`reviewer` も別ブランドに書き直す）、オーナーに聞かずに `start.md` の手順で起動する（枠〈`andon waiting` の `slots.free`〉の中で。残りは次の周回）。
+5. **続ける**: `apply` が足した fix／bundle の課題は、予約キーを既定（`review` は決定の値・`merge=person`・`estimate=medium` など）で持って足される。既定から変えるものだけ書き直し（`review=on` の課題の profile を替えたら、`reviewer` も別ブランドに書き直す）、オーナーに聞かずに `start.md` の手順で起動する（枠〈`andon waiting list` の `slots.free`〉の中で。残りは次の周回）。
    報告の `## Next` の「〜の Chief of Staff へ委譲」は規約10の形で渡す（下）。`keep`「片付け待ち」は `finish.md` の手順で `andon issue finish`。
    申告の項目（`kind: gap`）で `close`「wiki へ: <ページ>」のものは、記録の本文を言葉のまま `wiki/raw/gaps/<日付>-<短い名>.md` に写して ingest し、申告が名指したページを直す（`wiki.md`。古い行は上書きせず、末尾に覆された行を足す）。
    memory の項目（`kind: memory`）で `close`「wiki へ: <タイトル>」のものは、記録（`library/triage/<日付>-<id>.json`）の本文を言葉のまま `wiki/raw/memory/<日付>-<短い名>.md` に写して ingest する（`wiki.md`）。repo 行きは `apply` が足した課題が運ぶ。memory のファイルと目録の行は `apply` が消す（自分で消さない）。

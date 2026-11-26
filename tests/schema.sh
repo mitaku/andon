@@ -5,7 +5,7 @@
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegate・andon dispatcher・andon measure・andon retro collect と patterns・andon signal・andon chief-engineer・andon chief-of-staff・andon waiting・andon digest）と
+#   5. command（andon issue・andon gate・andon delegation・andon dispatcher・andon metrics show・andon retro collect と patterns・andon signal・andon design start・andon open・andon waiting list・andon digest）と
 #      kanban の CLI が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
@@ -1341,8 +1341,8 @@ gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-stale-runs.json|gate|andon gate の記録（受け入れ条件の行が指す記録が head と違う commit）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
 gate-record-named.json|gate|andon gate の出力（名指しの grant がレベルを通した）
-project.json|project|andon delegate grant の project.json
-project-named.json|project|andon delegate grant --issues の project.json（名指しの grant）
+project.json|project|andon delegation grant の project.json
+project-named.json|project|andon delegation grant --issues の project.json（名指しの grant）
 gate-record-merged.json|gate|andon dispatcher がマージしたあとの gate の記録（merged）
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
@@ -1352,8 +1352,8 @@ notification-merged-person.json|notification|andon dispatcher の通知 merged�
 notification-merged-held.json|notification|andon dispatcher の通知 merged（オーナーがマージしたが片付けていない）
 notification-closed.json|notification|andon dispatcher の通知 closed
 notification-impact.json|notification|andon dispatcher の通知 impact（andon issue impact から）
-measure.json|measure|andon measure --json の出力
-measure-empty.json|measure|andon measure --json の出力（記録が無い kanban）
+measure.json|measure|andon metrics show --json の出力
+measure-empty.json|measure|andon metrics show --json の出力（記録が無い kanban）
 corrections-answer.json|corrections|andon dispatcher の corrections.json（answer）
 signals.json|signal|andon signal collect の信号の記録
 signals-delivered.json|signal|andon dispatcher が collect と delivered で書いた信号の記録（read_at・delivered_episode）
@@ -1371,9 +1371,9 @@ launch-start.json|launch|andon issue start の起動の記録
 launch-drift.json|launch|andon issue start の起動の記録（パッケージの置き場が食い違う・Codex）
 launch-norepo.json|launch|andon issue start の起動の記録（repo の無い課題）
 launch-resume.json|launch|andon issue resume の起動の記録
-launch-chief-engineer.json|launch|andon chief-engineer の起動の記録
+launch-chief-engineer.json|launch|andon design start の起動の記録
 launch-reviewer.json|launch|andon dispatcher がレビュアーを起動したときの起動の記録
-launch-chief-of-staff.json|launch|andon chief-of-staff の起動の記録
+launch-chief-of-staff.json|launch|andon open の起動の記録
 retro.json|retro|andon retro collect の出力
 retro-nogh.json|retro|andon retro collect の出力（GitHub が読めない）
 retro-split.json|retro|andon retro collect の出力（全文と要約に分けた）
@@ -1384,9 +1384,9 @@ run-fail.json|run|andon issue record の runs/<n>.json（落ちることを期�
 run-norepo.json|run|andon issue record の runs/<n>.json（repo の無い課題。commit 無し）
 ledger-log.jsonl|ledger-log|kanban の CLI が書いた log.jsonl（andon dispatcher がレビューからマージまで回した kanban）
 ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの課題・レビュアーの子課題・ルーチンの課題）
-waiting.json|waiting|andon waiting --json の出力（問いの番号の無い判断の行を含む）
-waiting-empty.json|waiting|andon waiting --json の出力（オーナー待ちが無い kanban）
-waiting-later.json|waiting|andon waiting --json の出力（置いてある判断の行を含む）
+waiting.json|waiting|andon waiting list --json の出力（問いの番号の無い判断の行を含む）
+waiting-empty.json|waiting|andon waiting list --json の出力（オーナー待ちが無い kanban）
+waiting-later.json|waiting|andon waiting list --json の出力（置いてある判断の行を含む）
 digest-input.json|digest-input|andon digest collect の input.json
 digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
 digest.json|digest|andon digest build の digest.json

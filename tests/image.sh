@@ -187,10 +187,10 @@ docker run --rm --network none \
     printf "ok workflow %s\n" "${files[@]}"
   '
 
-# セルを立てる道（docs/operate.md の 2・3・5）: ホストへ andon を取り出す → andon init → bin/bootstrap up → boot の生成物
+# セルを立てる道（docs/operate.md の 2・3・5）: ホストへ andon を取り出す → andon cell init → bin/bootstrap up → boot の生成物
 docker run --rm --network none andon:test cat /opt/andon/bin/andon >"$tmp/andon"
 chmod 755 "$tmp/andon"
-"$tmp/andon" init imgtest --dir "$plant" --image andon:test --owner owner@example.com
+"$tmp/andon" cell init imgtest --dir "$plant" --image andon:test --owner owner@example.com
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
 printf 'SSH_PORT=%s\nPORTLESS_PORT=%s\nFILES_PORT=%s\n' "$(free_port)" "$(free_port)" "$(free_port)" >"$plant/.env"
 # セルの repo は uid 1000 の持ち物（WSL・cloud-init の既定の利用者。runner は 1000 とは限らないので root で渡す）。
@@ -211,11 +211,11 @@ docker run --rm --network none --user 0 -v andon-imgtest_gh:/v andon:test bash -
 # ホストのシェルの TZ はセルに入らない（.env の CELL_TZ が無ければ Asia/Tokyo。下の (a1t) が見る）
 # bin/bootstrap は薄い入口: image（andon-imgtest:local）が無いので焼いてから本体を取り出し、本体が ANDON_ENTRY を渡して起動する（ADR-0048）
 TZ=UTC BUILDX_BUILDER=default "$plant/bin/bootstrap" up
-# (e0) 取り出した本体は image の /opt/andon/host/bootstrap と同じで、image の andon init --print bin/bootstrap はセルの bin/bootstrap と同じ（受け入れ条件 11）
+# (e0) 取り出した本体は image の /opt/andon/host/bootstrap と同じで、image の andon cell init --print bin/bootstrap はセルの bin/bootstrap と同じ（受け入れ条件 11）
 docker run --rm --network none andon-imgtest:local cat /opt/andon/host/bootstrap >"$tmp/image-body"
-docker run --rm --network none andon-imgtest:local andon init --print bin/bootstrap >"$tmp/printed-entry"
+docker run --rm --network none andon-imgtest:local andon cell init --print bin/bootstrap >"$tmp/printed-entry"
 if ! cmp -s "$plant/.andon/bootstrap" "$tmp/image-body" || ! cmp -s "$tmp/printed-entry" "$plant/bin/bootstrap" || ! grep -q '^host_install()' "$tmp/image-body"; then
-  echo 'FAIL image: .andon/bootstrap が image の本体と違うか、image の andon init --print bin/bootstrap がセルの bin/bootstrap と違う' >&2
+  echo 'FAIL image: .andon/bootstrap が image の本体と違うか、image の andon cell init --print bin/bootstrap がセルの bin/bootstrap と違う' >&2
   exit 1
 fi
 left=$(find "$plant/.andon" -name 'bootstrap.*' -o -name 'compose.yaml.?*')
@@ -224,7 +224,7 @@ if [ -n "$left" ]; then
   echo 'FAIL image: 本体か compose.yaml を取り出した一時のファイルが .andon/ に残った' >&2
   exit 1
 fi
-echo 'ok   image: 薄い入口から起動し、.andon/bootstrap は image の本体と同じで、andon init --print bin/bootstrap はセルの入口と同じ（受け入れ条件 11）'
+echo 'ok   image: 薄い入口から起動し、.andon/bootstrap は image の本体と同じで、andon cell init --print bin/bootstrap はセルの入口と同じ（受け入れ条件 11）'
 # ログは1度取ってから grep する（dc logs | grep -q だと grep の早抜けで SIGPIPE になり、pipefail で偽になる）
 boot_log=$(dc logs dev 2>&1) || true
 if ! grep -q '\[andon boot\] ready' <<<"$boot_log" || ! grep -q 'sshd を起動した' <<<"$boot_log" ||
@@ -238,7 +238,7 @@ fi
 # 動いているコンテナは、その前後で ID が変わらず動いたまま。ANDON_ENTRY=1 を足した dc は通る（cid0・cid1 を取る dc ps）。
 # exec は補間の誤りで止まらない（CI の本物の docker で確かめた）。古い入口の sh・herdr は exec の前に ps -q と up -d を打ち、そこで止まる
 old_dc() { ANDON_IMAGE=andon-imgtest:local ANDON_SLUG=imgtest docker compose --project-name andon-imgtest --project-directory "$plant" -f "$plant/.andon/compose.yaml" "$@"; }
-paste_line='docker run --rm andon-imgtest:local andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
+paste_line='docker run --rm andon-imgtest:local andon cell init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
 cid0=$(dc ps -q dev)
 for args in 'up -d' 'up -d --force-recreate' 'down' 'ps' 'ps -q dev' 'logs dev'; do
   read -r -a argv <<<"$args"
@@ -334,7 +334,7 @@ dc exec -T dev bash -euc '
 '
 # (c) boot がセルの repo（/workspace）を信頼済みにしたので、セルの claude と codex を /workspace の下の新しい dir で
 # 起動しても信頼の画面が出ない。対照に、信頼の根の外の新しい repo（/tmp）では出ることも見る（画面を読めていることの確かめ）。
-# 本物のセルの repo は git なので、ここでも git にしてから起動する（andon init の直後は git でない）。最初の画面だけ読んで止める。
+# 本物のセルの repo は git なので、ここでも git にしてから起動する（andon cell init の直後は git でない）。最初の画面だけ読んで止める。
 # claude は onboarding を済ませた形に、codex は偽の鍵の auth.json を置く（どちらも信頼の画面の前に出る画面を飛ばすため。
 # 外へは何も送らない。偽の鍵は見たあと消す）
 dc exec -T dev bash -c 'cat >/tmp/pty-probe.py' <tests/lib/pty-probe.py

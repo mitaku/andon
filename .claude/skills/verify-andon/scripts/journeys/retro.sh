@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 振り返り（features/retro.md）。切り離した kanban で、振り返りの担当の端末 tw が andon retro patterns で一覧を書き、
 # Chief of Staff の端末 tc が andon retro apply を打つ。この kanban の repos に Andon が無いので、Andon の直しは
-# 「Andon へ伝えるか」のオーナーの課題になる。その課題が印 later を持ち、andon waiting --json で置いてある行になるかを読む。
+# 「Andon へ伝えるか」のオーナーの課題になる。その課題が印 later を持ち、andon waiting list --json で置いてある行になるかを読む。
 # 前のバージョンの apply が who: person だけ書いて落ちた課題に、打ち直しで印を書くかと、Chief of Staff でない端末を断るかも見る。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
@@ -45,7 +45,7 @@ step "rt-not-cos: 担当の端末 tw が andon retro apply を打つ" env HC_TER
 # 前のバージョンの apply が p2 の課題を足し、who: person だけ書いて、問いを置く前に落ちた形を作る
 old=$("$kanban" add "Andon へ伝えるか: $s2" --parent "$r")
 "$kanban" set "$old" who=person >/dev/null
-step "rt-old-owner: 打ち直しの前に andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "rt-old-owner: 打ち直しの前に andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 row() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, kind, call, later}' "$tmp/step.out" 2>/dev/null; }
 echo "  waiting: $(row "$old")"
 jq -e --arg id "$old" '[.items[] | select(.id == $id)] | length == 1 and .[0].call == true' "$tmp/step.out" >/dev/null \
@@ -58,7 +58,7 @@ step "rt-later: Chief of Staff（tc）が andon retro apply を打つ" "$andon" 
 made() { jq -r --arg p "$1" '.issues[] | select(.pattern == $p) | .issue' "$lib/retro-applied.json" 2>/dev/null; }
 i1=$(made p1) i2=$(made p2)
 for i in $i1 $i2; do echo "  | $i: $("$kanban" show "$i" --json | jq -c '{issue: (.issue | {id, title, parent, who, later}), questions: [.questions[] | {status, kind}]}')"; done
-step "rt-later: 当てたあとに andon waiting --json を打つ" "$andon" waiting --json >/dev/null
+step "rt-later: 当てたあとに andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
 echo "  waiting: $(row "$i1") $(row "$i2")"
 [ -n "$i1" ] && [ "$i1" != "$old" ] && "$kanban" show "$i1" --json | jq -e --arg r "$r" --arg w "$why" '.issue.who == "person" and .issue.parent == $r and .issue.later == $w and (.questions | length == 1)' >/dev/null \
   && jq -e --arg id "$i1" --arg w "$why" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].call == false and .[0].later == $w' "$tmp/step.out" >/dev/null \

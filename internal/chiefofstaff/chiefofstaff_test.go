@@ -116,9 +116,9 @@ func (f *fake) has(prefix string) bool {
 	return false
 }
 
-func runMain(args ...string) (int, string, string) {
+func runMain() (int, string, string) {
 	var out, errb bytes.Buffer
-	rc := Main(args, strings.NewReader(""), &out, &errb)
+	rc := Start("", &out, &errb)
 	return rc, out.String(), errb.String()
 }
 
@@ -138,7 +138,7 @@ func TestStartsChiefOfStaff(t *testing.T) {
 		t.Errorf("out=%q", out)
 	}
 	// 最後に出た場所を「<Space 名> / <tab 名>」で出す（ADR-0002 決めたこと 14・17）。address は末尾に添えるだけ
-	if !strings.HasSuffix(out, "andon chief-of-staff: 出た場所 sample-site / CoS（t42）\n") {
+	if !strings.HasSuffix(out, "andon open: 出た場所 sample-site / CoS（t42）\n") {
 		t.Errorf("出た場所が最後に無い: out=%q", out)
 	}
 	want := []string{
@@ -301,15 +301,6 @@ func TestNeverAttaches(t *testing.T) {
 		runMain()
 		if f.has("hc attach") {
 			t.Errorf("hc attach を打った: %q", f.calls())
-		}
-	}
-}
-
-func TestUsage(t *testing.T) {
-	// --no-attach は消した（ADR-0002 決めたこと 14）
-	for _, args := range [][]string{{"x"}, {"--no-attach"}, {"--attach"}} {
-		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon chief-of-staff") {
-			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
 		}
 	}
 }

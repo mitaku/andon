@@ -60,7 +60,7 @@
    - `Deliverable` は `report`（成果は報告で、地図を直すときだけ PR がある）。依頼書に書き、**自分の端末で** `kanban set <id> deliverable=report` も打つ（正は `issue.yaml`。写しだけでは待つ課題に「やめになった」が付く。ADR-0066 決めたこと 4・6）。
    - `Review` は `off` のまま書く（independent-review の §1 の条件に当たらない）。地図を直す PR はレベル B なので gate がレビューを求め、担当は依頼書の `レビュー:` の行のとおり頼む。`on` に書き直さない。`Reviewer`・`Must fix`・`Review rounds` は、そのレビューと gate が読むので省かない（`must_fix` が無いと gate はオーナーへ回す）。
    - `Merge` は、委譲がこのプロジェクトのマージを任せていれば `auto`（`brief.md` の表）。地図の直しは `.claude/skills/` の中だけなので、gate の条件表で自動でマージできる側に入る。
-   - 起動は `start.md` のとおり（枠〈`andon waiting` の `slots.free`〉とぶつかりの確かめは守る）。枠が無くて待たせた課題も done でないので、1 が次の切り過ぎを止める。
+   - 起動は `start.md` のとおり（枠〈`andon waiting list` の `slots.free`〉とぶつかりの確かめは守る）。枠が無くて待たせた課題も done でないので、1 が次の切り過ぎを止める。
 5. **オーナーへ**: 当てた知らせに1行添える。「検証の課題 <id>（<機能>）を切った」「差分が地図に当たらないので検証は切らない」「検証の課題 <id> が動いているので、片付いたあとにまとめて見る」のどれか。
 
 ## 報告が届いたら

@@ -1,5 +1,5 @@
 // Waiting on you: what waits on the owner in the focused pane's project, for the right panel.
-// The list is `andon waiting --json` run in the cell (Andon's docs/contract.md §25): the command holds
+// The list is `andon waiting list --json` run in the cell (Andon's docs/contract.md §25): the command holds
 // the counting rule, and the mod only draws its output in its order (ADR-0042 decisions 12 and 14). What the
 // output leaves for later (`call` false) goes under a "Later" heading, answered the same way (ADR-0062 decision 8).
 // Its one way to write is `andon waiting answer` on a decision the output marks answerable, run only when
@@ -48,19 +48,24 @@ const firstLine = (s) => String(s ?? "").trim().split("\n")[0].trim();
 // Whether the output left the row for later. A row without `call` (an andon older than the field) calls.
 export const isLater = (i) => i?.call === false;
 
+// andon's refusal of a name it doesn't have (an older andon: "知らない", a newer one: "名前が変わった"). The
+// arguments are fixed, so the cell's andon and these host parts are from different versions, and reinstalling
+// the parts puts the cell's copy here (ADR-0053 decision 9).
+const MISMATCH = /知らない|名前が変わった/;
+const VERSIONS_DIFFER = "This cell's andon and this pane are different versions: reinstall the host parts";
+
 // What one run of the command gives: { data } to draw, or { reason } in one line.
 export function readOutput(r) {
-  if (!r) return { reason: "andon waiting did not run" };
-  // 127: the shell found no such command (a cell older than andon waiting).
+  if (!r) return { reason: "andon waiting list did not run" };
+  // 127: the shell found no such command (a cell without andon).
   if (r.code === 127) return { reason: "This cell has no andon: update the cell's Andon" };
-  // 2: andon's usage error. The arguments are fixed, so it is an andon older than `andon waiting`.
-  if (r.code === 2) return { reason: "This cell's andon has no waiting command: update the cell's Andon" };
-  if (r.code !== 0) return { reason: `andon waiting failed: ${firstLine(r.stderr) || `exit ${r.code}`}` };
+  if (r.code === 2 && MISMATCH.test(String(r.stderr ?? ""))) return { reason: VERSIONS_DIFFER };
+  if (r.code !== 0) return { reason: `andon waiting list failed: ${firstLine(r.stderr) || `exit ${r.code}`}` };
   let data;
-  try { data = JSON.parse(r.stdout); } catch { return { reason: "andon waiting printed something that is not JSON" }; }
-  if (!data || typeof data !== "object") return { reason: "andon waiting printed something that is not JSON" };
-  if (data.version !== VERSION) return { reason: `andon waiting speaks version ${data.version}; this pane reads version ${VERSION}` };
-  if (!data.slots || !Array.isArray(data.items)) return { reason: "andon waiting printed no slots or items" };
+  try { data = JSON.parse(r.stdout); } catch { return { reason: "andon waiting list printed something that is not JSON" }; }
+  if (!data || typeof data !== "object") return { reason: "andon waiting list printed something that is not JSON" };
+  if (data.version !== VERSION) return { reason: `andon waiting list speaks version ${data.version}; this pane reads version ${VERSION}` };
+  if (!data.slots || !Array.isArray(data.items)) return { reason: "andon waiting list printed no slots or items" };
   return { data };
 }
 
@@ -69,8 +74,7 @@ export function answerFailure(r) {
   if (!r) return "andon waiting answer did not run";
   if (r.code === 0) return null;
   if (r.code === 127) return "This cell has no andon: update the cell's Andon";
-  // 2: andon's usage error. The arguments are fixed, so it is an andon older than `andon waiting answer`.
-  if (r.code === 2) return "This cell's andon can't answer from the pane: update the cell's Andon";
+  if (r.code === 2 && MISMATCH.test(String(r.stderr ?? ""))) return VERSIONS_DIFFER;
   return `Not answered: ${firstLine(r.stderr) || `exit ${r.code}`}`;
 }
 
@@ -149,9 +153,9 @@ export default class Waiting extends View {
       let got;
       try {
         // The command and its arguments are fixed: no path and no slug from the screen goes into them.
-        got = readOutput(await exec("andon", ["waiting", "--json"], { cwd, on, timeout: TIMEOUT_MS }));
+        got = readOutput(await exec("andon", ["waiting", "list", "--json"], { cwd, on, timeout: TIMEOUT_MS }));
       } catch (e) {
-        got = { reason: `Can't run andon waiting: ${firstLine(e?.message ?? e)}` };
+        got = { reason: `Can't run andon waiting list: ${firstLine(e?.message ?? e)}` };
       } finally {
         this.reading = false;
       }

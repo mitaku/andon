@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon waiting`。一時の kanban（ファイルを直に置く）で回す。kanban の CLI も hc の端末も使わない。偽の gh・git を PATH に置き、呼ばれたら落とす。
+# `andon waiting list`。一時の kanban（ファイルを直に置く）で回す。kanban の CLI も hc の端末も使わない。偽の gh・git を PATH に置き、呼ばれたら落とす。
 # 数え方の細部は internal/waiting/waiting_test.go。ここはバイナリの入口・人が読む行・終了コード・何も書かないことを見る。
 # ANDON_EMIT_DIR があれば --json の出力を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -43,7 +43,7 @@ printf 'id: S-0005\ntitle: 公開の範囲を決める\nstatus: todo\nwho: perso
 printf '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"review"}}\n' | put "$k/log.jsonl"
 before=$(cd "$p" && find . -type f -exec sha1sum {} + | sort)
 
-"$andon" waiting --json --project sample-site >"$tmp/out.json"
+"$andon" waiting list --json --project sample-site >"$tmp/out.json"
 jq -e '.version == 1 and .project == "sample-site"
   and .slots == {limit: 3, working: 0, waiting: 2, free: 3}
   and ([.items[] | [.kind, .id, (.question // "")]] == [["merge", "S-0001", "S-0001#1"], ["decision", "S-0003", "S-0003#1"], ["task", "S-0004", ""], ["decision", "S-0005", ""]])
@@ -54,7 +54,7 @@ jq -e '.version == 1 and .project == "sample-site"
 emit "$tmp/out.json" waiting.json
 echo 'ok --json --project: マージの依頼・判断・手作業・問いの番号の無い判断と、枠・後ろで待つ課題・並び'
 
-(cd "$p" && KANBAN_ROOT=$p "$andon" waiting) >"$tmp/text"
+(cd "$p" && KANBAN_ROOT=$p "$andon" waiting list) >"$tmp/text"
 grep -q '^sample-site の枠: 上限 3、動いている 0、オーナー待ち 2、空き 3$' "$tmp/text"
 grep -q '^マージの依頼 S-0001#1（名指しの口を足す）。2026-11-21T04:43:35Z から。後ろで 1 件が待つ（S-0002）。理由: マージするか。PR https://github.com/example/sample-site/pull/41$' "$tmp/text"
 grep -q '^判断 S-0003#1（書き出しの形を決める）。.*問い: CSV だけにするか$' "$tmp/text"
@@ -73,11 +73,11 @@ printf -- '- n: 1\n  text: 公開するか\n  kind: users\n  status: open\n  ask
 printf 'id: S-0002\ntitle: 書き出しの形を決める\nstatus: todo\nwho: person\ncreated: "2026-11-21T03:00:00Z"\n' | put "$lk/issues/S-0002/issue.yaml"
 printf -- '- n: 1\n  text: CSV だけにするか\n  kind: users\n  status: open\n  asked: "2026-11-21T04:00:00Z"\n' | put "$lk/issues/S-0002/questions.yaml"
 printf '{"at":"2026-11-21T05:00:00Z","by":"terminal:t1","id":"S-0001","change":{"later":"急がない。次のリリースで決めればよい"}}\n' | put "$lk/log.jsonl"
-KANBAN_ROOT=$lp "$andon" waiting --json >"$tmp/later.json"
+KANBAN_ROOT=$lp "$andon" waiting list --json >"$tmp/later.json"
 jq -e '[.items[] | [.question, .call, (.later // "")]] == [["S-0002#1", true, ""], ["S-0001#1", false, "急がない。次のリリースで決めればよい"]]' "$tmp/later.json" >/dev/null \
   || die "置いてある行の call・later・並びが違う: $(cat "$tmp/later.json")"
 emit "$tmp/later.json" waiting-later.json
-KANBAN_ROOT=$lp "$andon" waiting >"$tmp/later.text"
+KANBAN_ROOT=$lp "$andon" waiting list >"$tmp/later.text"
 sed -n 2,5p "$tmp/later.text" >"$tmp/later.body"
 printf '%s\n' '呼んでいるもの 1 件（行燈を灯す）' '^判断 S-0002#1（書き出しの形を決める）' \
   '^置いてあるもの 1 件（行燈を灯さない。いつでも答えられる）$' '^判断 S-0001#1（公開の範囲を決める）。.*。置いた理由: 急がない。次のリリースで決めればよい$' >"$tmp/later.want"
@@ -87,7 +87,7 @@ done
 [[ $(wc -l <"$tmp/later.text") == 5 ]] || die "人が読む行の数が違う: $(cat "$tmp/later.text")"
 # 当たる場合があること: 印を担当の端末（t7）が書き直すと、置いてある行は無くなる
 printf '{"at":"2026-11-21T06:00:00Z","by":"terminal:t7","id":"S-0001","change":{"later":"急がない。次のリリースで決めればよい"}}\n' >>"$lk/log.jsonl"
-KANBAN_ROOT=$lp "$andon" waiting >"$tmp/later2.text"
+KANBAN_ROOT=$lp "$andon" waiting list >"$tmp/later2.text"
 if grep -q '置いてあるもの' "$tmp/later2.text"; then die "担当の端末が書いた印を読んだ: $(cat "$tmp/later2.text")"; fi
 grep -q '^呼んでいるもの 2 件' "$tmp/later2.text" || die "担当の端末が書いた印で呼ぶ行が 2 件にならない: $(cat "$tmp/later2.text")"
 echo 'ok 置いてあるもの: 呼んでいる行の後に分かれ、印の理由が出る。担当の端末が書いた印は読まない'
@@ -104,10 +104,10 @@ echo 'ok kanban に何も書かず、gh も git も kanban の CLI も呼ばな�
 # オーナー待ちが無い kanban（project.json も無い）: 上限 2・空の並び・終了コード 0
 mkdir -p "$tmp/empty/kanban"
 printf 'version: 3\n' >"$tmp/empty/kanban/config.yaml"
-KANBAN_ROOT=$tmp/empty "$andon" waiting --json >"$tmp/empty.json"
+KANBAN_ROOT=$tmp/empty "$andon" waiting list --json >"$tmp/empty.json"
 jq -e '.items == [] and .slots == {limit: 2, working: 0, waiting: 0, free: 2}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" waiting-empty.json
-KANBAN_ROOT=$tmp/empty "$andon" waiting | grep -q '^オーナー待ちは無い$'
+KANBAN_ROOT=$tmp/empty "$andon" waiting list | grep -q '^オーナー待ちは無い$'
 echo 'ok 空の kanban: 上限 2・空の並び・終了コード 0'
 
 # オーナー待ちが上限以上でも空きは減らない（ADR-0065 受け入れ条件 2）: 上限 2・判断を待つ担当 2・動いている担当 1
@@ -121,10 +121,10 @@ for id in S-0001 S-0002; do
 done
 printf 'id: S-0003\ntitle: 動いている\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' | put "$fk/issues/S-0003/issue.yaml"
 : | put "$fk/log.jsonl"
-KANBAN_ROOT=$fp "$andon" waiting --json >"$tmp/full.json"
+KANBAN_ROOT=$fp "$andon" waiting list --json >"$tmp/full.json"
 jq -e '.slots == {limit: 2, working: 1, waiting: 2, free: 1}' "$tmp/full.json" >/dev/null \
   || die "待ちが上限以上の slots が違う（キーは limit・working・waiting・free の 4 つ）: $(jq -c .slots "$tmp/full.json")"
-KANBAN_ROOT=$fp "$andon" waiting >"$tmp/full.text"
+KANBAN_ROOT=$fp "$andon" waiting list >"$tmp/full.text"
 grep -q '^full の枠: 上限 2、動いている 1、オーナー待ち 2、空き 1$' "$tmp/full.text" \
   || die "待ちが上限以上の枠の行が違う: $(cat "$tmp/full.text")"
 if grep -q '起動しない' "$tmp/full.text"; then die "人が読む出力に起動しないの文がある: $(cat "$tmp/full.text")"; fi
@@ -134,8 +134,8 @@ grep -q '起動しない' <<<'full の枠: 上限 2、動いている 1、オー
 echo 'ok 待ちが上限以上: 空きは上限から動いている数を引いた数で、waiting_full も起動しないの文も無い'
 
 set +e
-"$andon" waiting --project nothing >/dev/null 2>"$tmp/err"; rc=$?
-"$andon" waiting --bogus >/dev/null 2>&1; rc2=$?
+"$andon" waiting list --project nothing >/dev/null 2>"$tmp/err"; rc=$?
+"$andon" waiting list --bogus >/dev/null 2>&1; rc2=$?
 set -e
 [[ $rc == 1 ]] && grep -q 'プロジェクト nothing の kanban が無い' "$tmp/err" || die "無いプロジェクトを終了コード 1 で断らない（rc=$rc）"
 [[ $rc2 == 2 ]]

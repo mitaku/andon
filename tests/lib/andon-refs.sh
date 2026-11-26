@@ -3,13 +3,27 @@
 #   andon_refs md|code <ファイル…>   andon <名詞> [<動詞>] を「<ファイル>:<行>\t<名詞>\t<動詞>」で出す。
 #                                    md は `` で囲んだ語とコードの囲み（```）の中の行だけ、code は全部の行を見る。
 #                                    行に <!-- andon の古い名前 --> があれば、その行は見ない（用語集が古い名前を挙げる行）
-#   andon_bad_refs <葉の一覧のファイル>  標準入力の andon_refs の行のうち、表に無いものを出す
+#   andon_retired_nouns <葉の一覧のファイル>  名詞だけの形が古い名前の名詞（andon waiting）を1行ずつ出す。
+#                                    1語の葉でない名詞ごとに andon <名詞> --zz を打ち、名前が変わったと断られたものを拾う
+#                                    （1語の葉でない名詞は、フラグだけでは葉を実行しない）
+#   andon_bad_refs <葉の一覧のファイル> [<名詞だけでは古い名詞のファイル>]
+#                                    標準入力の andon_refs の行のうち、表に無いものを出す
 # 名詞と動詞は英小文字とハイフンの語だけを見る（<id>・$sub・… は名詞にも動詞にも数えない）。
 # 照らし方は andon の振り分けと同じ: 2語目が動詞の形で、名詞に2語の葉があれば「名詞 動詞」が表に要る。
 # 名詞が1語の葉なら、2語目はその葉の引数（andon open sample-site・andon gate S-0012）。名詞だけは、2語の葉を持つ名詞なら通る。
+# ただし名詞だけの形が古い名前の名詞（2つ目のファイル）は、名詞だけでは落とす（ADR-0053 決めたこと 17）。
 
 andon_leaves() {
   "$andon" help --all | sed -n 's/^  \([a-z][a-z-]*\( [a-z][a-z-]*\)\{0,1\}\)  .*/\1/p'
+}
+
+andon_retired_nouns() {
+  local n err
+  for n in $(sed -n 's/^\([a-z][a-z-]*\) [a-z].*/\1/p' "$1" | LC_ALL=C sort -u); do
+    grep -qx "$n" "$1" && continue
+    err=$("$andon" "$n" --zz 2>&1 >/dev/null)
+    if [ $? = 2 ] && [[ "$err" == *"名前が変わった"* ]]; then echo "$n"; fi
+  done
 }
 
 andon_refs() {
@@ -47,7 +61,7 @@ andon_refs() {
 andon_bad_refs() {
   perl -CSDA -e '
     open my $f, "<", shift or die "葉の一覧が読めない\n";
-    my (%leaf, %kids);
+    my (%leaf, %kids, %old);
     while (<$f>) {
       chomp;
       next if $_ eq "";
@@ -56,10 +70,14 @@ andon_bad_refs() {
       $kids{$n} = 1 if defined $v;
     }
     die "葉の一覧が空\n" unless %leaf;
+    if (my $r = shift) {
+      open my $g, "<", $r or die "名詞だけでは古い名詞の一覧が読めない\n";
+      while (<$g>) { chomp; $old{$_} = 1 if $_ ne "" }
+    }
     while (<STDIN>) {
       chomp;
       my ($at, $n, $v) = split /\t/, $_, -1;
-      my $ok = ($v ne "" && $kids{$n}) ? $leaf{"$n $v"} : ($leaf{$n} || $kids{$n});
+      my $ok = ($v ne "" && $kids{$n}) ? $leaf{"$n $v"} : ($leaf{$n} || ($kids{$n} && !$old{$n}));
       print "$at: andon $n" . ($v ne "" ? " $v" : "") . "\n" unless $ok;
-    }' "$1"
+    }' "$@"
 }

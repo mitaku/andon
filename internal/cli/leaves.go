@@ -6,7 +6,6 @@ import (
 	"andon/internal/board"
 	"andon/internal/boot"
 	"andon/internal/chiefengineer"
-	"andon/internal/chiefofstaff"
 	"andon/internal/create"
 	"andon/internal/delegate"
 	"andon/internal/digest"
@@ -67,42 +66,42 @@ var leaves = []leaf{
 	// andon そのもの
 	{name: "help", who: []who{owner, role, machine}, about: "この一覧を出す（--all で全部の葉、--all --markdown で docs/commands.md）",
 		usage: helpUsage, examples: []string{"help --all"}},
-	{name: "open", who: []who{owner, role}, about: "プロジェクトを選んで Chief of Staff を開く（slug 無しは fzf で選ぶ）",
-		usage: open.Usage, examples: []string{"open sample-site"}, writes: true, slugArg: true, run: open.Main},
+	{name: "open", who: []who{owner, role}, about: "プロジェクトの Chief of Staff を開く（動いていれば、そのまま使う。slug を省くと今いるプロジェクト、決まらなければ fzf で選ぶ）",
+		usage: open.Usage, examples: []string{"open sample-site", "open"},
+		exits: []exit{{3, "起動したが最初のメッセージが届いていない"}}, writes: true, slugArg: true, run: open.Main},
 	{name: "version", who: []who{machine}, about: "パッケージの置き場の commit と、中身がその commit と食い違うかを JSON で出す",
 		usage: pkgversion.Usage, examples: []string{"version"}, json: true, run: pkgversion.Main},
 	{name: "boot", who: []who{machine, owner}, about: "パッケージからセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する（毎起動）",
 		usage: boot.Usage, examples: []string{"boot"}, writes: true, run: boot.Main},
 
-	// オーナーが打つ（名前を変えるまでは今の名前。決めたこと 8）
-	{name: "chief-of-staff", who: []who{owner, role}, about: "今いるプロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う）",
-		usage: chiefofstaff.Usage, examples: []string{"chief-of-staff"},
-		exits: []exit{{3, "起動したが最初のメッセージが届いていない"}}, writes: true, run: chiefofstaff.Main},
-	{name: "chief-engineer", who: []who{owner, role}, about: "オーナーと仕様・設計を対話する Chief Engineer を、kanban の課題として起動する",
-		usage: chiefengineer.Usage, examples: []string{`chief-engineer "返事の下書きボタン"`},
+	// オーナーが打つ
+	{name: "design start", who: []who{owner, role}, about: "オーナーと仕様・設計を対話する Chief Engineer を、kanban の課題として起動する",
+		usage: chiefengineer.Usage, examples: []string{`design start "返事の下書きボタン"`},
 		exits: []exit{{3, "起動したが最初のメッセージが届いていない"}}, writes: true, project: true, run: chiefengineer.Main},
-	{name: "create", who: []who{owner}, about: "プロジェクトを立てる（projects/<slug>/ に kanban・project.json の下書き・AGENTS.md）",
-		usage: create.Usage, examples: []string{"create sample-site --repo github.com/<owner>/sample-site"}, writes: true, run: create.Main},
-	{name: "waiting", who: []who{owner, role, machine}, about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す",
-		usage: waiting.Usage, examples: []string{"waiting"}, project: true, json: true, run: waiting.Main},
+	{name: "project create", who: []who{owner}, about: "プロジェクトを立てる（projects/<slug>/ に kanban・project.json の下書き・AGENTS.md）",
+		usage: create.Usage, examples: []string{"project create sample-site --repo github.com/<owner>/sample-site"}, writes: true, run: create.Main},
+	{name: "project list", who: []who{owner}, about: "セルのプロジェクト（kanban のある projects/<slug>/）の slug を並べる（読むだけ）",
+		usage: open.ListUsage, examples: []string{"project list"}, run: open.ListMain},
+	{name: "waiting list", who: []who{owner, role, machine}, about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す",
+		usage: waiting.Usage, examples: []string{"waiting list", "waiting list --json"}, project: true, json: true, run: waiting.Main},
 	{name: "waiting answer", who: []who{owner, machine}, about: "ペインから判断の問いに選択肢で答える",
 		usage: waiting.AnswerUsage, examples: []string{"waiting answer S-0012#1 --option 1"}, writes: true, project: true, run: waitingAnswer},
-	{name: "delegate show", who: []who{owner, role}, about: "委譲（project.json の delegation）を読んで出す",
-		usage: delegate.ShowUsage, examples: []string{"delegate show --json"}, project: true, json: true, run: delegate.ShowMain},
-	{name: "delegate grant", who: []who{owner}, about: "委譲を足す",
-		usage: delegate.GrantUsage, examples: []string{"delegate grant merge B --evidence ADR-0041"}, writes: true, project: true, run: delegate.GrantMain},
-	{name: "delegate narrow", who: []who{owner}, about: "委譲を狭める",
-		usage: delegate.NarrowUsage, examples: []string{"delegate narrow merge A --evidence 戻す"}, writes: true, project: true, run: delegate.NarrowMain},
-	{name: "delegate revoke", who: []who{owner}, about: "委譲を1件取り消す",
-		usage: delegate.RevokeUsage, examples: []string{"delegate revoke d-3 --reason 期限"}, writes: true, project: true, run: delegate.RevokeMain},
-	{name: "measure", who: []who{owner, role}, about: "kanban と記録からラインの流れ・効率・対抗の指標を数える",
-		usage: measure.Usage, examples: []string{"measure --since 2026-11-01"}, project: true, json: true, run: measure.Main},
+	{name: "delegation show", who: []who{owner, role}, about: "委譲（project.json の delegation）を読んで出す",
+		usage: delegate.ShowUsage, examples: []string{"delegation show --json"}, project: true, json: true, run: delegate.ShowMain},
+	{name: "delegation grant", who: []who{owner}, about: "委譲を足す",
+		usage: delegate.GrantUsage, examples: []string{"delegation grant merge B --evidence ADR-0041"}, writes: true, project: true, run: delegate.GrantMain},
+	{name: "delegation narrow", who: []who{owner}, about: "委譲を狭める",
+		usage: delegate.NarrowUsage, examples: []string{"delegation narrow merge A --evidence 戻す"}, writes: true, project: true, run: delegate.NarrowMain},
+	{name: "delegation revoke", who: []who{owner}, about: "委譲を1件取り消す",
+		usage: delegate.RevokeUsage, examples: []string{"delegation revoke d-3 --reason 期限"}, writes: true, project: true, run: delegate.RevokeMain},
+	{name: "metrics show", who: []who{owner, role}, about: "kanban と記録からラインの流れ・効率・対抗の指標を数える",
+		usage: measure.Usage, examples: []string{"metrics show --since 2026-11-01"}, project: true, json: true, run: measure.Main},
 	{name: "signal auth", who: []who{owner}, about: "外の信号の出所のトークンをセルの中で聞いて置く",
 		usage: signal.AuthUsage, examples: []string{"signal auth sentry"}, writes: true, run: signal.AuthMain},
 	{name: "digest auth", who: []who{owner}, about: "ダイジェストを送る Slack の bot のトークンをセルの中で聞いて置く",
 		usage: digest.AuthUsage, examples: []string{"digest auth slack"}, writes: true, run: digest.AuthMain},
-	{name: "init", who: []who{owner}, about: "セルの repo の雛形（<slug>-cell）を作る",
-		usage: plantinit.Usage, examples: []string{"init sample"}, writes: true, run: plantinit.Main},
+	{name: "cell init", who: []who{owner}, about: "セルの repo の雛形（<slug>-cell）を作る",
+		usage: plantinit.Usage, examples: []string{"cell init sample"}, writes: true, run: plantinit.Main},
 
 	// 役が打つ
 	{name: "issue start", who: []who{role, machine}, about: "worktree と branch を切り、担当を起動して kanban start で結ぶ",
@@ -212,19 +211,10 @@ var leaves = []leaf{
 		usage: process.JSONUsage, examples: []string{"process json process/states/issue.yaml"}, json: true, run: process.JSONMain},
 }
 
-// renames は名前を変える葉の、今の名前と新しい名前（ADR-0053 決めたこと 8 の 18 個。dispatcher と dispatcher --once は1行）。名前を変えるまでの間は、
-// 葉の形の決まり（2語・1語の4つ・1語の葉を名詞にしない）から外れていても、ここにある葉だけは表に置いてよい。
+// renames は名前を変える葉の、今の名前と新しい名前（ADR-0053 決めたこと 8 の 18 個のうち、まだ変えていないもの。dispatcher と
+// dispatcher --once は1行）。名前を変えるまでの間は、葉の形の決まり（2語・1語の4つ・1語の葉を名詞にしない）から外れていても、
+// ここにある葉だけは表に置いてよい。変えたら retired へ移す。
 var renames = map[string]string{
-	"chief-of-staff":   "open",
-	"chief-engineer":   "design start",
-	"create":           "project create",
-	"waiting":          "waiting list",
-	"delegate show":    "delegation show",
-	"delegate grant":   "delegation grant",
-	"delegate narrow":  "delegation narrow",
-	"delegate revoke":  "delegation revoke",
-	"measure":          "metrics show",
-	"init":             "cell init",
 	"gate":             "issue gate",
 	"issue ready":      "issue submit",
 	"publish":          "file publish",
@@ -234,11 +224,26 @@ var renames = map[string]string{
 	"version stamp":    "package stamp",
 }
 
+// retired は名前を変えた葉の、古い名前と新しい名前（決めたこと 17）。古い名前は実行せず、新しい名前を1行で言って終了コード 2 で断る。
+// 別名ではない。消す時期は決めない。
+var retired = map[string]string{
+	"chief-of-staff":  "open",
+	"chief-engineer":  "design start",
+	"create":          "project create",
+	"waiting":         "waiting list",
+	"delegate show":   "delegation show",
+	"delegate grant":  "delegation grant",
+	"delegate narrow": "delegation narrow",
+	"delegate revoke": "delegation revoke",
+	"measure":         "metrics show",
+	"init":            "cell init",
+}
+
 // oneWord は1語で打てる葉（決めたこと 5）。
 var oneWord = map[string]bool{"open": true, "help": true, "version": true, "boot": true}
 
 // featured は andon help の先頭に例を出す、オーナーがよく打つ葉（決めたこと 12）。
-var featured = []string{"open", "waiting", "chief-engineer"}
+var featured = []string{"open", "waiting list", "design start"}
 
 // issueTrace は andon issue trace。dispatcher の控えのパスをここで渡す（trace が dispatcher に依らないように）。
 func issueTrace(args []string, _ io.Reader, stdout, stderr io.Writer) int {

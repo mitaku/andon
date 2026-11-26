@@ -162,7 +162,7 @@ func TestStartsChiefEngineer(t *testing.T) {
 		t.Errorf("out=%q", out)
 	}
 	// 最後に出た場所を「<Space 名> / <tab 名>」で出す。hc attach は打たない（ADR-0002 決めたこと 14・16・17）
-	if !strings.HasSuffix(out, "andon chief-engineer: 出た場所 sample-site / CE S-7 Billing の設計（t42）\n") || strings.Contains(out, "hc attach") || f.has("hc attach") {
+	if !strings.HasSuffix(out, "andon design start: 出た場所 sample-site / CE S-7 Billing の設計（t42）\n") || strings.Contains(out, "hc attach") || f.has("hc attach") {
 		t.Errorf("出た場所が最後に無い・attach が残る: out=%q", out)
 	}
 	if b := f.branches(); !strings.Contains(b, "sample-site/S-7-billing") {
@@ -211,7 +211,7 @@ func TestUsage(t *testing.T) {
 	r := "--repo=github.com/example/sample-site"
 	for _, args := range [][]string{nil, {""}, {r}, {r, ""}, {r, "  "}, {r, "a", "b"}, {r, "二行\nのタイトル"}, {r, "--no-attach", "タイトル"}, {"--repo"}} {
 		rc, out, errs := runMain(args...)
-		if rc != exitUsage || out != "" || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
+		if rc != exitUsage || out != "" || !strings.HasPrefix(errs, "usage: andon design start") {
 			t.Errorf("%q: rc=%d out=%q err=%q", args, rc, out, errs)
 		}
 	}
@@ -227,7 +227,7 @@ func TestNoLedger(t *testing.T) {
 }
 
 func TestDocumentedInvocations(t *testing.T) {
-	re := regexp.MustCompile("andon chief-engineer((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?)( --brief -)? \"<タイトル>\"")
+	re := regexp.MustCompile("andon design start((?: (?:\\[--repo <[^>]+>\\]|--repo <[^>]+>))?)( --brief -)? \"<タイトル>\"")
 	files, _ := filepath.Glob("../../package/skills/*/SKILL.md")
 	files = append(files, "../../docs/design.md", "../../README.md", "../../README.ja.md")
 	found := 0
@@ -257,10 +257,10 @@ func TestDocumentedInvocations(t *testing.T) {
 		}
 	}
 	if found < 3 {
-		t.Errorf("文書に andon chief-engineer の呼び出しが %d 個しか見つからない", found)
+		t.Errorf("文書に andon design start の呼び出しが %d 個しか見つからない", found)
 	}
 	// 呼び出しの形が上の正規表現に合わない書き方が文書に残っていない
-	loose := regexp.MustCompile("andon chief-engineer [^`）]*")
+	loose := regexp.MustCompile("andon design start [^`）]*")
 	for _, file := range files {
 		b, _ := os.ReadFile(file)
 		for _, m := range loose.FindAllString(string(b), -1) {
@@ -403,7 +403,7 @@ func TestBriefBad(t *testing.T) {
 	}
 	r := "--repo=github.com/example/sample-site"
 	for _, args := range [][]string{{r, "--brief", "タイトル"}, {r, "--brief", "x.md", "タイトル"}, {r, "--brief=x", "タイトル"}, {r, "--brief", "-", "--brief", "-", "タイトル"}} {
-		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon chief-engineer") {
+		if rc, _, errs := runMain(args...); rc != exitUsage || !strings.HasPrefix(errs, "usage: andon design start") {
 			t.Errorf("%q: rc=%d err=%q", args, rc, errs)
 		}
 	}
@@ -443,7 +443,7 @@ func TestFirstMessageNotSent(t *testing.T) {
 		t.Fatal(err)
 	}
 	rc, out, errs := runMain("--repo", "github.com/example/sample-site", "タイトル")
-	if rc != exitFirst || out != "andon chief-engineer: 出た場所 sample-site / CE S-7 タイトル（t42）\n" ||
+	if rc != exitFirst || out != "andon design start: 出た場所 sample-site / CE S-7 タイトル（t42）\n" ||
 		!strings.Contains(errs, "t42（sample-site-s-7）に最初のメッセージが届いていない: trust prompt（App では sample-site / CE S-7 タイトル）。dispatcher が見回りで送り直す") ||
 		!strings.Contains(errs, "急ぐときだけ手で: hc send t42 '役目の1文目。\n役目の2文目。\n\n課題 `sample-site/S-7`。") || !strings.Contains(errs, "（App では sample-site / CE S-7 タイトル）") ||
 		!strings.HasSuffix(errs, "`。'\n") || // 手で送る行は案内の最後（貼ったときに後ろの文を拾わない）

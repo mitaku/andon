@@ -100,7 +100,7 @@
       ]
     },
     "waiting": {
-      "description": "The output of `andon waiting --json` at the same time (schema/waiting.schema.json; collect and build check it against that schema).",
+      "description": "The output of `andon waiting list --json` at the same time (schema/waiting.schema.json; collect and build check it against that schema).",
       "type": "object",
       "required": [
         "version",
@@ -118,7 +118,7 @@
       }
     },
     "numbers": {
-      "description": "The last 7 days and the 7 days before, counted the same way as `andon measure`.",
+      "description": "The last 7 days and the 7 days before, counted the same way as `andon metrics show`.",
       "type": "object",
       "required": [
         "days",
@@ -724,7 +724,7 @@
       }
     },
     "week": {
-      "description": "Seven UTC days, counted by `andon measure` (merged pull requests, auto merges, closed issues, the median lead time, the mean time a question stayed open, the issues' tokens).",
+      "description": "Seven UTC days, counted by `andon metrics show` (merged pull requests, auto merges, closed issues, the median lead time, the mean time a question stayed open, the issues' tokens).",
       "type": "object",
       "required": [
         "since",

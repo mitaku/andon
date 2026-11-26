@@ -48,11 +48,11 @@ block "$pb/brief.md" '# <id> 調べる: ' | grep -q '^- Deliverable: candidates'
 
 # ADR-0009 受け入れ条件 3: オーナーの入口・打つコマンド・依頼書の原則と範囲の外・差し戻し・wiki の節
 grep -q '^1\. \*\*自分で作らない\*\*。.*自分で Chief Engineer を起動して経緯を渡す' "$cos" \
-  && [ "$(grep -m1 '^## ' "$pb/cut.md")" = '## オーナーの入口' ] && block "$pb/cut.md" 'andon chief-engineer --brief - "<タイトル>"' | grep -q '^経緯: ' \
-  && ! grep -qE 'andon chief-engineer[^。]*を勧め|テーマとしてオーナーに勧め|オーナーにテーマを勧め' <<<"$cosall" \
-  && pass "Chief of Staff の原則1が自分で Chief Engineer を起動すると言い、切る手引きの先頭は「オーナーの入口」で andon chief-engineer --brief - を自分で打つ（オーナーに勧めない）" || fail "chief-of-staff の原則1か cut.md の先頭に「オーナーの入口」が無いか、andon chief-engineer をオーナーに勧める文が残る"
-grep -q '^- 打つコマンドは .*`andon chief-engineer`' "$pb/wake.md" \
-  && pass "Chief of Staff の打つコマンドの一覧に andon chief-engineer がある" || fail "chief-of-staff の打つコマンドの一覧に andon chief-engineer が無い"
+  && [ "$(grep -m1 '^## ' "$pb/cut.md")" = '## オーナーの入口' ] && block "$pb/cut.md" 'andon design start --brief - "<タイトル>"' | grep -q '^経緯: ' \
+  && ! grep -qE 'andon design start[^。]*を勧め|テーマとしてオーナーに勧め|オーナーにテーマを勧め' <<<"$cosall" \
+  && pass "Chief of Staff の原則1が自分で Chief Engineer を起動すると言い、切る手引きの先頭は「オーナーの入口」で andon design start --brief - を自分で打つ（オーナーに勧めない）" || fail "chief-of-staff の原則1か cut.md の先頭に「オーナーの入口」が無いか、andon design start をオーナーに勧める文が残る"
+grep -q '^- 打つコマンドは .*`andon design start`' "$pb/wake.md" \
+  && pass "Chief of Staff の打つコマンドの一覧に andon design start がある" || fail "chief-of-staff の打つコマンドの一覧に andon design start が無い"
 sed -n '/^\*\*欄の読み方\*\*/,/^| 欄 |/p' "$pb/brief.md" | grep -q 'repo を読めば分かること（作法・構造・直し方）は書かず' \
   && grep -q '^| 守ること | 範囲の外（今回やらないこと）' "$pb/brief.md" \
   && pass "依頼書の欄の読み方の頭に原則の1行、守ることの説明に 範囲の外" || fail "brief.md に依頼書の原則か 範囲の外 が無い"

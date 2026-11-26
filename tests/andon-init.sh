@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/andon-init.sh — andon init x でセルの repo を作り、偽のイメージ（一時ディレクトリ）で bin/bootstrap --dry-run を通す。
+# tests/andon-init.sh — andon cell init x でセルの repo を作り、偽のイメージ（一時ディレクトリ）で bin/bootstrap --dry-run を通す。
 # 偽のイメージは package/ を <根>/opt/andon に写したもの（ANDON_IMAGE_ROOT）。PATH に docker を置かない
 # （本物の docker・HOME・hc・/workspace に触らない）。docker compose が手元にあれば、取り出した compose.yaml の形も確かめる。
 set -u
@@ -23,8 +23,8 @@ chmod 755 "$tmp/path/stat"
 sandbox() { env -i PATH="$tmp/path" HOME="$home" GIT_CEILING_DIRECTORIES="$GIT_CEILING_DIRECTORIES" ANDON_IMAGE_ROOT="$img" ANDON_WSL_PROBE="$tmp/no-wsl" "$@"; }
 
 cd "$tmp" || exit 1
-"$andon" init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
-[ "$r" = 0 ] && [ ! -s "$tmp/err" ] && pass "andon init x は rc 0" || fail "init: rc=$r $(cat "$tmp/out" "$tmp/err")"
+"$andon" cell init x --image example.com/andon:test --owner dev@example.com >"$tmp/out" 2>"$tmp/err"; r=$?
+[ "$r" = 0 ] && [ ! -s "$tmp/err" ] && pass "andon cell init x は rc 0" || fail "init: rc=$r $(cat "$tmp/out" "$tmp/err")"
 for f in andon.toml Dockerfile bin/bootstrap local/setup.sh local/aqua.yaml gate.local.json AGENTS.local.md wiki/index.md wiki/log.md wiki/overview.md wiki/raw/.gitkeep wiki/sources/.gitkeep wiki/entities/.gitkeep wiki/topics/.gitkeep files/.gitkeep projects/.gitkeep .gitignore .dockerignore; do
   [ -f "x-cell/$f" ] || fail "x-cell/$f が無い"
 done
@@ -43,7 +43,7 @@ grep -qx 'slug = "x"' x-cell/andon.toml && grep -qx 'owner = "dev@example.com"' 
 find x-cell -name '*.tmpl' | grep -q . && fail "*.tmpl が残っている" || pass "*.tmpl は埋めて外す"
 [ -e x-cell/compose.yaml ] || [ -e x-cell/.andon ] && fail "セルの repo にパッケージのファイルがある" || pass "セルの repo に compose.yaml が無い"
 
-"$andon" init x >/dev/null 2>"$tmp/err"; r=$?
+"$andon" cell init x >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '上書きしない' "$tmp/err" && pass "空でないディレクトリには書かない" || fail "2回目: rc=$r $(cat "$tmp/err")"
 
 cd x-cell || exit 1
@@ -389,7 +389,7 @@ sandbox bash "$body" up >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 1 ] && grep -q '薄い入口）から打つ' "$tmp/err" && [ ! -s "$tmp/out" ] \
   && pass "ANDON_ENTRY を渡さずに本体を直に打つと、入口から打つよう言って止まる" || fail "本体を直に打った: rc=$r $(cat "$tmp/out" "$tmp/err")"
 sed 's/^need_entry=1$/need_entry=2/' "$body" >"$tmp/body-need2"
-paste_line='docker run --rm andon-x:local andon init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
+paste_line='docker run --rm andon-x:local andon cell init --print bin/bootstrap > bin/bootstrap.new && install -m 755 bin/bootstrap.new bin/bootstrap && rm bin/bootstrap.new'
 sandbox ANDON_ENTRY_BODY="$tmp/body-need2" bash bin/bootstrap --dry-run up >"$tmp/out" 2>"$tmp/err"; r=$?
 grep -qx 'need_entry=2' "$tmp/body-need2" && [ "$r" = 1 ] && grep -qxF "$paste_line" "$tmp/err" && grep -q '入口 bin/bootstrap が古い' "$tmp/err" && [ ! -s "$tmp/out" ] \
   && pass "要る番号を 2 にした本体は、番号 1 の入口から打つと止まり、入口を置き換える 1 行を出す" || fail "番号 2 の本体: rc=$r $(cat "$tmp/out" "$tmp/err")"
@@ -470,7 +470,7 @@ rm -rf .andon
 
 # 受け入れ条件 12: 薄い入口の中身の控え（ハッシュ）と番号。中身が変わって控えが前のままなら落ちる（ADR-0048 決めたこと 12）
 entry_num=1
-entry_sum=481bfa352a5fd9a6ab20c94aaa02cdcc87d04d127634bb3f7dd78916cc9a2da4
+entry_sum=8fbc0b5cab97952ff5bfc58f1dd4e589fe7787cf78a2ef34ee56750424d71c8c
 # check_entry <薄い入口のファイル>: 控えと合えば 0。合わなければ直し方を出して 1
 check_entry() {
   local num sum

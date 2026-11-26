@@ -64,7 +64,7 @@ func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 	return ensureTerm(andon, cwd, wait, nil)
 }
 
-// EnsureAfterCreate は andon create のあとの Ensure。置き直すときに見回りの途中なら、終わるまで待つ（期限は無い。
+// EnsureAfterCreate は andon project create のあとの Ensure。置き直すときに見回りの途中なら、終わるまで待つ（期限は無い。
 // kanban を足したあと、フックが来なくても置き場を合わせる）。待ち始めるときに waiting を1回呼ぶ。
 func EnsureAfterCreate(andon, cwd string, wait time.Duration, waiting func()) (string, error) {
 	return ensureTerm(andon, cwd, wait, waiting)

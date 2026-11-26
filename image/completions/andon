@@ -3,17 +3,21 @@
 _andon() {
   local cur=${COMP_WORDS[COMP_CWORD]}
   if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=($(compgen -W "help open version boot chief-of-staff chief-engineer create waiting delegate measure signal digest init issue gate news publish triage retro dispatcher otel tools schema process" -- "$cur"))
+    COMPREPLY=($(compgen -W "help open version boot design project waiting delegation metrics signal digest cell issue gate news publish triage retro dispatcher otel tools schema process" -- "$cur"))
     return 0
   fi
   [ "$COMP_CWORD" -eq 2 ] || return 0
   case ${COMP_WORDS[1]} in
     version) COMPREPLY=($(compgen -W "stamp" -- "$cur")) ;;
     boot) COMPREPLY=($(compgen -W "serve-files" -- "$cur")) ;;
-    waiting) COMPREPLY=($(compgen -W "answer" -- "$cur")) ;;
-    delegate) COMPREPLY=($(compgen -W "show grant narrow revoke" -- "$cur")) ;;
+    design) COMPREPLY=($(compgen -W "start" -- "$cur")) ;;
+    project) COMPREPLY=($(compgen -W "create list" -- "$cur")) ;;
+    waiting) COMPREPLY=($(compgen -W "list answer" -- "$cur")) ;;
+    delegation) COMPREPLY=($(compgen -W "show grant narrow revoke" -- "$cur")) ;;
+    metrics) COMPREPLY=($(compgen -W "show" -- "$cur")) ;;
     signal) COMPREPLY=($(compgen -W "auth collect delivered" -- "$cur")) ;;
     digest) COMPREPLY=($(compgen -W "auth collect build send check" -- "$cur")) ;;
+    cell) COMPREPLY=($(compgen -W "init" -- "$cur")) ;;
     issue) COMPREPLY=($(compgen -W "start resume finish hold unhold impact show trace report review-request candidates ask record ready merge settle board history session stop-check" -- "$cur")) ;;
     news) COMPREPLY=($(compgen -W "ack" -- "$cur")) ;;
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;

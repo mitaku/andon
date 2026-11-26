@@ -248,13 +248,13 @@ done <<'TRIAGE'
 any(.steps[]; .id == "check" and ((.decides // []) | any(contains("andon triage verdict"))) and ((.output // []) | index("library/verdicts.json")))@確かめる段に、判断の閉じと課題の閉じを読んで andon triage verdict で書く手と、その記録 library/verdicts.json
 any(.steps[]; .id == "apply" and ((.input // []) | index("library/verdicts.json")))@当てる段が Chief of Staff の判定（library/verdicts.json）を読む
 TRIAGE
-# 起動（ADR-0042 決めたこと 10・11）: 枠は andon waiting が数え、free が 0 なら起動せずに待つ。古い数え方（kanban の並行の上限）を入るものに書かない
+# 起動（ADR-0042 決めたこと 10・11）: 枠は andon waiting list が数え、free が 0 なら起動せずに待つ。古い数え方（kanban の並行の上限）を入るものに書かない
 "$andon" process json process/workstreams/launch.yaml >"$tmp/launch.json"
 while IFS='@' read -r filter desc; do
   [ -n "$filter" ] || continue
   jq -e "$filter" "$tmp/launch.json" >/dev/null && ok "起動: $desc" || ng "起動に無い: $desc"
 done <<'LAUNCH'
-any(.steps[]; .by == "machine" and .command == "andon waiting --json" and any(.next[]; .id == "hold"))@枠を数える段が andon waiting --json で、枠が無ければ待つ段へ分かれる
+any(.steps[]; .by == "machine" and .command == "andon waiting list --json" and any(.next[]; .id == "hold"))@枠を数える段が andon waiting list --json で、枠が無ければ待つ段へ分かれる
 any(.steps[]; .id == "hold" and .by == "ai" and ((.skill | if type == "array" then . else [.] end) | index("ask-one-by-one#3")))@待つ段が ask-one-by-one §3 の出す順を指す
 any(.steps[]; .by == "machine" and .command == "andon issue start")@起動する段が andon issue start
 any(.triggers[]; .kind == "notification" and .notification == "asked")@きっかけに通知 asked（オーナー待ちに入って枠が空く）

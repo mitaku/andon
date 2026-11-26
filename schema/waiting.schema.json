@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/waiting/1",
   "title": "Owner waits and parallel slots",
-  "description": "The output of `andon waiting --json`: what waits on the owner (a merge request, a decision, a task) and the parallel slots, counted only from what was decided for the current head. Written by the command to stdout and never kept. Read by the Chief of Staff (before launching an issue, and to order its questions) and by the owner's pane. The command alone holds the counting rule. Only these keys.",
+  "description": "The output of `andon waiting list --json`: what waits on the owner (a merge request, a decision, a task) and the parallel slots, counted only from what was decided for the current head. Written by the command to stdout and never kept. Read by the Chief of Staff (before launching an issue, and to order its questions) and by the owner's pane. The command alone holds the counting rule. Only these keys.",
   "type": "object",
   "required": ["version", "at", "project", "slots", "items"],
   "additionalProperties": false,

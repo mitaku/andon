@@ -178,7 +178,7 @@
       }
     },
     "chief_of_staff": {
-      "description": "Chief of Staff tokens over the window, counted from the harness raw records of the role (the otel store's roles/chief-of-staff/<date>.traces.jsonl, docs/contract.md section 30) for the UTC dates the window touches, the same way andon measure counts them. Only the days still kept (30 days) count. andon retro patterns writes the same count into retro.json (docs/contract.md section 21) so the number outlives the raw records.",
+      "description": "Chief of Staff tokens over the window, counted from the harness raw records of the role (the otel store's roles/chief-of-staff/<date>.traces.jsonl, docs/contract.md section 30) for the UTC dates the window touches, the same way andon metrics show counts them. Only the days still kept (30 days) count. andon retro patterns writes the same count into retro.json (docs/contract.md section 21) so the number outlives the raw records.",
       "type": "object",
       "required": [
         "days",
@@ -1479,7 +1479,7 @@
       }
     },
     "numbers": {
-      "description": "Counted the same way as the profiles section of andon measure.",
+      "description": "Counted the same way as the profiles section of andon metrics show.",
       "type": "object",
       "required": [
         "worked_minutes",

@@ -1,7 +1,7 @@
 // Package launch は起動の記録（docs/contract.md §18。ADR-0028 決めたこと 3・7・14 の 5）を集めて足す。
 //
 // エージェントを起動する command（andon issue start・andon issue resume・dispatcher のレビュアーの起動・
-// andon chief-engineer・andon chief-of-staff）が、hc run の直前に Gather で集め、起動できたら端末の address を足して Append する。
+// andon design start・andon open）が、hc run の直前に Gather で集め、起動できたら端末の address を足して Append する。
 // 1回の起動に1行（JSON Lines）。追記だけで、前の行は書き換えない。置き場:
 //
 //	担当・レビュアー・Chief Engineer  <kanban>/issues/<id>/library/launches.jsonl

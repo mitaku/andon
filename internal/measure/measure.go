@@ -1,4 +1,4 @@
-// Package measure は kanban と Andon の記録からラインの流れを数える（andon measure。
+// Package measure は kanban と Andon の記録からラインの流れを数える（andon metrics show。
 // docs/decisions/2026-11-09-measure-flow-metrics.md・docs/contract.md §13）。
 //
 // 読むだけ。kanban にも library/ にも書かず、集計を保存しない。読むもの: log.jsonl・issues/<id>/issue.yaml・
@@ -37,7 +37,7 @@ import (
 	"andon/internal/waiting"
 )
 
-const Usage = "usage: andon measure [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
+const Usage = "usage: andon metrics show [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]\n" +
 	"kanban（KANBAN_ROOT か projects/<slug>/）の記録から、期間の流れ（待ち時間・流量・WIP）と効率（介在回数・自動マージ率・\n" +
 	"gate の差し戻し率）と対抗の指標（revert・同じ箇所の課題・オーナーが開け直した数）と、通知の kind ごとの素通りの数と、\n" +
 	"期間に動いた課題ごとのトークン数（Claude Code・Codex のセッションの記録から）と、片付いた課題の内訳（outcome.json の breakdown を\n" +
@@ -79,7 +79,7 @@ type Rate struct {
 	Rate  *float64 `json:"rate"`
 }
 
-// Result は andon measure --json の出力（schema/measure.schema.json）。
+// Result は andon metrics show --json の出力（schema/measure.schema.json）。
 type Result struct {
 	Project    string           `json:"project"`
 	Since      string           `json:"since"`
@@ -1273,7 +1273,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			}
 			d, err := time.Parse("2006-01-02", args[1])
 			if err != nil {
-				fmt.Fprintf(stderr, "andon measure: %s は YYYY-MM-DD の日付（%q）\n", args[0], args[1])
+				fmt.Fprintf(stderr, "andon metrics show: %s は YYYY-MM-DD の日付（%q）\n", args[0], args[1])
 				return 2
 			}
 			if args[0] == "--since" {
@@ -1293,14 +1293,14 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		since = until.AddDate(0, 0, -6)
 	}
 	if since.After(until) {
-		fmt.Fprintln(stderr, "andon measure: --since が --until より後")
+		fmt.Fprintln(stderr, "andon metrics show: --since が --until より後")
 		return 2
 	}
 	root := os.Getenv("KANBAN_ROOT")
 	if root == "" {
 		l, err := ledger.Open()
 		if err != nil {
-			fmt.Fprintf(stderr, "andon measure: %v\n", err)
+			fmt.Fprintf(stderr, "andon metrics show: %v\n", err)
 			return 1
 		}
 		root = l.Root
@@ -1311,13 +1311,13 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		ClaudeDir: ClaudeDir(), CodexSessions: CodexSessions(), Otel: filepath.Join(otel.Root(), slug),
 		Wiki: trace.WikiDir()})
 	if err != nil {
-		fmt.Fprintf(stderr, "andon measure: %v\n", err)
+		fmt.Fprintf(stderr, "andon metrics show: %v\n", err)
 		return 1
 	}
 	if asJSON {
 		b, err := contract.Encode(contract.SchemaMeasure, res)
 		if err != nil {
-			fmt.Fprintf(stderr, "andon measure: %v\n", err)
+			fmt.Fprintf(stderr, "andon metrics show: %v\n", err)
 			return 1
 		}
 		stdout.Write(b)

@@ -77,6 +77,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	noun := args[0]
 	kids := children(noun)
 	verb := len(args) > 1 && !strings.HasPrefix(args[1], "-")
+	if rc, ok := refuseRetired(args, kids, verb, stderr); ok {
+		return rc
+	}
 	if verb && len(kids) > 0 {
 		l, ok := find(noun + " " + args[1])
 		if !ok {
@@ -98,6 +101,36 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return unknown(args[:2], stderr)
 	}
 	return unknown(args[:1], stderr)
+}
+
+// refuseRetired は名前を変えた葉の古い名前（retired）を、実行せずに新しい名前を1行で言って終了コード 2 で断る（決めたこと 17）。
+// 古い名詞がまだ名詞として生きている（waiting）ときは、名詞だけを打ったときと --help の無いフラグだけを打ったときに断る。
+// 古い名詞が消えた（delegate）ときは、動詞が何でも新しい名詞を言う。
+func refuseRetired(args []string, kids []leaf, verb bool, stderr io.Writer) (int, bool) {
+	typed, neu := "", ""
+	if len(args) > 1 {
+		if n, ok := retired[args[0]+" "+args[1]]; ok {
+			typed, neu = args[0]+" "+args[1], n
+		}
+	}
+	if neu == "" {
+		if n, ok := retired[args[0]]; ok && (len(kids) == 0 || (!verb && !wantsHelp(args[1:]))) {
+			typed, neu = args[0], n
+		}
+	}
+	if neu == "" && len(kids) == 0 {
+		for old, n := range retired {
+			if w := strings.Fields(old); len(w) == 2 && w[0] == args[0] {
+				typed, neu = args[0], strings.Fields(n)[0]
+				break
+			}
+		}
+	}
+	if neu == "" {
+		return 0, false
+	}
+	fmt.Fprintf(stderr, "andon: andon %s は andon %s に名前が変わった（古い名前では動かない）。andon %s で打ち直す\n", typed, neu, neu)
+	return 2, true
 }
 
 func runLeaf(l leaf, args []string, stdin io.Reader, stdout, stderr io.Writer) int {

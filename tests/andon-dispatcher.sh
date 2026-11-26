@@ -944,7 +944,7 @@ ce=$(HC_TERMINAL_ID=t5 kanban add '設計を文書にする' --profile chief-eng
 cwt=$ANDON_WORKSPACE/.worktrees/app/demo-$ce
 git -C "$app" fetch -q origin
 git -C "$app" worktree add -q -b "demo/$ce" "$cwt" origin/main
-HC_TERMINAL_ID=t5 kanban set "$ce" "branch=demo/$ce" "worktree=$cwt" >/dev/null   # andon chief-engineer の代わり
+HC_TERMINAL_ID=t5 kanban set "$ce" "branch=demo/$ce" "worktree=$cwt" >/dev/null   # andon design start の代わり
 (cd "$cwt" && HC_TERMINAL_ID=t7 kanban start "$ce" >/dev/null); echo "t7 $ce" >> "$tmp/hc/live"
 work "$ce" docs/adr/0001-design.md
 as_worker "$ce" report --pr https://github.com/example/app/pull/7
@@ -1642,7 +1642,7 @@ as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
 dispatcher
 gate_through "$id"
-echo "cd $tmp/plant/projects/demo && env -u HC_TERMINAL_ID GIT_AUTHOR_NAME=o GIT_AUTHOR_EMAIL=owner@example.com $andon delegate narrow merge none --evidence x >$tmp/hook.out 2>&1" > "$tmp/gh/hook"
+echo "cd $tmp/plant/projects/demo && env -u HC_TERMINAL_ID GIT_AUTHOR_NAME=o GIT_AUTHOR_EMAIL=owner@example.com $andon delegation narrow merge none --evidence x >$tmp/hook.out 2>&1" > "$tmp/gh/hook"
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die 'gate のあと委譲を取り消したのにマージした'
 grep -q "$id をいまはマージしない.*委譲の merge が gate のあとに変わった（B → none）" "$tmp/dispatcher.log" || die '止めた理由がログに無い'

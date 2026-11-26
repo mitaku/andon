@@ -8,20 +8,20 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | コマンド | 打つ者 | 説明 |
 |---|---|---|
 | `andon help` | オーナー・役・機械 | この一覧を出す（--all で全部の葉、--all --markdown で docs/commands.md） |
-| `andon open` | オーナー・役 | プロジェクトを選んで Chief of Staff を開く（slug 無しは fzf で選ぶ） |
-| `andon chief-of-staff` | オーナー・役 | 今いるプロジェクトの Chief of Staff を起動する（動いていれば、そのまま使う） |
-| `andon chief-engineer` | オーナー・役 | オーナーと仕様・設計を対話する Chief Engineer を、kanban の課題として起動する |
-| `andon create` | オーナー | プロジェクトを立てる（projects/&lt;slug&gt;/ に kanban・project.json の下書き・AGENTS.md） |
-| `andon waiting` | オーナー・役・機械 | オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す |
+| `andon open` | オーナー・役 | プロジェクトの Chief of Staff を開く（動いていれば、そのまま使う。slug を省くと今いるプロジェクト、決まらなければ fzf で選ぶ） |
+| `andon design start` | オーナー・役 | オーナーと仕様・設計を対話する Chief Engineer を、kanban の課題として起動する |
+| `andon project create` | オーナー | プロジェクトを立てる（projects/&lt;slug&gt;/ に kanban・project.json の下書き・AGENTS.md） |
+| `andon project list` | オーナー | セルのプロジェクト（kanban のある projects/&lt;slug&gt;/）の slug を並べる（読むだけ） |
+| `andon waiting list` | オーナー・役・機械 | オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す |
 | `andon waiting answer` | オーナー・機械 | ペインから判断の問いに選択肢で答える |
-| `andon delegate show` | オーナー・役 | 委譲（project.json の delegation）を読んで出す |
-| `andon delegate grant` | オーナー | 委譲を足す |
-| `andon delegate narrow` | オーナー | 委譲を狭める |
-| `andon delegate revoke` | オーナー | 委譲を1件取り消す |
-| `andon measure` | オーナー・役 | kanban と記録からラインの流れ・効率・対抗の指標を数える |
+| `andon delegation show` | オーナー・役 | 委譲（project.json の delegation）を読んで出す |
+| `andon delegation grant` | オーナー | 委譲を足す |
+| `andon delegation narrow` | オーナー | 委譲を狭める |
+| `andon delegation revoke` | オーナー | 委譲を1件取り消す |
+| `andon metrics show` | オーナー・役 | kanban と記録からラインの流れ・効率・対抗の指標を数える |
 | `andon signal auth` | オーナー | 外の信号の出所のトークンをセルの中で聞いて置く |
 | `andon digest auth` | オーナー | ダイジェストを送る Slack の bot のトークンをセルの中で聞いて置く |
-| `andon init` | オーナー | セルの repo の雛形（&lt;slug&gt;-cell）を作る |
+| `andon cell init` | オーナー | セルの repo の雛形（&lt;slug&gt;-cell）を作る |
 | `andon issue trace` | オーナー・役 | 課題 1 件の流れ（段・起動・プロンプト・モデルの呼び出しとツール）を 1 本の木にして出す（読むだけ） |
 
 ## 役が打つ

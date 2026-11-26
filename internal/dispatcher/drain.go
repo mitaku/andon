@@ -23,7 +23,7 @@ const DrainUsage = "usage: andon dispatcher drain [--context] [--project <slug>]
 	"Chief of Staff の Stop・UserPromptSubmit フックが打つ（package/hooks/。contract.md §9）。待ちの通知を全部取り出して <news> に描く。\n" +
 	"  既定（Stop）: 待ちがあれば {\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"<news>…</news>\"}}（続きのターンになる）。前にフックで渡した <news> の turn に andon news ack があれば news.replied を書く（答えの文は読まない）\n" +
 	"    最後の返事（last_assistant_message）にオーナーへはふだんの言葉で言う語（用語集の表）があれば、同じ additionalContext に <owner-words> を添えて言い直させる（1つの turn に1回だけ）\n" +
-	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegate show --json）を additionalContext に\n" +
+	"  --context（UserPromptSubmit）: 待ちと委譲の一覧（andon delegation show --json）を additionalContext に\n" +
 	"--project を省くと、自分の端末（HC_TERMINAL_ID）のラベル role=chief-of-staff・project=<slug> から引く。Chief of Staff でなければ何も出さない。\n" +
 	"Chief of Staff なら、dispatcher の端末（dispatcher）の中身がシェルに替わっていれば片付けて起動し直す（core が起き直したあと）。\n" +
 	"落ちたとき（kanban・控えが読めない・lock が取れない）は何も出さずに通す（待ちは次の口で届く）。\n"

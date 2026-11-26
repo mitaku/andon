@@ -102,10 +102,10 @@ Why build it, if models will absorb it: much of Andon (the split into roles, the
 
 ## Getting started
 
-A cell repo is created with `andon init <slug>`. The step-by-step procedure (the order of commands on the host, and what you see at each step) is [docs/operate.md](docs/operate.md) (Japanese).
+A cell repo is created with `andon cell init <slug>`. The step-by-step procedure (the order of commands on the host, and what you see at each step) is [docs/operate.md](docs/operate.md) (Japanese).
 
 ```bash
-andon init <slug> --image ghcr.io/<owner>/andon:<version> --owner <email>
+andon cell init <slug> --image ghcr.io/<owner>/andon:<version> --owner <email>
 cd <slug>-cell && bin/bootstrap            # build the image, take the entry's body and compose.yaml out of it, and start the cell
 bin/bootstrap host-install                  # put andon-up, the ssh config, the herdr settings and more on the host (does not overwrite)
 ```
@@ -132,7 +132,7 @@ Most documents are written in Japanese; English is added only where needed.
 | [AGENTS.md](AGENTS.md), [REVIEW.md](REVIEW.md) | Instructions for workers in this repo, and what reviewers look at |
 | `cmd/`, `internal/` | The `andon` and `kanban` CLIs, in Go |
 | `package/` | What is shipped into the cell at `/opt/andon` (skills, agent profiles, gate rules, settings, hooks, compose file, host templates). Details are in design.md §2.2 and image.md |
-| `image/`, `init/` | The base image, and the template that `andon init` copies into a new cell repo |
+| `image/`, `init/` | The base image, and the template that `andon cell init` copies into a new cell repo |
 | [tests/](tests/README.md) | Shell tests run on every pull request |
 
 ## Development and history

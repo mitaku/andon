@@ -29,7 +29,16 @@ func setup(t *testing.T, slugs ...string) string {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	inProject(t, false)
 	return ws
+}
+
+// inProject は今いるフォルダに kanban があるか（kanban root が答えるか）を差し替える。
+func inProject(t *testing.T, yes bool) {
+	t.Helper()
+	old := here
+	here = func() bool { return yes }
+	t.Cleanup(func() { here = old })
 }
 
 func fakeStart(t *testing.T, got *string) {
@@ -71,6 +80,33 @@ func TestNoSlugNotTerminalListsAndExits2(t *testing.T) {
 	rc, out, errs := run()
 	if rc != 2 || got != "" || out != "sample-a\t(CoS 稼働中)\nsample-b\n" || !strings.Contains(errs, "andon open <slug>") {
 		t.Errorf("rc=%d out=%q err=%q", rc, out, errs)
+	}
+}
+
+// slug を省くと、今いるプロジェクトを開く（前の andon open）。一覧も fzf も出さない。
+func TestNoSlugInProjectOpensIt(t *testing.T) {
+	setup(t, "sample-a", "sample-b")
+	inProject(t, true)
+	got := "unset"
+	fakeStart(t, &got)
+	if rc, out, _ := run(); rc != 0 || got != "" || out != "" {
+		t.Errorf("rc=%d dir=%q out=%q", rc, got, out)
+	}
+}
+
+func TestProjectList(t *testing.T) {
+	setup(t, "sample-b", "sample-a")
+	var out, errb bytes.Buffer
+	if rc := ListMain(nil, strings.NewReader(""), &out, &errb); rc != 0 || out.String() != "sample-a\nsample-b\n" || errb.String() != "" {
+		t.Errorf("rc=%d out=%q err=%q", rc, out.String(), errb.String())
+	}
+	setup(t)
+	out.Reset()
+	if rc := ListMain(nil, strings.NewReader(""), &out, &errb); rc != 0 || out.String() != "" || !strings.Contains(errb.String(), "andon project create") {
+		t.Errorf("無いとき: rc=%d out=%q err=%q", rc, out.String(), errb.String())
+	}
+	if rc := ListMain([]string{"x"}, strings.NewReader(""), &out, &errb); rc != 2 {
+		t.Errorf("引数: rc=%d", rc)
 	}
 }
 

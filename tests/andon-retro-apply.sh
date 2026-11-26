@@ -195,12 +195,12 @@ kanban show "$person" --json >"$tmp/person.json"
 jq -e '.issue.who == "person" and .issue.parent == "S-0020" and (.issue.repo // "") == "" and (.issue.title | startswith("Andon へ伝えるか: "))' "$tmp/person.json" >/dev/null \
   || die "オーナーの課題: $(jq -c .issue "$tmp/person.json")"
 echo 'ok 17: Andon の repo を持たないプロジェクトでは、パッケージの直しはオーナーの課題（who=person）'
-# 「Andon へ伝えるか」の課題は、決まった理由の印 later を持ち、andon waiting で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 13）
+# 「Andon へ伝えるか」の課題は、決まった理由の印 later を持ち、andon waiting list で置いてある行（call が偽）になる（ADR-0062 受け入れ条件 13）
 jq -e '.issue.later == "振り返りの直しの提案で、答えを待って止まる仕事が無い"' "$tmp/person.json" >/dev/null || die "オーナーの課題に印 later が無い: $(jq -c .issue "$tmp/person.json")"
-"$andon" waiting --json >"$tmp/waiting.json" || die "andon waiting が落ちた"
+"$andon" waiting list --json >"$tmp/waiting.json" || die "andon waiting list が落ちた"
 jq -e --arg id "$person" '[.items[] | select(.id == $id)] | length == 1 and .[0].kind == "decision" and .[0].call == false and .[0].later == "振り返りの直しの提案で、答えを待って止まる仕事が無い"' "$tmp/waiting.json" >/dev/null \
   || die "「Andon へ伝えるか」の課題が置いてある行にならない: $(jq -c . "$tmp/waiting.json")"
-echo 'ok ADR-0062 受け入れ条件 13: 「Andon へ伝えるか」の課題は印 later を持ち、andon waiting で置いてある行になる'
+echo 'ok ADR-0062 受け入れ条件 13: 「Andon へ伝えるか」の課題は印 later を持ち、andon waiting list で置いてある行になる'
 
 # 当て済みの一覧は当て直さない
 rc=0; "$andon" retro apply S-0020 >/dev/null 2>"$tmp/err" || rc=$?

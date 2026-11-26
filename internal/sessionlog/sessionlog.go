@@ -1,6 +1,6 @@
 // Package sessionlog はハーネスのセッションの記録（Claude Code のセッション・Codex の rollout）を数える。
 //
-// 読み手は andon measure（課題ごとのトークン。docs/decisions/2026-11-12-measure-tokens.md）と dispatcher の結果の記録
+// 読み手は andon metrics show（課題ごとのトークン。docs/decisions/2026-11-12-measure-tokens.md）と dispatcher の結果の記録
 // （セッションごとのコスト。docs/contract.md §19）。トークンの数え方はここの1つだけで、両方が同じ数を出す。
 // 読むだけで、記録には書かない。
 package sessionlog

@@ -39,7 +39,7 @@ func Trust(e Env) error {
 	return errors.Join(trustClaude(e), trustCodex(e))
 }
 
-// TrustFromOS は環境変数の Env で Trust する。andon issue start・andon chief-engineer が起動する直前に打つ
+// TrustFromOS は環境変数の Env で Trust する。andon issue start・andon design start が起動する直前に打つ
 // （boot のあとに ghq get で追加した repo の根も足すため。docs/operate.md の 7）。ログは log へ。
 func TrustFromOS(log io.Writer) error {
 	e := EnvFromOS(log)

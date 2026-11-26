@@ -271,7 +271,7 @@ func TestMigrateProjectDraft(t *testing.T) {
 	other := filepath.Join(t.TempDir(), "web")
 	put(t, filepath.Join(other, ".flightdeck", "config.yaml"), "version: 2\nprefix: W\ntitle: Web\nrepos:\n  - github.com/x/web\n")
 	out := kanban(t, other, "migrate")
-	// With a repo, the draft reads main's CI failures now, as andon create's does (ADR-0051, 4).
+	// With a repo, the draft reads main's CI failures now, as andon project create's does (ADR-0051, 4).
 	assertUnchanged(t, filepath.Join(other, "project.json"), "{\n  \"version\": 1,\n  \"project\": {\n    \"title\": \"Web\",\n    \"prefix\": \"W\"\n  },\n  \"repos\": [\n    \"github.com/x/web\"\n  ],\n  \"signals\": [\n    {\n      \"source\": \"github-ci\",\n      \"weight\": \"now\"\n    }\n  ]\n}\n")
 	if !strings.Contains(out, "signals") {
 		t.Fatalf("migrate did not say the draft has signals:\n%s", out)

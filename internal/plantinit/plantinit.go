@@ -1,4 +1,4 @@
-// Package plantinit は andon init <slug>（docs/design.md §2.2・§5.2 の P4）。
+// Package plantinit は andon cell init <slug>（docs/design.md §2.2・§5.2 の P4）。
 // 埋め込んだ雛形（repo の init/）をセルの repo（既定 ./<slug>-cell）に写す。生成後は追従しない。
 // 名前が .tmpl のものは text/template で埋めて拡張子を外す。bin/ の下と *.sh は実行できる形で置く。
 package plantinit
@@ -20,8 +20,8 @@ import (
 	"andon"
 )
 
-const Usage = "usage: andon init <slug> [--dir <path>] [--image <ref>] [--owner <email>]\n" +
-	"       andon init --print <雛形の中のパス>\n" +
+const Usage = "usage: andon cell init <slug> [--dir <path>] [--image <ref>] [--owner <email>]\n" +
+	"       andon cell init --print <雛形の中のパス>\n" +
 	"セルの repo の雛形を <path>（既定 ./<slug>-cell）に作る。<path> がすでにあって空でなければ何もしない。\n" +
 	"  --image  Dockerfile の FROM（既定は埋める場所だけを置く。bin/bootstrap は埋めるまで動かない）\n" +
 	"  --owner  andon.toml の owner（委譲のファイルを信じる commit の author の email）\n" +
@@ -41,7 +41,7 @@ type Options struct {
 }
 
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	fl := flag.NewFlagSet("andon init", flag.ContinueOnError)
+	fl := flag.NewFlagSet("andon cell init", flag.ContinueOnError)
 	fl.SetOutput(io.Discard)
 	var o Options
 	fl.StringVar(&o.Dir, "dir", "", "")
@@ -53,7 +53,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	var pos []string
 	for rest := args; ; {
 		if err := fl.Parse(rest); err != nil {
-			fmt.Fprintf(stderr, "andon init: %v\n%s", err, Usage)
+			fmt.Fprintf(stderr, "andon cell init: %v\n%s", err, Usage)
 			return 2
 		}
 		if fl.NArg() == 0 {
@@ -69,7 +69,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 		b, err := Print(printPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "andon init: %v\n", err)
+			fmt.Fprintf(stderr, "andon cell init: %v\n", err)
 			return 1
 		}
 		stdout.Write(b)
@@ -84,7 +84,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		o.Dir = o.Slug + "-cell"
 	}
 	if err := Init(o); err != nil {
-		fmt.Fprintf(stderr, "andon init: %v\n", err)
+		fmt.Fprintf(stderr, "andon cell init: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "セルの repo を作った: %s\n次: cd %s → Dockerfile の FROM を確かめる → bin/bootstrap\n", o.Dir, o.Dir)

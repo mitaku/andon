@@ -116,7 +116,7 @@ func emit(name string, res Result, asJSON bool, stdout, stderr io.Writer) int {
 }
 
 // projectRoot は kanban の根（projects/<slug>/）: --project、KANBAN_ROOT、kanban の CLI（kanban root。根を聞くだけ）の順。
-// andon waiting と同じ探し方。
+// andon waiting list と同じ探し方。
 func projectRoot(slug string) (string, error) {
 	if slug != "" {
 		if _, err := delegate.ProjectSlug(delegate.Workspace(), slug); err != nil {

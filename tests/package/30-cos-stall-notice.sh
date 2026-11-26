@@ -5,11 +5,11 @@
 stall_sec=$(sed -n '/^## 着手できる課題が無く、オーナー待ちの後ろにしか無いとき$/,/^## `<news>` の読み方$/p' "$pb/watch.md")
 [ -n "$stall_sec" ] \
   && grep -q 'その時点で' <<<"$stall_sec" \
-  && grep -q 'andon waiting --json' <<<"$stall_sec" \
+  && grep -q 'andon waiting list --json' <<<"$stall_sec" \
   && grep -q 'holds' <<<"$stall_sec" \
   && grep -q '何件が動けるか' <<<"$stall_sec" \
   && pass "watch.md に、オーナー待ちの後ろにしか課題が無いとき、その時点で何件が動けるかを知らせる段がある" \
-  || fail "watch.md の「着手できる課題が無く、オーナー待ちの後ろにしか無いとき」の段が無いか、時点・andon waiting・holds・件数の文が欠けている"
+  || fail "watch.md の「着手できる課題が無く、オーナー待ちの後ろにしか無いとき」の段が無いか、時点・andon waiting list・holds・件数の文が欠けている"
 grep -q 'マージする課題.*後ろに多くを.*並べる前に、その依存が本当に要るか' "$pb/cut.md" \
   && pass "cut.md に、オーナーがマージする課題の後ろに並べる前に依存を確かめる文がある" \
   || fail "cut.md に、オーナーがマージする課題の後ろに並べる前の確かめの文が無い"

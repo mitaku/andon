@@ -2,7 +2,7 @@
 // 役の端末へ worktree の mise.toml をいちばん弱い既定として渡す葉 andon tools env（決めたこと 10）を持つ。
 //
 // 「宣言を満たす」は、repo の mise.toml が名指す道具とバージョンを、その repo の根で mise install を打って入れること。
-// 起動の口（andon issue start・resume・andon chief-engineer・dispatcher がレビュアーを起動する口）は Satisfy を、
+// 起動の口（andon issue start・resume・andon design start・dispatcher がレビュアーを起動する口）は Satisfy を、
 // gate の検査は Install を、hc run と検査の command の前に呼ぶ。
 package tools
 

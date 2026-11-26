@@ -28,7 +28,7 @@ var breakdownChecker = sync.OnceValues(func() (*contract.Checker, error) {
 })
 
 // CheckBreakdown は outcome.json の breakdown の値 raw が schema の形かを確かめる（null も通る）。
-// dispatcher は schema を通して書くが、読み手（andon measure・andon retro collect）は、手で直した記録や前のバージョンの記録を
+// dispatcher は schema を通して書くが、読み手（andon metrics show・andon retro collect）は、手で直した記録や前のバージョンの記録を
 // 黙って 0 に数えないために、読むときにも確かめる。
 func CheckBreakdown(raw json.RawMessage) error {
 	c, err := breakdownChecker()
