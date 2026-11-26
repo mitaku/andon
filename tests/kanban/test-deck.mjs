@@ -356,6 +356,13 @@ try {
     check("an unreadable config.yaml beside the only project is a second project",
       two.code === 1 && two.err.includes("projects/broken") && two.err.includes("projects/solo"), two.out + two.err);
     rmSync(join(one, "projects", "broken"), { recursive: true });
+    // like git, the last step does not look at or above a folder in $GIT_CEILING_DIRECTORIES (the tests fence the cell off with it)
+    // keep the ceiling the tests already set, or git (the earlier steps) finds the repository the tests run in
+    const keep = process.env.GIT_CEILING_DIRECTORIES ? `:${process.env.GIT_CEILING_DIRECTORIES}` : "";
+    const fenced = run(["root"], { cwd: join(one, "notes", "deep"), env: { GIT_CEILING_DIRECTORIES: `/nowhere:${realpathSync(one)}${keep}` } });
+    check("the only project above a ceiling directory is not found", fenced.code === 1 && fenced.err.includes("no ledger"), fenced.out + fenced.err);
+    const below = run(["root"], { cwd: join(one, "notes", "deep"), env: { GIT_CEILING_DIRECTORIES: `${realpathSync(join(one, "notes", "deep"))}${keep}` } });
+    check("a ceiling below the yard fences the walk at once", below.code === 1, below.out + below.err);
     rmSync(join(only, "kanban", "config.yaml"));
     check("no project with a version above is no ledger", run(["root"], { cwd: one }).code === 1);
   } finally {

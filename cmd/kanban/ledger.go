@@ -205,7 +205,20 @@ func findRoot(cwd string) (string, error) {
 // onlyProject: the ledgers of projects/*/ in the nearest folder at or above dir that holds any
 // (docs/ledger.md, Finding the root, the last step). One of them is the root.
 func onlyProject(dir string) (string, []string) {
-	for d := filepath.Clean(dir); ; d = filepath.Dir(d) {
+	// Like git, do not look at or above a folder in $GIT_CEILING_DIRECTORIES (the tests fence the cell off with it).
+	ceiling := map[string]bool{}
+	for _, c := range filepath.SplitList(os.Getenv("GIT_CEILING_DIRECTORIES")) {
+		if c != "" {
+			ceiling[filepath.Clean(c)] = true
+			if r, err := filepath.EvalSymlinks(c); err == nil {
+				ceiling[r] = true
+			}
+		}
+	}
+	if r, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = r
+	}
+	for d := filepath.Clean(dir); !ceiling[d]; d = filepath.Dir(d) {
 		configs, _ := filepath.Glob(filepath.Join(d, "projects", "*", ledgerName, "config.yaml"))
 		var found []string
 		for _, c := range configs {
@@ -223,6 +236,7 @@ func onlyProject(dir string) (string, []string) {
 			return "", nil
 		}
 	}
+	return "", nil
 }
 
 // writeAtomic writes a temporary file beside the target and renames it over the target
