@@ -138,7 +138,7 @@ projects/<slug>/project.json      オーナー（§11。書いてよい repo・�
 - **command が足す担当の課題**: `andon triage apply`（`fix`・`bundle`。足した課題を記録に書いてから）と `andon retro apply`（担当の課題）は、足した直後に予約キーを全部 `kanban set` する（Chief of Staff が打つので照合が通る）。値は `internal/ledger` の `DefaultSettings`: `must_fix=major`・`merge=person`・`estimate=medium`、`review` はトリアージの決定の値（振り返りとルーチンは `off`）。`review` が `on` のときだけ `reviewer`（実装と別ブランド）と `review_rounds=2` も書く（`off` で書くと、あとで profile を替えたとき同じブランドに固定される）。
 
 
-**成果の形の読み方（`deliverable`）**: 予約キー `deliverable` の値ごとに、読み手がどう振る舞うかの表（[ADR-0066](adr/0066-deliverable-report.md) 決めたこと 12）。値の読み方（照合を済ませた成果の形）の正は `internal/ledger` の `DeliverableOf` で、読み手は値を自分で比べない。repo と役での見分け（repo の無い課題・レビュアー・Chief Engineer・オーナーの課題）は、今までどおり読み手が持つ。
+**成果の形の読み方（`deliverable`）**: 予約キー `deliverable` の値ごとに、読み手がどう振る舞うかの表（[ADR-0066](adr/0066-deliverable-report.md) 決めたこと 12）。値の読み方（照合を済ませた成果の形）の正は `internal/ledger` の `DeliverableOf` で、待つ相手がやめになったかの見分けはこれを呼ぶ。ほかの読み手は今は値を `candidates` とだけ比べ（`report` は `pr` と同じ側に入る）、決めたこと 7・8 の実装で `DeliverableOf` に呼び替える。repo と役での見分け（repo の無い課題・レビュアー・Chief Engineer・オーナーの課題）は、今までどおり読み手が持つ。
 
 | 読み手 | `pr`（既定） | `candidates` | `report` |
 |---|---|---|---|

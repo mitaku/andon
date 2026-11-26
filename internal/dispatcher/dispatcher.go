@@ -254,6 +254,7 @@ type project struct {
 	away       bool // Chief of Staff の端末が無い（留守）。配る段だけ飛ばす（ADR-0017 決めたこと 8）
 	memoryOver *bool
 	rows       []ledger.Row
+	rowsErr    error // log.jsonl を読み切れなかった（無いのは除く）。照合を要る印（deliverable の report）を確かめられない
 	tasks      []ledger.Issue
 }
 
@@ -295,7 +296,10 @@ func (p *project) pass() (bool, error) {
 	if p.tasks, err = p.l.List(); err != nil {
 		return false, err
 	}
-	p.rows = p.l.Log()
+	p.rows, p.rowsErr = p.l.ReadLog()
+	if errors.Is(p.rowsErr, os.ErrNotExist) {
+		p.rowsErr = nil
+	}
 	p.tick()       // ルーチンの件数のきっかけと schedule（dispatcher.md §2.1。足した課題は collect の ready の差で拾う）
 	p.collect(cos) // 通知の元（dispatcher.md §2.2・§2.3）
 	busy := false

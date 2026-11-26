@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -111,6 +112,13 @@ func TestWaitedGone(t *testing.T) {
 			t.Errorf("%s: gone %v unsure %v, want %v %v", c.name, gone, unsure, c.gone, c.unsure)
 		}
 	}
+	// kanban の履歴を読み切れなかった巡では、値が report の課題を照合できない。やめと言い切らず、確かめられない（unchecked）に入れる。
+	// 印の無い課題は今までどおり見分ける
+	p.rowsErr = errors.New("bufio.Scanner: token too long")
+	if gone, unsure := p.waitedGone(after("E-0041", "E-0044", "E-0045")); len(gone) != 1 || gone[0] != "E-0045" || !slices.Equal(unsure, []string{"E-0041", "E-0044"}) {
+		t.Errorf("履歴を読み切れない巡: gone %v unsure %v", gone, unsure)
+	}
+	p.rowsErr = nil
 	b, _ := os.ReadFile(calls)
 	if got := strings.Fields(string(b)); !slices.Equal(got, []string{"1", "2", "3", "4", "2"}) {
 		t.Fatalf("gh を打った PR が違う: %q", got)

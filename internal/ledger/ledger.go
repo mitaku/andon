@@ -234,7 +234,7 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 // kanban config set の行（chief_of_staff・前の名前の coordinator）を順に辿って決める（TakenByChiefOfStaff と同じ辿り方）。
 // Chief of Staff の行が 1 つも無い kanban では、今の config.yaml の値 cos と比べる。
 // 印が何日も残る予約キー（later・later_until）のための照合で、Chief of Staff が起き直して端末が替わっても印を信じ続ける。
-// 起き直したら打ち直す決まりの予約キー（merge・deliverable など）は、今の端末と比べる Trusted で読む。
+// 起き直したら打ち直す決まりの予約キー（merge など）は、今の端末と比べる Trusted で読む。deliverable の report はこの照合で読む（DeliverableOf）。
 func TrustedThen(rows []Row, t Issue, key, cos string) bool {
 	last, byCoS := LastChangeThen(rows, t, key, cos)
 	if last == nil || !byCoS {

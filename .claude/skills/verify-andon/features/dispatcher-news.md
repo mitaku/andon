@@ -17,7 +17,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/dispatcher/news.go`、`internal/dispatcher/ack.go`、`package/hooks/stop`、`package/skills/chief-of-staff/playbooks/watch.md`
 - `dn-ready-report` Chief of Staff が `kanban set <id> deliverable=report` を書いて起動した課題（当てたあとの検証・点検の課題）の依頼書の `## Settings` の写しが `Deliverable: report` のままで、その課題を待つ課題が引き取れるようになったとき、Chief of Staff に届く `<id> ready` の行に「待つ相手 … がやめになった」が付かない（ADR-0066 受け入れ条件 10）。見る道: オーナーが見る。
-  - 見るファイル: `internal/dispatcher/abandoned.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
+  - 見るファイル: `internal/dispatcher/abandoned.go`、`internal/dispatcher/dispatcher.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 
 ## 辿り着き方（利用者から）
 

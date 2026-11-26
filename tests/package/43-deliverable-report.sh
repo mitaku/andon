@@ -7,8 +7,17 @@
 # === 43. 成果が報告の課題の印（ADR-0066） ===
 # report_miss <verify.md> <idle.md> <brief.md> <worker SKILL.md>: 足りないものを1行で出す（空なら合っている）
 report_miss() {
-  local m='' at close set
-  at=$(grep -nxF '   - Deliverable: report' "$1" | sed -n 1p | cut -d: -f1)
+  local m='' at='' close set n=0 inset=0 ln
+  # 行は雛形の「   ## Settings」の直後に続く「   - 」の行の並びの中だけで探す（ファイルのどこかにあるだけでは足りない）
+  while IFS= read -r ln; do
+    n=$((n + 1))
+    if [[ "$ln" == '   ## Settings' ]]; then inset=1; continue; fi
+    if [ "$inset" = 1 ]; then
+      if [[ "$ln" != '   - '* ]]; then inset=0
+      elif [[ "$ln" == '   - Deliverable: report' && -z "$at" ]]; then at=$n
+      fi
+    fi
+  done <"$1"
   if [ -z "$at" ]; then
     m="$m [検証の雛形の Settings に - Deliverable: report が無い]"
   else
@@ -35,6 +44,12 @@ grep -vxF '   - Deliverable: report' "$rv" >"$tmp/r-verify.md"
 miss=$(report_miss "$tmp/r-verify.md" "$ri" "$rb" "$rw")
 [[ "$miss" == *"[検証の雛形の Settings に - Deliverable: report が無い]"* ]] && pass "ADR-0066 受け入れ条件 8: 雛形の Deliverable の行を消した写しで当たる" \
   || fail "ADR-0066 受け入れ条件 8: 雛形の Deliverable の行を消した写しで当たらない: [$miss]"
+# 雛形の Settings から外し、手順 3 の git archive の囲みへ動かした写しでも当たる（ファイルのどこかにあるだけでは足りない）
+grep -vxF '   - Deliverable: report' "$rv" | sed 's/^   git archive <当てた commit> .*$/&\n   - Deliverable: report/' >"$tmp/r-verify.md"
+grep -qxF '   - Deliverable: report' "$tmp/r-verify.md" || fail "ADR-0066 受け入れ条件 8: 動かした写しを作れない（手順 3 の git archive の行が無い）"
+miss=$(report_miss "$tmp/r-verify.md" "$ri" "$rb" "$rw")
+[[ "$miss" == *"[検証の雛形の Settings に - Deliverable: report が無い]"* ]] && pass "ADR-0066 受け入れ条件 8: 雛形の Settings の外へ動かした Deliverable の行で当たる" \
+  || fail "ADR-0066 受け入れ条件 8: 雛形の Settings の外へ動かした Deliverable の行で当たらない: [$miss]"
 grep -vF 'kanban set <id> deliverable=report' "$rv" | sed 's/^   - Deliverable: report$/   - Deliverable: report\n   kanban set <id> deliverable=report/' >"$tmp/r-verify.md"
 miss=$(report_miss "$tmp/r-verify.md" "$ri" "$rb" "$rw")
 [[ "$miss" == *"[検証の雛形の下に kanban set <id> deliverable=report が無い]"* ]] && pass "ADR-0066 受け入れ条件 8: kanban set の行を雛形の中へ動かした写しで当たる" \
