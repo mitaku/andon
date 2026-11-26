@@ -66,7 +66,7 @@ func (p *startPlan) check(name, result, format string, a ...any) {
 
 // start は kanban の課題に担当を起動する（仮設の yard task start を移したもの。docs/contract.md §8）:
 // repo があれば（kanban の config.yaml の repos と、セルの repo の HEAD の project.json の repos の両方にあるときだけ）worktree と branch を切り、hc run でプロファイルを起動し、`kanban start` で doing にして agent をその端末にする。
-// 打つのは Chief of Staff（projects/<slug>/ で）。起動できなかったら作った worktree と branch を戻す（やり直せるように）。
+// 打つのは Chief of Staff。起動できなかったら作った worktree と branch を戻す（やり直せるように）。
 // 最初のメッセージが届かなかったとき（信頼の画面など）は、kanban は doing・agent はその端末のまま、送り直す hc send を案内して終了コード 3。
 // dry は --dry-run: 確かめ（plan）だけを本番と同じ順・同じ理由で通し、hc を呼ばず、何も作らず kanban も書かずに、起動するときに渡すものを出す。
 func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {

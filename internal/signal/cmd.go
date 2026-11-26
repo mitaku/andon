@@ -75,9 +75,17 @@ func run(cmd string, args []string, stdin io.Reader, stdout, stderr io.Writer) i
 		}
 		return 0
 	case "delivered":
-		rest, given := args[1:], ""
-		if len(rest) == 4 && rest[0] == "--project" {
-			given, rest = rest[1], rest[2:]
+		var rest []string
+		given := ""
+		for in := args[1:]; len(in) > 0; { // --project は動詞のあとならどこでも（ADR-0053 決めたこと 4）
+			switch {
+			case in[0] == "--project" && len(in) > 1 && given == "":
+				given, in = in[1], in[2:]
+			case in[0] == "--project":
+				return usage()
+			default:
+				rest, in = append(rest, in[0]), in[1:]
+			}
 		}
 		if len(rest) != 2 {
 			return usage()

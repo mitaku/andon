@@ -33,6 +33,10 @@ step "dg-collect: 期間の記録を集める" "$andon" digest collect "$id" \
   && ok "dg-collect: input.json が書かれ、期間に片付いた $done_id が入る" \
   || fail "dg-collect: input.json が無いか、片付いた課題が入らない"
 jq -c '{since, until, issues: [.issues[] | {id, status}], skipped}' "$d/input.json" 2>/dev/null | sed 's/^/  input.json: /'
+step "dg-collect: andon digest collect --help を打つ" "$andon" digest collect --help >/dev/null
+grep -q '^プロジェクト: --project <slug>' "$tmp/step.out" && ! grep -q 'projects/<slug>/ .*で打つ' "$tmp/step.out" \
+  && ok "dg-collect: --help は --project の行を持ち、projects/<slug>/ で打つと言わない" \
+  || fail "dg-collect: --help に --project の行が無いか、projects/<slug>/ で打つと言う"
 
 # dg-build-refuse: 入力に無い課題を指す文は、理由1行で断り何も書かない
 bad="{\"headline\": [\"$run の要旨の1文目。\", \"2文目。\"], \"themes\": [{\"title\": \"無い課題\", \"body\": [\"入力に無い課題を指す。\"], \"issues\": [\"V-9999\"]}], \"concerns\": []}"

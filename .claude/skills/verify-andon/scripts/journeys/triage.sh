@@ -26,6 +26,10 @@ cp "$tmp/step.out" "$(lib "$t1")/items.json" && cp "$tmp/step.out" "$(lib "$t2")
 jq -e --arg r "$run" '[.items[] | select(.kind == "question" and (.text | contains($r)))] | length == 3' "$tmp/step.out" >/dev/null \
   && ok "tr-collect: 3 つの報告の「オーナーに聞くこと」が、question の項目として出る" \
   || fail "tr-collect: question の項目が 3 つ出ない"
+step "tr-collect: andon triage collect --help を打つ" "$andon" triage collect --help >/dev/null
+grep -q '^プロジェクト: --project <slug>' "$tmp/step.out" && ! grep -q 'projects/<slug>/ .*で打つ' "$tmp/step.out" \
+  && ok "tr-collect: --help は --project の行を持ち、projects/<slug>/ で打つと言わない" \
+  || fail "tr-collect: --help に --project の行が無いか、projects/<slug>/ で打つと言う"
 key() { jq -r --arg t "$run の問い $1" '.items[] | select(.kind == "question" and (.text | endswith($t))) | .key' "$(lib "$t1")/items.json"; }
 k1=$(key 1) k2=$(key 2) k3=$(key 3)
 why="$run 急がない。答えを待つ仕事が無い"

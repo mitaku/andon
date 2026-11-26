@@ -30,20 +30,19 @@ import (
 )
 
 const (
-	where        = "projects/<slug>/ か担当の worktree で打つ（KANBAN_ROOT でも向けられる）。\n"
 	period       = "<id> はダイジェストの課題。期間は、同じルーチンの前に送ったダイジェストの終わりから今まで（無ければ 24 時間前から、7 日より前へは遡らない）。\n"
 	CollectUsage = "usage: andon digest collect <id>\n" +
 		"期間の記録を library/digest/input.json に集める（読むだけ。docs/contract.md §26）。\n" + period +
-		"kanban と dispatcher の記録と GitHub のマージされた PR の一覧と、課題の repo の最新の main の文書（代わりに決めたこと）を読み、書くのは input.json だけ。\n" + where
+		"kanban と dispatcher の記録と GitHub のマージされた PR の一覧と、課題の repo の最新の main の文書（代わりに決めたこと）を読み、書くのは input.json だけ。\n"
 	BuildUsage = "usage: andon digest build <id> <file|->\n" +
 		"担当が書いた JSON（docs/contract.md §27）を照らし、digest.json・digest.html・message.txt を書く。\n" + period +
-		"入力に無い課題を指した・要旨が 2〜5 文でない・テーマが 9 つ以上・知らない図の型などを理由1行ずつで断り、何も書かない。\n" + where
+		"入力に無い課題を指した・要旨が 2〜5 文でない・テーマが 9 つ以上・知らない図の型などを理由1行ずつで断り、何も書かない。\n"
 	SendUsage = "usage: andon digest send <id>\n" +
 		"digest.html を files/ と送り先へ出し、URL を出して sent.json（docs/contract.md §28）に書く。\n" +
 		"送り先は files/ と、オーナーが project.json の digest に書いたチャンネルだけ（§11）。無い・信じられなければ files/ だけに出す。\n" +
-		"送った先に打ち直しても送らない。送りそこねたら終了コード 1 で、打ち直すと送り直す。\n" + where
+		"送った先に打ち直しても送らない。送りそこねたら終了コード 1 で、打ち直すと送り直す。\n"
 	CheckUsage = "usage: andon digest check\n" +
-		"送り先へ確かめの小さなファイルを送る。\n" + where
+		"送り先へ確かめの小さなファイルを送る。\n"
 	AuthUsage = "usage: andon digest auth slack\n" +
 		"Slack の bot のトークン（scope は files:write だけ）をセルの中で聞いて置く。\n" +
 		"標準入力の1行を ~/.config/andon/digest/slack.token（mode 600）に置く。トークンを引数に書かない。\n"

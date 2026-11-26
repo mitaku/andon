@@ -53,7 +53,7 @@ func Open() (*Ledger, error) {
 	out, err := exec.Command(CLI, "root").Output()
 	root := strings.TrimSpace(string(out))
 	if err != nil || root == "" {
-		return nil, errors.New("kanban が見つからない（projects/<slug>/ か担当の worktree で打つ）")
+		return nil, errors.New("kanban が見つからない（--project <slug> で指す）")
 	}
 	return At(root), nil
 }

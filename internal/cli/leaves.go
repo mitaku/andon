@@ -55,7 +55,10 @@ type leaf struct {
 	examples []string // andon に続けて打つ例
 	exits    []exit
 	writes   bool // 状態を変えるか
-	project  bool // プロジェクトを読むか
+	project  bool // プロジェクトを読むか（--project を受ける。決め方は project.go）
+	ownFlag  bool // --project を葉が自分で読む（振り分けは確かめるだけで、外さない）
+	hook     bool // フックが打つ（決まらなくても 2 を返さず葉に渡す。決めたこと 15）
+	every    bool // --project を省くと全部のプロジェクトを回る（dispatcher）
 	json     bool // JSON を出せるか（決めたこと 13）
 	slugArg  bool // 引数にプロジェクトの slug を取るか（補完が slug を補う）
 	run      runFunc
@@ -83,17 +86,17 @@ var leaves = []leaf{
 	{name: "project list", who: []who{owner}, about: "セルのプロジェクト（kanban のある projects/<slug>/）の slug を並べる（読むだけ）",
 		usage: open.ListUsage, examples: []string{"project list"}, run: open.ListMain},
 	{name: "waiting list", who: []who{owner, role, machine}, about: "オーナー待ち（マージの依頼・判断・手作業）と並行の枠を出す",
-		usage: waiting.Usage, examples: []string{"waiting list", "waiting list --json"}, project: true, json: true, run: waiting.Main},
+		usage: waiting.Usage, examples: []string{"waiting list", "waiting list --json"}, project: true, ownFlag: true, json: true, run: waiting.Main},
 	{name: "waiting answer", who: []who{owner, machine}, about: "ペインから判断の問いに選択肢で答える",
-		usage: waiting.AnswerUsage, examples: []string{"waiting answer S-0012#1 --option 1"}, writes: true, project: true, run: waitingAnswer},
+		usage: waiting.AnswerUsage, examples: []string{"waiting answer S-0012#1 --option 1"}, writes: true, project: true, ownFlag: true, run: waitingAnswer},
 	{name: "delegation show", who: []who{owner, role}, about: "委譲（project.json の delegation）を読んで出す",
-		usage: delegate.ShowUsage, examples: []string{"delegation show --json"}, project: true, json: true, run: delegate.ShowMain},
+		usage: delegate.ShowUsage, examples: []string{"delegation show --json"}, project: true, ownFlag: true, json: true, run: delegate.ShowMain},
 	{name: "delegation grant", who: []who{owner}, about: "委譲を足す",
-		usage: delegate.GrantUsage, examples: []string{"delegation grant merge B --evidence ADR-0041"}, writes: true, project: true, run: delegate.GrantMain},
+		usage: delegate.GrantUsage, examples: []string{"delegation grant merge B --evidence ADR-0041"}, writes: true, project: true, ownFlag: true, run: delegate.GrantMain},
 	{name: "delegation narrow", who: []who{owner}, about: "委譲を狭める",
-		usage: delegate.NarrowUsage, examples: []string{"delegation narrow merge A --evidence 戻す"}, writes: true, project: true, run: delegate.NarrowMain},
+		usage: delegate.NarrowUsage, examples: []string{"delegation narrow merge A --evidence 戻す"}, writes: true, project: true, ownFlag: true, run: delegate.NarrowMain},
 	{name: "delegation revoke", who: []who{owner}, about: "委譲を1件取り消す",
-		usage: delegate.RevokeUsage, examples: []string{"delegation revoke d-3 --reason 期限"}, writes: true, project: true, run: delegate.RevokeMain},
+		usage: delegate.RevokeUsage, examples: []string{"delegation revoke d-3 --reason 期限"}, writes: true, project: true, ownFlag: true, run: delegate.RevokeMain},
 	{name: "metrics show", who: []who{owner, role}, about: "kanban と記録からラインの流れ・効率・対抗の指標を数える",
 		usage: measure.Usage, examples: []string{"metrics show --since 2026-11-01"}, project: true, json: true, run: measure.Main},
 	{name: "signal auth", who: []who{owner}, about: "外の信号の出所のトークンをセルの中で聞いて置く",
@@ -171,25 +174,25 @@ var leaves = []leaf{
 	{name: "issue settle", who: []who{machine, role}, about: "オーナーがマージした PR の課題の、gate の問いを閉じて片付ける",
 		usage: issue.SettleUsage, examples: []string{"issue settle S-0012"}, writes: true, project: true, json: true, run: issue.Settle},
 	{name: "issue board", who: []who{machine, owner}, about: "ボードが読む課題だけ（開いている課題・片付いたばかりの課題とその相手）を出す（読むだけ）",
-		usage: board.BoardUsage, examples: []string{"issue board --json --since 2026-11-22T13:00:00Z"}, project: true, json: true, run: board.BoardMain},
+		usage: board.BoardUsage, examples: []string{"issue board --json --since 2026-11-22T13:00:00Z"}, project: true, ownFlag: true, json: true, run: board.BoardMain},
 	{name: "issue history", who: []who{machine, owner}, about: "片付いた課題を新しい順に件数まで出す（ボードの History が読む。読むだけ）",
-		usage: board.HistoryUsage, examples: []string{"issue history --json --limit 200 --match 下書き"}, project: true, json: true, run: board.HistoryMain},
+		usage: board.HistoryUsage, examples: []string{"issue history --json --limit 200 --match 下書き"}, project: true, ownFlag: true, json: true, run: board.HistoryMain},
 	{name: "issue session", who: []who{machine}, about: "自分の端末のラベル session を出す（テンプレートが読む）",
 		usage: issue.SessionUsage, examples: []string{"issue session"}, run: issue.Session},
 	{name: "issue stop-check", who: []who{machine}, about: "担当・レビュアーの Stop フック: doing で報告も問いも無ければ止める",
-		usage: issue.StopCheckUsage, examples: []string{"issue stop-check S-0012 < hook.json"}, project: true, run: issue.StopCheck},
+		usage: issue.StopCheckUsage, examples: []string{"issue stop-check S-0012 < hook.json"}, project: true, hook: true, run: issue.StopCheck},
 	{name: "dispatcher", who: []who{machine}, about: "kanban を回り、レビュアーの起動・gate・merge: auto のマージと片付けを回す（常駐）",
-		usage: dispatcher.Usage, examples: []string{"dispatcher --once"}, writes: true, project: true, run: dispatcher.Main},
+		usage: dispatcher.Usage, examples: []string{"dispatcher --once"}, writes: true, project: true, ownFlag: true, every: true, run: dispatcher.Main},
 	{name: "dispatcher drain", who: []who{machine}, about: "Chief of Staff のフック: 待ちの通知を届ける",
-		usage: dispatcher.DrainUsage, examples: []string{"dispatcher drain < hook.json"}, writes: true, project: true, run: dispatcher.Drain},
+		usage: dispatcher.DrainUsage, examples: []string{"dispatcher drain < hook.json"}, writes: true, project: true, ownFlag: true, hook: true, run: dispatcher.Drain},
 	{name: "dispatcher wait", who: []who{machine}, about: "待ち役のフック: 離席中に合図が来るまで待つ",
-		usage: dispatcher.WaitUsage, examples: []string{"dispatcher wait --timeout 600"}, project: true, run: dispatcherWait},
+		usage: dispatcher.WaitUsage, examples: []string{"dispatcher wait --timeout 600"}, project: true, ownFlag: true, hook: true, run: dispatcherWait},
 	{name: "dispatcher rewake", who: []who{machine}, about: "待ち役のフック: 合図で Chief of Staff を起動し直す",
-		usage: dispatcher.RewakeUsage, examples: []string{"dispatcher rewake < hook.json"}, project: true, run: dispatcherRewake},
+		usage: dispatcher.RewakeUsage, examples: []string{"dispatcher rewake < hook.json"}, project: true, ownFlag: true, hook: true, run: dispatcherRewake},
 	{name: "signal collect", who: []who{machine}, about: "project.json の signals の出所を読み、信号の記録を書く",
-		usage: signal.CollectUsage, examples: []string{"signal collect --due"}, writes: true, project: true, run: signal.CollectMain},
+		usage: signal.CollectUsage, examples: []string{"signal collect --due"}, writes: true, project: true, ownFlag: true, run: signal.CollectMain},
 	{name: "signal delivered", who: []who{machine}, about: "通知 signal で届けた出来事を記録に書く",
-		usage: signal.DeliveredUsage, examples: []string{"signal delivered <fingerprint> <episode>"}, writes: true, project: true, run: signal.DeliveredMain},
+		usage: signal.DeliveredUsage, examples: []string{"signal delivered <fingerprint> <episode>"}, writes: true, project: true, ownFlag: true, run: signal.DeliveredMain},
 	{name: "boot serve-files", who: []who{machine}, about: "files サーバ（boot が自分で起動する）",
 		usage: boot.ServeFilesUsage, examples: []string{"boot serve-files /workspace/files 8080"}, run: boot.ServeFilesMain},
 	{name: "otel serve", who: []who{machine}, about: "ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く",

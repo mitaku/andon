@@ -28,7 +28,7 @@ import (
 const (
 	CollectUsage = "usage: andon signal collect [--due] [--project <slug>]\n" +
 		"project.json の signals の出所を読み、信号の記録を書く。\n" +
-		"projects/<slug>/ で打つか --project。記録は ~/.local/state/andon/dispatcher/<slug>.signals.json\n" +
+		"記録は ~/.local/state/andon/dispatcher/<slug>.signals.json\n" +
 		"（XDG_STATE_HOME があればその下。docs/contract.md §15）。signals が無ければ何も読まず、何も書かない。\n" +
 		"--due は、出所と repo の組ごとに前に読みに行った時刻（記録の read_at）から every 分（既定 10）たったものだけを読む（dispatcher の巡）。\n" +
 		"GitHub（github-ci・github-issues）は gh の資格情報を使う。読めなかった出所はその出所の記録を変えずに飛ばし、終了コード 1。\n"

@@ -138,6 +138,13 @@ func runLeaf(l leaf, args []string, stdin io.Reader, stdout, stderr io.Writer) i
 		leafHelp(l, stdout)
 		return 0
 	}
+	if l.project {
+		var rc int
+		var ok bool
+		if args, rc, ok = project(l, args, stderr); !ok {
+			return rc
+		}
+	}
 	return l.run(args, stdin, stdout, stderr)
 }
 
@@ -338,6 +345,9 @@ func nounHelp(noun string, w io.Writer) {
 func leafHelp(l leaf, w io.Writer) {
 	fmt.Fprint(w, l.usage)
 	fmt.Fprintf(w, "\n打つ者: %s\n", l.whoText())
+	if l.project {
+		fmt.Fprintf(w, "プロジェクト: %s\n", projectText(l))
+	}
 	fmt.Fprint(w, "例:\n")
 	for _, e := range l.examples {
 		fmt.Fprintf(w, "  andon %s\n", e)

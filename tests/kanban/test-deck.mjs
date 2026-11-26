@@ -4,7 +4,7 @@
 // tests/kanban.sh runs it: DECK_BIN=<path to a kanban executable> node tests/kanban/test-deck.mjs
 // Without DECK_BIN it looks for bin/kanban (bin/kanban.exe on Windows) at the repo root. Uses a temporary folder only.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -329,6 +329,66 @@ try {
     check("two projects with one repository is an error naming both",
       both.code === 1 && both.err.includes("projects/a") && both.err.includes("projects/b"), both.out + both.err);
   } else console.log("skip: no git");
+
+  // The only project: from a folder with no ledger above and no repository, the one projects/<slug>/
+  // in the nearest folder above that holds any. With more than one, an error that names them.
+  const several = run(["root"], { cwd: yard });
+  check("the yard's root with more than one project is an error naming them",
+    several.code === 1 && several.err.includes("projects/a") && several.err.includes("projects/b"), several.out + several.err);
+  const one = mkdtempSync(join(tmpdir(), "deck-one-"));
+  try {
+    const only = join(one, "projects", "solo");
+    mkdirSync(join(one, "notes", "deep"), { recursive: true });
+    mkdirSync(join(one, "projects", "draft", "kanban"), { recursive: true });
+    writeFileSync(join(one, "projects", "draft", "kanban", "config.yaml"), "prefix: D\n");
+    check("init the only project", run(["init", "--root", only]).code === 0);
+    for (const at of [one, join(one, "notes", "deep"), join(one, "projects")]) {
+      const r = run(["root"], { cwd: at });
+      check(`root found from ${at.slice(one.length) || "/"} (the only project)`, r.code === 0 && same(r.out, only), r.out + r.err);
+    }
+    const listed = run(["list"], { cwd: one });
+    check("list from the yard's root reads the only project", listed.code === 0, listed.out + listed.err);
+    // a project whose config.yaml cannot be read is still a project: the yard is not "only one", and nothing is written to solo
+    const broken = join(one, "projects", "broken", "kanban", "config.yaml");
+    mkdirSync(dirname(broken), { recursive: true });
+    writeFileSync(broken, "version: 3\ncolumns: [todo\n");
+    const two = run(["root"], { cwd: one });
+    check("an unreadable config.yaml beside the only project is a second project",
+      two.code === 1 && two.err.includes("projects/broken") && two.err.includes("projects/solo"), two.out + two.err);
+    rmSync(join(one, "projects", "broken"), { recursive: true });
+    // nor is one whose kanban/ cannot be searched (an error in the walk is not "no project there")
+    const hidden = join(one, "projects", "hidden", "kanban");
+    mkdirSync(hidden, { recursive: true });
+    writeFileSync(join(hidden, "config.yaml"), "version: 3\n");
+    chmodSync(hidden, 0o000);
+    try {
+      const shut = run(["root"], { cwd: one });
+      check("a kanban/ that cannot be searched beside the only project is a second project",
+        shut.code === 1 && shut.err.includes("projects/hidden") && shut.err.includes("projects/solo"), shut.out + shut.err);
+    } finally {
+      chmodSync(hidden, 0o755);
+      rmSync(join(one, "projects", "hidden"), { recursive: true });
+    }
+    // a projects/ that cannot be listed is an error, not "no project here"
+    chmodSync(join(one, "projects"), 0o000);
+    try {
+      const unlisted = run(["root"], { cwd: one });
+      check("a projects/ that cannot be listed is an error", unlisted.code === 1 && unlisted.err.includes("cannot list"), unlisted.out + unlisted.err);
+    } finally {
+      chmodSync(join(one, "projects"), 0o755);
+    }
+    // like git, the last step does not look at or above a folder in $GIT_CEILING_DIRECTORIES (the tests fence the cell off with it)
+    // keep the ceiling the tests already set, or git (the earlier steps) finds the repository the tests run in
+    const keep = process.env.GIT_CEILING_DIRECTORIES ? `:${process.env.GIT_CEILING_DIRECTORIES}` : "";
+    const fenced = run(["root"], { cwd: join(one, "notes", "deep"), env: { GIT_CEILING_DIRECTORIES: `/nowhere:${realpathSync(one)}${keep}` } });
+    check("the only project above a ceiling directory is not found", fenced.code === 1 && fenced.err.includes("no ledger"), fenced.out + fenced.err);
+    const below = run(["root"], { cwd: join(one, "notes", "deep"), env: { GIT_CEILING_DIRECTORIES: `${realpathSync(join(one, "notes", "deep"))}${keep}` } });
+    check("a ceiling below the yard fences the walk at once", below.code === 1, below.out + below.err);
+    rmSync(join(only, "kanban", "config.yaml"));
+    check("no project with a version above is no ledger", run(["root"], { cwd: one }).code === 1);
+  } finally {
+    rmSync(one, { recursive: true, force: true });
+  }
 } finally {
   rmSync(yard, { recursive: true, force: true });
 }

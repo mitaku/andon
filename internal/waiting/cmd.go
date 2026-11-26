@@ -18,7 +18,6 @@ const Usage = "usage: andon waiting list [--json] [--project <slug>]\n" +
 	"判断の問いにペインから選択肢で答える口は andon waiting answer。\n" +
 	"kanban の履歴（log.jsonl）が読めなければ数えずに終了コード 1。\n" +
 	"数えるのは今の head について決め終えたものだけ（docs/adr/0042-owner-waits-do-not-stop-the-line.md 決めたこと 8・9）。\n" +
-	"kanban は --project <slug>（セルの repo の projects/<slug>/）か KANBAN_ROOT か、projects/<slug>/ か担当の worktree の kanban。\n" +
 	"--json は docs/contract.md §25 の形。\n"
 
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
