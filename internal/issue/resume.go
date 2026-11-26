@@ -158,7 +158,7 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 		fmt.Fprintf(stdout, " session %s", p.Session)
 	}
 	fmt.Fprintln(stdout)
-	fmt.Fprintf(stdout, "andon issue: 次: 報告と問いは dispatcher が届ける。また止まったら andon issue resume %s --project %s\n", id, c.l.Slug)
+	fmt.Fprintf(stdout, "andon issue: 次: 報告と問いは dispatcher が届ける（止まれば dispatcher が1回起動し直す）。流れは andon issue trace %s --project %s で見る\n", id, c.l.Slug)
 	return nil
 }
 

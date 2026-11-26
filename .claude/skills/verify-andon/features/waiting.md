@@ -76,8 +76,8 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - `tests/andon-issue.sh`（`ask --new` の出力・`who: person`・打ち直し・`--now`・`--later`・`--until` と断る打ち方）
 - `tests/andon-waiting.sh` の置いてあるものの段（印 later を Chief of Staff が書いた行と担当が書き直した行）
 - `go test ./internal/cli/` の `TestRetiredNames`（古い名前ごとに、終了コード 2・新しい名前の1行・葉を実行しないこと）
-- `bash tests/commands.sh` のどこで打っても動くの段（プロジェクトを読む葉の全部の `--project` と、決まらないときの終了コード 2）と `go test ./internal/cli/`
-- `bash tests/commands.sh` の A6 の段（JSON を出せる葉の全部を `--json` で打ち、`jq -e .` で読む）と、`go test ./internal/cli/` の `TestJSONLeaves`・`TestExitsInHelp` の `TestProjectUndecided`・`TestProjectFlag`・`TestProjectOmitted`
+- `bash tests/commands.sh` のどこで打っても動くの段（プロジェクトを読む葉の全部の `--project` と、決まらないときの終了コード 2）と `go test ./internal/cli/` の `TestProjectUndecided`・`TestProjectFlag`・`TestProjectOmitted`
+- `bash tests/commands.sh` の A6 の段（JSON を出せる葉の全部を `--json` で打ち、`jq -e .` で読む）と、`go test ./internal/cli/` の `TestJSONLeaves`・`TestExitsInHelp`・`TestExitsMatchCode`
 - `go test ./internal/waiting/`（マージの依頼・判断・手作業の数え方と枠。置いておく印と呼ぶ日は `later_test.go`）と `go test ./internal/ledger/`
 
 ## 落とし穴

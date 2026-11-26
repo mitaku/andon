@@ -255,12 +255,12 @@ out=$(cd "$jc" && ANDON_WORKSPACE=$jc "$andon" issue finish J-0001 --project j -
   && pass "JSON でない出力は jq -e . で読めない。JSON を出せない葉の --json は使い方の誤りで断られる" || fail "JSON の読み方が何も見ていない: $rc $out"
 
 # === A11 3 以上の終了コードは --help に出る。フックの wait と rewake は知らない引数でも 0（決めたこと 15） ===
-# 葉のパッケージが返す 3 以上の数（grep で拾って表と突き合わせたもの）が、--help の終了コードの行に意味と一緒に出る
+# 焼いた andon の --help に出る 3 以上の数を、葉ごとに控えと比べる。コードの定数（exit… = N）と表の突き合わせは go test の TestExitsMatchCode
 got=
 while IFS= read -r l; do
   # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
   line=$("$andon" $l --help | sed -n 's/^終了コード: //p')
-  codes=$(sed 's/・/\n/g' <<<"$line" | sed -n 's/^\([3-9]\) ..*/\1/p' | tr '\n' ',')
+  codes=$(sed 's/・/\n/g' <<<"$line" | sed -n 's/^\([3-9]\|[1-9][0-9][0-9]*\) ..*/\1/p' | tr '\n' ',')
   if [ -n "$codes" ]; then got+="$l:$codes|"; fi
 done <"$tmp/leaves"
 want='open:3,|design start:3,|issue start:3,|issue impact:4,|gate:3,4,5,|triage collect:4,|'

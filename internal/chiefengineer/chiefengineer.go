@@ -204,7 +204,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return exitFirst
 	}
 	fmt.Fprintf(stdout, "andon design start: %s（%s）を %s（%s）で起動した。cwd %s branch %s\n", id, title, run.Address, name, cwd, wt.Branch)
-	fmt.Fprintf(stdout, "andon design start: 次: 出た場所の端末で Chief Engineer と話す。止まったら andon issue resume %s --project %s\n", id, slug)
+	fmt.Fprintf(stdout, "andon design start: 次: 出た場所の端末で Chief Engineer と話す。流れは andon issue trace %s --project %s で見る\n", id, slug)
 	fmt.Fprintf(stdout, "andon design start: 出た場所 %s（%s）\n", place, run.Address)
 	return 0
 }

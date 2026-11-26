@@ -2,8 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -97,6 +102,84 @@ func TestExitsInHelp(t *testing.T) {
 		}
 		if len(l.exits) == 0 && line != "終了コード: 0 成功・1 失敗か断り・2 使い方の誤り" {
 			t.Errorf("%s --help の終了コードの行: %q", l.name, line)
+		}
+	}
+}
+
+// A11: 3 以上の終了コードは、葉のパッケージに名前が exit で始まる定数（exitFirst = 3 など）で書かれる。その定数の数と、表の exits の
+// 3 以上の数が葉ごとに揃う。定数を足して表を直さないと、--help に出ない終了コードになるので落ちる（help は表から作るので、表と help の
+// 比べだけではコードとのずれを見ない）
+func TestExitsMatchCode(t *testing.T) {
+	owner := map[string]string{ // 3 以上の終了コードの定数を持つファイル → その数を返す葉
+		"internal/chiefofstaff/chiefofstaff.go":   "open",
+		"internal/chiefengineer/chiefengineer.go": "design start",
+		"internal/issue/start.go":                 "issue start",
+		"internal/issue/impact.go":                "issue impact",
+		"internal/gate/gate.go":                   "gate",
+		"internal/triage/triage.go":               "triage collect",
+	}
+	root := filepath.Join("..", "..")
+	found := map[string][]int{}
+	for _, dir := range []string{"internal", "cmd"} {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+				return err
+			}
+			f, err := parser.ParseFile(token.NewFileSet(), p, nil, parser.SkipObjectResolution)
+			if err != nil {
+				return err
+			}
+			rel, _ := filepath.Rel(root, p)
+			rel = filepath.ToSlash(rel)
+			for _, decl := range f.Decls {
+				g, ok := decl.(*ast.GenDecl)
+				if !ok || g.Tok != token.CONST {
+					continue
+				}
+				for _, sp := range g.Specs {
+					vs := sp.(*ast.ValueSpec)
+					for i, n := range vs.Names {
+						if !strings.HasPrefix(strings.ToLower(n.Name), "exit") || i >= len(vs.Values) {
+							continue
+						}
+						lit, ok := vs.Values[i].(*ast.BasicLit)
+						if !ok || lit.Kind != token.INT {
+							t.Errorf("%s の %s: 終了コードの定数は数で書く（式や iota だと突き合わせられない）", rel, n.Name)
+							continue
+						}
+						v, _ := strconv.Atoi(lit.Value)
+						if v < 3 {
+							continue
+						}
+						leaf, ok := owner[rel]
+						if !ok {
+							t.Errorf("%s の %s = %d: 3 以上の終了コードの定数を持つファイルが、この検査の owner の表に無い", rel, n.Name, v)
+							continue
+						}
+						found[leaf] = append(found[leaf], v)
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(found) != len(owner) {
+		t.Errorf("owner の表のファイルに 3 以上の終了コードの定数が無いものがある（拾ったのは %v）", found)
+	}
+	for _, l := range leaves {
+		var want []int
+		for _, e := range l.exits {
+			if e.code >= 3 {
+				want = append(want, e.code)
+			}
+		}
+		got := found[l.name]
+		slices.Sort(got)
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%s: コードの 3 以上の終了コード %v と、表の exits の 3 以上 %v が違う", l.name, got, want)
 		}
 	}
 }
