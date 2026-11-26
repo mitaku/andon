@@ -743,6 +743,17 @@ eval "HC_TERMINAL_ID=t5 ${fix/<small|medium|large>/small}" >/dev/null
   || die "直す行を打っても起動できない: $("$andon" issue start "$s12" --dry-run 2>&1)"
 ok 'start: 予約キーが無いか最後に書いたのが今の Chief of Staff の端末でなければ、何も作らず値も書かずに止まり、直す kanban set の行を出す。埋めて打てば起動できる'
 
+# 成果が報告の課題（deliverable: report。ADR-0066 受け入れ条件 7）: 求める予約キーは PR の課題と同じで、--dry-run が出す
+# 依頼書の写しは Deliverable: report のまま（値 report を知らない読み方では Deliverable: pr に書き直す）
+s14=$(kanban add 'Report only' --repo github.com/example/app --profile claude --brief - <<<$'# Report only\n\n## Settings\n- Review: off\n- Deliverable: report\n- Estimate: 小')
+HC_TERMINAL_ID=t5 kanban set "$s14" review=off deliverable=report estimate=small >/dev/null
+expect_fail '無い・知らない値: must_fix・merge。' "$andon" issue start "$s14" --dry-run
+HC_TERMINAL_ID=t5 kanban set "$s14" must_fix=major merge=person >/dev/null
+"$andon" issue start "$s14" --dry-run --json > "$tmp/dry-report" || die "deliverable=report の課題の dry-run が落ちた: $(cat "$tmp/err" 2>/dev/null)"
+jq -e '(.brief | contains("\n- Deliverable: report\n")) and (.brief | contains("Deliverable: pr") | not)' "$tmp/dry-report" >/dev/null \
+  || die "依頼書の写しが Deliverable: report でない: $(jq -r .brief "$tmp/dry-report")"
+ok 'start: deliverable=report の課題は PR の課題と同じ予約キーを求め、--dry-run の依頼書の写しが Deliverable: report になる'
+
 # ルーチンが足した課題（log.jsonl に by: routine:<名前>・fired の行）は、Chief of Staff の端末で打てば、無い予約キーを既定で書いてから起動する。
 # --dry-run は書かない。ほかの端末で打てば今までどおり断る
 mkdir -p kanban/routines

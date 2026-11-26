@@ -159,12 +159,29 @@ func (l *Ledger) Log() []Row {
 // ReadLog は Log と同じく log.jsonl を読み、ファイルを開けない・読み切れないときは読めたところまでと err を返す
 // （空の kanban と、読めなかった kanban を分けたい呼び手のため）。
 func (l *Ledger) ReadLog() ([]Row, error) {
+	rows, _, err := l.readLog()
+	return rows, err
+}
+
+// ErrBadRow は、log.jsonl に JSON として読めない行があったこと（ReadWholeLog）。
+var ErrBadRow = errors.New("log.jsonl に読めない行がある")
+
+// ReadWholeLog は ReadLog と同じ行を返し、JSON として読めない行（空行は除く）があれば ErrBadRow も返す。行を飛ばした履歴で
+// 書き手の照合を言い切りたくない呼び手のため（Chief of Staff の交代の行が抜けると、交代のあとの前の端末を Chief of Staff と読む）。
+func (l *Ledger) ReadWholeLog() ([]Row, error) {
+	rows, bad, err := l.readLog()
+	if err == nil && bad > 0 {
+		err = fmt.Errorf("%w（%d 行）", ErrBadRow, bad)
+	}
+	return rows, err
+}
+
+func (l *Ledger) readLog() (rows []Row, bad int, err error) {
 	f, err := os.Open(filepath.Join(l.Dir, "log.jsonl"))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer f.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
-	var rows []Row
 	s := bufio.NewScanner(f)
 	s.Buffer(make([]byte, 64<<10), 16<<20)
 	for s.Scan() {
@@ -172,9 +189,11 @@ func (l *Ledger) ReadLog() ([]Row, error) {
 		if json.Unmarshal(s.Bytes(), &r) == nil {
 			r.ID = CanonID(r.ID)
 			rows = append(rows, r)
+		} else if len(bytes.TrimSpace(s.Bytes())) > 0 {
+			bad++
 		}
 	}
-	return rows, s.Err()
+	return rows, bad, s.Err()
 }
 
 // TakenByChiefOfStaff は、課題 id の agent を agent に書いた最後の行が、その時点の Chief of Staff の端末だったときに書かれたか
@@ -234,7 +253,7 @@ func (l *Ledger) Trusted(rows []Row, t Issue, key string) bool {
 // kanban config set の行（chief_of_staff・前の名前の coordinator）を順に辿って決める（TakenByChiefOfStaff と同じ辿り方）。
 // Chief of Staff の行が 1 つも無い kanban では、今の config.yaml の値 cos と比べる。
 // 印が何日も残る予約キー（later・later_until）のための照合で、Chief of Staff が起き直して端末が替わっても印を信じ続ける。
-// 起き直したら打ち直す決まりの予約キー（merge・deliverable など）は、今の端末と比べる Trusted で読む。
+// 起き直したら打ち直す決まりの予約キー（merge など）は、今の端末と比べる Trusted で読む。deliverable の report はこの照合で読む（DeliverableOf）。
 func TrustedThen(rows []Row, t Issue, key, cos string) bool {
 	last, byCoS := LastChangeThen(rows, t, key, cos)
 	if last == nil || !byCoS {
@@ -385,6 +404,19 @@ func (l *Ledger) Hold(rows []Row, logErr error, t Issue) (string, bool, error) {
 // SettingsOf の Deliverable で読む（Chief of Staff の起き直しのあと書き直す前でも PR を求めない。ADR-0006 決めたこと 7・17）。
 func (l *Ledger) Candidates(rows []Row, t Issue) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
+}
+
+// DeliverableOf は課題 t の成果の形（予約キー deliverable の pr・candidates・report。contract.md §2 の「成果の形の読み方」）を、
+// kanban の履歴 rows と今の config.yaml の Chief of Staff cos で照合を済ませて返す（純粋関数。ADR-0066 決めたこと 10〜12）。
+// candidates は値だけで読む（ADR-0006 決めたこと 17）。report は、最後に変えた行の書き手がその行の時点の Chief of Staff の
+// 端末だったときだけ信じ（TrustedThen。Chief of Staff が起き直しても外れない）、外れたら pr。値の無い課題と知らない値は pr。
+// SettingsOf の Deliverable は値だけを読む写し（依頼書の Settings の写しと andon issue show が読む）で、照合を済ませていない。
+func DeliverableOf(rows []Row, t Issue, cos string) string {
+	v := SettingsOf(t).Deliverable
+	if v == "report" && !TrustedThen(rows, t, "deliverable", cos) {
+		return "pr"
+	}
+	return v
 }
 
 // Estimate は、課題の見込みの段（予約キー estimate の small・medium・large）を、最後に書いたのが Chief of Staff のときだけ返す
@@ -617,7 +649,7 @@ func SettingsOf(t Issue) Settings {
 	if v := t.Str("machine"); nameOK(v) {
 		s.Machine = v
 	}
-	if v := t.Str("deliverable"); v == "candidates" {
+	if v := t.Str("deliverable"); v == "candidates" || v == "report" {
 		s.Deliverable = v
 	}
 	if v := t.Str("estimate"); EstimateMinutes(v) > 0 {

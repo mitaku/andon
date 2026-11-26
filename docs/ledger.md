@@ -138,7 +138,7 @@ Any other key is allowed and kept.
 | `merge` | Who merges. |
 | `machine` | The machine the issue's agent runs on. |
 | `estimate` | A rough size of the issue (`small`, `medium`, `large`). |
-| `deliverable` | What the issue produces: `pr` (a pull request) or `candidates` (a list of candidates, no pull request). |
+| `deliverable` | What the issue produces: `pr` (a pull request), `candidates` (a list of candidates, no pull request) or `report` (the report; a pull request is optional). |
 
 ### Status rules
 

@@ -32,8 +32,8 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
     },
     "deliverable": {
-      "description": "What the issue delivers. pr: a pull request (fix issues, Chief Engineer documents). candidates: library/candidates.json without a pull request (survey issues); andon issue ready asks for the file instead of a PR and the dispatcher does not run the gate. Default: pr.",
-      "enum": ["pr", "candidates"]
+      "description": "What the issue delivers. pr: a pull request (fix issues, Chief Engineer documents). candidates: library/candidates.json without a pull request (survey issues); andon issue ready asks for the file instead of a PR and the dispatcher does not run the gate. report: the report, and a pull request is optional (verification after apply, check issues added by routines, reviews after merge); a pull request it does open goes the same way as a pr issue, and the dispatcher does not tell an issue waiting on it that it was abandoned (ADR-0066). report counts only when the Chief of Staff at the time wrote it; otherwise it reads as pr. Default: pr.",
+      "enum": ["pr", "candidates", "report"]
     },
     "estimate": {
       "description": "The Chief of Staff's rough estimate of the issue's size, written when cutting the brief (ADR-0014). small: about 30 minutes, medium: about 60, large: about 120 of work without waits (a guide, not a limit). Only for worker issues (fix and survey), not reviewers or the Chief Engineer. No default: missing means no estimate, and nothing is compared.",

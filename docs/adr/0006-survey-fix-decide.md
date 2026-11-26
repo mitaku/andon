@@ -16,7 +16,7 @@
 | 4 | 問いの `kind` に `scope` を足し、宛先は Chief of Staff にする | `schema/question.schema.json` | 生きている |
 | 5 | 範囲の判断は Chief of Staff が持ち、委譲に `scope` は足さない | `package/skills/chief-of-staff/playbooks/blocked.md`・`docs/design.md` | 生きている |
 | 6 | 依頼を受けたときの切り方の分かれ目を、依頼書に場所と直し方が書けるかで決める | `package/skills/chief-of-staff/playbooks/brief.md` | 生きている（決めたこと 10 が一部を言い直した） |
-| 7 | 予約キー `deliverable` は `pr`（既定）か `candidates` で、書き手は Chief of Staff | `schema/issue-keys.schema.json`・`internal/dispatcher/dispatcher.go` | 生きている |
+| 7 | 予約キー `deliverable` は `pr`（既定）か `candidates` で、書き手は Chief of Staff | `schema/issue-keys.schema.json`・`internal/dispatcher/dispatcher.go` | 生きている。値 `report` を [ADR-0066](0066-deliverable-report.md) が足した |
 | 8 | 既存の文書とコードに入れる変更の一覧 | この ADR | 役目を終えた |
 | 9 | 工程の背骨は 理解・計画・作業・確認・完成・振り返り で、作業の終了条件と課題の完了条件は別 | `package/skills/worker/SKILL.md` | 生きている |
 | 10 | 理解と計画は担当の工程で、止まるのは範囲を決めないと作業が切れないときだけ | `package/skills/worker/SKILL.md` | 生きている |

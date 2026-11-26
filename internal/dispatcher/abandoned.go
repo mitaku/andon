@@ -23,9 +23,23 @@ const (
 )
 
 func (p *project) waitedGone(t ledger.Issue) (gone, unsure []string) {
+	cos := ""
 	for _, id := range afterOf(t) {
 		a, err := p.issue(id)
-		if err != nil || !yieldsPR(a) {
+		if err != nil || !prRole(a) {
+			continue
+		}
+		if a.Str("deliverable") == "report" {
+			if p.rowsErr != nil {
+				// log.jsonl を読み切れない巡では、report を書いたのが Chief of Staff か確かめられない。やめと言い切らない
+				unsure = append(unsure, id)
+				continue
+			}
+			if cos == "" {
+				cos = p.l.ChiefOfStaff()
+			}
+		}
+		if ledger.DeliverableOf(p.rows, a, cos) != "pr" {
 			continue
 		}
 		switch p.mergedState(id) {
@@ -63,8 +77,11 @@ func afterOf(t ledger.Issue) []string {
 	return out
 }
 
-func yieldsPR(t ledger.Issue) bool {
-	return t.Str("repo") != "" && !isReviewer(t) && t.Str("who") != "person" && ledger.SettingsOf(t).Deliverable != "candidates"
+// prRole は、待つ相手 t が PR を成果にしうる課題か（repo があり、レビュアー・オーナーの課題でない）。そのうえ成果の形
+// （ledger.DeliverableOf。contract.md §2 の「成果の形の読み方」）が pr の課題だけを見分ける。調べる課題と、書いた時点の
+// Chief of Staff が report を書いた報告の課題は、done が成果の出来上がりなので見分けない（ADR-0066 決めたこと 6・10）。
+func prRole(t ledger.Issue) bool {
+	return t.Str("repo") != "" && !isReviewer(t) && t.Str("who") != "person"
 }
 
 // mergedState は課題 id の PR がマージされたかを、手元の記録から先に、無ければ gh で決める。

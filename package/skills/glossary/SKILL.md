@@ -121,7 +121,7 @@ _避ける_: 2つを混ぜること（作業が終わった＝課題が解けた
 _避ける_: 調査課題、research task
 
 **deliverable**:
-課題の成果の形。`issue.yaml` の予約キー（`pr`／`candidates`）。書くのは Chief of Staff。依頼書の Settings の `Deliverable:` はその写し。
+課題の成果の形。`issue.yaml` の予約キー（`pr`／`candidates`／`report`）。`report` は成果が報告で PR は無くてもよい課題（検証・点検・マージ後のレビュー）。書くのは Chief of Staff。依頼書の Settings の `Deliverable:` はその写し。
 
 **候補**（candidate）:
 調べて見つけた、直すかもしれないが決めていないもの1つ。一覧は `library/candidates.json`（`id`・何をどこでどう直すか・範囲の中か〈`in_scope`〉）。担当が書き、Chief of Staff が切る・答える。

@@ -16,6 +16,8 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
   - 見るファイル: `internal/dispatcher/signals.go`、`internal/signal/signal.go`、`internal/signal/cmd.go`、`internal/signal/echo_linux.go`、`process/states/signal.yaml`
 - `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/dispatcher/news.go`、`internal/dispatcher/ack.go`、`package/hooks/stop`、`package/skills/chief-of-staff/playbooks/watch.md`
+- `dn-ready-report` Chief of Staff が `kanban set <id> deliverable=report` を書いて起動した課題（当てたあとの検証・点検の課題）の依頼書の `## Settings` の写しが `Deliverable: report` のままで、その課題を待つ課題が引き取れるようになったとき、Chief of Staff に届く `<id> ready` の行に「待つ相手 … がやめになった」が付かない（ADR-0066 受け入れ条件 10）。見る道: オーナーが見る。
+  - 見るファイル: `internal/dispatcher/abandoned.go`、`internal/dispatcher/dispatcher.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 
 ## 辿り着き方（利用者から）
 
@@ -37,6 +39,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - **枠の空きを見たかを読む。** `dn-idle` の行に、控えの `idle`（見た時刻・枠が空いていたか・起動できる課題の数・知らせた id）と、当てたあとに届けた通知 `idle` の `detail` が出る。`ok   dn-idle` が見えれば、当てたあとに枠の空きを見た。撃ったルーチンは `kanban routine list` の `last` でも読める。控えが無ければ `note dn-idle` が出て、dn-idle は未確認になる（終了コードは変えない）。続く行に、空きで撃てるルーチン（トリアージ・振り返りと `idle_hours` を持つもの）ごとに `idle_hours`・`paused`・片付いていない課題・検証する間に足した課題が出る。足した課題のほかは今の状態で、前の commit を検証するときも今を読む。`idle_hours`（1 以上の整数）を持つルーチンが無いか、撃てるルーチンがどれも `paused` か片付いていない課題を持てば、`note dn-idle` が出て、空きで撃つところは未確認になる（終了コードは変えない）。
 - **手直しの記録を読む。** `dn-corrections` の行に、当てたあとに書いた `corrections.json` ごとの課題・時刻・種類ごとの数・`human_commits` の数が出る。`ok   dn-corrections` が見えれば、当てた dispatcher が手直しの記録を書いた。当てたあとに片付いた課題が無ければ `note dn-corrections` が出て、dn-corrections は未確認になる（終了コードは変えない）。拾う規則（merge commit を外すなど）が効いたかは、記録の `human_commits` と PR の commit を見比べて読む。
 - **通知 signal を読む。** `dn-signal` の行に、当てたあとの通知 signal の数（届けたものと記録だけのもの）と、記録だけの通知 signal の key・URL・`release` が出る。`ok   dn-signal` が見えれば、検証する間の通知 signal の detail に、40 桁の commit の `release` が載った。届けた記録（`delivered.jsonl`）は課題と kind だけで detail を持たないので、届けた通知 signal に `release` が載ったかはこの行では言えない。detail を読める通知に `release` が無いか、通知 signal が無ければ `note dn-signal` が出て、dn-signal は未確認になる（終了コードは変えない）。`release` の commit から PR を引く手（Chief of Staff の手引き）は、この行では見ない。
+- **報告の課題を待つ課題の ready を見る（`dn-ready-report`）。** 検証の担当は動かせない。報告の `acceptance[]` に `manual` と書き、オーナーが見る次の証拠を `evidence` に書く: 当てたあとに起動した検証の課題の `issues/<id>/brief.md` の `## Settings` に `- Deliverable: report` があり、`kanban show <id> --json` の `.issue.deliverable` が `report`。その課題を `after` に持つ課題があれば、その課題の `<id> ready` の行に「がやめになった」が無い。待つ課題が無ければ、付かなかったことは見られないので未確認と書く。
 - **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
 
 ## 変えたら動かすパス
@@ -54,6 +57,8 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `internal/issue/impact.go`
 - `cmd/kanban/routines.go`
 - `package/skills/chief-of-staff/playbooks/watch.md`
+- `internal/ledger/ledger.go`
+- `schema/issue-keys.schema.json`
 
 ## 既に見ている検査
 

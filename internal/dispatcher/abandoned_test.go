@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,6 +67,24 @@ func TestWaitedGone(t *testing.T) {
 		ledger.Issue{"id": "E-0032", "status": "done", "profile": "claude", "repo": repo, "deliverable": "candidates"},
 		ledger.Issue{"id": "E-0033", "status": "done", "who": "person", "repo": repo},
 	)
+	// 報告の課題（deliverable: report。ADR-0066 決めたこと 6・10）: どれも done・結果の記録が none。E-0041 は Chief of Staff が書いた
+	// report で pr 無し、E-0042 は Chief of Staff が書いたあと起き直して端末が替わった、E-0043 は閉じた PR を持つ、
+	// E-0044 は担当の端末が書いた report、E-0045 は印の無い同じ記録の課題
+	for _, id := range []string{"E-0041", "E-0042", "E-0043", "E-0044", "E-0045"} {
+		if id == "E-0045" {
+			done(id)
+		} else {
+			done(id, "deliverable", "report")
+		}
+		write(id, "outcome.json", `{"result":"none"}`)
+	}
+	report("E-0043", 2)
+	cosRow := func(v string) ledger.Row { return ledger.Row{By: "andon", Config: map[string]any{"chief_of_staff": v}} }
+	setRow := func(by, id string) ledger.Row {
+		return ledger.Row{By: "terminal:" + by, ID: id, Change: map[string]any{"deliverable": "report"}}
+	}
+	p.rows = []ledger.Row{cosRow("t4"), setRow("t4", "E-0042"), cosRow("t5"),
+		setRow("t5", "E-0041"), setRow("t5", "E-0043"), setRow("t9", "E-0044")}
 
 	after := func(ids ...string) ledger.Issue {
 		a := make([]any, len(ids))
@@ -83,6 +102,8 @@ func TestWaitedGone(t *testing.T) {
 		{"やめになった待つ相手を返す", []string{"E-0001", "E-0011", "E-0012", "E-0013", "E-0014"}, []string{"E-0011", "E-0012", "E-0013", "E-0014"}, nil},
 		{"確かめられない待つ相手は unsure", []string{"E-0021", "E-0013"}, []string{"E-0013"}, []string{"E-0021"}},
 		{"PR を成果にしない待つ相手は見ない", []string{"E-0031", "E-0032", "E-0033"}, nil, nil},
+		{"報告の課題は見分けない（起き直しのあとも、閉じた PR を持っても）", []string{"E-0041", "E-0042", "E-0043"}, nil, nil},
+		{"担当の端末が書いた report と印の無い課題は、今までどおりやめ", []string{"E-0044", "E-0045"}, []string{"E-0044", "E-0045"}, nil},
 		{"待つ相手が無い", nil, nil, nil},
 	}
 	for _, c := range cases {
@@ -91,6 +112,13 @@ func TestWaitedGone(t *testing.T) {
 			t.Errorf("%s: gone %v unsure %v, want %v %v", c.name, gone, unsure, c.gone, c.unsure)
 		}
 	}
+	// kanban の履歴を読み切れなかった巡では、値が report の課題を照合できない。やめと言い切らず、確かめられない（unchecked）に入れる。
+	// 印の無い課題は今までどおり見分ける
+	p.rowsErr = errors.New("bufio.Scanner: token too long")
+	if gone, unsure := p.waitedGone(after("E-0041", "E-0044", "E-0045")); len(gone) != 1 || gone[0] != "E-0045" || !slices.Equal(unsure, []string{"E-0041", "E-0044"}) {
+		t.Errorf("履歴を読み切れない巡: gone %v unsure %v", gone, unsure)
+	}
+	p.rowsErr = nil
 	b, _ := os.ReadFile(calls)
 	if got := strings.Fields(string(b)); !slices.Equal(got, []string{"1", "2", "3", "4", "2"}) {
 		t.Fatalf("gh を打った PR が違う: %q", got)
@@ -103,6 +131,38 @@ func TestWaitedGone(t *testing.T) {
 	}
 	if _, err := os.Stat(calls); err == nil {
 		t.Fatal("gh の上限の間に gh を打った")
+	}
+}
+
+// kanban の履歴に JSON として壊れた行があれば、その巡は読み切れなかったと数える。壊れた行が Chief of Staff の交代
+// （t5 → t9）で、交代のあとに前の端末 t5 が report を書いた課題は、照合できないので「確かめられない」に入れる（やめの見分けを
+// 止めない・報告の課題とも信じない）。壊れた行の無い履歴は読み切れたと数える
+func TestLoadLogBadRow(t *testing.T) {
+	p := routeProject(t)
+	os.WriteFile(filepath.Join(p.l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t9\n"), 0o644)
+	p.tasks = append(p.tasks, ledger.Issue{"id": "E-0051", "status": "done", "profile": "claude", "repo": "github.com/example/app", "deliverable": "report"})
+	os.MkdirAll(p.l.Library("E-0051"), 0o755)
+	os.WriteFile(filepath.Join(p.l.Library("E-0051"), "outcome.json"), []byte(`{"result":"none"}`), 0o644)
+	logf := filepath.Join(p.l.Dir, "log.jsonl")
+	good := `{"by":"andon","config":{"chief_of_staff":"t5"}}` + "\n"
+	set := `{"by":"terminal:t5","id":"E-0051","change":{"deliverable":"report"}}` + "\n"
+	os.WriteFile(logf, []byte(good+`{"by":"andon","config":{"chief_of_staff":"t9"`+"\n"+set), 0o644)
+	p.loadLog()
+	if p.rowsErr == nil || len(p.rows) != 2 {
+		t.Fatalf("壊れた行のある履歴: rows %d err %v", len(p.rows), p.rowsErr)
+	}
+	a := ledger.Issue{"id": "E-0100", "status": "todo", "after": []any{"E-0051"}}
+	if gone, unsure := p.waitedGone(a); gone != nil || !slices.Equal(unsure, []string{"E-0051"}) {
+		t.Errorf("壊れた行のある履歴: gone %v unsure %v", gone, unsure)
+	}
+	os.WriteFile(logf, []byte(good+"\n"+set), 0o644)
+	p.loadLog()
+	if p.rowsErr != nil || len(p.rows) != 2 {
+		t.Fatalf("空行だけの履歴: rows %d err %v", len(p.rows), p.rowsErr)
+	}
+	os.Remove(logf)
+	if p.loadLog(); p.rowsErr != nil || p.rows != nil {
+		t.Fatalf("履歴が無い kanban: rows %v err %v", p.rows, p.rowsErr)
 	}
 }
 

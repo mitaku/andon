@@ -849,7 +849,7 @@ andon/
 
 | 約束 | 置き場 | 書き手 | 読み手 | 出発点 |
 |---|---|---|---|---|
-| kanban の項目（依頼書の Settings の正） | `issue.yaml` の予約キー `review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine`（まだ使えない。`start` が断る）・`deliverable`（`pr`／`candidates`。調べる課題の印）・`estimate`（`small`／`medium`／`large`。見込み。ADR-0014） | Chief of Staff（`kanban set`。履歴は `log.jsonl` の `by` で照合） | gate・dispatcher・担当 | 仮設で進行中の「gate が kanban の項目を読む」形 |
+| kanban の項目（依頼書の Settings の正） | `issue.yaml` の予約キー `review`・`must_fix`・`reviewer`・`review_rounds`・`merge`・`machine`（まだ使えない。`start` が断る）・`deliverable`（`pr`／`candidates`／`report`。調べる課題と、成果が報告で PR は無くてもよい課題の印。ADR-0066）・`estimate`（`small`／`medium`／`large`。見込み。ADR-0014） | Chief of Staff（`kanban set`。履歴は `log.jsonl` の `by` で照合） | gate・dispatcher・担当 | 仮設で進行中の「gate が kanban の項目を読む」形 |
 | 候補 | `issues/<id>/library/candidates.json`（`commit`・`candidates[]` の `id`・`text`・`file`・`line`・`in_scope`） | 担当（`andon issue candidates`） | Chief of Staff（切る・範囲の問いに答える）・オーナー・トリアージ・振り返り。gate と dispatcher は判定に読まない | ADR-0006。contract.md §12 |
 | 指摘 | `issues/<レビュアーの id>/library/findings.json` | レビュアー | gate・担当（振り分け）・振り返り | 同上（形そのまま） |
 | 報告の機械向けの部分 | `issues/<id>/library/report.json`（`commit`・`pr`・`review_request`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`・`estimate`・`plan`） | 担当 | dispatcher（レビュアーの起動・ready の一致）・gate（`pr`）・トリアージ・振り返り | 仮設の報告の `PR:` 行・`## レビュー依頼`・`## Next`（宛先の印を足す） |
