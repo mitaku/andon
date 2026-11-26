@@ -1,0 +1,23 @@
+{
+  "$comment": "アップロードの口の約束の見本（ADR-0064 決めたこと 15・28）。tray の Workers の検査が読む。セルの側の送り（Go）を足すときは、その検査もこれを読み、欄を1つ消すと両方が落ちるようにする。欄は足すだけで変え、消すか意味を変えるときは /v2/ を足す",
+  "request": {
+    "method": "PUT",
+    "path": "/v1/reports/andon/2026-11-27-%E9%80%B1%E3%81%AE%E5%A0%B1%E5%91%8A",
+    "headers": {
+      "Authorization": "Bearer <API キー>",
+      "Content-Type": "text/markdown; charset=utf-8",
+      "X-Tray-Kind": "publish",
+      "X-Tray-Title": "%E9%80%B1%E3%81%AE%E5%A0%B1%E5%91%8A",
+      "X-Tray-Sha256": "4ed6b31f522d131bb9c40a1bd449e02027ce338398abb04eb1a41269ac2bb2f1"
+    },
+    "body": "# 週の報告\n\n- 片付いた課題: 3\n"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "url": "https://tray.example.com/r/0123456789abcdef0123456789abcdef",
+      "version": 1,
+      "bumped": true
+    }
+  }
+}

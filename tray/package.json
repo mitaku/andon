@@ -1,0 +1,25 @@
+{
+  "name": "tray",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/list.ts src/view.ts src/upload.ts src/local.ts src/local-upload.ts --outdir dist/workers --target browser --format esm",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "browser": "playwright test",
+    "e2e": "node scripts/e2e.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "dependencies": {
+    "marked": "18.3.0",
+    "miniflare": "5.20261123.1-beta"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.9.2",
+    "@cloudflare/workers-types": "5.20261125.1",
+    "@playwright/test": "1.62.1",
+    "typescript": "7.0.2",
+    "vitest": "5.1.2"
+  }
+}
