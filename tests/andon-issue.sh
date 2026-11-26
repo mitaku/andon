@@ -788,7 +788,7 @@ ok 'create: 知らない値（review=maybe・estimate=huge）・予約キーで�
 "$andon" issue create 'Create in one' --repo github.com/example/app --profile claude --brief - review=off estimate=small must_fix=major merge=person \
   <<<$'# Create in one\n完了条件: 押せる\n' > "$tmp/out" 2>"$tmp/err" || die "create が落ちた: $(cat "$tmp/err")"
 cr1=$(sed -n 's/^andon issue create: \([A-Z]*-[0-9]*\)（Create in one）を足した.*/\1/p' "$tmp/out")
-[ -n "$cr1" ] && [ "$(tail -n 1 "$tmp/out")" = "次: andon issue start $cr1" ] || die "足した id と次の1手が出ない: $(cat "$tmp/out")"
+[ -n "$cr1" ] && [ "$(tail -n 1 "$tmp/out")" = "andon issue create: 次: andon issue start $cr1 --project demo" ] || die "足した id と次の1手が出ない: $(cat "$tmp/out")"
 [ "$(field "$cr1" review)$(field "$cr1" estimate)$(field "$cr1" must_fix)$(field "$cr1" merge)" = offsmallmajorperson ] \
   && jq -e --arg id "$cr1" 'select(.id == $id and .change.review == "off") | .by == "terminal:t5"' kanban/log.jsonl >/dev/null \
   || die "予約キーを打った端末で書いていない: $(kanban show "$cr1" --json | jq -c .issue)"
@@ -802,7 +802,7 @@ ok 'create: 課題を1件足し、予約キーを打った端末で書き、依�
   <<<$'# Settings copy\n\n## Settings\n- Review: off\n- Reviewer: codex-review\n- Must fix: major\n- Review rounds: 2\n- Merge: person\n- Estimate: 中\n\n頼まれていない稀なケースのために設計しない。' > "$tmp/create.json" \
   || die "create --json が落ちた: $(cat "$tmp/create.json")"
 cr2=$(jq -r .id "$tmp/create.json")
-jq -e --arg id "$cr2" '.next == "andon issue start \($id)" and .missing == []' "$tmp/create.json" >/dev/null || die "create --json: $(cat "$tmp/create.json")"
+jq -e --arg id "$cr2" '.next == "andon issue start \($id) --project demo" and .missing == []' "$tmp/create.json" >/dev/null || die "create --json: $(cat "$tmp/create.json")"
 want=$'# Settings copy\n\n## Settings\n- Review: on ★\n- Reviewer: codex-review\n- Must fix: major\n- Review rounds: 2\n- Merge: auto ★委譲の範囲\n- Estimate: 中\n\n頼まれていない稀なケースのために設計しない。'
 [ "$(cat "kanban/issues/$cr2/brief.md")" = "$want" ] || die "雛形の書き方の写しでない: $(cat "kanban/issues/$cr2/brief.md")"
 HC_TERMINAL_ID=t5 kanban set "$cr2" estimate=large merge=person >/dev/null
@@ -812,11 +812,11 @@ HC_TERMINAL_ID=t5 kanban set "$cr2" estimate=large merge=person >/dev/null
 ok 'create: 依頼書の Settings 欄を雛形の書き方で写し（estimate=medium は Estimate: 中、既定から変えた行に ★ と理由）、kanban set のあとの start が新しい値に書き直す（A10）'
 "$andon" issue create 'Needs keys' --repo github.com/example/app --profile claude --brief - review=on <<<'# x' > "$tmp/out" || die 'create が落ちた'
 cr3=$(sed -n 's/^andon issue create: \([A-Z]*-[0-9]*\)（Needs keys）を足した.*/\1/p' "$tmp/out")
-[ "$(tail -n 1 "$tmp/out")" = "次: kanban set $cr3 'must_fix=<critical|major|minor|trivial>' 'reviewer=<codex-review|claude-review>' 'review_rounds=<1 以上の数>' 'merge=<auto|person>' 'estimate=<small|medium|large>' を打ってから andon issue start $cr3" ] \
+[ "$(tail -n 1 "$tmp/out")" = "andon issue create: 次: kanban set $cr3 'must_fix=<critical|major|minor|trivial>' 'reviewer=<codex-review|claude-review>' 'review_rounds=<1 以上の数>' 'merge=<auto|person>' 'estimate=<small|medium|large>' を打ってから andon issue start $cr3 --project demo" ] \
   || die "足りない予約キーを書く行が出ない: $(cat "$tmp/out")"
 "$andon" issue create 'No profile' --brief - review=off estimate=small <<<'# x' > "$tmp/out" || die 'profile の無い create が落ちた'
 cr4=$(sed -n 's/^andon issue create: \([A-Z]*-[0-9]*\)（No profile）を足した.*/\1/p' "$tmp/out")
-[ "$(tail -n 1 "$tmp/out")" = "次: kanban set $cr4 'profile=<名前>' を打ってから andon issue start $cr4" ] || die "profile を書く行が出ない: $(cat "$tmp/out")"
+[ "$(tail -n 1 "$tmp/out")" = "andon issue create: 次: kanban set $cr4 'profile=<名前>' を打ってから andon issue start $cr4 --project demo" ] || die "profile を書く行が出ない: $(cat "$tmp/out")"
 ok 'create: andon issue start が求める予約キーか profile が足りなければ、次の1手にそれを書く kanban set の行を出す'
 ce0=$'# CE brief\n完了条件: 文書\n'
 ce2=$("$andon" issue create 'CE brief' --repo github.com/example/app --profile chief-engineer --brief - --json review=on estimate=small <<<"$ce0" | jq -r .id)

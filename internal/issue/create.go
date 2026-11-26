@@ -42,6 +42,7 @@ type createPlan struct {
 	Brief     string   `json:"brief"` // Settings 欄を書いたあとの依頼書（依頼書が無ければ空）
 	Missing   []string `json:"missing"`
 	Next      string   `json:"next"`
+	slug      string   // 次の1手の --project に書くプロジェクト
 }
 
 func Create(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -184,6 +185,7 @@ func (p *createPlan) run(stdin io.Reader, stderr io.Writer, brief string, reason
 	if err != nil {
 		return err
 	}
+	p.slug = l.Slug
 	if p.DryRun {
 		if brief != "" && !settingsKept(t.Str("profile")) {
 			text, _ = ledger.RewriteSettings(text, t, reasons)
@@ -241,6 +243,9 @@ func (p *createPlan) next(t ledger.Issue, hasBrief bool) {
 		}
 	}
 	start := "andon issue start " + p.ID
+	if p.slug != "" {
+		start += " --project " + p.slug
+	}
 	switch {
 	case len(args) > 0:
 		p.Next = fmt.Sprintf("kanban set %s %s を打ってから %s", p.ID, strings.Join(args, " "), start)
@@ -263,7 +268,7 @@ func (p *createPlan) print(w io.Writer) {
 				fmt.Fprintln(w)
 			}
 		}
-		fmt.Fprintf(w, "次: %s\n", strings.ReplaceAll(p.Next, "<id>", "<足した id>"))
+		fmt.Fprintf(w, "andon issue create: 次: %s\n", strings.ReplaceAll(p.Next, "<id>", "<足した id>"))
 		return
 	}
 	fmt.Fprintf(w, "andon issue create: %s（%s）を足した", p.ID, p.Title)
@@ -274,5 +279,5 @@ func (p *createPlan) print(w io.Writer) {
 		fmt.Fprintf(w, "。依頼書 %s の ## Settings 欄を予約キーから書いた", p.BriefPath)
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "次: %s\n", p.Next)
+	fmt.Fprintf(w, "andon issue create: 次: %s\n", p.Next)
 }

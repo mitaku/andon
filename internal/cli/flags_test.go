@@ -18,7 +18,7 @@ import (
 func TestJSONLeaves(t *testing.T) {
 	want := map[jsonForm][]string{
 		jsonAlways: {"gate", "issue impact", "issue merge", "issue settle", "issue show", "process json", "retro collect", "triage collect", "version"},
-		jsonFlag:   {"delegation show", "issue board", "issue history", "issue trace", "metrics show", "waiting list"},
+		jsonFlag:   {"delegation show", "issue board", "issue create", "issue history", "issue trace", "metrics show", "waiting list"},
 		jsonDryRun: {"issue resume", "issue start"},
 	}
 	got := map[jsonForm][]string{}

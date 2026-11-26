@@ -119,7 +119,7 @@ var leaves = []leaf{
 	// 役が打つ
 	{name: "issue create", who: []who{role}, about: "担当の課題を足し、予約キーを書き、依頼書の Settings 欄を予約キーから書く",
 		usage: issue.CreateUsage, examples: []string{`issue create "返事の下書きボタン" --repo github.com/<owner>/sample-site --brief brief.md review=off must_fix=major merge=person estimate=small`},
-		writes: true, project: true, json: true, run: issue.Create},
+		writes: true, project: true, json: jsonFlag, run: issue.Create},
 	{name: "issue start", who: []who{role, machine}, about: "worktree と branch を切り、担当を起動して kanban start で結ぶ",
 		usage: issue.StartUsage, examples: []string{"issue start S-0012 --dry-run"},
 		exits: []exit{{3, "起動したが最初のメッセージが届いていない"}}, writes: true, project: true, json: jsonDryRun, run: issue.Start},
