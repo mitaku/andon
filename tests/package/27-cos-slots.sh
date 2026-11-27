@@ -16,11 +16,12 @@ miss=
 for want in '`andon waiting list --json` の `stackable` に出ている課題' '同じ優先なら、積まずに起動できる課題を先にする' '`slots.behind`'; do
   grep -qF -- "$want" <<<"$start1" || miss="$miss [$want]"
 done
-old_stack='前の課題の branch の上で起動しない'
-if grep -qF -- "$old_stack" <<<"$start1"; then miss="$miss [古い行が残る]"; fi
+old_stack='前の課題の branch の上[^。]*起動しない'
+if grep -qE -- "$old_stack" <<<"$start1"; then miss="$miss [古い行が残る]"; fi
 [ -z "$miss" ] && pass "ADR-0067 決めたこと 17: start.md の 1 が stackable を候補にし、積まずに起動できる課題を先にし、前の PR 待ちを枠に数えない" || fail "ADR-0067 決めたこと 17: start.md の 1:$miss"
 # 当たる場合があること: 直す前の start.md の 1 の行に当たる
-grep -qF -- "$old_stack" <<<'   - `after` で前の課題を待つ課題は、前の課題がオーナーのマージを待っていても先に起動しない（`after` を外さない・前の課題の branch の上で起動しない）。' \
+grep -qE -- "$old_stack" <<<'   - `after` で前の課題を待つ課題は、前の課題がオーナーのマージを待っていても先に起動しない（`after` を外さない・前の課題の branch の上で起動しない）。' \
+  && grep -qE -- "$old_stack" <<<'   - 前の課題の branch の上では起動しない。' \
   && pass "ADR-0067 決めたこと 17: 古い行の検査が直す前の行に当たる（検査が見ている）" || fail "ADR-0067 決めたこと 17: 古い行の検査が直す前の行に当たらない"
 
 # オーナー待ちの数では起動を止めない（ADR-0065 受け入れ条件 4）: waiting_full と「オーナー待ちが N 件たまったので」の文が無い

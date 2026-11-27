@@ -11,7 +11,7 @@
   | 届く行 | dispatcher がしたこと | すること |
   |---|---|---|
   | `<id> merged: <PR> はオーナーがマージした（…）。gate の問いを閉じて片付けた` | gate の問い（`from: gate`）を「オーナーがマージした」と閉じ、`andon issue finish` 済み | 何もしない（wiki だけ。下） |
-  | `<id> merged: <PR> はオーナーがマージした（…）が、片付けていない: PR が既定の branch でない base（<branch>）にマージされた。…` | 片付けていない。オーナーが積んだ PR を前の課題の branch へマージしたので、変更は main に入っておらず、課題は `done` にならない（ADR-0067 決めたこと 15） | 前の課題の PR にまとめて main に入れるつもりかを、オーナーに1問で確かめる（ask-one-by-one skill）。まとめるなら、前の課題の PR が main に入って片付いたあと、積んだ課題の変更も main に入っているので、`andon issue finish <id>` で積んだ課題を手で片付ける（gate は open でない PR に載せ替えを頼まない） |
+  | `<id> merged: <PR> はオーナーがマージした（…）が、片付けていない: PR が既定の branch でない base（<branch>）にマージされた。…` | 片付けていない。オーナーが積んだ PR を前の課題の branch へマージしたので、変更は main に入っておらず、課題は `done` にならない（ADR-0067 決めたこと 15） | 前の課題の PR にまとめて main に入れるつもりかを、オーナーに1問で確かめる（ask-one-by-one skill）。まとめるなら、前の課題の PR が main に入っても通知は届かず、gate も open でない PR に載せ替えを頼まないので、積んだ課題は `review` に残る。`start.md` の 1 で枠を数え直すたびに `kanban show <前の課題>` を見て、`done` になっていたら、積んだ課題の変更も main に入っているので `andon issue finish <id>` で手で片付ける。その課題の上にさらに積んだ課題があれば、そのあと gate の「前の課題 <id> がマージされずに終わった」が届くが、変更は main に入っているので `watch.md` のその行の但し書きのとおりにする |
   | `<id> merged: <PR> はオーナーがマージした（…）が、片付けていない: <理由>` | 片付けていない（gate の外の問いが開いている・commit していない変更がある・finish が失敗した） | 理由の問いを先に閉じる（担当の問いなら答えを返す・要らなくなった問いなら `kanban answer --decided-by chief-of-staff`・`kanban received`）か、finish の理由を直す（commit していない変更は担当に聞くか、オーナーへ）。dispatcher が次の巡で片付ける |
   | `<id> closed: <PR> はマージされずに閉じた` | 何もしない（片付けていない） | オーナーが閉じた理由を確かめ、やめるならオーナーの go を取って `andon issue finish <id>`、出し直すなら担当へ返す |
 
@@ -20,7 +20,7 @@
 - 調べる課題（`deliverable: candidates`）は PR が無いので、報告と `candidates.json` を読んで直す課題を切ったあと（切らない候補は報告の Next に残っている）、オーナーの go は要らず `andon issue finish <id>`。commit していない変更があって止まったら、担当に捨てさせる（報告の Next に「commit は捨ててよい」と書かせる）。
 - dispatcher が止まっているときは、`review`・`doing` の課題なら `andon issue settle <id>` を打つ（dispatcher が打つのと同じ。マージを確かめ、gate の問いを閉じて片付ける。出力の `notify[]` が届くはずだった行）。`report.json` に `pr` が無い課題をオーナーがマージしたときだけ、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
   受け取られていない問い（`open`・`answered`。レビュアーの子課題のものも）があると、端末にも worktree にも触らずに止まる（課題は元の状態のまま）。commit していない変更があっても止まる。そのときは担当に聞くか、オーナーへ。やめる課題も、問いを閉じて（`kanban answer --decided-by chief-of-staff`・`kanban received`）から打ち直す。
-- マージせずにやめる課題は、**オーナーの go を取ってから** `andon issue finish <id>`（branch は残る）。その課題の上に積んだ課題（`kanban list --json | jq '.[] | select(.stacked_on == "<id>")'`）があれば、go を取る同じ返事で「S-y（タイトル）がこの上に積んである。やめると、S-y もやめるか、この変更なしで続けるかを次に聞く」と言う（ADR-0067 決めたこと 14。次の問いは、gate の `behind` の通知が届いてから `watch.md` の表で出す）。
+- マージせずにやめる課題は、**オーナーの go を取ってから** `andon issue finish <id>`（branch は残る）。その課題の上に積んだ課題（`kanban list --json | jq '.[] | select(.stacked_on == "<id>")'`）があれば、go を取る同じ返事で「S-y（タイトル）がこの上に積んである。やめると、S-y もやめるか、この変更なしで続けるかを次に聞く」と言う（ADR-0067 決めたこと 14）。積んだ課題が `review` なら、次の問いは gate の `behind` の通知が届いてから `watch.md` の表で出す。積んだ課題が `doing` なら gate は回っておらず通知は届かないうえ、担当が PR の前か ready の前の `andon issue restack` で黙って載せ替えてしまう。そこで finish の前に担当へ `hc send <agent> "前の課題 <id>（タイトル）をやめる。答えを送るまで andon issue restack・PR・ready を打たずに待って"` を送り、finish のあと同じ問いを出す（選択肢と答えのあとは `watch.md` の「マージされずに終わった」の行と同じ）。
 - レビュアーの課題は、元の課題の `andon issue finish` で片付く。元の課題をやめずにレビュアーだけ残っていれば `andon issue finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
 - finish のたびに、報告とオーナーの手直しを wiki の `raw/` に写して ingest する（`wiki.md`）。
 - 太らせて寝かせない（規約4）: MERGED を確かめたら `andon issue finish`。
@@ -36,7 +36,7 @@
 |---|---|---|
 | 通知そのものが `<id> impact: … の影響を集められなかった（…）`（dispatcher が3回打って諦めた） | 確かめる | `andon issue impact <id>` を手で打って JSON を読み、下の行で決める。また落ちれば理由（gh・fetch）をオーナーへ知らせる |
 | `error`（branch・worktree が読めない） | 確かめる | `kanban show <id>`・`git worktree list` で branch を確かめる（規約6）。直せなければオーナーへ知らせる |
-| `stacked_on` が、マージした課題そのもの（前の課題の PR の上に積んだ課題） | 影響なし（gate が載せ替えを頼む） | 何もしない。依頼書が前の課題のファイルを名指していても（`brief_refs`）、前の課題の変更は積んだときにもう読んでいるので、手を止めさせない。dispatcher が gate を回し直し、gate が担当へ `andon issue restack` での載せ替えを頼む（ADR-0067 決めたこと 11・12） |
+| `stacked_on` が、マージした課題そのもの（前の課題の PR の上に積んだ課題） | 影響なし（gate が載せ替えを頼む） | 何もしない。依頼書が前の課題のファイルを名指していても（`brief_refs`）、前の課題の変更は積んだときにもう読んでいるので、手を止めさせない。積んだ課題の PR が open なら、dispatcher が gate を回し直し、gate が担当へ `andon issue restack` での載せ替えを頼む（ADR-0067 決めたこと 11・12）。積んだ PR がもう前の課題の branch へマージされていたら、上の片付けの表の「既定の branch でない base」の行のとおり手で片付ける |
 | `stacked_on` があり、マージしたのがほかの課題 | rebase を頼まない | `conflict`・`overlap`・`checks_moved` があっても rebase を頼まない（前の課題が main に入ったときの載せ替えで、まとめて取り込む）。`brief_refs` があれば、下の「前提」の行と同じに一度止めて向きを確かめる（rebase は頼まない）。無ければ何もしない |
 | マージした PR が、その課題の**前提**を変えた: `brief_refs` があるか、PR が ADR・設計書・約束（contract・schema）・skill を変えていて、依頼書の「なぜ」「入力」「完了条件」に関わる（PR と依頼書を読んで決める） | **一度止めて向きを確かめる** | 担当へ `hc send <agent> "<マージした id>（タイトル）が入り <PR> で <ファイル> が変わった。次の commit の前に手を止めて読み、依頼書の追記を待って"`。向きが変わらなければ「変わらない。そのまま続けて」、変われば依頼書に `## 追記（<日付>）` を足して「追記した。読んでから続けて」（`conflict` もあれば rebase も一緒に頼む）。向きを決めるのが決断（4種・委譲の外）ならオーナーへ1問（ask-one-by-one skill）。担当は止めたまま |
 | `conflict: true` | **rebase を頼む** | 担当へ `hc send <agent> "<マージした id>（タイトル）が main に入り、<conflict_files> でぶつかる。origin の main に rebase して衝突を解き、検査を通して push。review にいたら kanban start で戻してから。Review: on か、差分がレベル B・C ならレビューを頼み直す"` |
