@@ -24,8 +24,8 @@
 | 12 | dispatcher のマージが必須の check で断られたら、次の巡で打ち直す | この ADR | まだ実装していない |
 | 13 | gate は、衝突を `mergeable` の欄でも読む | この ADR | まだ実装していない |
 | 14 | 抜け道は作らない。ruleset の越えてよい相手は空のままにする | この ADR | まだ実装していない |
-| 15 | repo の GitHub の auto-merge を切る | この ADR | まだ実装していない |
-| 16 | 切り替えは、実装を当て、印が揃ったのを確かめてから、オーナーが設定を変える | この ADR | まだ実装していない |
+| 15 | repo の GitHub の auto-merge を切る | この ADR | 覆された → ADR-0068（auto-merge は有効のままにし、判定の前の予約は gate と dispatcher が外す） |
+| 16 | 切り替えは、実装を当て、印が揃ったのを確かめてから、オーナーが設定を変える | この ADR | まだ実装していない。切り替えの手のうち auto-merge を切る手は、覆された → ADR-0068 |
 | 17 | モデルに、印と止めの状態と、規則を 3 本足す | `model/IssueLife.tla`・`model/IssueRules.tla`・`model/README.md` | 生きている |
 | 18 | 印の決まりの正は `docs/contract.md`。設定と外し方は `docs/operate.md` に書く | この ADR | まだ実装していない |
 
