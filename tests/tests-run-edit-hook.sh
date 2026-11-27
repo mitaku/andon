@@ -19,6 +19,10 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
+# git がセルの本物の HOME と repo を読まないよう切り離す
+export HOME=$tmp/home
+mkdir -p "$HOME"
+. tests/lib/isolate.sh
 
 # フックの在りかと繋ぎ方。settings の command（Claude Code が sh で打つ）をそのまま使って当てる
 hook_cmd=$(jq -r '[.hooks.PreToolUse[]? | select(.matcher as $m | ["Edit", "Write", "MultiEdit", "NotebookEdit"] | all(test("^(" + $m + ")$")))
@@ -116,6 +120,16 @@ wait "$dead"
 hold "$lock" "$dead" "$tmp/wt"
 pass "控えの pid が終わっている" "$lock" Edit "$tmp/wt/tests/a.sh"
 release
+# 鍵は持たれていないが、控えの pid は生きている（終わった回の pid が別のプロセスに使い回された・回収されずに残った）
+sleep 300 &
+holders+=("$!")
+echo "pid ${holders[-1]} $tmp/wt" >"$lock"
+pass "鍵は外れているが、控えの pid は生きている" "$lock" Edit "$tmp/wt/tests/a.sh"
+release
+# 控えの PWD が symlink を通したパス（書く先は実パス）
+hold "$lock" self "$tmp/link"
+deny "控えの PWD が symlink を通したパス" "$lock" Edit "$tmp/wt/tests/a.sh"
+release
 # 鍵のファイルが無い。フックは鍵のファイルを作らない
 pass "鍵のファイルが無い" "$tmp/none.lock" Edit "$tmp/wt/tests/a.sh"
 if [ ! -e "$tmp/none.lock" ]; then ok "フックは鍵のファイルを作らない"; else ng "フックが鍵のファイルを作った"; fi
@@ -125,10 +139,13 @@ deny "空白を含む PWD の worktree" "$tmp/lock2" Edit "$tmp/sp ace/wt/x.sh"
 pass "空白を含む PWD とは別の worktree" "$tmp/lock2" Edit "$tmp/wt/tests/a.sh"
 release
 
-# 本物の tests/run が書く控えの形で断る。tests/run を写した worktree で、走らせる検査の代わりに待つだけの台本を置く
+# 本物の tests/run が書く控えの形で断る。担当の worktree と同じに git worktree add で作り（.git はファイル）、tests/run を写して、
+# 走らせる検査の代わりに待つだけの台本を置く
 real=$tmp/real
+git -C "$tmp/wt-2" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+git -C "$tmp/wt-2" worktree add -q "$real"
+if [ -f "$real/.git" ]; then ok "git worktree add の worktree は .git がファイル"; else ng "git worktree add の worktree に .git のファイルが無い"; fi
 mkdir -p "$real/tests/lib"
-git init -q "$real"
 cp tests/run "$real/tests/run"
 printf '%s\n' '#!/usr/bin/env bash' 'exec sleep 300' >"$real/tests/lib/run-tests.sh"
 ANDON_TEST_LOCK=$tmp/lock3 bash "$real/tests/run" >/dev/null 2>&1 &
