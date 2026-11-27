@@ -26,7 +26,7 @@
 - dev サーバはコンテナの中で `127.0.0.1` に listen し、`portless alias <app> <port>` で名前を付ける。オーナーは `http://<app>.<セルの名前>.localhost:<PORTLESS_PORT>` で見る（番号はセルの `.env`）。`0.0.0.0` も compose の書き換えも要らない。
 - フロントから別のアプリを呼ぶときも portless の名前で呼ぶ（`localhost:<port>` はオーナーの手元を指す）。
 - 生成した HTML などは `andon publish <file>` で tray（セルが出した報告を集めて読む場所）へ出し、出力の1行の URL をそのまま伝える。ローカルの tray が止まっているときだけ `files/` に写り、出力はそのパスになる。
-- オーナーへの報告が空行を除いて3行を超えるか表を含むなら、ファイル（表や図が要れば HTML、文だけなら Markdown）に書いて `andon publish` で出し、返事には URL と要る判断だけを書く。問いは返事の本文に残す。担当の報告は `andon issue report` が tray に送る。セルの中へ出すことは委譲の `publish` の値に依らない。
+- オーナーへの報告が空行を除いて3行を超えるか表を含むなら、ファイル（表や図が要れば HTML、文だけなら Markdown）に書いて `andon publish` で出し、返事には出力の1行と要る判断だけを書く。出力の1行は、ふだんは tray の URL で、ローカルの tray が止まっていれば `files/` のパスになる。問いは返事の本文に残す。担当の報告は `andon issue report` が tray に送る。セルの中へ出すことは委譲の `publish` の値に依らない。
 - オーナーに気づいてほしいことは `herdr notification show` で出す。herdr（TUI）が動いているときだけ効く（オーナーが Herdr App で使っているときは届かない）。無ければ kanban の問いとボードで足りる。
 
 ## 気づきを残す（auto memory）

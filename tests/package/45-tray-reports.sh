@@ -26,25 +26,25 @@ tray_miss() {
   if [ -z "$p12" ]; then
     m="$m [CoS の原則の節に原則 12 が無い]"
   else
-    for w in '3行を超えるか表を含む' '`andon publish' 'URL' '問いは返事の本文に残す' '`andon issue report` が' '送ってあるので' 'の一覧に課題の報告がある' '委譲の `publish` の値に依らない'; do
+    for w in '3行を超えるか表を含む' '`andon publish' 'URL' '止まっていれば `files/` のパス' '問いは返事の本文に残す' '`andon issue report` が' '送ってあるので' 'の一覧に課題の報告がある' '委譲の `publish` の値に依らない'; do
       grep -qF "$w" <<<"$p12" || m="$m [CoS の原則 12 に「$w」が無い]"
     done
     if negated "$(sed 's/中身を書き写さず//' <<<"$p12")"; then m="$m [CoS の原則 12 が打ち消しの形]"; fi
   fi
-  ce3=$(block "$2" '^3\. \*\*入口: ' '^4\. \*\*')
+  ce3=$(block "$2" '^3[.] [*][*]入口: ' '^4[.] [*][*]')
   ce3r=$(grep -F '3行を超えるか表を含む' <<<"$ce3" | grep -F '`andon publish')
   if [ -z "$ce3r" ]; then
     m="$m [CE の骨格 3（入口）に andon publish で出す決まりが無い]"
   else
-    for w in '問いは返事の本文かダイアログに残す' 'URL を問いの本文' '委譲の `publish` の値に依らない'; do
+    for w in '止まっていれば `files/` のパス' '問いは返事の本文かダイアログに残す' 'URL を問いの本文' '委譲の `publish` の値に依らない'; do
       grep -qF "$w" <<<"$ce3r" || m="$m [CE の骨格 3 の決まりに「$w」が無い]"
     done
     if negated "$ce3r"; then m="$m [CE の骨格 3 の決まりが打ち消しの形]"; fi
   fi
   if grep -qF '表・代案・自由記述の添削は本文に出し' "$2"; then m="$m [CE の skill に表や代案を本文に出す古い文が残る]"; fi
-  ce7=$(block "$2" '^7\. \*\*出口: ' '^8\. \*\*' | grep -F '`andon publish`')
+  ce7=$(block "$2" '^7[.] [*][*]出口: ' '^8[.] [*][*]' | grep -F '`andon publish`')
   if [ -z "$ce7" ] || negated "$ce7"; then m="$m [CE の骨格 7（出口）に andon publish で出す決まりが無い]"; fi
-  w7=$(block "$3" '^## 7\. ' '^## 8\. ')
+  w7=$(block "$3" '^## 7[.] ' '^## 8[.] ')
   grep -qE '^- 報告は `andon issue report` が [a-z]+ に送る' <<<"$w7" || m="$m [worker skill の §7 に「報告は andon issue report が送る」が無い]"
   env=$(block "$4" '^## オーナーに見せる$' '^## ')
   envp=$(grep -F '`andon publish <file>`' <<<"$env" | grep -F 'セルが出した報告を集めて読む場所）へ出し')
@@ -53,7 +53,7 @@ tray_miss() {
   if [ -z "$envr" ] || negated "$envr"; then
     m="$m [environment.md の「オーナーに見せる」に3行を超える報告の決まりが無い]"
   else
-    for w in '問いは返事の本文に残す' '委譲の `publish` の値に依らない'; do
+    for w in '止まっていれば `files/` のパス' '問いは返事の本文に残す' '委譲の `publish` の値に依らない'; do
       grep -qF "$w" <<<"$envr" || m="$m [environment.md の決まりに「$w」が無い]"
     done
   fi
@@ -100,7 +100,7 @@ sed '/^12\. \*\*長い報告は /s/`andon publish <file> --title <タイトル>`
 t17 "CoS の原則 12 を語を残して打ち消した写し" '[CoS の原則 12 が打ち消しの形]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
 # CE: 入口の決まりを骨格 1（読む）の下へ動かした写し（ファイルのどこかにあるだけでは足りない）
 cl=$(grep -F '3行を超えるか表を含む' "$te" | sed -n 1p)
-mv_after "$te" "$cl" '^1\. \*\*読む' >"$tmp/t-ce.md"; moved "$tmp/t-ce.md" "$cl"
+mv_after "$te" "$cl" '^1[.] [*][*]読む' >"$tmp/t-ce.md"; moved "$tmp/t-ce.md" "$cl"
 t17 "CE の入口の決まりを骨格 1 へ動かした写し" '[CE の骨格 3（入口）に andon publish で出す決まりが無い]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
 sed 's/問いは返事の本文かダイアログに残す/問いもファイルに書く/' "$te" >"$tmp/t-ce.md"
 t17 "CE の入口から問いを本文に残す文を消した写し" '[CE の骨格 3 の決まりに「問いは返事の本文かダイアログに残す」が無い]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
@@ -116,7 +116,7 @@ sed '/^7\. \*\*出口: /s/`andon publish` で出し/`andon publish` では出さ
 t17 "CE の出口を語を残して打ち消した写し" '[CE の骨格 7（出口）に andon publish で出す決まりが無い]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
 # worker skill の文を §7 の外（§1 の冒頭）へ動かした写し
 wl=$(grep -E '^- 報告は `andon issue report` が [a-z]+ に送る' "$tw" | sed -n 1p)
-mv_after "$tw" "$wl" '^## 1\. ' >"$tmp/t-worker.md"; moved "$tmp/t-worker.md" "$wl"
+mv_after "$tw" "$wl" '^## 1[.] ' >"$tmp/t-worker.md"; moved "$tmp/t-worker.md" "$wl"
 t17 "worker skill の文を §7 の外へ動かした写し" '[worker skill の §7 に「報告は andon issue report が送る」が無い]' "$tc" "$te" "$tmp/t-worker.md" "$tn"
 # environment.md: 決まりを「気をつけること」の節（末尾）へ動かした写し・古い文に戻した写し・語を残して打ち消した写し
 el=$(grep -F '3行を超えるか表を含む' "$tn" | sed -n 1p)
@@ -131,3 +131,10 @@ sed '/3行を超えるか表を含む/s/`andon publish` で出し/`andon publish
 t17 "environment.md の決まりを語を残して打ち消した写し" '[environment.md の「オーナーに見せる」に3行を超える報告の決まりが無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
 sed '/3行を超えるか表を含む/s/問いは返事の本文に残す。//' "$tn" >"$tmp/t-env.md"
 t17 "environment.md の決まりから問いを本文に残す文を消した写し" '[environment.md の決まりに「問いは返事の本文に残す」が無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
+# 止まっていて files/ のパスが返るときの書き方（返事に URL だけを求めると、その場合に届ける道が無い）を消した写し
+sed 's/止まっていれば `files\/` のパス/止まっていれば何も/' "$tc" >"$tmp/t-cos.md"
+t17 "CoS の原則 12 から files/ のパスの場合を消した写し" '[CoS の原則 12 に「止まっていれば `files/` のパス」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
+sed 's/止まっていれば `files\/` のパス/止まっていれば何も/' "$te" >"$tmp/t-ce.md"
+t17 "CE の入口から files/ のパスの場合を消した写し" '[CE の骨格 3 の決まりに「止まっていれば `files/` のパス」が無い]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
+sed '/3行を超えるか表を含む/s/止まっていれば `files\/` のパス/止まっていれば何も/' "$tn" >"$tmp/t-env.md"
+t17 "environment.md の決まりから files/ のパスの場合を消した写し" '[environment.md の決まりに「止まっていれば `files/` のパス」が無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
