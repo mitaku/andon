@@ -344,6 +344,30 @@ type config struct {
 	columns  []string
 	repos    []string
 	timezone string
+	stacks   *stacks // 積んだ課題の stacked_on の信じ方（waitingOn）。nil なら読まない
+}
+
+// stacks は、積んだ課題の stacked_on を信じるかの照合に要る log.jsonl の行と Chief of Staff の端末（ADR-0067 決めたこと 5）。
+// 行は、stacked_on のある課題を初めて数えるときに1回だけ読む（ほとんどの課題には無いので、無ければ読まない）。
+type stacks struct {
+	dir    string
+	cos    string
+	loaded bool
+	rows   []ledger.Row
+}
+
+// trustedOn は、課題 t の stacked_on が信じられれば前の課題の id を返す（ledger.Stacked。信じられなければ空）。
+func (s *stacks) trustedOn(t *task) string {
+	if s == nil || t.d.str("stacked_on") == "" {
+		return ""
+	}
+	if !s.loaded {
+		s.rows, _ = (&ledger.Ledger{Dir: s.dir}).ReadLog()
+		s.loaded = true
+	}
+	issue := ledger.Issue{"id": t.id, "stacked_on": t.d.str("stacked_on"), "stacked_base": t.d.str("stacked_base")}
+	on, _, _ := ledger.Stacked(s.rows, issue, s.cos)
+	return on
 }
 
 func (c config) done() string { return c.columns[len(c.columns)-1] }
@@ -379,7 +403,8 @@ func readConfig(root string) (config, error) {
 	case !cfg.VersionIs(formatVersion):
 		return config{}, fail("config.yaml is format version %s; this kanban reads format %d only", cfg.Version, formatVersion)
 	}
-	c := config{prefix: "W", columns: defaultColumns, repos: cfg.Repos, timezone: cfg.Timezone}
+	c := config{prefix: "W", columns: defaultColumns, repos: cfg.Repos, timezone: cfg.Timezone,
+		stacks: &stacks{dir: ledgerDir(root), cos: cfg.ChiefOfStaff}}
 	if cfg.HasPrefix {
 		c.prefix = cfg.Prefix
 	}
@@ -513,9 +538,16 @@ func appendEntry(root string, entry *omap) error {
 	return appendFile(filepath.Join(ledgerDir(root), "log.jsonl"), append(line, '\n'))
 }
 
+// waitingOn は課題 t が待つ相手（after のうち、無い・読めない・done でない課題）。ただし、信じられる stacked_on が名指す課題は
+// 数えない（前の課題の PR の上に積んで起動した課題は、前の課題がマージされる前でも doing に戻れる。ADR-0067 決めたこと 5。
+// docs/ledger.md の Waiting）。after は書き換えない。
 func waitingOn(t *task, all map[string]*task, cfg config) []string {
 	out := []string{}
+	stackedOn := cfg.stacks.trustedOn(t)
 	for _, a := range t.after() {
+		if stackedOn != "" && a == stackedOn {
+			continue
+		}
 		if o := all[a]; o == nil || o.broken != "" || o.status() != cfg.done() {
 			out = append(out, a)
 		}
