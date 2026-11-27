@@ -38,7 +38,7 @@ stateDiagram-v2
 | `held` | 片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉・既定の branch でない base にマージされた〈Base。main に入っていない。ADR-0067 決めたこと 15〉。同じ理由は 1 回だけ知らせる） | `settle:Held` |
 | `finished` | 片付けた |  |
 
-状態でない項目（拾う位置とデータ）: `settle:PR`・`settle:Commit`・`settle:At`・`settle:Head`・`settle:Sha`・`settle:Base`
+状態でない項目（拾う位置とデータ）: `settle:PR`・`settle:Commit`・`settle:At`・`settle:Head`・`settle:Sha`・`settle:Base`・`settle:BaseOK`
 
 ## 移り方
 

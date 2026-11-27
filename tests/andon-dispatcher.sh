@@ -1321,6 +1321,28 @@ kanban show "$bk" --json | jq -e '.issue.status == "done"' >/dev/null || die "�
 rm -f "$tmp/gh/merged"; sed -i "/^t7 $bk\$/d" "$tmp/hc/live"
 jq --arg t "$bk" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
 ok '既定の branch でない base にマージされた PR の課題は片付けず、Chief of Staff に 1 回だけ知らせる（既定の branch なら片付ける）'
+# 前のバージョンが書いた MERGED の記録（向き先を比べた印 base_ok が無い）も、片付ける前に向き先を比べ直す
+ob=$(newtask '前のバージョンの MERGED の記録' person)
+work "$ob" docs/a.md
+as_worker "$ob" report --pr https://github.com/example/app/pull/7
+jq '.baseRefName = "demo/other"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+echo "$head" > "$tmp/gh/merged"
+oc=$(jq -r .commit "$L/issues/$ob/library/report.json")
+# 前のバージョンが問いで片付けを止めていた記録（held つき）。問いはもう閉じている
+jq --arg t "$ob" --arg c "$oc" --arg h "$head" '.[$t] = {pr: "https://github.com/example/app/pull/7", commit: $c, state: "MERGED", head: $h, sha: $h, held: "gate の外の問いが開いている: \($t)#1"}' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+dispatcher
+kanban show "$ob" --json | jq -e '.issue.status == "doing"' >/dev/null || die "前のバージョンの MERGED の記録を、向き先を比べずに片付けた: $(tail -3 "$tmp/dispatcher.log")"
+pending "$ob" merged | jq -e '.detail.held | startswith("PR が既定の branch でない base（demo/other）にマージされた")' >/dev/null ||
+    die "前のバージョンの MERGED の記録で、既定の branch でない base へのマージを知らせない: $(pending "$ob" merged) $(tail -3 "$tmp/dispatcher.log")"
+jq -e --arg t "$ob" '.[$t].base_ok == true and .[$t].base == "demo/other"' "$settled" >/dev/null || die "比べ直した印を記録に残さない: $(jq -c --arg t "$ob" '.[$t]' "$settled")"
+# 対照: 比べ直して既定の branch なら片付ける
+jq '.baseRefName = "main"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+jq --arg t "$ob" --arg c "$oc" --arg h "$head" '.[$t] = {pr: "https://github.com/example/app/pull/7", commit: $c, state: "MERGED", head: $h, sha: $h}' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+dispatcher
+kanban show "$ob" --json | jq -e '.issue.status == "done"' >/dev/null || die "前のバージョンの MERGED の記録で、既定の branch へのマージを片付けない: $(tail -3 "$tmp/dispatcher.log")"
+rm -f "$tmp/gh/merged"; sed -i "/^t7 $ob\$/d" "$tmp/hc/live"
+jq --arg t "$ob" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+ok '前のバージョンが書いた MERGED の記録も、片付ける前に PR の向き先を比べ直し、既定の branch でない base なら片付けない'
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null

@@ -133,6 +133,7 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 			if v.Base != def {
 				w.Base = v.Base
 			}
+			w.BaseOK = true
 		case "CLOSED":
 			if engineerDoing {
 				break
@@ -150,6 +151,26 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 	}
 	if w.State != "MERGED" || engineerDoing {
 		return &w, nil
+	}
+	if !w.BaseOK {
+		// 前のバージョンが MERGED と書いた記録は向き先を比べていない。片付ける前に 1 度だけ比べ直す（既定の branch でない base への
+		// マージを片付けない。ADR-0067 決めたこと 15）。読めなければ 1 分おいて聞き直す
+		if at, err := time.Parse("2006-01-02T15:04:05Z", w.At); err == nil && now.Sub(at) < prPoll {
+			return &w, nil
+		}
+		w.At = now.UTC().Format("2006-01-02T15:04:05Z")
+		v, err := prState(number, owner+"/"+name)
+		if err != nil {
+			return &w, fail("%s の PR の向き先が読めない（次に打ったとき聞き直す）: %v", c.id, err)
+		}
+		def, err := defaultBranchOf(owner + "/" + name)
+		if err != nil {
+			return &w, fail("%s の PR の向き先と比べる既定の branch が読めない（次に打ったとき聞き直す）: %v", c.id, err)
+		}
+		if v.Base != def {
+			w.Base = v.Base
+		}
+		w.BaseOK = true
 	}
 	if w.Base != "" {
 		why := fmt.Sprintf("PR が既定の branch でない base（%s）にマージされた。main に入っていないので片付けない（Chief of Staff が、前の課題の PR にまとめて進めるかを決め、入ったら andon issue finish で片付ける）", w.Base)

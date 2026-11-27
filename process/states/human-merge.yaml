@@ -14,7 +14,7 @@ states:
     record: settle:Held
   - id: finished
     title: 片付けた
-positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha, settle:Base]
+positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha, settle:Base, settle:BaseOK]
 transitions:
   - { from: "[*]", to: watching, on: "review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）", by: machine, command: andon issue settle }
   - { from: watching, to: watching, on: "開いている PR の今の head の印が課題の状態と違う（gate の判定の印・doing に戻った課題の赤・Chief Engineer の文書の PR の緑。判定の無い head には書かない）", by: machine, command: andon issue settle }
