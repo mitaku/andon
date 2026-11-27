@@ -16,6 +16,8 @@
   - 見るファイル: `package/settings.json`
 - `bt-skills` `/opt/andon/skills` の skill ごとに、`~/.agents/skills/andon-<名>` の symlink がその置き場を指す。リンクが無いもの・パッケージの外を指す `andon-*` があれば落ちる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/boot/extskills.go`、`package/skills/`、`package/gh-skills.txt`
+- `bt-tray-rules` 当てたあと、Chief of Staff に3行を超える報告（試しの課題の片付けの報告など）を頼むと、返事は `andon publish` が出した tray の URL と要る判断だけで、`andon tray status` の上がった枚数が1つ増える（ADR-0064 決めたこと 13）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `package/skills/chief-of-staff/SKILL.md`、`package/skills/chief-engineer/SKILL.md`、`package/environment.md`
 
 ## 辿り着き方（利用者から）
 
@@ -34,6 +36,8 @@
 - **生成物を読む。** `bt-generated` の行に控えのファイルの数と、控えと違うものの数が出る。違うものが 0 で、`ok   bt-generated` が見えれば動いた。
 - **ローカルの tray を読む。** `bt-tray` の行に控えの pid・実体・起動の時刻と、一覧の面の `GET /` の答えが出る。`ok   bt-tray` が見えれば、当てたパッケージで起動し直している。`note bt-tray` なら、パッケージに tray が無い。報告の `## Report` にそう書く。
 - **配った先を読む。** `bt-managed` と `bt-skills` の行に、hook の置き場と skill の symlink の先が出る。`ok   bt-managed` が見え、`bt-skills` に FAIL が無ければ動いた。
+
+- **報告の出し方を読む（`bt-tray-rules`）。** 当てる前と後で `andon tray status` の「上がった」の枚数を控える。Chief of Staff に、試しの課題の片付けを表つきで報告するよう頼み、返事を `hc read` で読む。返事が3行以下で `http://tray.` で始まる URL を持ち、枚数が1つ増えていれば動いた。表を返事に貼ったなら FAIL と書く。
 
 - **入口を見る（`bt-entry`）。** ホストで動くので、検証の担当は動かせない。報告の `acceptance[]` に `manual` と書き、オーナーがセルのホストで見る次の証拠を `evidence` に書く。
   - 分ける前の入口のセル: `bin/bootstrap rebuild`（Andon を開発するセルでは `rebuild --from <checkout>`）が、image を焼いたあと `セルの入口 bin/bootstrap が古い` の行で止まり、行の最後の「: 」のあとに `docker run --rm andon-<slug>:local andon cell init --print bin/bootstrap …` の 1 行が出る。`docker ps` のセルのコンテナの ID は前後で同じ。

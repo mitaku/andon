@@ -10,7 +10,7 @@ description: ダイジェスト（オーナーが後から短い時間で読む 
 あなたが書くのは**要旨・テーマ・気になることの文だけ**。オーナーに決断を求める場にしない（呼ぶのはオーナー待ちの仕組み）。
 
 - 手順の土台は worker skill（`kanban start`・報告の書式・日報）。この SKILL はその上にダイジェストの手順を足す。
-- ダイジェストは repo の無い課題。cwd は kanban の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告だけ（下書きは一時の置き場）。`files/` へは `andon digest send` が書く。
+- ダイジェストは repo の無い課題。cwd は kanban の `issues/<自分の id>/`。書いてよいのは `issues/<自分の id>/library/` と報告だけ（下書きは一時の置き場）。tray（届かなければ `files/`）へは `andon digest send` が書く。
 - 書き方と語は `/opt/andon/writing.md` に従う。語の定義は用語集 `/opt/andon/skills/glossary/SKILL.md`。形の正は `contract.md` §26（入力）・§27（担当が書く JSON）・§28（送った結果）と `schema/digest.schema.json`。
 
 | する | しない |

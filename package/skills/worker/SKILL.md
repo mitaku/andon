@@ -335,6 +335,7 @@ andon issue report <id> [--pr <url>] [--data '<json>'] <<'EOF'
 EOF
 ```
 
+- 報告は `andon issue report` が tray に送る（`andon issue review-request` も同じ）。担当は報告を `andon publish` で出し直さない。
 - `commit` は command が `HEAD` を書く。`pr` は `--pr` で（省くと前の `report.json` の `pr` を引き継ぐ）。`estimate`（§2 の見込みの反論）も `--data` に無ければ前の `report.json` から引き継ぐ。`plan`（`## 計画` の写し）も `--data` に無ければ前の `report.json` から引き継ぐ。`gaps`（`## Gaps` の写し）も `--data` に無ければ前の `report.json` から引き継ぐ。
 - `--data` は任意のキーの JSON object: `estimate`・`plan`・`waived`・`acceptance`・`risk`・`next`・`observation`・`remember`・`agents_md`・`gaps`（例 `{"next": [{"to": "chief-of-staff", "text": "マージ後に andon issue finish S-0012"}]}`。`to` は `person` / `chief-of-staff` / `issue`）。中身は下の Markdown の見送り・`## Next`・`## Remember`・`For AGENTS.md:` と同じ。`pr`・`estimate`・`plan`・`gaps` のほかは引き継がないので、打つたびに全部を渡す。`review_request` は `HEAD` が前の `report.json` の `commit` と同じ間だけ command が引き継ぐ（レビュー依頼のあとに報告を書き直しても、頼み直さなくてよい）。
 - `plan`: `## 計画` の作業を1件ずつ `{"id": "p1", "text": "<作業。終了条件: …>", "done": false}` で写す（`id` は計画の中で一意。見込みの1行は写さない）。作業の終了条件を満たしたら `done: true` にし、計画を書き直したら `plan` も全体を書き直して渡す。Chief of Staff は `done` の数で進み具合を見る。
