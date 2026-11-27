@@ -147,6 +147,8 @@ while IFS= read -r p; do
     .claude/hooks/test-shell-edit) run[tests/shell-edit-hook.sh]=1 ;;
     # yomiyasu の許可の一覧。image にも andon にも入らない。正との突き合わせは package.sh の節（tests/package/23-yomiyasu-words.sh）、語は words.sh（いつもの分）
     .yomiyasu-words/*) run[tests/package.sh]=1 ;;
+    # tray（ADR-0064）。tests/*.sh は読まず、job tray が回す。いつもの分だけ
+    tray/*) ;;
     # Go のテスト（go test ./... が見る）・人用の文書は、いつもの分だけ
     cmd/*_test.go | internal/*_test.go | docs/* | tests/* | README.md | README.ja.md | AGENTS.md | REVIEW.md | SECURITY.md | LICENSE) ;;
     # コード・andon に埋め込むもの・image に入るもの。重い検査は上の表で足した分だけ

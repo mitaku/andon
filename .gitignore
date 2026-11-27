@@ -1,2 +1,7 @@
 # yomiyasu が git の最上位に作る推敲の記録（andon issue record が commit していない変更に数えないように）
 /.yomiyasu/
+# tray の依存とビルドと検査の出力（tray/。ADR-0064）
+/tray/node_modules/
+/tray/dist/
+/tray/test-results/
+/tray/playwright-report/

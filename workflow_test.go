@@ -1,9 +1,12 @@
 package andon
 
 import (
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -347,4 +350,305 @@ func TestWorkflowGolangciLintVersionFromMise(t *testing.T) {
 	if found != 1 {
 		t.Errorf("golangci-lint を回す step が %d 個（go.yml の job go の1つのはず）", found)
 	}
+}
+
+// tray の検査（tray/。外から取る npm の依存を Bun で入れて走らせる。ADR-0064 決めたこと 28・受け入れ条件 18）は
+// .github/workflows/tray.yml の job tray だけで回す。job tray は秘密も token も読めず、権限は contents: read だけで、依存を lock から
+// install のスクリプトなしで入れる。ほかの workflow（秘密や書き込みの権限を持つ job がある）と tests/ の下の検査は、Bun も tray の
+// コードも走らせない。字面の部分一致では書き方を変えた入力が素通りするので、tray.yml は許す形の一覧で照らす（式・キー・uses・run の行）。
+// tray.yml を変えたら、この一覧も同じ PR で直す。
+func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
+	wfs := map[string]string{}
+	files, _ := filepath.Glob(".github/workflows/*.y*ml")
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wfs[f] = string(b)
+	}
+	tests, err := readTestFiles("tests")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tests) == 0 {
+		t.Fatal("tests/ の下にファイルが無い")
+	}
+	if got := trayProblems(wfs, tests); len(got) > 0 {
+		t.Errorf("job tray の守りが破れている:\n%s", strings.Join(got, "\n"))
+	}
+
+	// 検査が当たる場合があること: 落とすべき書き方ごとに本物のファイルを書き換え、理由が出ることを見る
+	const tray, testsYML = ".github/workflows/tray.yml", ".github/workflows/tests.yml"
+	extraJob := "\n  extra:\n    runs-on: ubuntu-24.04\n    steps:\n"
+	bad := []struct {
+		what, file, old, new, want string
+	}{
+		{"secrets を添字で読む", tray, "        run: bun run test\n", "        run: bun run test\n        env:\n          K: ${{ secrets['K'] }}\n", "式"},
+		{"secrets を丸ごと読む", tray, "        run: bun run typecheck\n", "        run: bun run typecheck\n        env:\n          K: ${{ toJSON(secrets) }}\n", "式"},
+		{"token を添字で読む", tray, "        run: bun run build\n", "        run: bun run build\n        env:\n          T: ${{ github['token'] }}\n", "式"},
+		{"workflow の権限を広げる", tray, "permissions:\n  contents: read\njobs:", "permissions: write-all\njobs:", "権限"},
+		{"job の権限を広げる", tray, "    permissions:\n      contents: read\n", "    permissions:\n      contents: write\n", "権限"},
+		{"install のあとにスクリプトを許す", tray, "bun install --frozen-lockfile --ignore-scripts", "bun install --frozen-lockfile --ignore-scripts && bun pm trust --all", "run の行"},
+		{"別の step で入れ直す", tray, "      - name: Typecheck\n", "      - run: bun i\n      - name: Typecheck\n", "run の行"},
+		{"検査の step を止める", tray, "      - name: Typecheck\n", "      - name: Typecheck\n        if: false\n", "キー"},
+		{"落ちても通す", tray, "      - name: Workers tests\n", "      - name: Workers tests\n        continue-on-error: true\n", "キー"},
+		{"端から端の検査を外す", tray, "run: bun run e2e", "run: echo e2e", "run の行"},
+		{"checkout が資格情報を残す", tray, "persist-credentials: false", "persist-credentials: true", "persist-credentials"},
+		{"job を container で走らせる", tray, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    container: node:26\n", "キー"},
+		{"知らない action を使う", tray, "      - name: Typecheck\n", "      - uses: ./tray/ci\n      - name: Typecheck\n", "uses"},
+		{"main の push で回さない", tray, "  push:\n    branches: [main]\n", "", "on"},
+		{"ほかの workflow でローカルの action", testsYML, "", extraJob + "      - uses: ./tray/ci\n", "ほかの workflow"},
+		{"ほかの workflow で tray に cd", testsYML, "", extraJob + "      - run: npm ci\n        working-directory: tray\n", "ほかの workflow"},
+		{"ほかの workflow で docker の bun", testsYML, "", extraJob + "      - uses: docker://oven/bun:1.4.5\n", "ほかの workflow"},
+		{"ほかの workflow で bunx", testsYML, "", extraJob + "      - run: bunx vitest run\n", "ほかの workflow"},
+		{"tests の新しい検査が tray を走らせる", "tests/tray.sh", "", "#!/bin/bash\n(cd \"$root/tray\" && npm ci && node scripts/e2e.mjs)\n", "tests"},
+		{"tests の置き場が bun を走らせる", "tests/package/99-x.sh", "", "bun run test\n", "tests"},
+		{"振り分けの道具の行が tray を走らせる", "tests/ci.sh", "", "\n(cd tray && node scripts/e2e.mjs)\n", "tests"},
+	}
+	for _, c := range bad {
+		w, ts := maps.Clone(wfs), maps.Clone(tests)
+		m := w
+		if strings.HasPrefix(c.file, "tests/") {
+			m = ts
+		}
+		orig := m[c.file]
+		if c.old == "" {
+			m[c.file] = orig + c.new
+		} else {
+			if !strings.Contains(orig, c.old) {
+				t.Errorf("%s: 書き換える元 %q が %s に無い（自己確認が何も見ていない）", c.what, c.old, c.file)
+				continue
+			}
+			m[c.file] = strings.Replace(orig, c.old, c.new, 1)
+		}
+		got := strings.Join(trayProblems(w, ts), "\n")
+		if !strings.Contains(got, c.want) {
+			t.Errorf("%s: 理由に %q が出ない（素通りした）。出た理由: %q", c.what, c.want, got)
+		}
+		if strings.Contains(got, "読めない") {
+			t.Errorf("%s: 書き換えた YAML が読めない（形の誤りで当たっただけ）: %s", c.what, got)
+		}
+	}
+}
+
+// readTestFiles: root（tests/）の下の検査と置き場のパスと中身。検査が走る間の一時の置き場（.task-tmp。job isolation は
+// go のビルドの出力も置く）などの隠れた置き場と node_modules は、検査のコードではないので読まない（tests/words.sh と同じ）。
+func readTestFiles(root string) (map[string]string, error) {
+	out := map[string]string{}
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if p != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		b, err := os.ReadFile(p)
+		out[p] = string(b)
+		return err
+	})
+	return out, err
+}
+
+// job isolation が tests/.task-tmp に置く生成物（go のビルドの出力）や node_modules に Bun と tray の字面があっても、
+// job tray の検査は読まずに通る。tests/ の下の検査のファイルにあれば落ちる。
+func TestReadTestFilesSkipsGenerated(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "tests")
+	put := func(rel, body string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gen := "bun run tray\n"
+	put(".task-tmp/go-build1/b001/_pkg_.a", gen)
+	put("node_modules/x/index.js", gen)
+	put("host/.cache/y", gen)
+	put("ok.sh", "echo ok\n")
+	got, err := readTestFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[filepath.Join(root, "ok.sh")] == "" {
+		t.Fatalf("読んだファイル: %v（ok.sh の1つのはず）", slices.Collect(maps.Keys(got)))
+	}
+	wfs := map[string]string{".github/workflows/tray.yml": mustRead(t, ".github/workflows/tray.yml")}
+	if p := trayProblems(wfs, got); len(p) > 0 {
+		t.Errorf("生成物だけなのに落ちた: %v", p)
+	}
+	// 検査が当たる場合があること: 同じ字面を検査のファイルに置くと落ちる
+	put("bad.sh", gen)
+	got, err = readTestFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := trayProblems(wfs, got); len(p) == 0 {
+		t.Error("検査のファイルに Bun と tray の字面を置いても通った")
+	}
+}
+
+func mustRead(t *testing.T, p string) string {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// trayProblems: job tray の守りが破れている理由を返す。wfs は workflow のパスと中身、tests は tests/ の下のファイルのパスと中身。
+func trayProblems(wfs, tests map[string]string) []string {
+	var out []string
+	bad := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
+	const trayFile = ".github/workflows/tray.yml"
+	sha := regexp.MustCompile(`@[0-9a-f]{40}$`)
+	exprRe := regexp.MustCompile(`\$\{\{(.*?)\}\}`)
+	// ほかの workflow で、Bun・tray のコード・ローカルの action・docker の action を走らせる形
+	other := regexp.MustCompile(`\bbunx?\b|\btray\b|playwright|docker://|uses:\s*["']?\./`)
+	bunRe := regexp.MustCompile(`\bbunx?(\s|$|")`)
+	trayRe := regexp.MustCompile(`\btray\b`)
+	runs := regexp.MustCompile(`\bcd\b|\bnode\b|\bnpm\b|\bnpx\b|scripts/|node_modules`)
+
+	src, ok := wfs[trayFile]
+	if !ok {
+		return []string{trayFile + " が無い"}
+	}
+	for f, text := range wfs {
+		if f == trayFile {
+			continue
+		}
+		for i, l := range strings.Split(text, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(l), "#") {
+				continue
+			}
+			if other.MatchString(l) {
+				bad("ほかの workflow %s:%d が Bun か tray を走らせる: %s", f, i+1, strings.TrimSpace(l))
+			}
+		}
+	}
+	for f, text := range tests {
+		for i, l := range strings.Split(text, "\n") {
+			if bunRe.MatchString(l) {
+				bad("tests の %s:%d が Bun を走らせる", f, i+1)
+			}
+			if !trayRe.MatchString(l) {
+				continue
+			}
+			// tray を名指してよいのは、パスを振り分ける道具とその確かめだけ。そこでも走らせる行は書かない
+			switch f {
+			case "tests/ci.sh", "tests/lib/scope.sh", "tests/lib/image-scope.sh":
+				if runs.MatchString(l) {
+					bad("tests の %s:%d が tray を走らせる", f, i+1)
+				}
+			default:
+				bad("tests の %s:%d が tray を名指す（振り分けの道具の外）", f, i+1)
+			}
+		}
+	}
+
+	// tray.yml: 式は mise.toml から読んだバージョンだけ
+	for _, m := range exprRe.FindAllStringSubmatch(src, -1) {
+		switch strings.TrimSpace(m[1]) {
+		case "steps.tools.outputs.bun", "steps.tools.outputs.node":
+		default:
+			bad("tray.yml の式 %q は許していない（秘密や token を読める）", m[0])
+		}
+	}
+	var wf map[string]any
+	if err := yaml.Unmarshal([]byte(src), &wf); err != nil {
+		return append(out, "tray.yml が読めない: "+err.Error())
+	}
+	keysIn := func(where string, m map[string]any, allow ...string) {
+		for k := range m {
+			if !slices.Contains(allow, k) {
+				bad("tray.yml の%sのキー %s は許していない", where, k)
+			}
+		}
+	}
+	readOnly := func(perm any) bool {
+		m, ok := perm.(map[string]any)
+		return ok && len(m) == 1 && m["contents"] == "read"
+	}
+	keysIn(" workflow ", wf, "name", "on", "permissions", "jobs")
+	if !readOnly(wf["permissions"]) {
+		bad("tray.yml の workflow の権限が contents: read だけでない: %v", wf["permissions"])
+	}
+	on, _ := wf["on"].(map[string]any)
+	push, _ := on["push"].(map[string]any)
+	branches, _ := push["branches"].([]any)
+	if pr, ok := on["pull_request"]; !ok || pr != nil || len(on) != 2 || len(branches) != 1 || branches[0] != "main" {
+		bad("tray.yml の on が PR と main の push の2つでない: %v", wf["on"])
+	}
+	jobs, _ := wf["jobs"].(map[string]any)
+	job, _ := jobs["tray"].(map[string]any)
+	if len(jobs) != 1 || job == nil {
+		return append(out, fmt.Sprintf("tray.yml の job が tray の1つでない: %d 個", len(jobs)))
+	}
+	keysIn(" job ", job, "runs-on", "timeout-minutes", "permissions", "defaults", "steps")
+	if !readOnly(job["permissions"]) {
+		bad("tray.yml の job tray の権限が contents: read だけでない: %v", job["permissions"])
+	}
+	// run の行は一覧のとおり。検査の行は1回ずつ要る
+	allowLines := map[string]bool{
+		"set -euo pipefail": true,
+		`bun=$(sed -n 's/^bun = "\(.*\)"$/\1/p' ../mise.toml)`:                                             true,
+		`node=$(sed -n 's/^node = "\(.*\)"$/\1/p' ../mise.toml)`:                                           true,
+		`[ -n "$bun" ] && [ -n "$node" ] || { echo "::error::mise.toml に bun か node のバージョンが無い"; exit 1; }`: true,
+		`echo "bun=$bun" >>"$GITHUB_OUTPUT"`:                                                               true,
+		`echo "node=$node" >>"$GITHUB_OUTPUT"`:                                                             true,
+		"bunx playwright install --with-deps chromium":                                                     true,
+	}
+	need := map[string]int{
+		"bun install --frozen-lockfile --ignore-scripts": 0, "bun run typecheck": 0, "bun run test": 0,
+		"bun run build": 0, "bun run e2e": 0, "bun run browser": 0,
+	}
+	allowUses := map[string][]string{
+		"actions/checkout@": {"persist-credentials"}, "oven-sh/setup-bun@": {"bun-version"}, "actions/setup-node@": {"node-version"},
+	}
+	steps, _ := job["steps"].([]any)
+	for i, x := range steps {
+		s, _ := x.(map[string]any)
+		keysIn(fmt.Sprintf(" step %d の", i+1), s, "name", "id", "uses", "with", "run")
+		if u, ok := s["uses"].(string); ok {
+			prefix := ""
+			for p := range allowUses {
+				if strings.HasPrefix(u, p) && sha.MatchString(u) {
+					prefix = p
+				}
+			}
+			if prefix == "" {
+				bad("tray.yml の step %d の uses %s は許していない（3つの action を commit の SHA で）", i+1, u)
+				continue
+			}
+			with, _ := s["with"].(map[string]any)
+			keysIn(fmt.Sprintf(" step %d の with の", i+1), with, allowUses[prefix]...)
+			if prefix == "actions/checkout@" && with["persist-credentials"] != false {
+				bad("tray.yml の checkout が persist-credentials: false でない")
+			}
+		}
+		run, _ := s["run"].(string)
+		for _, l := range strings.Split(run, "\n") {
+			l = strings.TrimSpace(l)
+			if l == "" || allowLines[l] {
+				continue
+			}
+			if _, ok := need[l]; ok {
+				need[l]++
+				continue
+			}
+			bad("tray.yml の step %d の run の行 %q は許していない", i+1, l)
+		}
+	}
+	for l, n := range need {
+		if n != 1 {
+			bad("tray.yml の run の行 %q が %d 回（1回のはず）", l, n)
+		}
+	}
+	return out
 }
