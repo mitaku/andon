@@ -176,7 +176,33 @@ printf 'package main\n\nimport "time"\n\nfunc main() { time.Sleep(10 * time.Minu
 (cd "$tmp/rcvsrc" && GOFLAGS= "$gobin" build -o "$tmp/rcv" main.go) || fail "13 偽の受け口を組めない"
 export OTEL_PID=$tmp/otel.pid
 rcvs=()
-start_rcv() { (exec -a "$1" "$tmp/rcv" otel serve) & rcvs+=("$!"); }
+# 受け口を起動し、argv が差し替わるまで待つ（上限 10 秒）。差し替わる前に当てる道具が走ると、道具は受け口を見つけない。
+# 待ちは時刻でなく argv で決める（負荷の下では exec が遅れる）
+start_rcv() {
+  local p argv
+  (exec -a "$1" "$tmp/rcv" otel serve) &
+  p=$!
+  rcvs+=("$p")
+  for _ in $(seq 100); do
+    mapfile -d '' -t argv 2>/dev/null <"/proc/$p/cmdline" || argv=()
+    [ "${argv[*]:-}" = "$1 otel serve" ] && return 0
+    sleep 0.1
+  done
+  fail "13 偽の受け口（pid $p）の argv が 10 秒で差し替わらない"
+}
+# 見回りの鍵を持つ側を裏で起動し（pid は holder）、鍵を取った印が置かれるまで待つ（上限 30 秒）。
+# 鍵を持つ側は、鍵を取ってから印を置き、$@ が返るまで鍵を持つ。待ちは時刻でなく印で決める（負荷の下では鍵を取るのが遅れる）
+hold_passlock() {
+  local held=$tmp/pass.held
+  rm -f "$held"
+  flock "$passlock" bash -c ': >"$1"; shift; "$@"' _ "$held" "$@" &
+  holder=$!
+  for _ in $(seq 300); do
+    [ -e "$held" ] && return 0
+    sleep 0.1
+  done
+  fail "鍵を持つ側が 30 秒で見回りの鍵を取らない"
+}
 alive() { local s; s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }
 start_rcv "$tmp/other/bin/andon"
 other_rcv=$!
@@ -431,10 +457,13 @@ echo "$newd" >"$DISPATCHER_PID"
 start_rcv "$img/andon/bin/andon"
 rcv=$!
 echo "$rcv" >"$OTEL_PID"
-flock "$passlock" sleep 4 &
-holder=$!
-sleep 0.5
+# 鍵は当てる道具が返るまで持つ（放す合図のファイルが置かれるまで。上限 300 秒で放し、当てる道具が返らなくても場面を終える）
+release=$tmp/pass.release
+rm -f "$release"
+hold_passlock bash -c 'for _ in $(seq 3000); do [ -e "$1" ] && exit 0; sleep 0.1; done; exit 1' _ "$release"
 ANDON_APPLY_PASS_WAIT=1 run apply
+: >"$release"
+wait "$holder" || fail "13 鍵を持つ側が、当てる道具が返る前に上限の 300 秒で鍵を放した"
 for _ in $(seq 30); do grep -q '^andon otel serve ' "$CALLS" && break; sleep 0.1; done
 if ! alive "$rcv" && grep -q "受け口（pid $rcv）を止めた" "$tmp/out" && grep -q '15分終わらない' "$tmp/out" \
   && [ "$(grep -c '^andon otel serve ' "$CALLS")" = 1 ] && ! grep -q '^andon boot ' "$CALLS" && ! grep -q '^hc kill ' "$CALLS"; then
@@ -442,7 +471,6 @@ if ! alive "$rcv" && grep -q "受け口（pid $rcv）を止めた" "$tmp/out" &&
 else
   fail "13 見回りが終わらない道の受け口: $(cat "$CALLS") / $(cat "$tmp/out")"
 fi
-wait "$holder"
 : >"$OTEL_PID"
 
 # === 6a. 2回当ててから戻す ===
@@ -453,12 +481,10 @@ else
 fi
 : >"$CALLS"
 # 見回りの途中（鍵を持っている）なら、外れるまで dispatcher を止めない
-flock "$passlock" sh -c 'sleep 2; echo released >>"$CALLS"' &
-holder=$!
+hold_passlock sh -c 'sleep 2; echo released >>"$CALLS"'
 start_rcv "$img/andon/bin/andon"
 rcv=$!
 echo "$rcv" >"$OTEL_PID"
-sleep 0.5
 if run revert && same_as "$tmp/initial/andon" "$tmp/initial/bin/kanban" && [ ! -e "$rec" ] && [ ! -e "$img/andon-image" ]; then
   pass "6 戻すと <根> と kanban が最初の中身に一致し、記録が無い（rc 0）"
 else
