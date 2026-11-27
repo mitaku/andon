@@ -30,6 +30,9 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `wl-settings` 当てたパッケージの `andon issue create` が、予約キーでないキーを課題を足さずに断り、`--dry-run` で予約キーから書いた依頼書の `## Settings` 欄と、足りないもの（profile）を書く次の1手を出す。当てたあとに足した起動前の課題の依頼書が、予約キーから書き直した欄と同じ（ADR-0053 受け入れ条件 A9・A10）。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/create.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/ledger/ledger.go`、`internal/cli/leaves.go`、`package/skills/chief-of-staff/playbooks/brief.md`、`package/skills/chief-of-staff/playbooks/cut.md`、`package/skills/chief-of-staff/playbooks/start.md`、`package/skills/chief-of-staff/playbooks/verify.md`
 
+- `wl-stacked` 当てたあとに `andon issue start <id>` を積める `queued` の課題に打つと、前の課題の PR の head から branch を切り、`stacked_on`・`stacked_base` を Chief of Staff の端末で書いて `doing` にし、最初のメッセージに前の課題の branch の上に積んだことと `gh pr create --draft --base <前の課題の branch>` を足す。積めない課題（前の課題が `doing`・PR が open でない・origin の branch の先が gate の通した commit と違う）は理由1行で断り、worktree も branch もキーも残さない（ADR-0067 決めたこと 4・5・7）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/issue/start.go`、`internal/spawn/spawn.go`、`internal/waiting/stack.go`、`process/states/issue.yaml`
+
 ## 辿り着き方（利用者から）
 
 - Chief of Staff が `andon issue create "<タイトル>" … <予約キー>…` で担当の課題を足し、`andon issue start <id>` を打つ。
@@ -98,6 +101,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `internal/dispatcher/fallback.go`
 - `internal/launch/`
 - `internal/spawn/`
+- `internal/waiting/stack.go`
+- `process/states/issue.yaml`
 - `internal/sessionlog/`
 - `internal/pkgversion/`
 - `package/templates/`

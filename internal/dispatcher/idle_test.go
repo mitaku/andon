@@ -14,13 +14,14 @@ import (
 )
 
 type idleRig struct {
-	t        *testing.T
-	p        *project
-	tools    *scripted
-	log      *strings.Builder
-	clk      time.Time
-	free     int
-	unsorted int
+	t         *testing.T
+	p         *project
+	tools     *scripted
+	log       *strings.Builder
+	clk       time.Time
+	free      int
+	unsorted  int
+	stackable []string
 }
 
 func newIdleRig(t *testing.T) *idleRig {
@@ -40,7 +41,7 @@ func newIdleRig(t *testing.T) *idleRig {
 	r.p.st.Ready = &ready
 	slots, unsorted := slotsOf, unsortedOf
 	t.Cleanup(func() { slotsOf, unsortedOf = slots, unsorted })
-	slotsOf = func(string, time.Time) (int, error) { return r.free, nil }
+	slotsOf = func(string, time.Time) (int, []string, error) { return r.free, r.stackable, nil }
 	unsortedOf = func(string, time.Time) (int, error) { return r.unsorted, nil }
 	return r
 }
@@ -416,6 +417,28 @@ func TestIdleTellsUnstartedOnce(t *testing.T) {
 	}
 }
 
+// ADR-0067 決めたこと 6: andon waiting list の stackable に出た積める課題（queued）も、起動できる課題と同じに、前の回にも今の回にも
+// 出ていて起動されていなければ通知 idle の unstarted に入れる。kanban ready に出ていなくても入れる。
+func TestIdleTellsStackable(t *testing.T) {
+	r := newIdleRig(t)
+	ready := []string{}
+	r.p.st.Ready = &ready
+	r.p.tasks = []ledger.Issue{{"id": "S-0005", "title": "積める", "status": "queued"}, {"id": "S-0004", "title": "前", "status": "review"}}
+	r.stackable = []string{"S-0005"}
+	r.look(0, false)
+	r.look(15*time.Minute, false)
+	got := r.idles()
+	if len(got) != 1 || !slices.Equal(idList(got[0].Detail["unstarted"]), []string{"S-0005"}) {
+		t.Fatalf("積める課題を起動されないまま残った課題に数えない: %v", got)
+	}
+	r.p.st.Pending = nil
+	r.stackable = nil
+	r.look(15*time.Minute, false)
+	if len(r.idles()) != 0 || slices.Contains(r.p.st.Idle.Told, "S-0005") {
+		t.Errorf("stackable から消えた課題を知らせたか、控えに残した: %v %v", r.idles(), r.p.st.Idle.Told)
+	}
+}
+
 // 受け入れ条件 7（Go の側）: kanban lint が problem を出すとき、通知 idle の lint に件数が入る。同じ problem のままの次の回には積まない。
 // problem が 0 件に戻ったら印を消し、また出たら知らせる。
 func TestIdleTellsLintOnce(t *testing.T) {
@@ -530,13 +553,13 @@ func TestIdleSlotsUnreadable(t *testing.T) {
 	r.routine("triage", "")
 	r.unsorted = 80
 	r.look(0, false)
-	slotsOf = func(string, time.Time) (int, error) { return 0, os.ErrPermission }
+	slotsOf = func(string, time.Time) (int, []string, error) { return 0, nil, os.ErrPermission }
 	r.look(15*time.Minute, false)
 	r.look(15*time.Minute, false)
 	if n := strings.Count(r.log.String(), "枠を数えられない"); n != 1 {
 		t.Errorf("枠を数えられないログが %d 行（1 行のはず）: %s", n, r.log.String())
 	}
-	slotsOf = func(string, time.Time) (int, error) { return r.free, nil }
+	slotsOf = func(string, time.Time) (int, []string, error) { return r.free, r.stackable, nil }
 	if c := r.look(15*time.Minute, false); len(c) != 0 {
 		t.Errorf("数えられない回のあとの最初の回に打った（前の回の結果を消していない）: %v", c)
 	}

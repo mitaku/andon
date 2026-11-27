@@ -174,6 +174,33 @@ grep -q '^behind の枠: 上限 2、動いている 4、オーナー待ち 0、�
   || die "前の PR 待ちの枠の行が違う: $(cat "$tmp/behind.text")"
 echo 'ok 前の PR 待ち: 今の回の behind の記録を持つ review の課題と、記録がまだ無い信じられる積んだ課題は behind に数え、working にも waiting にも items にも入れない'
 
+# 積める課題（ADR-0067 決めたこと 4・6・受け入れ条件 7 の後半）: queued の担当の課題で、待つ相手がちょうど 1 つ残り、その前の課題が
+# 同じ repo の review の担当の課題で、今の head に今の回の gate の記録（approve・needs_human・behind）があれば stackable に出す。
+# S-0012 は前の課題 S-0010 の上に積める。S-0013 は待つ相手が 2 つ残る（S-0010 と doing の S-0011）。S-0014 の前の課題 S-0011 は doing
+sp=$tmp/stack
+sk=$sp/kanban
+printf 'version: 3\nprefix: S\nchief_of_staff: t1\n' | put "$sk/config.yaml"
+issue() { # issue <id> <status> <追加の行…>
+  local id=$1 st=$2; shift 2
+  { printf 'id: %s\ntitle: 課題 %s\nstatus: %s\nprofile: claude\nrepo: github.com/example/sample-site\ncreated: "2026-11-21T01:00:00Z"\n' "$id" "$id" "$st"; printf '%s\n' "$@"; } | put "$sk/issues/$id/issue.yaml"
+}
+issue S-0010 review
+printf '{"commit": "%s", "pr": "%s"}\n' "$head" "$pr" | put "$sk/issues/S-0010/library/report.json"
+printf '{"head": "%s", "at": "2026-11-21T05:00:00Z", "decision": "approve", "reasons": []}\n' "$head" | put "$sk/issues/S-0010/library/gate/$head.json"
+issue S-0011 doing
+issue S-0012 queued 'after: [S-0010]'
+issue S-0013 queued 'after: [S-0010, S-0011]'
+issue S-0014 queued 'after: [S-0011]'
+printf '%s\n' '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0010","change":{"status":"review"}}' | put "$sk/log.jsonl"
+KANBAN_ROOT=$sp "$andon" waiting list --json >"$tmp/stack.json"
+jq -e '.stackable == [{id: "S-0012", on: "S-0010"}] and .slots.working == 1' "$tmp/stack.json" >/dev/null \
+  || die "積める課題が違う（S-0012 だけが S-0010 の上に積める）: $(jq -c '{stackable, slots}' "$tmp/stack.json")"
+jq -e '.stackable == []' "$tmp/behind.json" >/dev/null || die "積める課題の無い kanban で stackable が空の並びでない: $(jq -c .stackable "$tmp/behind.json")"
+emit "$tmp/stack.json" waiting-stackable.json
+KANBAN_ROOT=$sp "$andon" waiting list >"$tmp/stack.text"
+grep -q '^積める課題 1 件: S-0012（S-0010 の上）$' "$tmp/stack.text" || die "積める課題の行が無い: $(cat "$tmp/stack.text")"
+echo 'ok 積める課題: 待つ相手が 1 つだけ残り、前の課題が今の回の gate を通って review にいる queued の課題を stackable に出す（無ければ空の並び）'
+
 set +e
 "$andon" waiting list --project nothing >/dev/null 2>"$tmp/err"; rc=$?
 "$andon" waiting list --bogus >/dev/null 2>&1; rc2=$?

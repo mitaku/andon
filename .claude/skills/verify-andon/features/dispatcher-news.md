@@ -10,6 +10,8 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
   - 見るファイル: `internal/dispatcher/pickup.go`、`internal/dispatcher/deliver.go`、`internal/dispatcher/delivered.go`、`internal/dispatcher/route.go`、`internal/dispatcher/abandoned.go`、`internal/dispatcher/estimate.go`、`internal/dispatcher/impact.go`、`internal/dispatcher/memory.go`、`internal/issue/impact.go`、`internal/contract/impact.go`、`schema/notification.schema.json`、`schema/delivered.schema.json`、`process/states/delivery.yaml`、`process/states/estimate.yaml`、`process/states/memory.yaml`
 - `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを線の上で、`idle_hours` を持つルーチンを時間の上で撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/idle.go`、`internal/dispatcher/retro.go`、`cmd/kanban/routines.go`、`process/states/idle.yaml`
+- `dn-impact-stacked` 当てたあとに課題がマージされたとき、`andon issue impact` の出力で積んだ課題の行に `stacked_on` が出て、通知 `impact` は積んだ課題をぶつかり・重なり・検査の置き場の動きでは載せず、積んだ相手でない課題のマージが依頼書の指すファイルを変えたときだけ載せる（ADR-0067 決めたこと 11）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/impact.go`、`internal/contract/impact.go`、`internal/dispatcher/impact.go`
 - `dn-corrections` 当てたあとに片付いた課題の手直しの記録（`library/corrections.json`）を、当てた dispatcher が書いた。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/corrections.go`、`internal/dispatcher/outcome.go`、`process/states/aftermath.yaml`
 - `dn-signal` 当てたあとの通知 signal に、記録にあるときだけ失敗が始まった commit（`release`、40 桁）が載った。見る道: 検証の担当だけ。

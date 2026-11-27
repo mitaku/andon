@@ -18,6 +18,7 @@ stateDiagram-v2
   s_queued --> s_todo: 待つ課題が全部 done になった
   s_queued --> s_todo: after を書き換えて待つ課題が無くなった
   s_todo --> s_doing: 担当を起動した（§7.2 #10）
+  s_queued --> s_doing: 前の課題の PR の branch の上に積んで担当を起動した（§7.2 #10。ADR-0067 決めたこと 4・5。前の課題が gate を通って review にいる間）
   s_todo --> s_doing: Chief Engineer・レビュアーを起動した（andon design start・dispatcher がレビュアーの課題に打つ）
   s_todo --> s_todo: オーナーの課題（who： person）に問いを置いた（ask-one-by-one skill §3）
   s_queued --> s_queued: 前の課題を待つオーナーの課題（who： person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る）
@@ -56,6 +57,7 @@ stateDiagram-v2
 | `queued` | `todo` | 待つ課題が全部 done になった | kanban の CLI | `kanban done` |  |
 | `queued` | `todo` | after を書き換えて待つ課題が無くなった | kanban の CLI | `kanban set` |  |
 | `todo` | `doing` | 担当を起動した（§7.2 #10） | AI | `andon issue start` | はい |
+| `queued` | `doing` | 前の課題の PR の branch の上に積んで担当を起動した（§7.2 #10。ADR-0067 決めたこと 4・5。前の課題が gate を通って review にいる間） | AI | `andon issue start` | はい |
 | `todo` | `doing` | Chief Engineer・レビュアーを起動した（andon design start・dispatcher がレビュアーの課題に打つ） | kanban の CLI | `kanban start` |  |
 | `todo` | `todo` | オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
 | `queued` | `queued` | 前の課題を待つオーナーの課題（who: person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る） | AI | `andon issue ask` |  |

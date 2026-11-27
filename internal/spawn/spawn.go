@@ -147,6 +147,13 @@ func FirstMessage(slug, id, brief string) string {
 	return fmt.Sprintf("課題 `%s/%s`。\n依頼書は `%s`。", slug, id, brief)
 }
 
+// Stacked は積んで起動した課題の最初のメッセージに足す 1 行（先頭の改行つき。ADR-0067 決めたこと 5・7）: 前の課題の PR の
+// branch の上で起動したことと、PR を draft で前の課題の branch へ向けて出すこと。
+func Stacked(on, branch, base string) string {
+	return fmt.Sprintf("\n前の課題 `%s` の PR の branch `%s`（commit %s）の上に積んで起動した。PR は `gh pr create --draft --base %s` で出し、前の課題が main に入るまで rebase しない（載せ替えは `andon issue restack`）。",
+		on, branch, short(base), branch)
+}
+
 // GuideFile はオーナーが書く担当・レビュアー向けの指針のファイル名（セルの repo の直下。ADR-0012 決めたこと 2）。中身は Andon が書かない。
 const GuideFile = "AGENTS.worker.md"
 
@@ -313,8 +320,45 @@ type Worktree struct{ RepoDir, Path, Branch string }
 
 // NewWorktree は origin の既定の branch の最新から、upstream の無い branch と worktree を切る。
 func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
+	return newWorktree(repoDir, slug, id, title, nil)
+}
+
+// Onto は積んで起動するときの切り口: 前の課題の PR の branch と、gate が通したその head の commit（ADR-0067 決めたこと 5）。
+type Onto struct{ Branch, Commit string }
+
+// NewWorktreeOn は、前の課題の PR の branch（onto.Branch）を origin から取り直し、その先が onto.Commit のときだけ、
+// その commit から upstream の無い branch と worktree を切る（積んで起動する。ADR-0067 決めたこと 5）。
+// 先が違えば（前の課題の PR が gate の通したあとに動いた）、何も作らずに理由を返す。
+func NewWorktreeOn(repoDir, slug, id, title string, onto Onto) (*Worktree, error) {
+	return newWorktree(repoDir, slug, id, title, &onto)
+}
+
+// short は commit の頭 12 字（短い値はそのまま）。
+func short(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
+}
+
+func newWorktree(repoDir, slug, id, title string, onto *Onto) (*Worktree, error) {
 	g := func(args ...string) (string, error) {
 		return Output(nil, "", "git", append([]string{"-c", "url.https://github.com/.insteadOf=git@github.com:", "-C", repoDir}, args...)...)
+	}
+	start := ""
+	if onto != nil {
+		ref := "refs/remotes/origin/" + onto.Branch
+		if _, err := g("check-ref-format", "--branch", onto.Branch); err != nil || strings.HasPrefix(onto.Branch, "-") {
+			return nil, fmt.Errorf("前の課題の branch 名が不正: %s", onto.Branch)
+		}
+		if _, err := g("fetch", "-q", "origin", "+refs/heads/"+onto.Branch+":"+ref); err != nil {
+			return nil, fmt.Errorf("前の課題の branch origin/%s を fetch できない（%s）", onto.Branch, repoDir)
+		}
+		tip, err := g("rev-parse", "--verify", "--quiet", ref+"^{commit}")
+		if err != nil || strings.TrimSpace(tip) != onto.Commit {
+			return nil, fmt.Errorf("前の課題の branch origin/%s の先（%s）が gate の通した commit（%s）と違う。起動しない", onto.Branch, short(strings.TrimSpace(tip)), short(onto.Commit))
+		}
+		start = onto.Commit
 	}
 	sym, err := g("ls-remote", "--symref", "origin", "HEAD")
 	def := ""
@@ -349,7 +393,10 @@ func NewWorktree(repoDir, slug, id, title string) (*Worktree, error) {
 	if err := MakeWorktreeDir(path); err != nil {
 		return nil, err
 	}
-	if _, err := g("worktree", "add", "-q", "--no-track", "-b", branch, path, "refs/remotes/origin/"+def); err != nil {
+	if start == "" {
+		start = "refs/remotes/origin/" + def
+	}
+	if _, err := g("worktree", "add", "-q", "--no-track", "-b", branch, path, start); err != nil {
 		return nil, fmt.Errorf("worktree を作れない: %s", path)
 	}
 	return &Worktree{RepoDir: repoDir, Path: path, Branch: branch}, nil

@@ -91,6 +91,14 @@ func Text(r Result) string {
 	}
 	fmt.Fprintf(&b, "%s の枠: 上限 %d、動いている %d、オーナー待ち %d%s、空き %d\n",
 		r.Project, r.Slots.Limit, r.Slots.Working, r.Slots.Waiting, behind, r.Slots.Free)
+	// 積める課題（ADR-0067 決めたこと 6）は、あるときだけ書く
+	if len(r.Stackable) > 0 {
+		var on []string
+		for _, s := range r.Stackable {
+			on = append(on, fmt.Sprintf("%s（%s の上）", s.ID, s.On))
+		}
+		fmt.Fprintf(&b, "積める課題 %d 件: %s\n", len(on), strings.Join(on, "、"))
+	}
 	if len(r.Items) == 0 {
 		b.WriteString("オーナー待ちは無い\n")
 		return b.String()

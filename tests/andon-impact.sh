@@ -132,6 +132,20 @@ row "$gone" | jq -e '.error | contains("commit していない変更が読めな
 [ "$(git -C "$HOME/.herdr/worktrees/app/demo-$dirty" status --porcelain)" = "$st0" ] || die 'worktree を変えた'
 ok '同じ repo の動いている課題ごとに、衝突（git merge-tree）・重なり（commit していない変更と未追跡のファイルも）・依頼書の指し・関係なし を出し、worktree が読めない・確かめられなければ error（kanban と worktree に書かない）'
 
+# 2b. 積んだ課題（ADR-0067 決めたこと 11・受け入れ条件 13 の前半）: Chief of Staff の端末が書いた stacked_on・stacked_base を持つ課題の行に
+# stacked_on が出る。担当の端末が自分で書いたキーは信じず、出さない
+base=$(git -C "$app" rev-parse origin/main~1)
+HC_TERMINAL_ID=t5 kanban set "$conf" "stacked_on=$m" "stacked_base=$base" >/dev/null
+HC_TERMINAL_ID=t7 kanban set "$brief" "stacked_on=$m" "stacked_base=$base" >/dev/null
+"$andon" issue impact "$m" > "$I" || die "積んだ課題のある andon issue impact が落ちた"
+row "$conf" | jq -e --arg m "$m" '.stacked_on == $m and .conflict == true' >/dev/null || die "積んだ課題の行に stacked_on が無い: $(row "$conf")"
+row "$brief" | jq -e 'has("stacked_on") | not' >/dev/null || die "担当が書いた stacked_on を信じた: $(row "$brief")"
+row "$clean" | jq -e 'has("stacked_on") | not' >/dev/null || die "積んでいない課題に stacked_on が出た: $(row "$clean")"
+jq -e '[.issues[] | select(has("stacked_on"))] | length == 1' "$I" >/dev/null || die '上の否定の確かめが、stacked_on のある行に当たらない'
+HC_TERMINAL_ID=t5 kanban set "$conf" stacked_on= stacked_base= >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$brief" stacked_on= stacked_base= >/dev/null
+ok '積んだ課題の行に stacked_on が出る（Chief of Staff の端末が書いたキーだけ。担当の端末が書いたキーは出さない）'
+
 # 3. もう含む（rebase 済み）・branch が読めない
 git -C "$HOME/.herdr/worktrees/app/demo-$clean" -c core.editor=true rebase -q "$sha"
 git -C "$app" worktree remove --force "$HOME/.herdr/worktrees/app/demo-$none"; git -C "$app" branch -q -D "demo/$none"

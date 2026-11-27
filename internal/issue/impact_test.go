@@ -157,23 +157,23 @@ func TestImpactChecksMoved(t *testing.T) {
 	}
 	merged := []string{"doc.md", "tests/x.sh"}
 
-	old := c.impactOf(issue("A-2", "review", "old"), repo, sha, merged, checks)
-	if old.Error != "" || old.Contains || !reflect.DeepEqual(old.ChecksMoved, []string{"tests/x.sh"}) || !old.Affected() {
+	old := c.impactOf(issue("A-2", "review", "old"), repo, sha, merged, checks, "")
+	if old.Error != "" || old.Contains || !reflect.DeepEqual(old.ChecksMoved, []string{"tests/x.sh"}) || !old.Affected("") {
 		t.Errorf("含まない review の課題が検査の置き場の動きで影響ありにならない: %+v", old)
 	}
 	if len(old.Overlap) != 0 || old.Conflict || len(old.BriefRefs) != 0 {
 		t.Errorf("検査の置き場のほかの事実で影響ありになっている（見たいものを見ていない）: %+v", old)
 	}
-	doing := c.impactOf(issue("A-4", "doing", "old"), repo, sha, merged, checks)
-	if doing.Error != "" || !reflect.DeepEqual(doing.ChecksMoved, []string{"tests/x.sh"}) || doing.Affected() {
+	doing := c.impactOf(issue("A-4", "doing", "old"), repo, sha, merged, checks, "")
+	if doing.Error != "" || !reflect.DeepEqual(doing.ChecksMoved, []string{"tests/x.sh"}) || doing.Affected("") {
 		t.Errorf("doing の課題は事実を出すが、検査の置き場の動きだけで影響ありにしない（gate が ready のあと返す）: %+v", doing)
 	}
-	fresh := c.impactOf(issue("A-3", "review", "fresh"), repo, sha, merged, checks)
-	if fresh.Error != "" || !fresh.Contains || len(fresh.ChecksMoved) != 0 || fresh.Affected() {
+	fresh := c.impactOf(issue("A-3", "review", "fresh"), repo, sha, merged, checks, "")
+	if fresh.Error != "" || !fresh.Contains || len(fresh.ChecksMoved) != 0 || fresh.Affected("") {
 		t.Errorf("マージを含む課題が影響ありになった: %+v", fresh)
 	}
-	other := c.impactOf(issue("A-2", "review", "old"), repo, plain, []string{"doc.md"}, places(app, plain, f("doc.md")))
-	if other.Error != "" || other.ChecksMoved == nil || len(other.ChecksMoved) != 0 || other.Affected() {
+	other := c.impactOf(issue("A-2", "review", "old"), repo, plain, []string{"doc.md"}, places(app, plain, f("doc.md")), "")
+	if other.Error != "" || other.ChecksMoved == nil || len(other.ChecksMoved) != 0 || other.Affected("") {
 		t.Errorf("検査の置き場を変えない PR のマージで影響ありになった: %+v", other)
 	}
 	for _, x := range []struct {

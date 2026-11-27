@@ -36,10 +36,14 @@ type Idle struct {
 }
 
 var (
-	// slotsOf は空いた枠の数（andon waiting list と同じ式。ADR-0042 決めたこと 9）
-	slotsOf = func(root string, now time.Time) (int, error) {
+	// slotsOf は空いた枠の数（andon waiting list と同じ式。ADR-0042 決めたこと 9）と、積める課題（stackable。ADR-0067 決めたこと 6）
+	slotsOf = func(root string, now time.Time) (int, []string, error) {
 		res, _, err := waiting.Read(root, now)
-		return res.Slots.Free, err
+		var stackable []string
+		for _, s := range res.Stackable {
+			stackable = append(stackable, s.ID)
+		}
+		return res.Slots.Free, stackable, err
 	}
 	// unsortedOf は仕分けていない項目の数（ADR-0047 決めたこと 7）
 	unsortedOf = triage.Unsorted
@@ -84,7 +88,7 @@ func (p *project) idle(retroFired bool) {
 	if known && seen && now.Sub(prevAt) < interval {
 		return
 	}
-	free, err := slotsOf(p.l.Root, now)
+	free, stackable, err := slotsOf(p.l.Root, now)
 	if err != nil {
 		p.idleOnce("slots", fmt.Sprintf("枠を数えられない（この回は空きを見ない）: %v", err))
 		p.forgetIdle()
@@ -95,7 +99,8 @@ func (p *project) idle(retroFired bool) {
 		p.c.idleSeen = map[string]bool{}
 	}
 	p.c.idleSeen[p.l.Slug] = true
-	ready := p.readyNow()
+	// 起動できる課題（kanban ready）に、積める課題を足す。どちらも起動されないまま残れば知らせる（ADR-0067 決めたこと 6）
+	ready := mergeIDs(p.readyNow(), stackable)
 	cur := &Idle{At: now.Format(time.RFC3339), Free: free > 0, Ready: ready, Told: keepIn(prev.Told, ready), Lint: prev.Lint}
 	p.st.Idle = cur
 	if !known || !seen || p.first || now.Sub(prevAt) > 2*interval || !prev.Free || free == 0 {

@@ -330,8 +330,16 @@ type startRefusal struct {
 
 func startRefusals(t *testing.T) []startRefusal {
 	return []startRefusal{
-		{"not todo", "S-0007 は doing（andon issue start は todo の課題にだけ打てる。process/states/issue.yaml）", false, func(f *startFixture) { f.task["status"] = "doing" }},
-		{"queued", "S-0007 は queued", false, func(f *startFixture) { f.task["status"] = "queued" }},
+		{"not todo", "S-0007 は doing（andon issue start は todo・queued の課題にだけ打てる。process/states/issue.yaml）", false, func(f *startFixture) { f.task["status"] = "doing" }},
+		{"queued", "S-0007 は after（S-0006）が済んでいない。積んでも起動できない: 前の課題 S-0006 が review でない（doing）", false, func(f *startFixture) {
+			// 積めない queued の課題（前の課題が doing）。積めるかは kanban のファイルを読んで決める（andon waiting list と同じ決まり）
+			f.task["status"], f.task["after"] = "queued", []any{"S-0006"}
+			for id, body := range map[string]string{"S-0006": "status: doing\nprofile: claude\nrepo: github.com/example/sample-site\n",
+				"S-0007": "status: queued\nprofile: claude\nrepo: github.com/example/sample-site\nafter: [S-0006]\n"} {
+				os.MkdirAll(filepath.Join(f.root, "kanban", "issues", id), 0o755)
+				os.WriteFile(filepath.Join(f.root, "kanban", "issues", id, "issue.yaml"), []byte("id: "+id+"\ntitle: t\n"+body), 0o644)
+			}
+		}},
 		{"started", "S-0007 は起動済み", false, func(f *startFixture) { f.task["branch"] = "sample-site/S-0007" }},
 		{"machine", "machine=remote1（別のマシンで起動する）", false, func(f *startFixture) { f.task["machine"] = "remote1" }},
 		{"no profile", "S-0007 に profile が無い", false, func(f *startFixture) { delete(f.task, "profile") }},

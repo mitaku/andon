@@ -22,6 +22,7 @@ import (
 	"andon/internal/ledger"
 	"andon/internal/spawn"
 	"andon/internal/tools"
+	stack "andon/internal/waiting"
 )
 
 const exitFirst = 3
@@ -44,6 +45,9 @@ type startPlan struct {
 	Worktree     string       `json:"worktree,omitempty"`
 	Branch       string       `json:"branch,omitempty"`
 	Session      string       `json:"session,omitempty"`
+	StackedOn    string       `json:"stacked_on,omitempty"`   // 積んで起動するとき: 前の課題（ADR-0067 決めたこと 5）
+	StackedBase  string       `json:"stacked_base,omitempty"` // 積んで起動するとき: 分かれ目（前の課題の PR の head）
+	StackBranch  string       `json:"stack_branch,omitempty"` // 積んで起動するとき: 前の課題の PR の branch
 	FirstMessage string       `json:"first_message"`
 	BriefPath    string       `json:"brief_path"`
 	Brief        string       `json:"brief"`
@@ -92,17 +96,25 @@ func (c *ctx) start(stdout, stderr io.Writer, dry, asJSON bool) error {
 	}
 	undo := func() {}
 	if p.Repo != "" {
-		wt, err := spawn.NewWorktree(p.repoDir, c.l.Slug, id, p.Title)
+		var wt *spawn.Worktree
+		set, unset := []string{}, []string{"branch=", "worktree="}
+		if p.StackedOn != "" {
+			wt, err = spawn.NewWorktreeOn(p.repoDir, c.l.Slug, id, p.Title, spawn.Onto{Branch: p.StackBranch, Commit: p.StackedBase})
+			// 積んだ印は起動と同時に書く（queued のうちに書くと、kanban の待つ相手の数えが前の課題を外し、起動の前に todo へ動かす）
+			set, unset = []string{"stacked_on=" + p.StackedOn, "stacked_base=" + p.StackedBase}, append(unset, "stacked_on=", "stacked_base=")
+		} else {
+			wt, err = spawn.NewWorktree(p.repoDir, c.l.Slug, id, p.Title)
+		}
 		if err != nil {
 			return fail("%v", err)
 		}
-		if _, err := c.l.Run("", "set", id, "branch="+wt.Branch, "worktree="+wt.Path); err != nil {
+		if _, err := c.l.Run("", append([]string{"set", id, "branch=" + wt.Branch, "worktree=" + wt.Path}, set...)...); err != nil {
 			wt.Remove()
 			return err
 		}
 		undo = func() {
 			wt.Remove()
-			c.l.Run("", "set", id, "branch=", "worktree=") //nolint:errcheck // 戻しは試すだけで、先の失敗を返す
+			c.l.Run("", append([]string{"set", id}, unset...)...) //nolint:errcheck // 戻しは試すだけで、先の失敗を返す
 		}
 		p.Cwd, p.Branch, p.Worktree = wt.Path, wt.Branch, wt.Path
 	}
@@ -164,12 +176,16 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		return nil, err
 	}
 	p.check("status", "ok", "%s", c.issue.Str("status"))
-	if ok, err := c.startable(); err != nil {
+	// queued の課題は、前の課題の PR の上に積めるときだけ起動する（ADR-0067 決めたこと 5。待つ相手が済めば kanban が todo へ動かす）
+	if c.issue.Str("status") == "queued" {
+		if err := c.stackOn(p); err != nil {
+			return nil, err
+		}
+	} else if ok, err := c.startable(); err != nil {
 		return nil, err
 	} else if !ok {
 		return nil, fail("%s は after（%s）が済んでいない。済んでから起動する", id, strings.Join(c.after(), ", "))
-	}
-	if a := c.after(); len(a) > 0 {
+	} else if a := c.after(); len(a) > 0 {
 		p.check("after", "ok", "済んでいる（%s）", strings.Join(a, ", "))
 	} else {
 		p.check("after", "ok", "after なし")
@@ -245,7 +261,11 @@ func (c *ctx) plan(dry bool) (*startPlan, error) {
 		p.Session = spawn.NewSession()
 		p.Labels = append(p.Labels, spawn.SessionLabel+"="+p.Session)
 	}
-	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath) + spawn.Guide()
+	p.FirstMessage = spawn.FirstMessage(slug, id, p.BriefPath)
+	if p.StackedOn != "" {
+		p.FirstMessage += spawn.Stacked(p.StackedOn, p.StackBranch, p.StackedBase)
+	}
+	p.FirstMessage += spawn.Guide()
 	if p.Profile != chiefengineer.Profile {
 		p.FirstMessage += spawn.Wiki() // wiki の目録の行は担当だけ。Chief Engineer には足さない（ADR-0061 決めたこと 12）
 	}
@@ -501,6 +521,9 @@ func (p *startPlan) print(w io.Writer) {
 	row("worktree", p.Worktree)
 	row("branch", p.Branch)
 	row("session", p.Session)
+	if p.StackedOn != "" {
+		row("積む", fmt.Sprintf("前の課題 %s の PR の branch %s の head %s の上", p.StackedOn, p.StackBranch, p.StackedBase))
+	}
 	fmt.Fprintln(w, "ラベル:")
 	for _, l := range p.Labels {
 		fmt.Fprintf(w, "  %s\n", l)
@@ -544,6 +567,45 @@ func liveNames() (map[string]bool, error) {
 		names[t.Name] = true
 	}
 	return names, nil
+}
+
+// stackOn は queued の課題を積んで起動できるかを確かめ、できれば p に前の課題と分かれ目と branch を置く（ADR-0067 決めたこと 4・5）。
+// 記録の上の条件は andon waiting list の stackable と同じ決まり（waiting.StackOf）で見て、そのうえで前の課題の PR を GitHub で読み、
+// open で、今の head が gate の通した commit（前の課題の報告の commit）であることを確かめる。origin の branch の先は worktree を
+// 切る直前に見る（spawn.NewWorktreeOn）。積めなければ理由を 1 行出して断る。
+func (c *ctx) stackOn(p *startPlan) error {
+	after := strings.Join(c.after(), ", ")
+	onto, why, err := stack.StackOf(c.l.Root, c.id, time.Now())
+	if err != nil {
+		return fail("%s を積めるか確かめられない: %v", c.id, err)
+	}
+	if why != "" {
+		return fail("%s は after（%s）が済んでいない。積んでも起動できない: %s", c.id, after, why)
+	}
+	if _, err := exec.LookPath("gh"); err != nil {
+		return fail("gh が無い（前の課題 %s の PR を確かめられない）", onto.On)
+	}
+	out, err := gh("pr", "view", onto.PR, "--json", "state,headRefOid,headRefName")
+	var v struct {
+		State       string `json:"state"`
+		HeadRefOid  string `json:"headRefOid"`
+		HeadRefName string `json:"headRefName"`
+	}
+	if err != nil || json.Unmarshal([]byte(out), &v) != nil {
+		return fail("前の課題 %s の PR（%s）を読めない。積まない: %v", onto.On, onto.PR, err)
+	}
+	switch {
+	case v.State != "OPEN":
+		return fail("%s は after（%s）が済んでいない。積んでも起動できない: 前の課題 %s の PR が open でない（%s）", c.id, after, onto.On, v.State)
+	case v.HeadRefOid != onto.Head:
+		return fail("%s は after（%s）が済んでいない。積んでも起動できない: 前の課題 %s の PR の今の head（%s）が gate の通した commit（%s）と違う",
+			c.id, after, onto.On, short12(v.HeadRefOid), short12(onto.Head))
+	case v.HeadRefName == "":
+		return fail("前の課題 %s の PR の branch が読めない。積まない", onto.On)
+	}
+	p.StackedOn, p.StackedBase, p.StackBranch = onto.On, onto.Head, v.HeadRefName
+	p.check("after", "ok", "前の課題 %s が済んでいない。その PR の branch %s の head %s の上に積んで起動する", onto.On, v.HeadRefName, short12(onto.Head))
+	return nil
 }
 
 func (c *ctx) startable() (bool, error) {

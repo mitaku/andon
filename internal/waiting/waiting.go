@@ -40,7 +40,16 @@ type Result struct {
 	At      string `json:"at"`
 	Project string `json:"project"`
 	Slots   Slots  `json:"slots"`
-	Items   []Item `json:"items"`
+	// Stackable は積める課題（前の課題の PR の branch の上で起動できる queued の課題）の並び。無ければ空の並び
+	// （ADR-0067 決めたこと 6。記録の上での見込みで、本当に確かめるのは andon issue start）
+	Stackable []Stack `json:"stackable"`
+	Items     []Item  `json:"items"`
+}
+
+// Stack は積める課題 1 件: ID の課題を、On の課題の PR の branch の上で起動できる。
+type Stack struct {
+	ID string `json:"id"`
+	On string `json:"on"`
 }
 
 // Slots は並行の枠（決めたこと 9・10。free の式は ADR-0065 決めたこと 4）。Behind は前の PR 待ちの課題の数で、
@@ -118,25 +127,40 @@ func (t *issue) worker() bool {
 // Read は kanban の根 root（projects/<slug>/。kanban/ の親）を読み、now の時点のオーナー待ちと枠を返す。
 // warn は読めなかったが数えるのを止めないもの（project.json が読めないなど）。
 func Read(root string, now time.Time) (res Result, warn []string, err error) {
-	dir := filepath.Join(root, "kanban")
-	cfg, err := ledger.ReadConfig(dir)
+	k, warn, err := load(root)
 	if err != nil {
-		return Result{}, nil, fmt.Errorf("kanban が読めない（%s）: %v", filepath.Join(dir, "config.yaml"), err)
+		return Result{}, warn, err
 	}
 	limit, w := parallel(root)
 	if w != "" {
 		warn = append(warn, w)
 	}
-	issues, w2 := readIssues(dir)
-	warn = append(warn, w2...)
+	return count(k.l, k.cfg, k.issues, k.rows, limit, now), warn, nil
+}
+
+// kanban は読んだ kanban（Read と StackOf が同じ読み方で読む）。
+type kanban struct {
+	l      *ledger.Ledger
+	cfg    ledger.Config
+	issues []*issue
+	rows   []ledger.Row
+}
+
+func load(root string) (kanban, []string, error) {
+	dir := filepath.Join(root, "kanban")
+	cfg, err := ledger.ReadConfig(dir)
+	if err != nil {
+		return kanban{}, nil, fmt.Errorf("kanban が読めない（%s）: %v", filepath.Join(dir, "config.yaml"), err)
+	}
+	issues, warn := readIssues(dir)
 	l := ledger.At(root)
 	rows, err := l.ReadLog()
 	// 履歴が無い・読めないと、課題が review に入った時刻と merge の書き手が分からず、approve で止まった PR を動いている仕事に
 	// 数えてしまう。課題が1つも無い kanban の、まだ無い log.jsonl だけは空の履歴として読む
 	if err != nil && (!errors.Is(err, fs.ErrNotExist) || len(issues) > 0) {
-		return Result{}, warn, fmt.Errorf("kanban の履歴が読めない（%s）。枠を数えられない: %v", filepath.Join(dir, "log.jsonl"), err)
+		return kanban{}, warn, fmt.Errorf("kanban の履歴が読めない（%s）。枠を数えられない: %v", filepath.Join(dir, "log.jsonl"), err)
 	}
-	return count(l, cfg, issues, rows, limit, now), warn, nil
+	return kanban{l: l, cfg: cfg, issues: issues, rows: rows}, warn, nil
 }
 
 // parallel は project.json の chief_of_staff.parallel。無ければ DefaultParallel。読めない・形が違うときも DefaultParallel と理由
@@ -319,7 +343,14 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 	}
 	// 空きは上限から動いている課題の数を引いた数だけで決め、オーナー待ちの数では減らさない（ADR-0065 決めたこと 4）
 	s.Free = max(s.Limit-s.Working, 0)
-	return Result{Version: Version, At: now.UTC().Format(timeLayout), Project: l.Slug, Slots: s, Items: items}
+	sv := newStackView(kanban{l: l, cfg: cfg, issues: issues, rows: rows}, now)
+	stackable := []Stack{}
+	for _, t := range issues {
+		if onto, why := sv.of(t); why == "" {
+			stackable = append(stackable, Stack{ID: t.id, On: onto.On})
+		}
+	}
+	return Result{Version: Version, At: now.UTC().Format(timeLayout), Project: l.Slug, Slots: s, Stackable: stackable, Items: items}
 }
 
 // placeable は置いておける課題か（ADR-0062 決めたこと 3）: オーナーの課題か、状態が todo か queued の課題で、
