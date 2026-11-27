@@ -84,8 +84,13 @@ func projectRoot(slug string) (string, error) {
 // Text は人が読む行（--json を付けないときの出力。中身は --json と同じ）。
 func Text(r Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s の枠: 上限 %d、動いている %d、オーナー待ち %d、空き %d\n",
-		r.Project, r.Slots.Limit, r.Slots.Working, r.Slots.Waiting, r.Slots.Free)
+	behind := ""
+	if r.Slots.Behind > 0 {
+		// 前の PR 待ち（ADR-0067 決めたこと 10）は、あるときだけ書く
+		behind = fmt.Sprintf("、前の PR 待ち %d", r.Slots.Behind)
+	}
+	fmt.Fprintf(&b, "%s の枠: 上限 %d、動いている %d、オーナー待ち %d%s、空き %d\n",
+		r.Project, r.Slots.Limit, r.Slots.Working, r.Slots.Waiting, behind, r.Slots.Free)
 	if len(r.Items) == 0 {
 		b.WriteString("オーナー待ちは無い\n")
 		return b.String()

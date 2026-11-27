@@ -1,7 +1,7 @@
 // Package gate は andon gate（docs/contract.md §7。仮設の gate lib/yard/gate を Go に移したもの）。
 // Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
-// 終了コード: approve 0・fix 1・使い方 2・道具や kanban の誤り 3・needs_human 4・wait 5（記録しない）。
+// 終了コード: approve 0・fix 1・使い方 2・道具や kanban の誤り 3・needs_human 4・wait 5（記録しない）・behind 6（積んだ課題の前の PR 待ち）。
 package gate
 
 import (
@@ -30,7 +30,7 @@ const Usage = "usage: andon gate <id> [--dry-run]\n" +
 	"kanban の課題の PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は issues/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
 	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
-	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・誤り 3（deliverable: candidates の課題と、PR の無い deliverable: report の課題も。回さない）。\n"
+	"マージはしない。終了コード: approve 0・fix 1・needs_human 4・wait 5・behind 6（積んだ課題の前の PR 待ち）・誤り 3（deliverable: candidates の課題と、PR の無い deliverable: report の課題も。回さない）。\n"
 
 const (
 	exitFix   = 1
@@ -38,6 +38,8 @@ const (
 	exitError = 3
 	exitHuman = 4
 	exitWait  = 5
+	// exitBehind は前の PR 待ち（behind。ADR-0067 決めたこと 8）
+	exitBehind = 6
 )
 
 var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
@@ -63,6 +65,14 @@ type Record struct {
 	Decision string   `json:"decision"`
 	Reasons  []string `json:"reasons"`
 	Merged   bool     `json:"merged"`
+	// Restack は載せ替えを頼む直し（fix）の印（ADR-0067 決めたこと 8・12）。計測と振り返りは差し戻しに数えない
+	Restack bool `json:"restack,omitempty"`
+}
+
+// Counted は、記録を計測と振り返りの差し戻しの率に数えるか（ADR-0067 決めたこと 8）: 前の PR 待ち（behind）の記録と、
+// 載せ替えを頼む直し（restack）の記録は、分母にも分子にも数えない（積んだ課題の数だけ率が動いて見えないように）。
+func Counted(decision string, restack bool) bool {
+	return decision != "behind" && (decision != "fix" || !restack)
 }
 
 // Delegated は課題 id の判定に使う委譲の merge の値と、それを広げた名指しの grant の id（ADR-0041 決めたこと 6・7）。
@@ -142,6 +152,8 @@ func ExitCode(decision string) int {
 		return exitFix
 	case "wait":
 		return exitWait
+	case "behind":
+		return exitBehind
 	}
 	return exitHuman
 }
@@ -378,6 +390,24 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	head := pv.HeadRefOid
 	rec := &Record{ID: id, PR: rep.PR, Head: head, Checks: []Check{}, TierReasons: []string{}}
 	facts := Facts{PROpen: pv.State == "OPEN" && !pv.IsDraft}
+	// 積んだ課題（信じられる stacked_on がある）: draft でもよく、PR の事情のうち base・衝突・分かれ目から数えたファイルの件数と古い base を見ない
+	// （ADR-0067 決めたこと 8。Decide が approve と needs_human を behind に置き換える）
+	// 前の課題の branch が読めなければ判定しない（誤り。向き先が違うと取り違えて担当へ返さない。dispatcher が前の PR 待ちに置く）
+	prevBranch, from := "", ""
+	if on, base, ok := ledger.Stacked(rows, t, l.ChiefOfStaff()); ok {
+		facts.StackedOn, facts.PROpen, facts.StackedDraft = on, pv.State == "OPEN", pv.IsDraft
+		p, err := l.Show(on)
+		if err != nil {
+			return nil, "", fmt.Errorf("積んだ課題の前の課題 %s が kanban で読めない: %v", on, err)
+		}
+		if prevBranch = p.Str("branch"); prevBranch == "" {
+			return nil, "", fmt.Errorf("積んだ課題の前の課題 %s の branch が kanban に無い", on)
+		}
+		if pv.BaseRefName == prevBranch {
+			from = base
+		}
+	}
+	stacked := facts.StackedOn != ""
 	if t.Str("status") != "review" {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("kanban の課題が review でない（%s）", t.Str("status")))
 	}
@@ -385,20 +415,21 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
 	}
 
-	// 積んだ課題の差分を分かれ目から数えるのは、PR が前の課題の branch に向いている間だけ。既定の branch などほかへ向いた PR は、
-	// マージで入る中身が分かれ目からの差分より多いことがある（前の課題の変更ごと入る）ので、GitHub の PR の差分で数える
-	from := stackedFrom(l, rows, t, pv.BaseRefName)
+	// 積んだ課題の差分を分かれ目から数えるのは、PR が前の課題の branch に向いている間だけ（from。stackedFrom と同じ決まりを、上で読んだ
+	// 前の課題の branch 1 つで決める）。既定の branch などほかへ向いた PR は、マージで入る中身が分かれ目からの差分より多いことがある
+	// （前の課題の変更ごと入る）ので、GitHub の PR の差分で数える
 	files, diff, err := prChanges(from, t, slug, number, head)
 	if err != nil {
 		return nil, "", err
 	}
 	if from == "" && len(files) != pv.ChangedFiles {
-		// 積んだ課題のファイルは分かれ目から数えるので、GitHub の数（PR の base との数）とは比べない
+		// 積んだ課題のファイルは分かれ目から数えるので、GitHub の数（PR の base との数）とは比べない（ADR-0067 決めたこと 8・9）。
+		// 積んだ課題の PR が既定の branch に向いていれば PR の差分で数えるので照らし、合わなければオーナーへ回す理由として behind の記録に写す
 		facts.Blockers = append(facts.Blockers, "files の件数が changedFiles と合わない（一覧の上限・取得中の変更）")
 	}
 	// 衝突は mergeable でも読む: 必須の check が足りない PR は mergeStateStatus が BLOCKED になり、
 	// 衝突と重なったときに DIRTY が返る順の決まりは GitHub の文書に無い（ADR-0056 決めたこと 13）
-	if pv.MergeStateStatus == "DIRTY" || pv.Mergeable == "CONFLICTING" {
+	if !stacked && (pv.MergeStateStatus == "DIRTY" || pv.Mergeable == "CONFLICTING") {
 		facts.Blockers = append(facts.Blockers, "conflict")
 	}
 
@@ -445,7 +476,10 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	if after != head {
 		return nil, fmt.Sprintf("判定の途中で PR の head が動いた（%s → %s）。取り直す", head, after), nil
 	}
-	if pv.BaseRefName != cr.DefaultBranch {
+	switch {
+	case stacked:
+		facts.StackedBaseOK = pv.BaseRefName == cr.DefaultBranch || pv.BaseRefName == prevBranch
+	case pv.BaseRefName != cr.DefaultBranch:
 		facts.Blockers = append(facts.Blockers, "base が既定ブランチでない")
 	}
 	if pv.Author.Login != cr.Viewer {
@@ -464,6 +498,10 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	rec.Review = ledger.Review{State: "off", Waived: len(rep.Waived)}
 	// 委譲の外（オーナーがマージする変更）でも条件表の検査を回す。委譲は決定式の最後に見る（ADR-0056 決めたこと 4）
 	gated := len(facts.LedgerReasons) == 0 && facts.PROpen && len(facts.Blockers) == 0 && facts.SettingsReason == "" && known
+	if stacked {
+		// 積んだ課題では、オーナーへ回す理由があっても判定を止めない（Decide が写す）。担当へ返す理由を拾うため、検査も回す
+		gated = len(facts.LedgerReasons) == 0 && facts.PROpen && facts.StackedBaseOK && facts.StackedDraft && known
+	}
 	if facts.ReviewRequired {
 		tasks, err := l.List()
 		if err != nil {
@@ -479,7 +517,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		}
 	}
 	facts.Checks = rec.Checks
-	if gated {
+	if gated && !stacked {
 		// 古い base: PR の分かれ目より後に既定ブランチで検査の置き場が変わっていれば、この PR の checks は今の検査を通っていない。
 		// 条件表の検査（分単位）のあとに読み、判定からマージまでの間に既定ブランチが動く窓を狭める
 		moved, ahead, unread, err := baseFiles(slug, head, pv.BaseRefName)

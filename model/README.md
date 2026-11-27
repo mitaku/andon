@@ -41,13 +41,13 @@ model/check --draft <フォルダ> [<モジュール>]
 | ファイル | 中身 |
 |---|---|
 | `IssueLife.tla` | 状態の変数と行動（コマンド・dispatcher・オーナーの動き・gate が決めたあとの変化）。行動ごとに写したコードの場所 |
-| `IssueRules.tla` | 規則 R1〜R14（`IssueLife` を読む。R7 は文で書き、確かめるのは `reach.mjs`） |
+| `IssueRules.tla` | 規則 R1〜R21（`IssueLife` を読む。R7・R18・R20 は文で書き、確かめるのは `reach.mjs`） |
 | `IssueRules.cfg` | 検査器の設定（調べる規則の並び）と、`reach.mjs` が読む `\* REACH` の行 |
 | `reach.mjs` | 状態の図を読んで「行ける」の形の規則を確かめる（`check` が打つ。Node の標準だけ） |
 | `issue-map.txt` | 対応表: 行動とコマンドの対応と、「モデルの外」と名指しする `issue.yaml` の行 |
 | `conform.mjs` | 状態の図と `issue.yaml` を対応表で照らす（`check` が打つ。Node の標準だけ） |
 | `expected.txt` | 調べるはずの規則・状態の数の控えと、見本ごとの落ちるはずの規則 |
-| `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動きと、ADR-0032 決めたこと 8 で直す review-request の守り）と、守りを外した見本（ADR-0034 決めたこと 3 の、マージの直前の読み直しと、閉じた PR の聞き直し。ADR-0042 決めたこと 19 の、ペインの答えの通知と、開いている問いだけに書く守り。ADR-0056 決めたこと 17 の、止める口が印を黄にする守りと、マージの直前に止めを読み直す守り） |
+| `broken/` | 直す前の動きに戻した見本（A-0002・A-0003・A-0006 で直した動きと、ADR-0032 決めたこと 8 で直す review-request の守り）と、守りを外した見本（ADR-0034 決めたこと 3 の、マージの直前の読み直しと、閉じた PR の聞き直し。ADR-0042 決めたこと 19 の、ペインの答えの通知と、開いている問いだけに書く守り。ADR-0056 決めたこと 17 の、止める口が印を黄にする守りと、マージの直前に止めを読み直す守り。ADR-0067 決めたこと 16 の、前の課題が main に入ったあとの判定のやり直しと、積んだ PR のマージの守りと、前の課題が終わったことの知らせ）。積む前からある見本は、前の課題の無い課題（`prev = "none"`）だけを見る（積んだ課題の動きは見本が壊したものに関わらず、状態の図が大きくなりすぎるため） |
 | `check` | 入口 |
 | `package.json`・`package-lock.json` | 検査器のバージョン |
 
@@ -78,10 +78,17 @@ model/check --draft <フォルダ> [<モジュール>]
 | R12 `R12_NoMergeBeforeGate` | repo の ruleset が印 `andon/gate` を必須にしていれば、gate が渡していない head も、止めている間の PR も、マージされない（オーナーのマージも dispatcher のマージも。ADR-0056 決めたこと 17） |
 | R13 `R13_GreenOnlyWhenReleased` | 開いている PR の今の head の印が緑なのは、gate がその head を approve か needs_human と判定していて、止めていないときだけ（ADR-0056 決めたこと 17） |
 | R14 `R14_NoAutoMergeWhileHeld` | dispatcher は、止めている PR を自分でマージしない（ruleset が印を必須にしていなくても。ADR-0056 決めたこと 17） |
+| R15 `R15_NoMergeWhileStacked` | 前の課題の branch に載ったままの PR は、マージされない（オーナーのマージも dispatcher のマージも。ADR-0067 決めたこと 16） |
+| R16 `R16_BehindIsNotReleased` | 前の PR 待ちと判定した PR には、緑の印が付かず、マージを渡したことにもならず、オーナーにマージを頼まない |
+| R17 `R17_ApproveOnlyOnMain` | gate が approve と判定するのは、既定の branch に載った PR だけ |
+| R18 `R18_RestackWithoutOwner` | 前の課題がマージされずに終わる場合を除き、届くどの状態からも、オーナーの判断も、だれかの push も、Chief of Staff の止めも借りずに、既定の branch に載った形まで行ける（「行ける」の形） |
+| R19 `R19_NoGreenWhileStacked` | 前の課題の branch に載ったままの head には、緑の印が付かない |
+| R20 `R20_ContinueAfterPrevEnds` | 前の課題がマージされずに終わっても、やめる口も、だれかの push も、Chief of Staff の止めも借りずに、既定の branch に載った形まで行ける（「行ける」の形） |
+| R21 `R21_ToldOnlyWhenGone` | 前の課題がマージされずに終わったと Chief of Staff に知らせるのは、終わったあとだけ |
 
 ### 「行ける」の形の規則
 
-R7 のほかの規則は「この状態のときはこうなっている」の形で、検査器が状態 1 つずつ確かめます（`INVARIANT`）。R7 の「どの状態からも、マージまで行ける道がある」は状態 1 つの式では書けません。検査器の時相の性質（`PROPERTY`）は「どの道を進んでも」の形なので、これも「行ける道がある」は言えません。そこで、検査器が書いた状態の図を `reach.mjs` が読み、初めの状態から届く状態のそれぞれから、マージした状態まで道があるかを辿ります。
+R7・R18・R20 のほかの規則は「この状態のときはこうなっている」の形で、検査器が状態 1 つずつ確かめます（`INVARIANT`）。R7 の「どの状態からも、マージまで行ける道がある」は状態 1 つの式では書けません。検査器の時相の性質（`PROPERTY`）は「どの道を進んでも」の形なので、これも「行ける道がある」は言えません。そこで、検査器が書いた状態の図を `reach.mjs` が読み、初めの状態から届く状態のそれぞれから、マージした状態まで道があるかを辿ります。
 
 R7 の取り消しは、Chief of Staff のやめる（`ChiefOfStaffCancels`）と、gate を待たずにオーナーが先にマージすること（`HumanMergesEarly`）です。オーナーのマージは同じ動きを 2 つの行動に分けてあり、gate が決めたあと（approve で `merge: person`・needs_human の問いにオーナーが答えた）のマージ（`HumanMergesDecided`）は道に数えます。破れていると、`reach.mjs` は行けない状態のうち初めから一番近いものと、そこまでの行動の並びを書きます。
 
@@ -117,6 +124,21 @@ gate の印 `andon/gate`（`mark`）と、Chief of Staff の止め（`hold`。is
 | `DispatcherAlignsMark` | dispatcher が PR を読むとき印を揃える。止めているのに緑なら黄に、doing に戻った課題の緑は赤に |
 
 R8 は、dispatcher がマージした状態で、gate の答えと head と設定を確かめます。マージしたあとは、head は動かず、PR も閉じず、設定の変更も入れていないので、マージした時点の値がそのまま残ります。
+
+## 積んだ課題
+
+前の課題の PR の branch の上で起動する課題（ADR-0067 決めたこと 16）を入れてあります。モデルは課題 1 つの一生なので、前の課題はその PR の状態だけを変数で持ちます。`base` はこの課題の branch が載っている所（`main` か、前の課題の branch の `prev`）、`prev` は前の課題の PR（`none`・`waiting`・`merged`・`gone`）、`prevTold` は前の課題がマージされずに終わったことを Chief of Staff に知らせたかです。起動（`ChiefOfStaffStarts`）は、前の課題が main に入っていなければその branch の上に載せます。approve・オーナー待ち・dispatcher のマージ・オーナーのマージは、既定の branch に載った PR だけに起きます。
+
+| 行動 | 中身 |
+|---|---|
+| `GateSaysBehind` | gate が前の PR 待ち（`behind`）と判定する。印は黄。CI の結果が無い head にも起きる |
+| `WorkerRestacks` | `andon issue restack`。担当が既定の branch の先へ載せ直し、PR の向き先を既定の branch にする |
+| `PrevMerges` | 前の課題の PR が main に入る。`Regate` が、前の PR 待ちの判定を捨てて回し直す |
+| `PrevEnds` | 前の課題がマージされずに終わる |
+| `GateTellsPrevGone` | 前の課題が終わったことを、dispatcher が Chief of Staff に知らせる |
+| `ChiefOfStaffContinuesWithoutPrev` | 知らせたあと、オーナーの答えで Chief of Staff が担当へ返す |
+
+待つ相手（`after`）と kanban の守り、3 つ以上積んだ列の 2 つ目から上、オーナーが draft を外して積んだ PR を前の課題の branch へマージすることは、モデルの外です（受け入れ条件の筋書きのテストで見る）。
 
 ## モデルが省いたもの
 

@@ -76,7 +76,7 @@ func TestJSONLeaves(t *testing.T) {
 func TestExitsInHelp(t *testing.T) {
 	want := map[string][]int{
 		"open": {3}, "design start": {3}, "issue start": {3}, "issue impact": {4}, "triage collect": {4},
-		"gate": {1, 3, 4, 5}, "schema check": {1, 2},
+		"gate": {1, 3, 4, 5, 6}, "schema check": {1, 2},
 	}
 	got := map[string][]int{}
 	for _, l := range leaves {

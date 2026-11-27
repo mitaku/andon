@@ -21,6 +21,8 @@ func headline(decision string) string {
 		return "作った側が直してから出し直す変更です"
 	case "needs_human":
 		return "メンテナーの判断が要る変更です"
+	case "behind":
+		return "前の変更のマージを待っている変更です"
 	}
 	return "判定できなかった変更です"
 }
@@ -45,7 +47,12 @@ func StatusDescription(rec *Record) string {
 func CommentBody(rec *Record) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s**%s**（commit %s）\n\n", CommentPrefix, headline(rec.Decision), rec.Head)
-	for _, r := range rec.Reasons {
+	for i, r := range rec.Reasons {
+		// 前の PR 待ちの 2 行目からは、積んでいる間は判定に使わず写したオーナーへ回す理由（ADR-0067 決めたこと 8）
+		if rec.Decision == "behind" && i > 0 {
+			fmt.Fprintf(&b, "- 前の変更が入ったあとに見ること: %s\n", outsideReason(r))
+			continue
+		}
 		fmt.Fprintf(&b, "- 理由: %s\n", outsideReason(r))
 	}
 	tr := make([]string, len(rec.TierReasons))
@@ -119,6 +126,9 @@ var reasonRewrites = []rewrite{
 	{regexp.MustCompile(`^PR が open でない・draft$`), fixed("PR が開いていない、または draft")},
 	{regexp.MustCompile(`^files の件数が changedFiles と合わない`), fixed("変更されたファイルの一覧を読み切れなかった")},
 	{regexp.MustCompile(`^conflict$`), fixed("既定ブランチと衝突している")},
+	{regexp.MustCompile(`^前の課題 .* の PR がまだ main に入っていない$`), fixed("この変更が載っている前の変更が、まだ既定ブランチに入っていない")},
+	{regexp.MustCompile(`^積んだ PR の向き先が、前の課題 .* の branch でも既定ブランチでもない$`), fixed("PR の向き先が、この変更が載っている前の変更の branch でも既定ブランチでもない")},
+	{regexp.MustCompile(`^積んだ PR が draft でない`), fixed("前の変更が既定ブランチに入るまで、この PR は draft で置く")},
 	{regexp.MustCompile(`^fork の PR$`), fixed("fork からの PR")},
 	{regexp.MustCompile(`^base が既定ブランチでない$`), fixed("PR の向き先が既定ブランチでない")},
 	{regexp.MustCompile(`^作者がセルの gh アカウントでない$`), fixed("PR の作者が、andon gate を回しているアカウントでない")},

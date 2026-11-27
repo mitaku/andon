@@ -202,6 +202,8 @@ type Gate struct {
 	Decision string   `json:"decision"`
 	Reasons  []string `json:"reasons"`
 	Merged   bool     `json:"merged"`
+	// restack は載せ替えを頼む直しの印（ADR-0067 決めたこと 8）。出力には出さず、差し戻しの率から外すのに読む（gate.Counted）
+	restack bool
 }
 
 type Review struct {
@@ -899,6 +901,7 @@ func (r *reader) gates(dir string) []Gate {
 		g.Tier, _ = v["tier"].(string)
 		g.Decision, _ = v["decision"].(string)
 		g.Merged, _ = v["merged"].(bool)
+		g.restack, _ = v["restack"].(bool)
 		g.Reasons = strings1(v["reasons"])
 		if g.Head == "" || g.Decision == "" {
 			r.skip(r.rel(f), "head か decision が無い")

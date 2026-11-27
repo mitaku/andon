@@ -58,6 +58,10 @@ func recordReasons(t *testing.T) []string {
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{"pending", []string{"test"}} },
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{State: "none"}; f.ChecksOverdue = true },
 		func(f *Facts) { f.GitHubChecks = GitHubChecks{State: "none"} },
+		// 積んだ課題（ADR-0067 決めたこと 8）: 前の PR 待ちの 1 行目と、担当へ返す 2 つの理由
+		func(f *Facts) { f.StackedOn, f.StackedDraft, f.StackedBaseOK = "S-0001", true, true },
+		func(f *Facts) { f.StackedOn, f.StackedDraft = "S-0001", true },
+		func(f *Facts) { f.StackedOn, f.StackedBaseOK = "S-0001", true },
 	}
 	var out []string
 	for _, m := range mods {
@@ -168,7 +172,7 @@ func TestCommentHasNoInsideWords(t *testing.T) {
 			t.Errorf("記録の区分の理由に外向けの文が無い: %q", r)
 		}
 	}
-	for _, d := range []string{"approve", "fix", "needs_human"} {
+	for _, d := range []string{"approve", "fix", "needs_human", "behind"} {
 		for _, tier := range []string{"A", "B", "C"} {
 			rec := &Record{Head: strings.Repeat("a", 40), At: "2026-11-19T00:00:00Z", Tier: tier, TierReasons: tierReasons,
 				ChangedLines: 10, Checks: []Check{{"go test ./...", false}}, GitHubChecks: GitHubChecks{"failure", []string{"test"}},
@@ -195,7 +199,7 @@ func TestCommentHasNoInsideWords(t *testing.T) {
 
 func TestCommentHeadlinePerDecision(t *testing.T) {
 	seen := map[string]bool{}
-	for _, d := range []string{"approve", "fix", "needs_human"} {
+	for _, d := range []string{"approve", "fix", "needs_human", "behind"} {
 		h := strings.SplitN(CommentBody(&Record{Decision: d, Tier: "B"}), "\n", 2)[0]
 		if seen[h] {
 			t.Errorf("%s の見出しがほかの判定と同じ: %q", d, h)
@@ -237,5 +241,28 @@ func TestOutsideTierReasonNotGrown(t *testing.T) {
 	}
 	if got := outsideTierReason("追加行 " + `\bsudo\b`); got != "メンテナーが見ると決めた形の行を足した（`\\bsudo\\b`）" {
 		t.Errorf("増えた追加行の外向けの文 = %q", got)
+	}
+}
+
+// ADR-0067 決めたこと 8: 前の PR 待ちのコメントの見出しと、印の黄。前の課題の名前（kanban の番号）は外へ出さず、
+// 写したオーナーへ回す理由は「前の変更が入ったあとに見ること」として並べる。
+func TestCommentBehind(t *testing.T) {
+	_, reasons := Decide(Facts{PROpen: true, RepoKnown: true, Tier: "C", MergeLevel: "B", GitHubChecks: GitHubChecks{State: "success"},
+		Blockers: []string{"作者がセルの gh アカウントでない"}, StackedOn: "S-0042", StackedDraft: true, StackedBaseOK: true})
+	rec := &Record{Head: strings.Repeat("a", 40), Decision: "behind", Tier: "C", Reasons: reasons}
+	body := CommentBody(rec)
+	for _, want := range []string{"andon gate: **前の変更のマージを待っている変更です**",
+		"- 理由: この変更が載っている前の変更が、まだ既定ブランチに入っていない",
+		"- 前の変更が入ったあとに見ること: PR の作者が、andon gate を回しているアカウントでない",
+		"- 前の変更が入ったあとに見ること: 自動でマージしてよい範囲を超える変更"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("コメントに %q が無い:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "S-0042") {
+		t.Errorf("コメントに前の課題の番号が出た:\n%s", body)
+	}
+	if m, ok := DecisionMark("behind", reasons); !ok || m.State != "pending" || m.Description != "andon gate: 前の PR のマージを待っている" {
+		t.Errorf("前の PR 待ちの印 = %+v %v", m, ok)
 	}
 }

@@ -19,14 +19,19 @@ const (
 	heldDescription     = CommentPrefix + "メンテナーの確認を待っています"
 	reworkDescription   = CommentPrefix + "作った側が直しています"
 	documentDescription = CommentPrefix + "仕様・設計の文書です。メンテナーがマージします"
+	// behindDescription は前の PR 待ち（behind）の黄。理由を足さない（前の課題の名前を外に出さない。ADR-0067 決めたこと 8）
+	behindDescription = CommentPrefix + "前の PR のマージを待っている"
 )
 
 // descriptionLimit は commit status の説明文の上限（GitHub は 140 字を超えると断る）。
 const descriptionLimit = 140
 
-// DecisionMark は、通した（approve）とオーナー待ち（needs_human）は緑、差し戻し（fix）は赤。wait と知らない判定は書かない（false）。
+// DecisionMark は、通した（approve）とオーナー待ち（needs_human）は緑、差し戻し（fix）は赤、前の PR 待ち（behind）は黄。
+// wait と知らない判定は書かない（false）。
 func DecisionMark(decision string, reasons []string) (Mark, bool) {
 	switch decision {
+	case "behind":
+		return Mark{"pending", behindDescription}, true
 	case "approve", "needs_human":
 		return Mark{"success", describe(decision, reasons)}, true
 	case "fix":

@@ -111,15 +111,16 @@
     },
     "gate": {
       "description": "kind gate: the result of `andon gate` run by the dispatcher.",
-      "type": "object", "required": ["decision", "reasons", "record"], "additionalProperties": false,
+      "type": "object", "required": ["decision", "reasons"], "additionalProperties": false,
       "properties": {
-        "decision": { "description": "As in the gate record.", "enum": ["approve", "fix", "needs_human"] },
+        "decision": { "description": "As in the gate record. behind without record: the gate could not decide on a stacked issue, which waits on the previous PR all the same.", "enum": ["approve", "fix", "needs_human", "behind"] },
         "reasons": { "description": "As in the gate record.", "type": "array", "items": { "type": "string" } },
         "record": { "description": "Path of the gate record.", "$ref": "#/$defs/path" },
         "unsent": { "description": "Only with decision fix: the worker's address the reasons could not be sent to (its terminal is gone). The notification is then delivered to the Chief of Staff.", "type": "string", "minLength": 1 },
         "no_agent": { "description": "Only with decision fix: the issue has no worker (agent is empty), so the reasons were sent to no one. The notification is then delivered to the Chief of Staff.", "const": true }
       },
       "allOf": [
+        { "if": { "properties": { "decision": { "enum": ["approve", "fix", "needs_human"] } } }, "then": { "required": ["record"] } },
         { "if": { "required": ["unsent"] }, "then": { "properties": { "decision": { "const": "fix" } } } },
         { "if": { "required": ["no_agent"] }, "then": { "properties": { "decision": { "const": "fix" } }, "not": { "required": ["unsent"] } } }
       ]

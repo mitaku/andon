@@ -1,6 +1,6 @@
 name: gate
 title: gate とマージ
-source: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたか必須の check で断られたマージを打ち直した回数。Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
+source: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたか必須の check で断られたマージを打ち直した回数。Polled は approve・needs_human・behind を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
 states:
   - id: waiting
     title: 待つ（review に入った行ごと。gate を回す。Row が今の行で Decision が空）
@@ -25,6 +25,8 @@ states:
     title: fix（理由を担当へ送った）
   - id: needs-human
     title: needs_human（問いを出した）
+  - id: behind
+    title: behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8）
   - id: merged
     title: マージした
     record: merge:Merged
@@ -38,6 +40,7 @@ transitions:
   - { from: waiting, to: held, on: "gate を回す（approve・merge person か委譲の外。§7.2 #4）", by: machine, command: andon issue merge, once: true }
   - { from: waiting, to: fix, on: "gate を回す（fix。理由を担当へ hc send。§7.2 #4）", by: machine, command: andon issue merge, once: true }
   - { from: waiting, to: needs-human, on: "gate を回す（needs_human。問いを出す。§7.2 #4）", by: machine, command: andon issue merge, once: true }
+  - { from: waiting, to: behind, on: "gate を回す（behind。積んだ課題で、今なら approve か needs_human の判定。gate が判定できなかったときも。通知 gate を届け、問いは出さない。§7.2 #4）", by: machine, command: andon issue merge, once: true }
   - { from: waiting, to: checks-pending, on: "gate を回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い）", by: machine, command: andon issue merge }
   - { from: checks-pending, to: checks-pending, on: "同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読む gate は回さない）", by: machine }
   - { from: checks-pending, to: waiting, on: "head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りで gate から）", by: machine }
@@ -57,6 +60,8 @@ transitions:
   - { from: fix, to: "[*]", on: "担当が直して doing に戻った", by: kanban, command: kanban start }
   - { from: needs-human, to: "[*]", on: "オーナーが答えた", by: person }
   - { from: needs-human, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から）", by: machine, command: andon issue merge }
+  - { from: behind, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から）", by: machine, command: andon issue merge }
+  - { from: behind, to: on-hold, on: "behind のあとに止められた（判定を捨てる）", by: machine, command: andon issue merge }
   - { from: waiting, to: on-hold, on: "Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す）", by: machine, command: andon issue merge }
   - { from: approved, to: on-hold, on: "approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9）", by: machine, command: andon issue merge }
   - { from: held, to: on-hold, on: "approve のあとに止められた（判定を捨てる）", by: machine, command: andon issue merge }

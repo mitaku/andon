@@ -3,6 +3,8 @@
 EXTENDS IssueRules
 
 BrokenWorkerReady ==
+    /\ UNCHANGED stackVars
+    /\ ~(base = "prev" /\ prev # "waiting")
     /\ status = "doing" /\ worker = "live" /\ pr = "open"
     /\ result \in {"clean", "mustfix"}
     /\ status' = "review" /\ gate' = "none" /\ fixSent' = FALSE /\ told' = FALSE
@@ -19,8 +21,12 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark
+    \/ GateSaysBehind \/ WorkerRestacks \/ PrevMerges \/ PrevEnds \/ ChiefOfStaffContinuesWithoutPrev \/ GateTellsPrevGone \/ Done
 
-BrokenSpec == Init /\ [][BrokenNext]_vars
+\* 前の課題の無い課題だけを見る（積んだ課題の動きは、この見本が壊したものに関わらない。状態の図を積む前の大きさに保つ。ADR-0067 決めたこと 16）
+BrokenInit == Init /\ prev = "none"
+
+BrokenSpec == BrokenInit /\ [][BrokenNext]_vars
 
 ====

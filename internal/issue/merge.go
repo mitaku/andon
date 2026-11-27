@@ -162,11 +162,23 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		return &w
 	}
 	var gr gateResult
-	if (code != 0 && code != 1 && code != 4 && code != 5) || json.Unmarshal(out.Bytes(), &gr) != nil {
-		w.Decision, res.State = "needs_human", "needs_human"
+	if (code != 0 && code != 1 && code != 4 && code != 5 && code != 6) || json.Unmarshal(out.Bytes(), &gr) != nil {
 		w.Approved, w.Retries = "", 0
 		why := fmt.Sprintf("andon gate %s: 終了コード %d %s", c.id, code, firstLine(errb.String()))
 		res.Log = append(res.Log, fmt.Sprintf("%s の gate が判定できない: %s", c.id, why))
+		// 積んだ課題では、判定できないときも前の PR 待ちに置く（オーナーに押せないマージの問いを出さない。ADR-0067 決めたこと 8）。
+		// 記録は無いので、報告の commit を判定した head として控え、head が動けば回し直す
+		if prev, _, ok := ledger.Stacked(rows, c.issue, c.l.ChiefOfStaff()); ok {
+			w.Decision, res.State = "behind", "behind"
+			if contract.IsSHA(rep.Commit) {
+				w.Sha = rep.Commit
+			}
+			w.Polled = now.UTC().Format("2006-01-02T15:04:05Z")
+			res.Notify = append(res.Notify, contract.Notice{Kind: "gate",
+				Detail: map[string]any{"decision": "behind", "reasons": []string{gate.BehindReason(prev), "gate が判定できない: " + why}}})
+			return &w
+		}
+		w.Decision, res.State = "needs_human", "needs_human"
 		c.askGate(res, GateFailedQuestion(c.id, c.issue.Str("title"), why))
 		return &w
 	}
@@ -197,6 +209,9 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		}
 	case "fix":
 		c.sendFix(gr, record, res)
+	case "behind":
+		// 前の PR 待ち（ADR-0067 決めたこと 8）: マージもオーナーへの問いもしない。通知 gate（上で積んだ）が Chief of Staff に届き、
+		// 枠が空いたことを知らせる。head が動くか止められたら、approve と同じに判定を捨てて回し直す（RegateWatched）
 	default:
 		kind := "irreversible"
 		if gr.Tier == "C" {
@@ -236,7 +251,7 @@ func (c *ctx) holdDecision(w *contract.Merging, reason string, err error, res *c
 	c.discardForHold(w, reason, res)
 }
 
-// discardForHold は、approve か needs_human を決めたあとに止められた判定を捨て、gate の問いを閉じる（ADR-0056 決めたこと 9）。
+// discardForHold は、approve か needs_human か behind を決めたあとに止められた判定を捨て、gate の問いを閉じる（ADR-0056 決めたこと 9）。
 // 止めている間の巡（holdDecision）と、止めてから外すまでに dispatcher が一度も見なかった巡（heldAfterDecision）が呼ぶ。
 func (c *ctx) discardForHold(w *contract.Merging, reason string, res *contract.Merge) {
 	if !RegateWatched(*w) {
@@ -319,9 +334,9 @@ func (c *ctx) headMoved(w *contract.Merging, rep *contract.Report, res *contract
 }
 
 // RegateWatched は、決めたことのある merge の記録 w が、PR の head が動いたら gate を回し直す対象か（純粋関数）。
-// approve か needs_human で、dispatcher がマージしておらず、判定した head が sha のとき。
+// approve か needs_human か behind（前の PR 待ち。ADR-0067 決めたこと 8）で、dispatcher がマージしておらず、判定した head が sha のとき。
 func RegateWatched(w contract.Merging) bool {
-	return (w.Decision == "approve" || w.Decision == "needs_human") && w.Merged == "" && contract.IsSHA(w.Sha)
+	return (w.Decision == "approve" || w.Decision == "needs_human" || w.Decision == "behind") && w.Merged == "" && contract.IsSHA(w.Sha)
 }
 
 // HeadMoved は、聞いた PR の state と head が、gate の判定した head から動いた（まだ open の PR に push された）ことを示すか（純粋関数）。

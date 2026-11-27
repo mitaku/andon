@@ -626,8 +626,9 @@ stk=$(change docs/s.md one); stk=$(change docs/s.md two)   # 積んだ課題の�
 git -C "$tmp/origin" checkout -q prev
 echo 'FROM new' > "$tmp/origin/Dockerfile"; git -C "$tmp/origin" add -A; as_agent git -C "$tmp/origin" commit -q --amend -m Dockerfile   # force push で書き直した前の課題
 [ "$(git -C "$tmp/origin" rev-parse prev)" != "$fork" ] || die '前の課題の branch を書き直せていない'
-# PR は open（draft だと Decide が件数の照らしより先に返し、理由に出ない）。GitHub の数（changedFiles）は分かれ目からの数とも、files の数とも違う
-view15() { jq -n --arg h "$stk" --arg b "$1" '{state:"OPEN",isDraft:false,headRefName:"stk",headRefOid:$h,baseRefName:$b,
+# PR は前の課題の branch に向いた draft（積んだ課題の PR の出し方。view15 <base> [false] で draft を外す）。前の課題の branch を書き直したので
+# base と衝突している。GitHub の数（changedFiles）は分かれ目からの数とも、files の数とも違う
+view15() { jq -n --arg h "$stk" --arg b "$1" --argjson d "${2:-true}" '{state:"OPEN",isDraft:$d,headRefName:"stk",headRefOid:$h,baseRefName:$b,
   mergeStateStatus:"DIRTY",mergeable:"CONFLICTING",author:{login:"plant-bot"},changedFiles:3,isCrossRepository:false}' > "$tmp/gh/view.json"; }
 view15 prev
 jq -n '[[{filename:"Dockerfile",additions:1,deletions:1},{filename:"docs/s.md",additions:2,deletions:0}]]' > "$tmp/gh/files.json"
@@ -639,23 +640,55 @@ HC_TERMINAL_ID=t5 kanban set "$kid" review=on must_fix=major branch=stk "worktre
 HC_TERMINAL_ID=t5 kanban set "$kid" status=doing >/dev/null
 git -C "$tmp/wt" fetch -q origin && git -C "$tmp/wt" checkout -q "$stk"
 HC_TERMINAL_ID=t7 "$andon" issue report "$kid" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
+# レビュアーの課題（積んだ課題の head を見た。指摘なし）
+krev=$(HC_TERMINAL_ID=t5 kanban add "$kid のレビュー" --parent "$kid" --profile codex-review)
+mkdir -p "kanban/issues/$krev/library"
+jq -n --arg c "$stk" '{commit: $c, findings: []}' > "kanban/issues/$krev/library/findings.json"
+HC_TERMINAL_ID=t5 kanban review "$krev" >/dev/null
 HC_TERMINAL_ID=t7 kanban review "$kid" >/dev/null
 got=$(gate "$kid" --dry-run)
 jq -e '.changed_lines == 2 and .tier != "C" and ([.tier_reasons[] | select(contains("Dockerfile"))] | length == 0)' "$tmp/out" >/dev/null ||
     { cat "$tmp/out" "$tmp/err" >&2; die "積んだ課題の差分に前の課題の変更が混ざった（rc $got）"; }
-jq -e '.decision == "needs_human" and ([.reasons[] | select(contains("conflict"))] | length == 1)' "$tmp/out" >/dev/null ||
-    { cat "$tmp/out" >&2; die "積んだ課題の gate の理由に止める理由（conflict）が出ない（件数の照らしを見る所まで来ていない）"; }
 if grep -q 'changedFiles と合わない' "$tmp/out"; then die '積んだ課題のファイルの件数を GitHub の数と比べた'; fi
-# 否定の確かめが当たる場合があることを同じ所で見る: PR が既定の branch に向いていると、マージで前の課題の変更ごと入るので、
-# 分かれ目から数えず、GitHub の PR の差分（前の課題の Dockerfile を含む）で数え、件数も照らす
-view15 main
+# 16. 前の PR 待ち（ADR-0067 決めたこと 8・受け入れ条件 4）: 積んだ課題の draft の PR（向き先は前の課題の branch）で、担当へ返す理由が無ければ
+#     behind（終了コード 6）。base と衝突していても、base が既定の branch でなくても、draft でも、オーナーへ回さず、rebase も求めない。
+#     記録を書き、印は黄、コメントの見出しは「前の変更のマージを待っている変更です」。記録の 1 行目は前の課題の名前
+expect 6 behind "前の課題 $prv の PR がまだ main に入っていない"
+jq -e --arg p "$prv" '.reasons[0] == "前の課題 \($p) の PR がまだ main に入っていない" and ([.reasons[] | select(contains("conflict") or contains("base が既定ブランチでない"))] | length == 0)' "$tmp/out" >/dev/null ||
+    { cat "$tmp/out" >&2; die '前の PR 待ちの記録の 1 行目が前の課題でない・衝突か base を理由にした'; }
+rm -f "$tmp/gh/posted" "$tmp/gh/bodies"
+got=$(gate "$kid"); expect 6 behind
+klib=kanban/issues/$kid/library
+jq -e '.decision == "behind"' "$klib/gate/$stk.json" >/dev/null || die '前の PR 待ちの記録を書いていない'
+emit "$klib/gate/$stk.json" gate-record-behind.json
+grep -q 'status .*context=andon/gate .*state=pending .*description=andon gate: 前の PR のマージを待っている' "$tmp/gh/posted" ||
+    die "前の PR 待ちの印が黄でない: $(cat "$tmp/gh/posted")"
+! grep -q 'status .*state=success' "$tmp/gh/posted" || die "積んだままの head に緑の印を書いた: $(cat "$tmp/gh/posted")"
+grep -q '^andon gate: \*\*前の変更のマージを待っている変更です\*\*' "$tmp/gh/bodies" || die "前の PR 待ちのコメントの見出しが違う: $(sed -n 1,3p "$tmp/gh/bodies")"
+! grep -q "$prv" "$tmp/gh/bodies" || die 'コメントに前の課題の番号（kanban の id）を出した'
+# 担当へ返す（受け入れ条件 5）: draft でない積んだ PR と、向き先が前の課題の branch でも既定の branch でもない積んだ PR
+view15 prev false
+got=$(gate "$kid" --dry-run); expect 1 fix '積んだ PR が draft でない'
+view15 other
+got=$(gate "$kid" --dry-run); expect 1 fix "積んだ PR の向き先が、前の課題 $prv の branch でも既定ブランチでもない"
+# 前の課題の branch が読めなければ、向き先が違うと取り違えて担当へ返さず、判定できないとして誤り（3）にする（dispatcher が前の PR 待ちに置く）
+view15 prev
+HC_TERMINAL_ID=t5 kanban set "$prv" branch= >/dev/null
 got=$(gate "$kid" --dry-run)
+[ "$got" = 3 ] && grep -q "前の課題 $prv の branch" "$tmp/err" || { cat "$tmp/out" "$tmp/err" >&2; die "前の課題の branch が読めないのに判定した（rc $got）"; }
+HC_TERMINAL_ID=t5 kanban set "$prv" branch=prev >/dev/null
+ok '積んだ課題の draft の PR は、衝突や base があっても前の PR 待ち（behind・印は黄・コメントの見出し）。draft でない・向き先が違えば担当へ返す'
+# 否定の確かめが当たる場合があることを同じ所で見る: PR が既定の branch に向いていると、マージで前の課題の変更ごと入るので、
+# 分かれ目から数えず、GitHub の PR の差分（前の課題の Dockerfile を含む）で数え、件数も照らす。合わない件数は、オーナーへ回す理由として
+# 前の PR 待ちの記録に写す
+view15 main
+got=$(gate "$kid" --dry-run); expect 6 behind 'changedFiles と合わない'
 jq -e '.tier == "C" and .changed_lines == 4' "$tmp/out" >/dev/null || { cat "$tmp/out" "$tmp/err" >&2; die "既定の branch に向いた積んだ PR を分かれ目から数えた（rc $got）"; }
-grep -q 'changedFiles と合わない' "$tmp/out" || { cat "$tmp/out" >&2; die '既定の branch に向いた積んだ PR の件数を GitHub の数と照らさない'; }
 view15 prev
 # レビューが要るかの判定（review: off の課題の andon issue review-request）も gate と同じ差分で決める: 前の課題の branch に向いた PR は
 # 分かれ目からの docs だけでレベル A なので頼めず、既定の branch に向いた PR は前の課題の Dockerfile ごと数えてレベル C なので頼める
 HC_TERMINAL_ID=t5 kanban set "$kid" status=doing review=off >/dev/null
+jq -n --arg c "$fork" '{commit: $c, findings: []}' > "kanban/issues/$krev/library/findings.json"   # 上のレビューは古い commit を見たことにする（頼み直せる）
 rr=0; (cd "$tmp/wt" && HC_TERMINAL_ID=t7 "$andon" issue review-request "$kid" </dev/null) >"$tmp/rr.out" 2>&1 || rr=$?
 [ "$rr" = 1 ] && grep -q 'gate はレビューを求めないので頼めない' "$tmp/rr.out" || { cat "$tmp/rr.out" >&2; die "前の課題の branch に向いた積んだ PR で、分かれ目からの docs だけの差分なのに review-request が頼めた（rc $rr）"; }
 view15 main
@@ -664,10 +697,12 @@ grep -q 'レベル C' "kanban/issues/$kid/report.md" || die "既定の branch �
 view15 prev
 HC_TERMINAL_ID=t5 kanban set "$kid" review=on >/dev/null
 HC_TERMINAL_ID=t7 kanban review "$kid" >/dev/null
-# 担当の端末が書き直した分かれ目は信じず、GitHub の混ざった差分で数える
+# 担当の端末が書き直した分かれ目は信じず、GitHub の混ざった差分で数え、積んだ課題としても扱わない（受け入れ条件 5）: 前の課題の
+# branch に向いた draft でない PR は、今までどおり base と衝突をオーナーへ回す（上の衝突と base を理由にしない確かめが、当たる場合）
 HC_TERMINAL_ID=t7 kanban set "$kid" stacked_base="$fork" >/dev/null
-got=$(gate "$kid" --dry-run)
-jq -e '.tier == "C" and .changed_lines == 4' "$tmp/out" >/dev/null || { cat "$tmp/out" "$tmp/err" >&2; die "担当の端末が書いた分かれ目を信じた（rc $got）"; }
+view15 prev false
+got=$(gate "$kid" --dry-run); expect 4 needs_human 'base が既定ブランチでない'
+jq -e '.tier == "C" and .changed_lines == 4 and any(.reasons[]; . == "conflict")' "$tmp/out" >/dev/null || { cat "$tmp/out" "$tmp/err" >&2; die "担当の端末が書いた分かれ目を信じた（rc $got）"; }
 ok '積んだ課題の gate は、前の課題の branch を書き直したあとも、分かれ目から数えた自分の変更だけでレベルと行数を決め、件数を GitHub の数と照らさない（PR が前の課題の branch に向いていなければ、担当の端末が書いた分かれ目なら、PR の差分で数える）'
 
 echo "all passed ($pass)"

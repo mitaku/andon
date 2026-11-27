@@ -4,11 +4,12 @@
 EXTENDS IssueRules
 
 BrokenChiefOfStaffHolds ==
+    /\ UNCHANGED stackVars
     /\ status \in {"doing", "review"} /\ pr \in {"open", "closed"} /\ ~hold
     /\ hold' = TRUE
-    /\ gate' = IF status = "review" /\ gate \in {"approve", "human"} THEN "none" ELSE gate
-    /\ told' = IF status = "review" /\ gate \in {"approve", "human"} THEN FALSE ELSE told
-    /\ moved' = IF status = "review" /\ gate \in {"approve", "human"} THEN FALSE ELSE moved
+    /\ gate' = IF status = "review" /\ gate \in {"approve", "human", "behind"} THEN "none" ELSE gate
+    /\ told' = IF status = "review" /\ gate \in {"approve", "human", "behind"} THEN FALSE ELSE told
+    /\ moved' = IF status = "review" /\ gate \in {"approve", "human", "behind"} THEN FALSE ELSE moved
     /\ UNCHANGED <<status, worker, wt, pr, reviewing, ci, result, headSeen, dirty, fixSent, q, cancel, mergeAuto, autoMerged, ans, news, sent, twice, mark, required, rel, badMerge>>
 
 BrokenNext ==
@@ -21,8 +22,12 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ BrokenChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
+    \/ BrokenChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark
+    \/ GateSaysBehind \/ WorkerRestacks \/ PrevMerges \/ PrevEnds \/ ChiefOfStaffContinuesWithoutPrev \/ GateTellsPrevGone \/ Done
 
-BrokenSpec == Init /\ [][BrokenNext]_vars
+\* 前の課題の無い課題だけを見る（積んだ課題の動きは、この見本が壊したものに関わらない。状態の図を積む前の大きさに保つ。ADR-0067 決めたこと 16）
+BrokenInit == Init /\ prev = "none"
+
+BrokenSpec == BrokenInit /\ [][BrokenNext]_vars
 
 ====

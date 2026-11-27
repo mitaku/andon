@@ -2,7 +2,7 @@
 
 > このファイルは `andon process render` が [`process/states/gate.yaml`](../../process/states/gate.yaml) から作ったもの。直すときは YAML を直して作り直す（手で直さない）。
 
-出所: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたか必須の check で断られたマージを打ち直した回数。Polled は approve・needs_human を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
+出所: dispatcher.md §5（P6a）・§3.2・contract.md §7・ADR-0010 決めたこと 1・ADR-0017 決めたこと 4 の (5)・5・6。andon issue merge の記録（<slug>.merge.json。書き手は merge だけ）の 1 件（課題ごと。review に入った log.jsonl の行を Row に持つ）が Decision・Merged・Wait・Approved で状態を持つ（Retries は base が動いたか必須の check で断られたマージを打ち直した回数。Polled は approve・needs_human・behind を決めたあと PR の head を最後に聞いた時刻）。dispatcher は review の課題ごとに merge を打ち、返った通知を積むだけ。gh の上限の待ちは kanban ごとなので dispatcher の控えに残す
 
 ## 図
 
@@ -17,6 +17,7 @@ stateDiagram-v2
   state "Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9）" as s_on_hold
   state "fix（理由を担当へ送った）" as s_fix
   state "needs_human（問いを出した）" as s_needs_human
+  state "behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8）" as s_behind
   state "マージした" as s_merged
   state "片付けた" as s_finished
   [*] --> s_waiting: review に入った
@@ -25,6 +26,7 @@ stateDiagram-v2
   s_waiting --> s_held: gate を回す（approve・merge person か委譲の外。§7.2 #4）
   s_waiting --> s_fix: gate を回す（fix。理由を担当へ hc send。§7.2 #4）
   s_waiting --> s_needs_human: gate を回す（needs_human。問いを出す。§7.2 #4）
+  s_waiting --> s_behind: gate を回す（behind。積んだ課題で、今なら approve か needs_human の判定。gate が判定できなかったときも。通知 gate を届け、問いは出さない。§7.2 #4）
   s_waiting --> s_checks_pending: gate を回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い）
   s_checks_pending --> s_checks_pending: 同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読む gate は回さない）
   s_checks_pending --> s_waiting: head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りで gate から）
@@ -44,6 +46,8 @@ stateDiagram-v2
   s_fix --> [*]: 担当が直して doing に戻った
   s_needs_human --> [*]: オーナーが答えた
   s_needs_human --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から）
+  s_behind --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から）
+  s_behind --> s_on_hold: behind のあとに止められた（判定を捨てる）
   s_waiting --> s_on_hold: Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す）
   s_approved --> s_on_hold: approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9）
   s_held --> s_on_hold: approve のあとに止められた（判定を捨てる）
@@ -65,6 +69,7 @@ stateDiagram-v2
 | `on-hold` | Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9） |  |
 | `fix` | fix（理由を担当へ送った） |  |
 | `needs-human` | needs_human（問いを出した） |  |
+| `behind` | behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8） |  |
 | `merged` | マージした | `merge:Merged` |
 | `finished` | 片付けた |  |
 
@@ -80,6 +85,7 @@ stateDiagram-v2
 | `waiting` | `held` | gate を回す（approve・merge person か委譲の外。§7.2 #4） | 機械 | `andon issue merge` | はい |
 | `waiting` | `fix` | gate を回す（fix。理由を担当へ hc send。§7.2 #4） | 機械 | `andon issue merge` | はい |
 | `waiting` | `needs-human` | gate を回す（needs_human。問いを出す。§7.2 #4） | 機械 | `andon issue merge` | はい |
+| `waiting` | `behind` | gate を回す（behind。積んだ課題で、今なら approve か needs_human の判定。gate が判定できなかったときも。通知 gate を届け、問いは出さない。§7.2 #4） | 機械 | `andon issue merge` | はい |
 | `waiting` | `checks-pending` | gate を回す（wait。PR の head の GitHub の checks が走っている・まだ1つも無い） | 機械 | `andon issue merge` |  |
 | `checks-pending` | `checks-pending` | 同じ head の checks がまだ走っている・1つも無く github_checks_wait_minutes の内（GraphQL の checks だけを読み、REST を読む gate は回さない） | 機械 |  |  |
 | `checks-pending` | `waiting` | head が動いた・checks が揃った・待ち時間を過ぎた・読めない（その見回りで gate から） | 機械 |  |  |
@@ -99,6 +105,8 @@ stateDiagram-v2
 | `fix` | （始まり・終わり） | 担当が直して doing に戻った | kanban の CLI | `kanban start` |  |
 | `needs-human` | （始まり・終わり） | オーナーが答えた | オーナー |  |  |
 | `needs-human` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から） | 機械 | `andon issue merge` |  |
+| `behind` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から） | 機械 | `andon issue merge` |  |
+| `behind` | `on-hold` | behind のあとに止められた（判定を捨てる） | 機械 | `andon issue merge` |  |
 | `waiting` | `on-hold` | Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す） | 機械 | `andon issue merge` |  |
 | `approved` | `on-hold` | approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9） | 機械 | `andon issue merge` |  |
 | `held` | `on-hold` | approve のあとに止められた（判定を捨てる） | 機械 | `andon issue merge` |  |

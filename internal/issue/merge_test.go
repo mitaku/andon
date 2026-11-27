@@ -173,7 +173,7 @@ func TestMergedBefore(t *testing.T) {
 	}
 }
 
-// gate が approve か needs_human を決めたあと、open の PR の head が判定した head から動いたときだけ回し直す。
+// gate が approve か needs_human か behind を決めたあと、open の PR の head が判定した head から動いたときだけ回し直す。
 // fix（担当が ready し直す）・dispatcher がマージした・オーナーがマージした・閉じた PR は回し直さない（dispatcher.md §5 の P6a）。
 func TestHeadMoved(t *testing.T) {
 	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
@@ -188,7 +188,9 @@ func TestHeadMoved(t *testing.T) {
 	}{
 		{"approve のあとに push された", m("approve", ""), "OPEN", h2, true},
 		{"needs_human のあとに push された", m("needs_human", ""), "OPEN", h2, true},
+		{"前の PR 待ち（behind）のあとに push された（ADR-0067 決めたこと 8）", m("behind", ""), "OPEN", h2, true},
 		{"head が同じ", m("approve", ""), "OPEN", h1, false},
+		{"前の PR 待ちで head が同じ", m("behind", ""), "OPEN", h1, false},
 		{"fix は担当が ready し直す", m("fix", ""), "OPEN", h2, false},
 		{"dispatcher がマージした", m("approve", strings.Repeat("c", 40)), "OPEN", h2, false},
 		{"オーナーが別の head でマージした（settle の道）", m("needs_human", ""), "MERGED", h2, false},

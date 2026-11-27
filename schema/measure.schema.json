@@ -116,7 +116,7 @@
           "required": ["records", "fix", "needs_human", "rate"],
           "additionalProperties": false,
           "properties": {
-            "records": { "description": "Gate records.", "$ref": "#/$defs/count" },
+            "records": { "description": "Gate records. Records deciding behind (waiting on the previous PR) and fix records marked restack are not counted.", "$ref": "#/$defs/count" },
             "fix": { "description": "Records with decision fix.", "$ref": "#/$defs/count" },
             "needs_human": { "description": "Records with decision needs_human.", "$ref": "#/$defs/count" },
             "rate": { "description": "(fix + needs_human) / records; null when none.", "$ref": "#/$defs/rate" }
@@ -425,7 +425,7 @@
           "required": ["records", "fix", "needs_human", "rate"],
           "additionalProperties": false,
           "properties": {
-            "records": { "description": "Gate records.", "$ref": "#/$defs/count" },
+            "records": { "description": "Gate records. Records deciding behind (waiting on the previous PR) and fix records marked restack are not counted.", "$ref": "#/$defs/count" },
             "fix": { "description": "Records with decision fix.", "$ref": "#/$defs/count" },
             "needs_human": { "description": "Records with decision needs_human.", "$ref": "#/$defs/count" },
             "rate": { "description": "(fix + needs_human) / records; null when none.", "$ref": "#/$defs/rate" }

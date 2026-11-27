@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"andon/internal/gate"
 	"andon/internal/ledger"
 	"andon/internal/trace"
 )
@@ -277,6 +278,9 @@ func profiles(xs []Issue, byID map[string]*issue, ids []string, bs map[string]*t
 		}
 		g.rounds = append(g.rounds, float64(rounds[x.Issue]))
 		for _, gr := range t.gates {
+			if !gate.Counted(gr.decision, gr.restack) {
+				continue
+			}
 			g.p.Gate.Records++
 			switch gr.decision {
 			case "fix":

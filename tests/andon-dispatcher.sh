@@ -319,10 +319,10 @@ ok 'review: off でも差分がレベル B なら、担当がレビューを頼�
 # 0f. 積んだ課題（ADR-0067 決めたこと 9・受け入れ条件 10）: Chief of Staff の端末が stacked_on・stacked_base を書いた課題のレビュアーを起動するとき、
 #     dispatcher は分かれ目をレビュアーの課題の review_base に書き（照合はこの書き手だけを信じる）、依頼書に分かれ目から読むよう書く
 prv=$(HC_TERMINAL_ID=t5 kanban add '前の課題' --profile claude --repo github.com/example/app)
-id=$(newtask '積んだ課題' person)
+id=$(newtask '積んだ課題' auto)   # merge: auto（0g で、approve ならマージする課題でも前の PR 待ちはマージしないことを見る）
 fork=$(git -C "$ANDON_WORKSPACE/.worktrees/app/demo-$id" rev-parse HEAD)
 HC_TERMINAL_ID=t5 kanban set "$id" stacked_on="$prv" stacked_base="$fork" >/dev/null
-work "$id" docs/s.md
+work "$id" docs/a.md   # 条件表の検査（test -f docs/a.md）が 0g の gate で通るように
 as_worker "$id" report --pr https://github.com/example/app/pull/7
 as_worker "$id" review-request
 dispatcher
@@ -335,8 +335,46 @@ if grep -qF "gh pr diff https://github.com/example/app/pull/7" "$L/issues/$rev/b
 # 否定の確かめが当たる場合があることを同じ所で見る: 積んでいない課題（0e まで）の依頼書は gh pr diff を読ませる
 plain=$(grep -lF "gh pr diff https://github.com/example/app/pull/7" "$L"/issues/*-r1/brief.md || true)
 grep -qv "/$rev/" <<<"$plain" || die '積んでいない課題の依頼書にも gh pr diff が無い（否定の確かめが何も見ていない）'
-HC_TERMINAL_ID=dispatcher kanban done "$rev" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null; HC_TERMINAL_ID=t5 kanban done "$prv" --force >/dev/null
 ok '積んだ課題のレビュアーを起動するとき、dispatcher が分かれ目を review_base に書き、依頼書に git diff <分かれ目>..<commit> で読むよう書く'
+
+# 0g. 前の PR 待ち（ADR-0067 決めたこと 8・受け入れ条件 15）: 積んだ課題の draft の PR（向き先は前の課題の branch）が review に入ると、
+#     gate が behind を決め、dispatcher はマージも問いもせず、通知 gate（behind）を積んだ控えを保存する。片付けると、behind の記録を
+#     含む結果の記録（outcome.json）が書ける。前の課題の branch が kanban に無い間は gate が判定できないが、問いにせず、記録の無い
+#     behind の通知にする（オーナーに押せないマージの問いを出さない）
+jq --arg b "demo/$prv" '.isDraft = true | .baseRefName = $b' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+review_by "$rev" '[]'
+as_worker "$id" ready
+dispatcher
+[ ! -e "$L/issues/$id/library/gate/$head.json" ] && [ ! -e "$L/issues/$id/library/questions" ] || die '前の課題の branch が無いのに gate が記録を書いた・問いを出した'
+pending "$id" gate | jq -e --arg p "$prv" '.detail.decision == "behind" and (.detail | has("record") | not)
+  and .detail.reasons[0] == "前の課題 \($p) の PR がまだ main に入っていない" and (.detail.reasons[1] | startswith("gate が判定できない: "))' >/dev/null ||
+    die "gate が判定できない積んだ課題の通知が、記録の無い behind でない: $(jq -c .pending "$state")"
+jq -e --arg t "$id" --arg h "$head" '.[$t].decision == "behind" and .[$t].sha == $h' "$mergerec" >/dev/null || die "判定できない積んだ課題の merge の記録が behind・報告の commit でない: $(jq -c --arg t "$id" '.[$t]' "$mergerec")"
+emit <(pending "$id" gate) notification-gate-behind-unread.json
+# 記録の無い前の PR 待ちも、並行の枠では前の PR 待ちに数え、動いている課題に数えない（担当は手を止めている）
+"$andon" waiting list --project demo --json >"$tmp/w0g.json" 2>"$tmp/w0g.err" || die "andon waiting list が落ちた: $(cat "$tmp/w0g.err")"
+jq -e '.slots.behind == 1' "$tmp/w0g.json" >/dev/null || die "記録の無い前の PR 待ちを枠の前の PR 待ちに数えない: $(jq -c .slots "$tmp/w0g.json")"
+jq --arg t "$id" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.new" && mv "$state.new" "$state"   # Chief of Staff に届いたことにする
+# 前の課題の branch が kanban に書かれたら、gate が判定する（merge の記録の決めたことを消して、次の巡で回し直させる）
+HC_TERMINAL_ID=t5 kanban set "$prv" "branch=demo/$prv" >/dev/null
+jq --arg t "$id" 'del(.[$t])' "$mergerec" > "$mergerec.new" && mv "$mergerec.new" "$mergerec"
+dispatcher
+rec=$L/issues/$id/library/gate/$head.json
+jq -e --arg p "$prv" '.decision == "behind" and .merged == false and .reasons[0] == "前の課題 \($p) の PR がまだ main に入っていない"' "$rec" >/dev/null ||
+    die "積んだ課題の gate の記録が behind でない: $(cat "$rec" 2>/dev/null)"
+! grep -qs "pr merge 7 .*--match-head-commit $head" "$tmp/gh/merges" || die '前の PR 待ちの PR（merge: auto）をマージした'
+grep -q "pr merge 7 .*--match-head-commit $head" <<<"pr merge 7 --repo example/app --squash --match-head-commit $head" || die '上のマージの否定の grep が、マージの打ち方に当たらない'
+[ ! -e "$L/issues/$id/library/questions" ] || die "前の PR 待ちでオーナーへの問いを出した: $(ls "$L/issues/$id/library/questions")"
+kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die '前の PR 待ちの課題が review でない'
+pending "$id" gate | jq -e --arg r "$rec" '.detail.decision == "behind" and .detail.record == $r' >/dev/null ||
+    die "通知 gate（behind）を控えの待ちに積んでいない: $(jq -c .pending "$state")"
+emit <(pending "$id" gate) notification-gate-behind.json
+jq --arg t "$id" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.new" && mv "$state.new" "$state"   # Chief of Staff に届いたことにする
+HC_TERMINAL_ID=dispatcher kanban done "$rev" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$id" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$prv" --force >/dev/null
+dispatcher
+jq -e '[.gates[] | select(.decision == "behind")] | length == 1' "$L/issues/$id/library/outcome.json" >/dev/null ||
+    die "behind の記録が残った課題の結果の記録が無い・behind が入らない: $(cat "$L/issues/$id/library/outcome.json" 2>/dev/null; tail -3 "$tmp/dispatcher.log")"
+ok '積んだ課題の draft の PR は gate が behind（前の PR 待ち）を決め、マージも問いもせず、通知を積んだ控えを保存する。片付けると behind を含む結果の記録が書ける'
 
 # 1. 一周: review-request → レビュアーを起動する → レビュー → ready → gate → マージ → finish。Chief of Staff は留守（端末が無い）でも回る（ADR-0017 決めたこと 8）
 id=$(newtask 'docs を直す' auto)
