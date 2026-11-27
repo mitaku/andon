@@ -23,7 +23,7 @@
 | 13 | ボードに 3 つ目の表示として、ガントチャートの形の Flow を足す | `package/host/kanban-board/main.js`・`package/host/kanban-board/README.md` | 生きている |
 | 14 | mod は `andon waiting --json` をセルで呼んで描き、数える式を持たない。ボードは読むだけのままにする | `package/host/waiting/main.js`・`package/host/kanban-board/main.js` | 生きている。ボードが呼ぶ command に、読むだけの `andon issue board` と `andon issue history` が増えた（[ADR-0059](0059-board-leaves-old-done-to-history.md) 決めたこと 12） |
 | 15 | Chief Engineer の文書から切った課題を、もとの Chief Engineer の課題に `parent` で結ぶ | `package/skills/chief-of-staff/playbooks/cut.md` | 生きている |
-| 16 | Chief of Staff がオーナーへ書く文は増やさず、マージの依頼に、後ろで待つ課題の数を書き足すだけにする | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/gate.md` | 生きている。数は `andon waiting list --json` の `holds` から、オーナーの課題を除いて数える |
+| 16 | Chief of Staff がオーナーへ書く文は増やさず、マージの依頼に、後ろで待つ課題の数を書き足すだけにする | `package/skills/ask-one-by-one/SKILL.md`・`package/skills/chief-of-staff/playbooks/gate.md` | 生きている |
 | 17 | 判断の問いには、ペインから選択肢で答えられる。マージは GitHub のままにする | `internal/waiting/answer.go`・`docs/contract.md` §25・`package/host/waiting/main.js` | 生きている |
 | 18 | 端末の外から書かれた答えをオーナーの答えとして扱い、戻せない決断はペインから答えられない | `internal/waiting/answer.go`・`internal/dispatcher/pickup.go`・`package/skills/chief-of-staff/playbooks/watch.md`・`package/host/waiting/main.js` | 生きている |
 | 19 | ペインの答えは、dispatcher が通知 `answered` で Chief of Staff に届け、Chief of Staff が担当へ渡す | `internal/dispatcher/pickup.go`・`docs/contract.md` §6・`package/skills/chief-of-staff/playbooks/watch.md`・`model/IssueRules.tla` | 生きている |
