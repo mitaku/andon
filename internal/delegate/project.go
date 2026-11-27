@@ -25,6 +25,13 @@ type Project struct {
 	Signals      []Signal        `json:"signals,omitempty"`
 	Digest       *Digest         `json:"digest,omitempty"`
 	Otel         *Otel           `json:"otel,omitempty"`
+	Tray         *Tray           `json:"tray,omitempty"`
+}
+
+// Tray は Cloudflare の tray へも送るというオーナーの選び（contract.md §11・ADR-0064 決めたこと 5・14）。書いてあることが、
+// このプロジェクトの報告を Cloudflare へ送ってよいという毎回の go。読むのは andon publish・andon digest send・andon issue report・andon tray status。
+type Tray struct {
+	Upload string `json:"upload"`
 }
 
 // Otel はハーネスのトレースとログの設定（contract.md §11・ADR-0060 決めたこと 11）。どのキーも任意で、無ければ送り、30 日と 10 GB で回す。
@@ -86,6 +93,8 @@ var (
 	channelRe = regexp.MustCompile(`^[CG][A-Z0-9]+$`)
 	prefixRe  = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
 	urlRe     = regexp.MustCompile(`^https://[!-~]+$`)
+	// trayUploadRe はアップロードの口のオリジン（https とホスト名だけ。パス・番号・利用者を書かない）
+	trayUploadRe = regexp.MustCompile(`^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]/?$`)
 )
 
 func ProjectRel(slug string) string { return filepath.Join("projects", slug, "project.json") }
@@ -150,6 +159,9 @@ func ParseProject(b []byte, slug string) (*Project, error) {
 	}
 	if err := checkDigest(p.Digest); err != nil {
 		return nil, err
+	}
+	if t := p.Tray; t != nil && !trayUploadRe.MatchString(t.Upload) {
+		return nil, fmt.Errorf("tray.upload がアップロードの口のオリジン（https://<ホスト名>）でない: %q", t.Upload)
 	}
 	if o := p.Otel; o != nil {
 		switch {

@@ -22,6 +22,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"andon/internal/delegate"
 	"andon/internal/redact"
 )
 
@@ -70,9 +71,31 @@ type Remote struct {
 }
 
 // RemoteFor は project が Cloudflare の tray へ送ると選んでいれば、その宛先を返す。選んでいなければ nil。
-// 選んだかは project.json の tray のキーで決まる（決めたこと 5・14）。そのキーを読む段は、Cloudflare に出す変更で足す。
-// それまでは、どのプロジェクトも選んでいない。検査は差し替えて、選んだプロジェクトの道を確かめる。
-var RemoteFor = func(workspace, project string) (*Remote, error) { return nil, nil }
+// 選んだかは project.json の tray のキーで決まる（決めたこと 5・14）。読むのは、ダイジェストの送り先と同じく
+// delegate.ReadProject を通した値（セルの repo の HEAD で、最後の commit の author がオーナーのもの）だけ。
+// 信じられない・形が違う・読めないときは誤りを返す（呼ぶ側はローカルの tray にだけ送る。安全側）。検査は差し替えてよい。
+var RemoteFor = remoteFor
+
+func remoteFor(workspace, project string) (*Remote, error) {
+	if project == "" || project == NoProject {
+		return nil, nil
+	}
+	p, err := delegate.ReadProject(workspace, project)
+	if errors.Is(err, delegate.ErrAbsent) {
+		// git の失敗も ErrAbsent に入るので、無いと言い切れるときだけ「選んでいない」にする
+		if err := delegate.ConfirmProjectAbsent(workspace, project); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if p.Tray == nil {
+		return nil, nil
+	}
+	return &Remote{Upload: strings.TrimRight(p.Tray.Upload, "/"), Key: ReadKey()}, nil
+}
 
 // Delivery は1件を送った結果。Remote と RemoteErr がどちらも nil なら、プロジェクトは Cloudflare を選んでいない。
 type Delivery struct {

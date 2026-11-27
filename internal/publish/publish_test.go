@@ -17,7 +17,8 @@ var now = time.Date(2026, 1, 2, 23, 4, 5, 600_000_000, time.UTC)
 func env(t *testing.T) (Env, *bytes.Buffer) {
 	t.Helper()
 	var w bytes.Buffer
-	return Env{Workspace: t.TempDir(), Project: "sample-site", Now: now, Warn: &w}, &w
+	// セルの repo（project.json の無い git の repo）。Cloudflare の tray を選んだかを、本物の読み口で「選んでいない」と読む
+	return Env{Workspace: traytest.CellRepo(t, traytest.Owner, nil), Project: "sample-site", Now: now, Warn: &w}, &w
 }
 
 func writeTemp(t *testing.T, name, body string) string {
@@ -225,5 +226,55 @@ func TestProject(t *testing.T) {
 	t.Setenv("PATH", t.TempDir()) // kanban の CLI が無い
 	if got := Project(); got != tray.NoProject {
 		t.Errorf("引けないとき: %q", got)
+	}
+}
+
+// 受け入れ条件 7: project.json に tray を書いたプロジェクトの報告だけが、偽の Cloudflare の tray に届く。書いていないプロジェクト、
+// プロジェクトを引けない報告、オーナーでない commit の tray の報告は届かない（どれもローカルの tray には届く）。
+// RemoteFor は差し替えず、セルの repo の HEAD の project.json を本物の読み口で読む。
+func TestPublishSendsToCloudflareOnlyWhenProjectChose(t *testing.T) {
+	loc, cf := traytest.New(t), traytest.New(t)
+	traytest.Local(t, loc)
+	traytest.Route(t, "tray-up.example.com", cf)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := os.MkdirAll(tray.KeyDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tray.KeyPath(), []byte("tray_key000000000000\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ws := traytest.CellRepo(t, traytest.Owner, map[string]string{
+		"chosen": traytest.ProjectJSON("https://tray-up.example.com"),
+		"plain":  traytest.ProjectJSON(""),
+	})
+	src := writeTemp(t, "a.md", "# a\n")
+	for _, p := range []string{"chosen", "plain", tray.NoProject} {
+		var w bytes.Buffer
+		url, err := Publish(Env{Workspace: ws, Project: p, Now: now, Warn: &w}, src, "a", "")
+		if err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		want := loc.URL
+		if p == "chosen" {
+			want = cf.URL
+		}
+		if !strings.HasPrefix(url, want) {
+			t.Errorf("%s: url = %q（%s のはず）warn=%q", p, url, want, w.String())
+		}
+	}
+	got := cf.Received()
+	if len(got) != 1 || got[0].Project != "chosen" || got[0].Auth != "Bearer tray_key000000000000" {
+		t.Fatalf("Cloudflare の tray に届いたもの: %+v", got)
+	}
+	if n := len(loc.Received()); n != 3 {
+		t.Errorf("ローカルの tray に届いた数 = %d（3 のはず）", n)
+	}
+
+	// オーナーでない commit の tray は読まず、ローカルの tray にだけ送って理由を出す
+	untrusted := traytest.CellRepo(t, "someone@example.com", map[string]string{"chosen": traytest.ProjectJSON("https://tray-up.example.com")})
+	var w bytes.Buffer
+	url, err := Publish(Env{Workspace: untrusted, Project: "chosen", Now: now, Warn: &w}, src, "b", "")
+	if err != nil || !strings.HasPrefix(url, loc.URL) || len(cf.Received()) != 1 || !strings.Contains(w.String(), "Cloudflare の tray の設定を読めない") {
+		t.Errorf("オーナーでない commit: url=%q err=%v 届いた=%d warn=%q", url, err, len(cf.Received()), w.String())
 	}
 }

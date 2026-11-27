@@ -125,6 +125,21 @@
         }
       }
     },
+    "tray": {
+      "description": "Also send this project's reports to the Cloudflare tray (ADR-0064 decisions 5 and 14). Written only by the owner: the key here is the owner's go for each sending. Absent: reports go only to the local tray in the cell. Read by andon publish, andon digest send, andon issue report and andon tray status.",
+      "type": "object",
+      "required": [
+        "upload"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "upload": {
+          "description": "Origin of the Cloudflare tray's upload endpoint: https and the host name only (no path, port or user).",
+          "type": "string",
+          "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]/?$"
+        }
+      }
+    },
     "otel": {
       "description": "The harness traces and logs (ADR-0060 decision 11). Read by andon otel env (whether role launches send to the receiver) and by the dispatcher's cleanup (the lifetime and the cap). Absent: send, and keep 30 days and 10 GB. Upper bounds (days 3650, max_gb 1048576) are checked by the command.",
       "type": "object",

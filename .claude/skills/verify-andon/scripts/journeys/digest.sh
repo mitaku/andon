@@ -90,6 +90,7 @@ step "dg-check-refuse: 送り先の無いまま確かめを打つ" "$andon" dige
 pkg=${VERIFY_PACKAGE:-/opt/andon}
 if [ ! -f "$pkg/tray/scripts/serve.mjs" ]; then
   echo "note dg-tray: $pkg/tray が無い（tray を入れていないパッケージ）。tray へ送る道は確かめていない"
+  echo "note dg-tray-remote: $pkg/tray が無い（tray を入れていないパッケージ）。project.json の tray の読み方は確かめていない"
 else
   printf 'TRAY_PORT=0\nPORTLESS_PORT=1355\n' >>"$ANDON_WORKSPACE/.env"
   ctl=$HOME/.local/state/andon/tray/serve.json
@@ -113,6 +114,30 @@ else
       ok "dg-tray: files/ に倒れた files の行が tray の URL に置き直り、publish が tray の URL を返して files/ に写さず、status が 2 枚と数える"
     else
       fail "dg-tray: files の行が置き直らないか、publish が tray の URL を返さないか files/ に写したか、status の枚数が違う"
+    fi
+    # dg-tray-remote: owner の commit で project.json に tray を書くと、そのプロジェクトは Cloudflare の tray へ送ると読む。
+    # 鍵を置かないので Cloudflare へは何も出ず、publish はローカルの tray に倒れて理由を出す。owner でない commit の tray は読まない
+    slug=$(sed -n 's/^Cloudflare の tray: \(.*\) は選んでいない.*/\1/p' "$tmp/step.out")
+    echo "  | プロジェクト: ${slug:-引けない}"
+    printf 'owner = "%s"\n' "$GIT_AUTHOR_EMAIL" >"$ANDON_WORKSPACE/andon.toml"
+    mkdir -p "$ANDON_WORKSPACE/projects/${slug:-none}"
+    printf '{"version": 1, "project": {"title": "verify", "prefix": "V"}, "repos": [], "tray": {"upload": "https://tray-up.invalid"}}\n' >"$ANDON_WORKSPACE/projects/${slug:-none}/project.json"
+    git -C "$ANDON_WORKSPACE" add -A && git -C "$ANDON_WORKSPACE" commit -q -m "tray を選ぶ"
+    step "dg-tray-remote: status" env ANDON_TRAY_OFF=0 "$andon" tray status
+    chosen=$(cat "$tmp/step.out")
+    echo "dg-tray-remote の確かめ" >"$tmp/tray-remote.md"
+    step "dg-tray-remote: publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-remote.md" tray-remote
+    rurl=$(grep -m1 '^http' "$tmp/step.out")
+    published=$(cat "$tmp/step.out")
+    printf ' \n' >>"$ANDON_WORKSPACE/projects/${slug:-none}/project.json"
+    git -C "$ANDON_WORKSPACE" add -A && GIT_AUTHOR_EMAIL=someone@example.com git -C "$ANDON_WORKSPACE" commit -q -m "owner でない"
+    step "dg-tray-remote: owner でない commit の status" env ANDON_TRAY_OFF=0 "$andon" tray status
+    if [ -n "$slug" ] && grep -qF "Cloudflare の tray: $slug は https://tray-up.invalid へ送る" <<<"$chosen" && grep -qF 'API キー: 無い' <<<"$chosen" \
+      && [[ "$rurl" == http*"/r/"* ]] && grep -qF 'API キーが無い' <<<"$published" \
+      && grep -qF "Cloudflare の tray: $slug の設定を読めない" "$tmp/step.out" && grep -qF 'owner でない' "$tmp/step.out"; then
+      ok "dg-tray-remote: owner の commit の tray は Cloudflare へ送ると読み、鍵が無いと publish はローカルの tray に倒れ、owner でない commit の tray は読まない"
+    else
+      fail "dg-tray-remote: project.json の tray の読み方が違う（status・publish の出力を見る）"
     fi
   fi
   kill -TERM "$spid" 2>/dev/null
