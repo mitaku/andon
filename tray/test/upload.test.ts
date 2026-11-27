@@ -203,6 +203,49 @@ describe("前の中身の掃除", () => {
     expect(await keys(id)).toEqual([`${id}/${s4}`]);
   });
 
+  // 重なる上げ直しの中身: 1日より前の中身へ戻す（X）と、新しい中身（W）
+  for (const back of ["X", "W"]) {
+    it(`掃除が一覧を読んだあとに、上げ直し（${back}）が重なっても、D1 が指す中身は消さない`, async () => {
+      const t = Date.now();
+      const name = `race-${back}`;
+      const id = await at(name, "X", t);
+      await at(name, "Y", t + 60_000);
+      const sx = await sha256Hex(back);
+      // A（中身 Z）の掃除が一覧を読んだ直後に、B（中身 X に戻す）が上げ直しを済ませる。消す直前に D1 を読み直す所と
+      // 消す所の間に重なった分は、次の検査（同じ中身の上げ直しが置き直す）が受ける
+      let raced = false;
+      const racing = new Proxy(env.BUCKET, {
+        get(target, prop) {
+          if (prop === "list") {
+            return async (opts?: R2ListOptions) => {
+              const listed = await target.list(opts);
+              if (!raced) {
+                raced = true;
+                await uploadAPI(await putRequest({ name, body: back }), uploadEnv(), "c1", t + 2 * OLD_CONTENT_MS);
+              }
+              return listed;
+            };
+          }
+          return Reflect.get(target, prop).bind(target);
+        },
+      });
+      await uploadAPI(await putRequest({ name, body: "Z" }), { ...uploadEnv(), BUCKET: racing }, "c1", t + 2 * OLD_CONTENT_MS);
+      expect(raced).toBe(true);
+      const row = await env.DB.prepare("SELECT sha256 FROM reports WHERE id = ?1").bind(id).first<{ sha256: string }>();
+      expect(row?.sha256).toBe(sx);
+      expect(await env.BUCKET.head(`${id}/${sx}`), "D1 が指す中身が R2 に在る").not.toBeNull();
+    });
+  }
+
+  it("D1 が指す中身が R2 に無ければ、同じ中身の上げ直しが置き直す（バージョンは上げない）", async () => {
+    const id = await at("heal", "1", Date.now());
+    const s1 = await sha256Hex("1");
+    await env.BUCKET.delete(`${id}/${s1}`);
+    const res = await uploadAPI(await putRequest({ name: "heal", body: "1" }), uploadEnv(), "c1");
+    expect(await res.json()).toMatchObject({ version: 1, bumped: false });
+    expect(await env.BUCKET.head(`${id}/${s1}`)).not.toBeNull();
+  });
+
   it("前の中身を消せなくても、上げは成り立つ", async () => {
     const broken = new Proxy(env.BUCKET, {
       get(target, prop) {

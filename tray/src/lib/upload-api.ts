@@ -59,8 +59,12 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ id: string; sha256: string; version: number }>();
   if (!cur) return error(500, "internal", "報告の行を作れない");
   const url = `${env.LIST_ORIGIN}/r/${cur.id}`;
-  // 中身が同じ出し直しはバージョンを上げない（読み終えた物を未読に戻さない）
-  if (cur.version > 0 && cur.sha256 === want) return json({ url, version: cur.version, bumped: false });
+  // 中身が同じ出し直しはバージョンを上げない（読み終えた物を未読に戻さない）。D1 が指す中身が R2 に無ければ（重なった
+  // 上げ直しの掃除が消したあと）置き直す
+  if (cur.version > 0 && cur.sha256 === want) {
+    if (!(await env.BUCKET.head(objectKey(cur.id, want)))) await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
+    return json({ url, version: cur.version, bumped: false });
+  }
 
   // R2 は中身ごとのキー（<id>/<sha256>）に先に書き、あとで D1 の sha256 とバージョンを1つの文で切り替える。同じ名前への上げが
   // 重なっても、D1 が指す sha256 の中身は R2 に必ず在り、タイトルや形式と食い違わない。前の中身は、切り替えたあとに dropOld が消す
@@ -73,7 +77,7 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ version: number }>();
   if (!up) return error(500, "internal", "バージョンを上げられない");
   await env.DB.prepare("INSERT INTO uploads (report_id, version, at) VALUES (?1, ?2, ?3)").bind(cur.id, up.version, now).run();
-  await dropOld(env.BUCKET, cur.id, want, now);
+  await dropOld(env, cur.id, want, now);
   return json({ url, version: up.version, bumped: true });
 }
 
@@ -82,14 +86,19 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
 export const OLD_CONTENT_MS = 24 * 60 * 60 * 1000;
 
 // dropOld: 同じ報告の前の中身のうち、R2 に置いてから OLD_CONTENT_MS を過ぎたものを消す。上げ直しのたびに、その報告の分だけを見る
-// （定期の処理を持たない）。消せなくても上げは成り立つ（次の上げ直しでまた消す）
-async function dropOld(bucket: R2Bucket, id: string, keep: string, now: number) {
+// （定期の処理を持たない）。消せなくても上げは成り立つ（次の上げ直しでまた消す）。
+// 一覧を読んでから消すまでに、同じ報告へ前の中身に戻す上げ直しが重なると、その中身が D1 の指す物になる。消す直前に D1 が今
+// 指す中身を読み直して除く（それでも消した分は、同じ中身の次の上げ直しが置き直す）
+async function dropOld(env: UploadEnv, id: string, keep: string, now: number) {
   try {
-    const listed = await bucket.list({ prefix: `${id}/` });
+    const listed = await env.BUCKET.list({ prefix: `${id}/` });
     const old = listed.objects
       .filter((o) => o.key !== objectKey(id, keep) && now - o.uploaded.getTime() > OLD_CONTENT_MS)
       .map((o) => o.key);
-    if (old.length > 0) await bucket.delete(old);
+    if (old.length === 0) return;
+    const cur = await env.DB.prepare("SELECT sha256 FROM reports WHERE id = ?1").bind(id).first<{ sha256: string }>();
+    const drop = old.filter((k) => !cur || k !== objectKey(id, cur.sha256));
+    if (drop.length > 0) await env.BUCKET.delete(drop);
   } catch {
     // 掃除の失敗で上げを落とさない
   }
