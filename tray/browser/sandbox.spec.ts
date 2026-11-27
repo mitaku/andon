@@ -91,18 +91,24 @@ test("報告のスクリプトは一覧の面に触れず、外へ移っても s
   expect(page.frames().map((f) => f.url())).toContain(`${outsideOrigin}/away`);
 
   // 一覧の API を呼べないので、鍵は作られていない。開いた報告は既読になった
-  const keys = await page.evaluate(async () => (await (await fetch("/api/cells")).json()).cells.length);
+  // （/api/cells は報告を上げた鍵の無いセルも並べるので、鍵を持つセルを数える）
+  const keys = await page.evaluate(
+    async () => (await (await fetch("/api/cells")).json()).cells.filter((c: { key: string }) => c.key !== "none").length,
+  );
   expect(keys).toBe(0);
   const unread = await page.evaluate(async () => (await (await fetch("/api/reports")).json()).reports.length);
   expect(unread).toBe(0);
 });
 
 test("一覧の面は、ほかのページの枠に入らない", async ({ page }) => {
+  // 枠の外で開けば、画面の根（#app）は在る（下の否定が何も見ずに通らないための確かめ）
+  await page.goto(`${tray.list_origin}/`);
+  await expect(page.locator("#app")).toHaveCount(1);
   await page.goto(`${outsideOrigin}/frame`);
   await page.setContent(`<iframe src="${tray.list_origin}/"></iframe>`);
   await page.waitForTimeout(1000);
   const child = page.frames().find((f) => f.url().startsWith(tray.list_origin));
   // frame-ancestors 'none' で読み込みが止まり、一覧の面の文書は枠の中に無い
-  const loaded = child ? await child.evaluate(() => document.getElementById("main") !== null).catch(() => false) : false;
+  const loaded = child ? await child.evaluate(() => document.getElementById("app") !== null).catch(() => false) : false;
   expect(loaded).toBe(false);
 });

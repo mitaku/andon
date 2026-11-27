@@ -40,7 +40,7 @@ export async function stopTray(t: Tray) {
 }
 
 // put: アップロードの口へ報告を上げ、答えを返す
-export async function put(t: Tray, name: string, body: string, contentType = "text/html; charset=utf-8", project = "andon") {
+export async function put(t: Tray, name: string, body: string | Uint8Array, contentType = "text/html; charset=utf-8", project = "andon") {
   const res = await fetch(`${t.upload}/v1/reports/${encodeURIComponent(project)}/${encodeURIComponent(name)}`, {
     method: "PUT",
     headers: {
