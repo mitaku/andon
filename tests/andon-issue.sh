@@ -54,7 +54,8 @@ gh_scene() { [ -z "$gh_open" ] || die "場面「$gh_open」が gh_restore で終
 gh_restore() { cp "$tmp/gh0" "$tmp/bin/gh"; cp "$tmp/prfiles0" "$tmp/prfiles"; rm -f "$tmp/prstate"; gh_open=; }
 gh_left() { # 初めの形と違うものを 1 つずつ 1 行で出す
     cmp -s "$tmp/gh0" "$tmp/bin/gh" || echo "偽の gh（$tmp/bin/gh）が作り直されたまま"
-    cmp -s "$tmp/prfiles0" "$tmp/prfiles" || echo "prfiles: $(jq -c . "$tmp/prfiles" 2>/dev/null || cat "$tmp/prfiles")"
+    [ "$(command -v gh)" = "$tmp/bin/gh" ] || echo "PATH の前に別の gh がある: $(command -v gh)"
+    cmp -s "$tmp/prfiles0" "$tmp/prfiles" || echo "prfiles: $(cat "$tmp/prfiles" 2>/dev/null || echo '無い')"
     if [ -e "$tmp/prstate" ]; then echo "prstate: $(cat "$tmp/prstate")"; fi
 }
 gh_settled() { # gh_settled <場面の名前>
@@ -80,6 +81,26 @@ expect_fail() {
     [ "$rc" = 1 ] && grep -q -- "$want" "$tmp/err" || { cat "$tmp/err" >&2; die "want rc 1 with '$want', got rc $rc: $*"; }
 }
 emit() { [ -z "${ANDON_EMIT_DIR:-}" ] || cp "$1" "$ANDON_EMIT_DIR/$2"; }
+# 照らし（gh_left）が当たる場合があることを、場面の前に変種ごとに見る（当たらない照らしは何も見ずに通る）。変種ごとに 1 か所だけ壊して
+# 照らしが 1 行出すこと、gh_restore で戻せば何も出さないことを見る
+path0=$PATH; missed=; kept=
+for v in script noscript prfiles noprfiles prstate path; do
+    case $v in
+        script) echo '# 場面が足した口' >> "$tmp/bin/gh" ;;
+        noscript) rm "$tmp/bin/gh" ;;
+        prfiles) prfiles model/issue-map.txt ;;
+        noprfiles) rm "$tmp/prfiles" ;;
+        prstate) echo MERGED > "$tmp/prstate" ;;
+        path) mkdir -p "$tmp/shadow"; cp "$tmp/bin/gh" "$tmp/shadow/gh"; PATH="$tmp/shadow:$PATH" ;;
+    esac
+    [ -n "$(gh_left)" ] || missed="$missed $v"
+    PATH=$path0; gh_restore
+    [ -z "$(gh_left)" ] || kept="$kept $v"
+done
+rm -rf "$tmp/shadow"
+[ -z "$missed" ] || die "照らしが変種（場面が偽の gh を替えたまま終える形）を見ない:$missed"
+[ -z "$kept" ] || die "gh_restore が変種を初めの形に戻さない:$kept"
+ok '照らしは、偽の gh の台本が替わる・消える・答え（prfiles・prstate）が替わる・別の gh が前に置かれる、のどれでも場面の名前で落とし、gh_restore で戻る'
 
 # 担当の worktree
 git init -q "$tmp/wt"

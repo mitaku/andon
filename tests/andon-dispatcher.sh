@@ -123,38 +123,55 @@ checks() { jq -n --arg s "$1" --arg c "${2:-}" '[{__typename: "CheckRun", name: 
 mkdir -p "$tmp/gh"; checks COMPLETED SUCCESS
 # 場面は偽の gh の答え（$tmp/gh/ の下）を共有する。場面が答えを書き換えたまま終わると、後ろに足した場面が前の場面の残りを踏んで、
 # 原因の分からない落ち方をする。そこで ok（場面の終わり）のたびに、答えが初めの形に戻っているかを照らし、戻っていなければ場面の名前で落とす。
-# 初めの形: view.json は work が書く形（head と branch は場面ごと）、rollup.json は checks の既定（通っている）、ほかの答えのファイルは無い。
-# 照らさないのは、打ったものの記録（calls など）・work が場面ごとに書く PR の事実（files.json・diff）・andon が head ごとに書いた印（marks）。
+# 初めの形: 偽の gh の台本は上で書いたまま（PATH で前に別の gh を置かない）、rollup.json は checks の既定（通っている）。PR の事実
+# （view.json の head と branch・files.json・diff）は最後の work が書いた形（work が $gh_work に控える。work の前は無い）で、view.json の
+# ほかの項目は gh_view0。ほかの答えのファイルは無い。照らさないのは、打ったものの記録（calls など）と andon が head ごとに書いた印（marks）。
 # 答えを書き換えたまま次の ok（場面）へ渡す並びは、gh_scene <名前> で始め、gh_reset で終える。その間の ok は照らさない
 gh_view0='{"state":"OPEN","isDraft":false,"baseRefName":"main","mergeStateStatus":"CLEAN","author":{"login":"plant-bot"},"changedFiles":1,"isCrossRepository":false}'
 gh_rollup0='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"}]'
-gh_kept=" calls states merges posted pages files.json diff marks view.json rollup.json "   # gh_reset が消さないもの（view.json と rollup.json は書き直す）
+gh_logs=" calls states merges posted pages marks "   # 照らさず、gh_reset も消さないもの
+gh_work=$tmp/gh-work   # work が書いた PR の事実の控え（head.json・files.json・diff）
+cp "$tmp/bin/gh" "$tmp/gh-script0"
+gh_mark_work() { mkdir -p "$gh_work"; jq -c '{headRefName, headRefOid}' "$tmp/gh/view.json" > "$gh_work/head.json"; cp "$tmp/gh/files.json" "$tmp/gh/diff" "$gh_work/"; }
 gh_open=   # 答えを渡している場面の名前（gh_scene が書き、gh_reset が消す）
 gh_scene() { [ -z "$gh_open" ] || die "場面「$gh_open」が gh_reset で終わる前に、場面「$1」を始めた"; gh_open=$1; }
-gh_left() { # 初めの形と違う答えのファイルを、1つずつ「名前: 中身」の行で出す
+gh_left() { # 初めの形と違うものを、1つずつ「名前: 中身」の行で出す（無くなったものも出す）
     local f n
+    cmp -s "$tmp/gh-script0" "$tmp/bin/gh" || echo "偽の gh の台本（$tmp/bin/gh）が作り直されたまま"
+    [ "$(command -v gh)" = "$tmp/bin/gh" ] || echo "PATH の前に別の gh がある: $(command -v gh)"
+    [ -e "$tmp/gh/rollup.json" ] || echo 'rollup.json: 無い'
+    if [ -e "$gh_work/head.json" ]; then
+        for n in view.json files.json diff; do [ -e "$tmp/gh/$n" ] || echo "$n: 無い（work が書いたあと消えた）"; done
+    fi
     for f in "$tmp/gh"/*; do
         [ -e "$f" ] || continue
         n=${f##*/}
-        case " calls states merges posted pages files.json diff marks " in *" $n "*) continue ;; esac
+        case $gh_logs in *" $n "*) continue ;; esac
         case $n in
-            view.json) jq -e --argjson v "$gh_view0" 'del(.headRefName, .headRefOid) == $v' "$f" >/dev/null || echo "$n: $(jq -c 'del(.headRefName, .headRefOid)' "$f")" ;;
+            view.json)
+                jq -e --argjson v "$gh_view0" 'del(.headRefName, .headRefOid) == $v' "$f" >/dev/null || echo "$n: $(jq -c 'del(.headRefName, .headRefOid)' "$f")"
+                if [ -e "$gh_work/head.json" ]; then
+                    jq -e --slurpfile w "$gh_work/head.json" '{headRefName, headRefOid} == $w[0]' "$f" >/dev/null || echo "$n: head と branch が work の書いた $(cat "$gh_work/head.json") でなく $(jq -c '{headRefName, headRefOid}' "$f")"
+                fi ;;
             rollup.json) jq -e --argjson r "$gh_rollup0" '. == $r' "$f" >/dev/null || echo "$n: $(jq -c . "$f")" ;;
+            files.json|diff) cmp -s "$gh_work/$n" "$f" || echo "$n: work が書いた形でない: $(head -c 200 "$f" | tr '\n' ' ')" ;;
             *) if [ -d "$f" ]; then echo "$n/: $(ls "$f" | tr '\n' ' ')"; else echo "$n: $(head -c 200 "$f" | tr '\n' ' ')"; fi ;;
         esac
     done
 }
-gh_reset() { # 答えを初めの形に戻す（PR の head と branch は今のまま）。場面の終わり（ok の前）に呼ぶ
+gh_reset() { # 答えを初めの形に戻す（PR の事実は最後の work が書いた形に）。場面の終わり（ok の前）に呼ぶ。PATH は戻さない（照らしが出す）
     local f
-    if [ -f "$tmp/gh/view.json" ]; then
-        jq --argjson v "$gh_view0" '{headRefName, headRefOid} + $v' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
-    fi
-    checks COMPLETED SUCCESS
     for f in "$tmp/gh"/*; do
         [ -e "$f" ] || continue
-        case $gh_kept in *" ${f##*/} "*) continue ;; esac
+        case $gh_logs in *" ${f##*/} "*) continue ;; esac
         rm -rf "$f"
     done
+    if [ -e "$gh_work/head.json" ]; then
+        jq --argjson v "$gh_view0" '. + $v' "$gh_work/head.json" > "$tmp/gh/view.json"
+        cp "$gh_work/files.json" "$gh_work/diff" "$tmp/gh/"
+    fi
+    checks COMPLETED SUCCESS
+    cp "$tmp/gh-script0" "$tmp/bin/gh"
     gh_open=
 }
 gh_settled() { # gh_settled <場面の名前>: 答えが初めの形でなければ、場面の名前と残ったものを出して落とす
@@ -264,6 +281,7 @@ work() { # work <id> <path>: 担当が commit して push し、PR 7 の事実�
     jq -n --arg p "$2" '[[{filename:$p,additions:1,deletions:0}]]' > "$tmp/gh/files.json"
     printf '+++ b/%s\n+x\n' "$2" > "$tmp/gh/diff"
     rm -f "$tmp/gh/merged"
+    gh_mark_work   # 場面の終わりの照らしが比べる PR の事実
 }
 restart() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 kanban start "$1" >/dev/null); }  # 直しが届いた担当
 as_worker() { (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$1" && HC_TERMINAL_ID=t7 "$andon" issue "$2" "$1" "${@:3}" <<<'## Report' >/dev/null); }
@@ -277,6 +295,41 @@ review_by() { # review_by <レビュアーの id> <findings>: レビュアーが
     jq -n --arg c "$head" --argjson f "$2" '{commit: $c, findings: $f}' > "$f"
     HC_TERMINAL_ID=t9 kanban review "$1" >/dev/null
 }
+
+# 照らし（gh_left）が当たる場合があることを、場面の前に変種ごとに見る（当たらない照らしは何も見ずに通る）。work が書いたのと同じ形の
+# PR を手で置き、変種ごとに 1 か所だけ壊して照らしが 1 行出すこと、gh_reset で戻せば何も出さないことを見る。終わったら PR の事実を消す
+gh_break() {
+    case $1 in
+        flag) touch "$tmp/gh/closed" ;;
+        draft) jq '.isDraft = true' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json" ;;
+        branch) jq '.headRefName = "demo/other"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json" ;;
+        head) jq --arg h "$(printf 'f%.0s' $(seq 40))" '.headRefOid = $h' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json" ;;
+        noview) rm "$tmp/gh/view.json" ;;
+        norollup) rm "$tmp/gh/rollup.json" ;;
+        rollup) checks IN_PROGRESS ;;
+        files) echo '[[{"filename":"model/issue-map.txt","additions":1,"deletions":0}]]' > "$tmp/gh/files.json" ;;
+        nofiles) rm "$tmp/gh/files.json" ;;
+        extra) jq '.mergeable = "CONFLICTING"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json" ;;
+        diff) : > "$tmp/gh/diff" ;;
+        script) echo '# 場面が足した口' >> "$tmp/bin/gh" ;;
+        path) mkdir -p "$tmp/shadow"; cp "$tmp/bin/gh" "$tmp/shadow/gh"; PATH="$tmp/shadow:$PATH" ;;
+    esac
+}
+jq -n --argjson v "$gh_view0" --arg h "$(printf '0%.0s' $(seq 40))" '{headRefName: "demo/selftest", headRefOid: $h} + $v' > "$tmp/gh/view.json"
+jq -n '[[{filename:"docs/a.md",additions:1,deletions:0}]]' > "$tmp/gh/files.json"; printf '+++ b/docs/a.md\n+x\n' > "$tmp/gh/diff"
+gh_mark_work
+[ -z "$(gh_left)" ] || die "前提: 照らしの自己確認の初めの形で、照らしが何か出した: $(gh_left)"
+path0=$PATH; missed=; kept=
+for v in flag draft branch head noview norollup rollup files nofiles diff extra script path; do
+    gh_break "$v"
+    [ -n "$(gh_left)" ] || missed="$missed $v"
+    PATH=$path0; gh_reset
+    [ -z "$(gh_left)" ] || kept="$kept $v"
+done
+[ -z "$missed" ] || die "照らしが変種（場面が答えを壊したまま終える形）を見ない:$missed"
+[ -z "$kept" ] || die "gh_reset が変種を初めの形に戻さない:$kept"
+rm -rf "$tmp/gh/view.json" "$tmp/gh/files.json" "$tmp/gh/diff" "$tmp/shadow" "$gh_work"
+ok '照らしは、答えのファイルが残る・消える・PR の向き先や head や draft や checks や差分が替わる・偽の gh の台本が替わる・別の gh が前に置かれる、のどれでも場面の名前で落とし、gh_reset で戻る'
 
 # 0. Chief of Staff の端末が生きていなくても（留守）kanban は回す（配る段だけ飛ばす。ADR-0017 決めたこと 8）。chief_of_staff が設定に無い kanban は飛ばす。
 #    初めて見る kanban は通知の元を控えるだけだが、今の review_request は拾う
@@ -1501,6 +1554,7 @@ dispatcher
 [ "$(nsent)" = "$((sends + 1))" ] && grep -q "^t7"$'\t'".*$nid.*この課題の PR でない" <<<"$(tail -n 1 "$tmp/hc/sent")" ||
     die "ほかの課題の PR を書いた担当に理由の fix を送らない: $(tail -n 1 "$tmp/hc/sent" 2>/dev/null)"
 HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
+gh_reset
 ok 'ほかの課題の branch の PR を報告に書いた課題には、gate は PR に何も書かず、理由の fix を担当へ送る'
 
 # 5g. この直しより前の報告に、ほかの課題のマージ済みの PR が入っていた。settle はこの課題を片付けない（結果と手直しの記録に混ぜない）。
@@ -1520,6 +1574,7 @@ out=$(cd "$ANDON_WORKSPACE/.worktrees/app/demo-$nid" && HC_TERMINAL_ID=t7 "$ando
 grep -q 'この課題の PR でないので引き継がない' <<<"$out" && jq -e '(.pr // "") == ""' "$L/issues/$nid/library/report.json" >/dev/null ||
     die "報告を書き直しても、ほかの課題の PR を引き継いだ: $out $(jq -c .pr "$L/issues/$nid/library/report.json")"
 rm -f "$tmp/gh/merged"; HC_TERMINAL_ID=t5 kanban done "$nid" --force >/dev/null; sed -i "/^t7 $nid\$/d" "$tmp/hc/live"
+gh_reset
 ok '直しの前の報告に入っていたほかの課題のマージ済みの PR では、settle は課題を片付けず、報告を書き直すとその pr を引き継がない'
 
 # 5h. 報告の課題（deliverable: report を Chief of Staff が書いた。検証・マージ後のレビュー）は、自分の commit があって
@@ -1976,6 +2031,7 @@ grep -q "$id をいまはマージしない.*PR の head が gate のあとに�
 dispatcher
 grep -q "^t7	\[gate\] $id（CI が走り直す）: gate が fix を返した。理由: .*report.json の commit が PR の head と違う" "$tmp/hc/sent" || die "回し直した gate が fix を担当へ返していない: $(tail -n 2 "$tmp/hc/sent" 2>/dev/null)"
 [ "$(wc -l < "$tmp/gh/merges")" = "$merges" ] || die '回し直しでマージした'
+gh_reset
 ok 'マージの直前に PR の head と GitHub の checks を読み直し、checks が変わった・head が動いたら打たない（回し直した gate が担当へ fix）'
 
 # 10. gate のあとオーナーが委譲の merge を取り消したら、マージしない（回し直した gate は needs_human）
