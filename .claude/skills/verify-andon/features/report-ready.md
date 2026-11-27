@@ -14,6 +14,8 @@
   - 見るファイル: `internal/issue/issue.go`、`internal/ledger/ledger.go`、`internal/gate/gate.go`
 - `rr-acceptance` 課題の予約キー `acceptance` が名指す受け入れ条件の番号のうち、報告に行の無い番号だけを名指して `ready` が断る。番号は数字だけの形（`1`）と A を付けた形（`A1`）を同じ番号と読む。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/contract/runs.go`
+- `rr-stacked` Chief of Staff の端末が `stacked_on`・`stacked_base` を書いた課題（積んだ課題）は、`after` の前の課題が `review` のままでも `kanban start` で `doing` に入り、`after` は残る。担当の端末が自分で書いたキーは信じず、前の課題を待つ相手に数えて断る（ADR-0067 決めたこと 5）。見る道: 検証の担当だけ。
+  - 見るファイル: `cmd/kanban/ledger.go`、`internal/ledger/stacked.go`、`internal/ledger/ledger.go`
 - `rr-ready` 揃った報告の `ready` で課題が `review` に入り、kanban の履歴に担当の端末の行が残る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/issue/leaves.go`、`internal/issue/transition.go`、`internal/ledger/ledger.go`、`internal/ledger/id.go`、`internal/ledger/config.go`、`internal/ledger/review.go`、`internal/gate/review.go`、`internal/gate/gate.go`、`cmd/andon/main.go`、`internal/cli/cli.go`、`internal/cli/leaves.go`、`cmd/kanban/ledger.go`、`cmd/kanban/lock_unix.go`、`cmd/kanban/main.go`、`cmd/kanban/paths.go`、`cmd/kanban/rename_other.go`、`cmd/kanban/yamldoc.go`
 
@@ -30,13 +32,14 @@
 - `scripts/doctor.sh` が終了コード 0。
 - 自分の課題が `doing`（記録を撮るため）。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready <検証する commit>` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として6つの細かい機能を順に動かす。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh report-ready <検証する commit>` を打つ。切り離した kanban に課題 `V-0001` を作り、担当の端末 `tw` として7つの細かい機能を順に動かす。
 - **記録を撮る。** `rr-record` の行に `andon issue record V-0001 -- git -C <worktree> log -1 --format=%H` が出る。`runs/1.json` の JSON（`exit_code` 0・`commit` が HEAD・`dirty` false）と `ok   rr-record` が見えれば動いた。
 - **断られる。** `rr-ready-refuse` の行に `andon issue ready` の終了コード 1 と理由1行（`report.json が無い`）が出る。`ok   rr-ready-refuse` が見えれば動いた。
 - **報告する。** 課題には `branch` を書いてある。偽の `gh` が初めにほかの branch（`other/branch`）を返すので、1回目の `rr-report` の行に `report --pr` の終了コード 1 と理由1行（`… この課題の PR でない …`）が出て、`report.json` は書かれない。続く `rr-report` の行で、ほかの課題の PR を入れた `report.json` を `--pr` を付けずに書き直し、「この課題の PR でないので引き継がない」の1行と、`pr` が空の `report.json` が出る。偽の `gh` を課題の branch に替えたあと、PR の行だけの報告を渡す `rr-report` の行に、終了コード 1 と理由1行（`… 見出し「## Report」の行が無い …`）が出て、`report.json` は変わらない。続けて `report.md` を PR の行だけに書き換えて `review-request` を stdin なしで打つ `rr-report` の行にも、同じ理由1行が出て、`report.json` は変わらない。最後の `rr-report` の行に、`report.json` の `commit`・`pr`・`acceptance` が出る。どちらも `ok   rr-report` が見えれば動いた。
 - **報告の課題で断られる。** `pr` の無い報告を書いたあと、`kanban set V-0001 deliverable=report`（Chief of Staff の端末 `tc` として）のあと `andon issue ready` と `andon gate` を打つ。`rr-ready-report` の行に、`ready` の終了コード 1 と理由1行（`deliverable: report の課題で PR が無いときは kanban review V-0001 で返す`）、`gate` の終了コード 3 と理由1行（`deliverable: report の課題で PR が無い。gate を回すものが無い`）が出る。続けて担当の端末 `tw` が `deliverable=report` を書き直すと、`ready` も `gate` も PR の課題として `report.json に pr が無い` 側の理由に「`deliverable: report` を書いたのが Chief of Staff でない」を添えて断る（`gate` は記録を書かない）。`ok   rr-ready-report` が見えれば動いた。そのあと Chief of Staff の端末 `tc` が `deliverable=report` を書き直し、`pr` のある報告で `rr-ready` まで続ける（`pr` があれば PR の課題と同じ確かめ）。
 - **受け入れ条件の番号で断られる。** 報告の行は `A1` だけのまま、`kanban set V-0001 acceptance=1,2`（Chief of Staff の端末 `tc` として）のあと `andon issue ready` を打つ。`rr-acceptance` の行に終了コード 1 と、足りない番号として `2` だけを名指す理由1行（`… review にしない: 2。…`）が出る。`ok   rr-acceptance` が見えれば動いた。そのあと予約キーを `acceptance=1` に書き直す。
 - **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`・`acceptance` が `1`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
+- **積んだ課題を起動する。** `rr-ready` のあと、前の課題を `review` に置き、それを `after` に持つ課題を2つ足す。1つは担当の端末 `tw` が `stacked_on`・`stacked_base` を書き、`rr-stacked` の行に `kanban start` の終了コード 1 と理由1行（`… waits for <前の課題> …`）が出て、課題は `queued` のまま。もう1つは Chief of Staff の端末 `tc` が書き、`kanban start` が通って `status` が `doing`、`after` が前の課題のまま。`log.jsonl` の `terminal:tc` の `stacked_on` の行と `terminal:tw` の `{"status":"doing"}` の行が出る。両方の `ok   rr-stacked` が見えれば動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
 
 ## 変えたら動かすパス

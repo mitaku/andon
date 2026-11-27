@@ -143,11 +143,13 @@ Any other key is allowed and kept.
 | `machine` | The machine the issue's agent runs on. |
 | `estimate` | A rough size of the issue (`small`, `medium`, `large`). |
 | `deliverable` | What the issue produces: `pr` (a pull request), `candidates` (a list of candidates, no pull request) or `report` (the report; a pull request is optional). |
+| `stacked_on`, `stacked_base` | The issue was started on top of an earlier issue's pull request branch: the earlier issue's id, and the commit the branch was cut from. Unlike the other keys here, `kanban` reads `stacked_on` (see Waiting). |
+| `review_base` | On a reviewer's issue: the commit the reviewed diff was counted from. |
 
 ### Status rules
 
 - **Done** is the last column (`done` by default).
-- **Waiting:** an issue waits on each id in `after` that is missing, unreadable, or not done.
+- **Waiting:** an issue waits on each id in `after` that is missing, unreadable, or not done, except the id its `stacked_on` names when that key is trusted: an issue started on top of an earlier issue's pull request may go to `doing` while the earlier one is still in review. `after` stays as it is. `kanban` trusts `stacked_on` only when the last `log.jsonl` lines that changed `stacked_on` and `stacked_base` were both written by the Chief of Staff's terminal of that time (`chief_of_staff`, followed through the `config` lines; the current `config.yaml` value when there are none), the values are the same as now, and `stacked_base` is a full commit id. Otherwise the earlier issue counts as waited on, as before.
 - **Ready:** status is `todo` or `queued`, it waits on nothing, and its `not_before` (if any) is today or earlier. (`kanban ready` lists these; `kanban ready --json` prints them as [ready.v3.schema.json](../schema/ledger/ready.v3.schema.json) says.) `not_before` only hides an issue from `kanban ready`; it changes no status and `after` still holds an issue back as well, so an issue with both shows once both are met.
 - `queued` means "added with something to wait for". When the last thing it waits for is done, `kanban done` (or `kanban set <id> status=<last column>`) moves it to the first column. So does `kanban set <id> after=…` when the rewritten `after` leaves nothing to wait for (an empty value removes it); a `status=` in the same command wins, and a `todo` issue given an `after` stays where it is.
 - **Needs you is not a status.** It comes from the agent's live state in herdr-core (blocked), never from the ledger. An issue's open questions (see Questions) are in the ledger; they are not a status either.

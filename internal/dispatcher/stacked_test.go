@@ -4,8 +4,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"andon/internal/contract"
 	"andon/internal/ledger"
@@ -141,5 +143,45 @@ func TestPreviousReviewBase(t *testing.T) {
 		if got := p.previousReviewBase("D-0002", prev); got != c.want {
 			t.Errorf("%s: %q（want %q）", c.name, got, c.want)
 		}
+	}
+}
+
+// 積んだ課題の詰まりの兆し（大きい差分）は、分かれ目から数える。前の課題の大きい変更を、積んだ課題の大きい差分と読まない。
+func TestSignsFromStackedBase(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	dir := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		c := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		c.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+		out, err := c.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q", "-b", "main")
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\n"), 0o644)
+	git("add", ".")
+	git("commit", "-q", "-m", "base")
+	git("update-ref", "refs/remotes/origin/main", "main")
+	git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	git("switch", "-q", "-c", "prev")
+	os.WriteFile(filepath.Join(dir, "big.txt"), []byte(strings.Repeat("x\n", diffLimit+1)), 0o644)
+	git("add", ".")
+	git("commit", "-q", "-m", "prev change")
+	fork := git("rev-parse", "HEAD")
+	git("switch", "-q", "-c", "stk")
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\nA\n"), 0o644)
+	git("commit", "-q", "-am", "stacked change")
+	now := time.Now()
+	if s := signs(dir, "", 60, now); !slices.Contains(s, "large-diff") {
+		t.Fatalf("前の課題の変更を含む merge-base からの差分が large-diff にならない（確かめが何も見ていない）: %v", s)
+	}
+	if s := signs(dir, fork, 60, now); slices.Contains(s, "large-diff") {
+		t.Errorf("分かれ目から数えた積んだ課題の差分を large-diff と読んだ: %v", s)
 	}
 }

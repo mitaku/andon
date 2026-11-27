@@ -122,6 +122,26 @@ step "rr-ready: ready を打つ" "$andon" issue ready "$id" \
 "$kanban" show "$id" --json | jq -c '.issue | {id, status, review, merge, acceptance, deliverable}' | sed 's/^/  kanban show: /'
 jq -c --arg id "$id" 'select(.id == $id and .change.status) | {by, change}' "$tmp/project/kanban/log.jsonl" | sed 's/^/  log.jsonl: /'
 
+# rr-stacked: 積んだ課題（ADR-0067 決めたこと 5）。Chief of Staff の端末（tc）が書いた stacked_on・stacked_base の課題は、after の前の課題が
+# review のままでも kanban start で doing に入る（after は残る）。担当の端末（tw）が自分で書いたキーは信じず、今までどおり断る
+sbase=$(git -C "$tmp/wt" rev-parse HEAD)
+sprev=$(HC_TERMINAL_ID=tc "$kanban" add "$run の前の課題" --profile claude)
+"$kanban" start "$sprev" >/dev/null && "$kanban" review "$sprev" >/dev/null
+smine=$(HC_TERMINAL_ID=tc "$kanban" add "$run の担当が積んだと書いた課題" --profile claude --after "$sprev")
+"$kanban" set "$smine" stacked_on="$sprev" stacked_base="$sbase" >/dev/null
+step "rr-stacked: 担当の端末が書いた stacked_on の課題を kanban start する" "$kanban" start "$smine" \
+  && fail "rr-stacked: 担当の端末が書いた stacked_on で、前の課題が review のまま kanban start が通った" \
+  || { grep -q "waits for $sprev" "$tmp/step.out" && [ "$("$kanban" show "$smine" --json | jq -r .issue.status)" = queued ] \
+    && ok "rr-stacked: 担当の端末が書いた stacked_on は信じず、前の課題を待つ相手に数えて断り、課題は queued のまま" \
+    || fail "rr-stacked: 断る理由が前の課題を待つことでないか、status が動いた"; }
+sid=$(HC_TERMINAL_ID=tc "$kanban" add "$run の積んだ課題" --profile claude --after "$sprev")
+HC_TERMINAL_ID=tc "$kanban" set "$sid" stacked_on="$sprev" stacked_base="$sbase" >/dev/null
+step "rr-stacked: Chief of Staff の端末が書いた stacked_on の課題を kanban start する" "$kanban" start "$sid" \
+  && [ "$("$kanban" show "$sid" --json | jq -r '.issue | [.status] + .after | join(" ")')" = "doing $sprev" ] \
+  && ok "rr-stacked: Chief of Staff の端末が書いた stacked_on の課題は、前の課題が review のままでも doing に入り、after は残る" \
+  || fail "rr-stacked: kanban start が断ったか、status が doing でないか、after が消えた"
+jq -c --arg id "$sid" 'select(.id == $id and (.change.stacked_on or .change.status)) | {by, change}' "$tmp/project/kanban/log.jsonl" | sed 's/^/  log.jsonl: /'
+
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
 sed 's/^/  /' "$tmp/hc.calls" "$tmp/gh.calls"

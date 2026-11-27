@@ -424,6 +424,10 @@ fail|issue-keys|.deliverable = "reports"|deliverable が pr/candidates/report �
 pass|issue-keys|. + {"later": "急がない", "later_until": "2026-12-01"}|置いておく印と戻す日（ADR-0062）
 fail|issue-keys|. + {"later": ""}|later が空
 fail|issue-keys|. + {"later_until": "12/01"}|later_until が YYYY-MM-DD でない
+pass|issue-keys|. + {"stacked_on": "A-0011", "stacked_base": "0123456789abcdef0123456789abcdef01234567"}|積んだ課題の前の課題と分かれ目（ADR-0067）
+fail|issue-keys|. + {"stacked_base": "main"}|stacked_base が commit の SHA でない
+pass|issue-keys|. + {"review_base": "0123456789abcdef0123456789abcdef01234567"}|レビュアーの課題の差分の起点（ADR-0067）
+fail|issue-keys|. + {"review_base": "0123456"}|review_base が 40 桁の SHA でない
 fail|issue-keys|.deliverable = "survey"|deliverable が pr/candidates/report でない（型の名前は値でない）
 pass|issue-keys|.estimate = "large"|estimate が large（見込みの段）
 fail|issue-keys|.estimate = "中"|estimate が段の名（値は英字の small/medium/large）

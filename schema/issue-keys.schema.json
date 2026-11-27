@@ -58,6 +58,21 @@
       "description": "The day (YYYY-MM-DD, in the ledger's timezone) from which an issue with later calls the owner again. Read as come when it is malformed or was not last written by the Chief of Staff terminal of that time. Missing: no day.",
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "stacked_on": {
+      "description": "The earlier issue (its id, one of after) whose pull request branch this issue was started on (ADR-0067). Written by the Chief of Staff terminal when the issue is started on top, removed by the worker's restack. Trusted only together with stacked_base, when the rows in log.jsonl that last changed both keys were written by the Chief of Staff terminal of that time and have the current values; an untrusted key reads as missing. While trusted, kanban does not count the earlier issue as waited on. Missing: not stacked.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "stacked_base": {
+      "description": "The commit the stacked issue's branch was cut from (the earlier issue's pull request head at that time; ADR-0067). While stacked, the gate, the review check and the reviewer's brief count the issue's diff from this commit to the head, not from the pull request's base. Trusted the same way as stacked_on. Missing: not stacked.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "review_base": {
+      "description": "On a reviewer's issue: the commit the reviewed diff was counted from (the stacked_base of the reviewed issue; ADR-0067). The review check counts the reviewed commit's diff from it, so the review carries over a clean restack. Written by the dispatcher (terminal:dispatcher) and trusted only when the dispatcher terminal wrote the last change and the value is the current one. Missing: counted from the merge base with the default branch.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
     }
   }
 }
