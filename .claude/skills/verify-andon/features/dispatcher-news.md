@@ -11,13 +11,13 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `dn-idle` 当てたあとに dispatcher が枠の空きを見て、控え（`<slug>.json` の `idle`）に結果を残した。2回続けて枠が空いていれば、トリアージと振り返りのルーチンを線の上で、`idle_hours` を持つルーチンを時間の上で撃ち、通知 `idle` を届ける。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/idle.go`、`internal/dispatcher/retro.go`、`cmd/kanban/routines.go`、`process/states/idle.yaml`
 - `dn-impact-stacked` 当てたあとに課題がマージされたとき、`andon issue impact` の出力で積んだ課題の行に `stacked_on` が出て、通知 `impact` は積んだ課題をぶつかり・重なり・検査の置き場の動きでは載せず、積んだ相手でない課題のマージが依頼書の指すファイルを変えたときだけ載せる（ADR-0067 決めたこと 11）。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/issue/impact.go`、`internal/contract/impact.go`、`internal/dispatcher/impact.go`
+  - 見るファイル: `internal/issue/impact.go`、`internal/contract/impact.go`、`internal/dispatcher/impact.go`、`package/skills/chief-of-staff/playbooks/finish.md`
 - `dn-corrections` 当てたあとに片付いた課題の手直しの記録（`library/corrections.json`）を、当てた dispatcher が書いた。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/corrections.go`、`internal/dispatcher/outcome.go`、`process/states/aftermath.yaml`
 - `dn-signal` 当てたあとの通知 signal に、記録にあるときだけ失敗が始まった commit（`release`、40 桁）が載った。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/signals.go`、`internal/signal/signal.go`、`internal/signal/cmd.go`、`internal/signal/echo_linux.go`、`process/states/signal.yaml`
 - `dn-turn` 届いた通知を Chief of Staff が `<news>` として読み、オーナーへ返すか ack した。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
-  - 見るファイル: `internal/dispatcher/news.go`、`internal/dispatcher/ack.go`、`package/hooks/stop`、`package/skills/chief-of-staff/playbooks/watch.md`
+  - 見るファイル: `internal/dispatcher/news.go`、`internal/dispatcher/ack.go`、`package/hooks/stop`、`package/skills/chief-of-staff/playbooks/watch.md`、`package/skills/chief-of-staff/playbooks/finish.md`
 - `dn-ready-report` Chief of Staff が `kanban set <id> deliverable=report` を書いて起動した課題（当てたあとの検証・点検の課題）の依頼書の `## Settings` の写しが `Deliverable: report` のままで、その課題を待つ課題が引き取れるようになったとき、Chief of Staff に届く `<id> ready` の行に「待つ相手 … がやめになった」が付かない（ADR-0066 受け入れ条件 10）。見る道: オーナーが見る。
   - 見るファイル: `internal/dispatcher/abandoned.go`、`internal/dispatcher/dispatcher.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 
@@ -42,8 +42,8 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - **手直しの記録を読む。** `dn-corrections` の行に、当てたあとに書いた `corrections.json` ごとの課題・時刻・種類ごとの数・`human_commits` の数が出る。`ok   dn-corrections` が見えれば、当てた dispatcher が手直しの記録を書いた。当てたあとに片付いた課題が無ければ `note dn-corrections` が出て、dn-corrections は未確認になる（終了コードは変えない）。拾う規則（merge commit を外すなど）が効いたかは、記録の `human_commits` と PR の commit を見比べて読む。
 - **通知 signal を読む。** `dn-signal` の行に、当てたあとの通知 signal の数（届けたものと記録だけのもの）と、記録だけの通知 signal の key・URL・`release` が出る。`ok   dn-signal` が見えれば、検証する間の通知 signal の detail に、40 桁の commit の `release` が載った。届けた記録（`delivered.jsonl`）は課題と kind だけで detail を持たないので、届けた通知 signal に `release` が載ったかはこの行では言えない。detail を読める通知に `release` が無いか、通知 signal が無ければ `note dn-signal` が出て、dn-signal は未確認になる（終了コードは変えない）。`release` の commit から PR を引く手（Chief of Staff の手引き）は、この行では見ない。
 - **報告の課題を待つ課題の ready を見る（`dn-ready-report`）。** 検証の担当は動かせない。報告の `acceptance[]` に `manual` と書き、オーナーが見る次の証拠を `evidence` に書く: 当てたあとに起動した検証の課題の `issues/<id>/brief.md` の `## Settings` に `- Deliverable: report` があり、`kanban show <id> --json` の `.issue.deliverable` が `report`。その課題を `after` に持つ課題があれば、その課題の `<id> ready` の行に「がやめになった」が無い。待つ課題が無ければ、付かなかったことは見られないので未確認と書く。
-- **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。
-- **積んだ課題の影響を読む（`dn-impact-stacked`）。** 当てたあとに、積んだ課題（`stacked_on` のある `doing`・`review` の課題）があるうちに同じ repo の別の課題がマージされたときだけ確かめられる。そのマージした課題に `andon issue impact <id>` を打ち、積んだ課題の行に `stacked_on` が出ることを読む。同じ時刻のあとに届けた通知 `impact` の `detail` に、積んだ課題がぶつかり・重なり・検査の置き場の動きだけでは載っていないことを読む（依頼書の指すファイルを変えたときは載る）。積んだ課題が無ければ未確認と書く。
+- **読んだ turn を見る（`dn-turn`）。** `hc read <Chief of Staff の address>` で、`dn-delivered` に出た通知の時刻のあとに `<news>` を読んだ turn があるかを見る。Chief of Staff の address は kanban の `config.yaml` の `chief_of_staff`。積んだ課題の通知があれば、その turn の扱いも読む。`gate` の `behind`（前の課題の PR がまだ main に入っていない）は、オーナーに何も言わずに枠を数え直したか（`watch.md`）。`behind` の「前の課題 <id> がマージされずに終わった」と、`merged` の `held` が「PR が既定の branch でない base」で始まる通知は、オーナーに1問出したか（`watch.md`・`finish.md`）。
+- **積んだ課題の影響を読む（`dn-impact-stacked`）。** 当てたあとに、積んだ課題（`stacked_on` のある `doing`・`review` の課題）があるうちに同じ repo の別の課題がマージされたときだけ確かめられる。そのマージした課題に `andon issue impact <id>` を打ち、積んだ課題の行に `stacked_on` が出ることを読む。同じ時刻のあとに届けた通知 `impact` の `detail` に、積んだ課題がぶつかり・重なり・検査の置き場の動きだけでは載っていないことを読む（依頼書の指すファイルを変えたときは載る）。Chief of Staff の画面で、積んだ課題の担当に rebase を頼んでいないことも読む（`finish.md` の影響の表の積んだ課題の 2 行）。積んだ課題が無ければ未確認と書く。
 - **積める課題を知らせたかを読む（`dn-idle` の積める課題）。** 控えの `idle` の `ready` に、そのときの `andon waiting list --json` の `stackable` の id が入っていて、2回続けて起動されずに残った積める課題が通知 `idle` の `unstarted` に出ることを読む。当てたあとに積める課題が無ければ、この段は未確認と書く。
 
 ## 変えたら動かすパス
@@ -61,6 +61,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - `internal/issue/impact.go`
 - `cmd/kanban/routines.go`
 - `package/skills/chief-of-staff/playbooks/watch.md`
+- `package/skills/chief-of-staff/playbooks/finish.md`
 - `internal/ledger/ledger.go`
 - `schema/issue-keys.schema.json`
 

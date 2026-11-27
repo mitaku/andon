@@ -31,7 +31,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   - 見るファイル: `internal/issue/create.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/ledger/ledger.go`、`internal/cli/leaves.go`、`package/skills/chief-of-staff/playbooks/brief.md`、`package/skills/chief-of-staff/playbooks/cut.md`、`package/skills/chief-of-staff/playbooks/start.md`、`package/skills/chief-of-staff/playbooks/verify.md`
 
 - `wl-stacked` 当てたあとに `andon issue start <id>` を積める `queued` の課題に打つと、前の課題の PR の head から branch を切り、`stacked_on`・`stacked_base` を Chief of Staff の端末で書いて `doing` にし、最初のメッセージに前の課題の branch の上に積んだことと `gh pr create --draft --base <前の課題の branch>` を足す。積めない課題（前の課題が `doing`・PR が open でない・origin の branch の先が gate の通した commit と違う）は理由1行で断り、worktree も branch もキーも残さない（ADR-0067 決めたこと 4・5・7）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
-  - 見るファイル: `internal/issue/start.go`、`internal/spawn/spawn.go`、`internal/waiting/stack.go`、`process/states/issue.yaml`
+  - 見るファイル: `internal/issue/start.go`、`internal/spawn/spawn.go`、`internal/waiting/stack.go`、`process/states/issue.yaml`、`package/skills/chief-of-staff/playbooks/start.md`、`package/skills/worker/`
 
 ## 辿り着き方（利用者から）
 
@@ -87,6 +87,7 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   1. `kanban show <id> --json` の `status` が `doing` で、`stacked_on` が `stackable` の `on`、`stacked_base` が前の課題の `report.json` の `commit` と同じ。`log.jsonl` の `stacked_on` を書いた行の `by` が Chief of Staff の端末。
   2. 課題の worktree で `git merge-base HEAD <stacked_base>` が `stacked_base` を返す（branch の根元が前の課題の PR の head）。
   3. 担当の最初のメッセージ（`hc read <担当の address>` か、起動を打った Chief of Staff の画面）に「前の課題 `<on>` の PR の branch `<branch>` の上に積んで起動した」と `gh pr create --draft --base <branch>` の行がある。
+  4. 積んだ担当が PR を出したら、`gh pr view <PR> --json isDraft,baseRefName` が `true` と前の課題の branch を返す（worker skill §3 の積んだ課題の出し方）。Chief of Staff の画面で、同じ優先の課題があったときに積まずに起動できる課題を先に打ち、起動を知らせる返事に前の課題の上に積んだことを言い添えたかも読む（`start.md` の 1 と 4）。
   積めない課題に打った画面があれば、理由の1行（「積んでも起動できない: …」「Chief of Staff の端末（…）だけ」など）が出て、`kanban show` の `branch`・`worktree`・`stacked_on` が空のままかも読む。当てたあとに積む起動が1つも無ければ未確認と書き、報告の `## Next` に「次に積む起動を打ったとき wl-stacked を読む」と書く。
 
 ## 変えたら動かすパス
