@@ -267,13 +267,13 @@ func cleanTitle(title, name string) string {
 }
 
 // Redact は Cloudflare へ送る写しの秘密の形を伏せる（決めたこと 10）。HTML は文の部分と属性の値だけ、
-// Markdown とテキストは全体に当てる。ほかの形式（画像・PDF など）はそのまま。
+// Markdown とテキストは全体に当てる（redact.JSON の形はどれも " と \ をまたがないので、JSON でない文にも当てられる）。ほかの形式（画像・PDF など）はそのまま。
 func Redact(contentType string, body []byte) []byte {
 	switch mediaType(contentType) {
 	case "text/html":
 		return RedactHTML(body)
 	case "text/markdown", "text/plain":
-		out, _ := redact.Text(body)
+		out, _ := redact.JSON(body)
 		return out
 	}
 	return body

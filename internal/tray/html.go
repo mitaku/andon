@@ -36,7 +36,7 @@ func RedactHTML(body []byte) []byte {
 				continue
 			}
 			text := html.UnescapeString(string(chunk))
-			if got, n := redact.Text([]byte(text)); n > 0 {
+			if got, n := redact.JSON([]byte(text)); n > 0 {
 				out.WriteString(html.EscapeString(string(got)))
 				continue
 			}
@@ -47,7 +47,7 @@ func RedactHTML(body []byte) []byte {
 			}
 			changed := false
 			for i, a := range t.Attr {
-				if got, n := redact.Text([]byte(a.Val)); n > 0 {
+				if got, n := redact.JSON([]byte(a.Val)); n > 0 {
 					t.Attr[i].Val, changed = string(got), true
 				}
 			}

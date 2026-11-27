@@ -44,7 +44,3 @@ func JSON(b []byte) ([]byte, int) {
 	}
 	return b, n
 }
-
-// Text は b（Markdown・テキストなど、JSON でない文）の中の秘密の形を伏せ、伏せたあとの文と伏せた数を返す
-// （tray の Cloudflare へ送る写し。ADR-0064 決めたこと 10）。形は JSON と同じで、どの形も " と \ をまたがない。
-func Text(b []byte) ([]byte, int) { return JSON(b) }
