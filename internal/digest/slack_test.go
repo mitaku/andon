@@ -20,6 +20,8 @@ import (
 
 	"andon/internal/flock"
 	"andon/internal/waiting"
+
+	"andon/internal/tray/traytest"
 )
 
 // Slack は検査の中に立てた偽の HTTP のサーバに向ける（ADR-0044 受け入れ条件 2・8〜11）。本物へは届かない:
@@ -700,5 +702,38 @@ func TestMessageKeepsURLAndNoMention(t *testing.T) {
 	msg = Message(&Text{Headline: []string{"<https://example.com|確認>", "二。"}}, in, newLoc(""), u)
 	if strings.ContainsAny(msg, "<>") || !strings.Contains(msg, "＜!channel＞") {
 		t.Errorf("Slack が解釈する形が残った: %s", msg)
+	}
+}
+
+// ローカルの tray に届かず files/ に倒れたダイジェストは、Slack の短い文にセルの repo からの相対パスを書かない
+// （どの端末でも開けない）。1 枚は Slack に添付してあるので、そう書く。tray が戻った次の send は、files の行を tray に置き直す。
+func TestSendSlackWithoutLocalTray(t *testing.T) {
+	f, s := ready(t)
+	traytest.Local(t, nil)
+	if _, err := Send(f.env, "S-0100"); err != nil {
+		t.Fatal(err)
+	}
+	got := s.calls()
+	if len(got) != 3 {
+		t.Fatalf("呼び出しが %d 回", len(got))
+	}
+	msg := got[2].form["initial_comment"]
+	if strings.Contains(msg, "全文: files/") || !strings.Contains(msg, "全文: "+attachedLink) {
+		t.Errorf("短い文の全文の行: %s", msg)
+	}
+	if r := f.sent().Destinations[0]; !r.OK || r.Path == "" || r.URL != "" {
+		t.Fatalf("files の行: %+v", r)
+	}
+	// tray が戻ったあとの send は、files の行を tray の URL に置き直す。済んだ Slack へは送らない
+	traytest.Local(t, f.tray)
+	u, err := Send(f.env, "S-0100")
+	if err != nil || !strings.HasPrefix(u, f.tray.URL) {
+		t.Fatalf("戻ったあとの send: %q %v", u, err)
+	}
+	if r := f.sent().Destinations[0]; !r.OK || r.URL != u || r.Path != "" {
+		t.Errorf("置き直した files の行: %+v", r)
+	}
+	if len(s.calls()) != 3 {
+		t.Errorf("済んだ Slack へもう一度送った（%d 回）", len(s.calls()))
 	}
 }

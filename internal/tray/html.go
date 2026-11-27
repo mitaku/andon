@@ -16,7 +16,7 @@ import (
 	"andon/internal/redact"
 )
 
-// RedactHTML は HTML の文の部分（テキストのノード）と属性の値にだけ伏せる式を当てる（決めたこと 10）。
+// RedactHTML は HTML の文の部分（テキストのノード）と属性の値とコメントにだけ伏せる式を当てる（決めたこと 10）。
 // <script> と <style> の中身には当てない（CSS の閉じタグごと消える・スクリプトが構文の誤りになる）。
 // 当たらなかった所は元のバイトのまま返す（読み直して書き直さない）。
 func RedactHTML(body []byte) []byte {
@@ -53,6 +53,12 @@ func RedactHTML(body []byte) []byte {
 			}
 			if changed {
 				out.WriteString(t.String())
+				continue
+			}
+		case html.CommentToken:
+			// コメント（tokenizer は CDATA もコメントで返す）は画面に出ず、秘密が残っても誰も気づけない。生のバイトに当てる
+			if got, n := redact.JSON(chunk); n > 0 {
+				out.Write(got)
 				continue
 			}
 		case html.EndTagToken:

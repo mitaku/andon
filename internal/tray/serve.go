@@ -75,7 +75,7 @@ func serve(stdout, stderr io.Writer) error {
 		return err
 	}
 	// 1つだけ動く（鍵は動いている間ずっと持つ）
-	unlock, err := flock.TryLock(filepath.Join(StateDir(), "serve.lock"))
+	unlock, err := flock.TryLock(LockPath())
 	if err != nil {
 		if c, rerr := ReadControl(); rerr == nil {
 			fmt.Fprintf(stdout, "もう動いている: %s\n", c.ListOrigin)
@@ -165,13 +165,21 @@ func removeOwnControl() {
 	}
 }
 
-// Running は控えがあり、書いた serve がまだ動いているか。
+// LockPath は serve が動いている間ずっと持つ鍵。
+func LockPath() string { return filepath.Join(StateDir(), "serve.lock") }
+
+// Running は控えがあり、書いた serve がまだ動いているか。pid が生きているだけでは決めない（状態の置き場は volume で、
+// コンテナを作り直すと止まりそこねた控えが残り、その pid を別のプロセスが持つことがある）。serve の鍵を誰かが持っていれば動いている。
 func Running() (*Control, bool) {
 	c, err := ReadControl()
 	if err != nil {
 		return nil, false
 	}
 	if c.PID <= 0 || syscall.Kill(c.PID, 0) != nil {
+		return c, false
+	}
+	if unlock, err := flock.TryLock(LockPath()); err == nil {
+		unlock()
 		return c, false
 	}
 	return c, true

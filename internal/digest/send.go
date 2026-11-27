@@ -93,6 +93,9 @@ func pageName(in *Input) string { return publish.Name(pageDate(in), filesSlug(in
 // pendingURL は組み立てたときの短い文の控えに書く URL の代わり（送るまで tray の URL は決まらない）。send は送った URL で書き直す。
 const pendingURL = "（andon digest send が tray に送った URL）"
 
+// attachedLink は、ローカルの tray に届かず files/ に置いたときに短い文へ書く全文の場所（相対パスはどの端末でも開けない。1 枚は添付してある）。
+const attachedLink = "添付した HTML（tray に届かなかったので、リンクは無い）"
+
 // destinations はオーナーが project.json に書いた送り先（決めたこと 12）。セルの repo の HEAD のものを、作者の照合を通して読む。
 // project.json か digest が無ければ空。信じられない・形が違えば誤り（どこへも送らない）。
 func destinations(env Env) ([]delegate.DigestDestination, error) {
@@ -203,6 +206,16 @@ func Send(env Env, id string) (string, error) {
 		ContentType: "text/html; charset=utf-8", Body: page}
 	// まだの Slack へ送る回は、tray にも同じ 1 枚を上げ直す（組み立て直していると、短い文の URL が古い 1 枚を指す。中身が同じならバージョンは上がらない）
 	toSend := unread == nil && slices.ContainsFunc(sent.Destinations, func(x Destination) bool { return x.Kind == kindSlack && !x.OK })
+	if files.OK && files.URL == "" && !toSend {
+		// files/ に倒れた行（URL が無い）は、ローカルの tray が戻っていれば tray に置き直す。戻っていなければ、済んだ送り先として
+		// files/ を書き直さない（決めたこと 16）
+		if d := tray.Send(report, nil); d.Local != nil {
+			*files = Destination{Kind: kindFiles, At: now, OK: true, URL: d.Local.URL}
+			if err := save(); err != nil {
+				return "", err
+			}
+		}
+	}
 	if !files.OK || toSend {
 		u, p, perr := placeLocal(env, in, report)
 		*files = Destination{Kind: kindFiles, At: now, OK: perr == nil, URL: u, Path: p}
@@ -216,9 +229,10 @@ func Send(env Env, id string) (string, error) {
 			return "", fmt.Errorf("セルの中に置けない: %v", perr)
 		}
 	}
-	link := files.URL
+	link, slackLink := files.URL, files.URL
 	if link == "" {
-		link = files.Path
+		// セルの repo からの相対パスは、セルの中では読めるが、Slack の短い文に書いてもどの端末でも開けない
+		link, slackLink = files.Path, attachedLink
 	}
 	var failed []string
 	if i := slices.IndexFunc(sent.Destinations, func(x Destination) bool { return x.Kind == kindTray }); i >= 0 {
@@ -243,7 +257,7 @@ func Send(env Env, id string) (string, error) {
 		}
 		if x.OK {
 			// Cloudflare の tray に届いたダイジェストは、短い文にその URL を書く（決めたこと 11）
-			link = x.URL
+			link, slackLink = x.URL, x.URL
 		}
 	}
 
@@ -257,7 +271,7 @@ func Send(env Env, id string) (string, error) {
 			continue
 		}
 		loc := location(env.Root)
-		file, err := sendSlack(env, x.Channel, slackName(in), Message(text, in, loc, link), page)
+		file, err := sendSlack(env, x.Channel, slackName(in), Message(text, in, loc, slackLink), page)
 		if err != nil {
 			x.Error = oneLine(err.Error())
 			failed = append(failed, fmt.Sprintf("Slack の %s へ送れない: %s", x.Channel, x.Error))

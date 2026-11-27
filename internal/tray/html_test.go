@@ -102,3 +102,20 @@ func TestContentType(t *testing.T) {
 		}
 	}
 }
+
+// HTML のコメント（CDATA を含む。tokenizer はコメントとして返す）は画面に出ないので、秘密が残っても誰も気づけない。伏せる
+func TestRedactHTMLComments(t *testing.T) {
+	for name, in := range map[string]string{
+		"コメント":  "<p>x</p><!-- token: " + fakeSecret + " -->",
+		"CDATA": "<svg><![CDATA[token: " + fakeSecret + "]]></svg>",
+	} {
+		if got := string(RedactHTML([]byte(in))); strings.Contains(got, fakeSecret) {
+			t.Errorf("%s: 秘密がそのまま残る: %s", name, got)
+		}
+	}
+	// 当たらないコメントは元のバイトのまま
+	in := "<p>x</p><!-- ふつうの注 -->"
+	if got := string(RedactHTML([]byte(in))); got != in {
+		t.Errorf("当たらないコメントを書き換えた: %s", got)
+	}
+}

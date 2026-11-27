@@ -21,6 +21,9 @@ else
   ctl=$state/tray/serve.json
   tpid=$(jq -r '.pid // empty' "$ctl" 2>/dev/null) || tpid=
   tlist=$(jq -r '.list // empty' "$ctl" 2>/dev/null) || tlist=
+  # 一覧の面は名指したホスト名のほかの Host を断る（421）。控えの list_origin のホスト名を Host に付けて打つ
+  thost=$(jq -r '.list_origin // empty' "$ctl" 2>/dev/null) || thost=
+  thost=${thost#*://}; thost=${thost%%[:/]*}
   targv=
   [ -n "$tpid" ] && mapfile -d '' -t targv 2>/dev/null <"/proc/$tpid/cmdline"
   tstarted=0
@@ -28,7 +31,7 @@ else
     read -ra f <<<"${st##*) }"
     tstarted=$(($(awk '/^btime /{print $2}' /proc/stat) * 1000 + ${f[19]:-0} * 1000 / $(getconf CLK_TCK)))
   fi
-  code=$([ -n "$tlist" ] && curl -s -m 5 -o /dev/null -w '%{http_code}' "$tlist/" 2>/dev/null) || code=
+  code=$([ -n "$tlist" ] && [ -n "$thost" ] && curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Host: $thost" "$tlist/" 2>/dev/null) || code=
   echo "-- bt-tray: 控え ${tpid:+pid $tpid・}${tlist:-無い}・argv ${targv[*]:-読めない}・起動 $( [ "$tstarted" -gt 0 ] && date -u -d "@$((tstarted / 1000))" +%Y-%m-%dT%H:%M:%SZ || echo ?)・GET / ${code:-答えない}"
   if [ "${#targv[@]}" = 3 ] && [ "${targv[0]}" = "$pkg/bin/andon" ] && [ "${targv[1]} ${targv[2]}" = "tray serve" ] && [ "$tstarted" -ge "$now_ms" ] && [ "$code" = 200 ]; then
     ok "bt-tray: ローカルの tray が当てたパッケージで、最後に当てた時刻より後に起動し、一覧の面が答える"

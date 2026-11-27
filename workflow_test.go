@@ -397,6 +397,10 @@ func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
 		{"セルの側を飛ばす", tray, `run: ANDON_BIN="$RUNNER_TEMP/andon" bun run e2e`, "run: bun run e2e", "run の行"},
 		{"andon を焼かない", tray, `go build -trimpath -o "$RUNNER_TEMP/andon" ../cmd/andon`, "go version", "run の行"},
 		{"checkout が資格情報を残す", tray, "persist-credentials: false", "persist-credentials: true", "persist-credentials"},
+		// setup-go の cache は既定で保存する。キーは go.yml・tests.yml の setup-go と同じなので、外の依存のコードを動かす
+		// この job が汚した Go の cache を、release の job が戻して焼く
+		{"Go の cache を保存する", tray, "          cache: false\n", "", "cache"},
+		{"Go の cache を true にする", tray, "          cache: false\n", "          cache: true\n", "cache"},
 		{"job を container で走らせる", tray, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    container: node:26\n", "キー"},
 		{"知らない action を使う", tray, "      - name: Typecheck\n", "      - uses: ./tray/ci\n      - name: Typecheck\n", "uses"},
 		{"main の push で回さない", tray, "  push:\n    branches: [main]\n", "", "on"},
@@ -542,9 +546,10 @@ func trayProblems(wfs, tests map[string]string) []string {
 			if !trayRe.MatchString(l) {
 				continue
 			}
-			// tray を名指してよいのは、パスを振り分ける道具とその確かめだけ。そこでも走らせる行は書かない
+			// tray を名指してよいのは、パスを振り分ける道具とその確かめと、番兵に控えを置く tests/isolation（ADR-0064 決めたこと 15）だけ。
+			// そこでも走らせる行は書かない
 			switch f {
-			case "tests/ci.sh", "tests/lib/scope.sh", "tests/lib/image-scope.sh":
+			case "tests/ci.sh", "tests/lib/scope.sh", "tests/lib/image-scope.sh", "tests/isolation":
 				if runs.MatchString(l) {
 					bad("tests の %s:%d が tray を走らせる", f, i+1)
 				}
@@ -617,7 +622,7 @@ func trayProblems(wfs, tests map[string]string) []string {
 	}
 	allowUses := map[string][]string{
 		"actions/checkout@": {"persist-credentials"}, "oven-sh/setup-bun@": {"bun-version"}, "actions/setup-node@": {"node-version"},
-		"actions/setup-go@": {"go-version"},
+		"actions/setup-go@": {"go-version", "cache"},
 	}
 	steps, _ := job["steps"].([]any)
 	for i, x := range steps {
@@ -638,6 +643,9 @@ func trayProblems(wfs, tests map[string]string) []string {
 			keysIn(fmt.Sprintf(" step %d の with の", i+1), with, allowUses[prefix]...)
 			if prefix == "actions/checkout@" && with["persist-credentials"] != false {
 				bad("tray.yml の checkout が persist-credentials: false でない")
+			}
+			if prefix == "actions/setup-go@" && with["cache"] != false {
+				bad("tray.yml の setup-go が cache: false でない（release の job が同じキーで Go の cache を戻す）")
 			}
 		}
 		run, _ := s["run"].(string)

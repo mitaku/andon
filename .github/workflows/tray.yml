@@ -44,6 +44,8 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: ${{ steps.tools.outputs.go }}
+          # 外の依存のコードを動かす job なので、Go の cache を保存しない（release の job が同じキーで戻すため）
+          cache: false
       - name: Install (from bun.lock)
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Typecheck

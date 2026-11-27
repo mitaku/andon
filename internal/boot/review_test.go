@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"andon/internal/flock"
 	"andon/internal/tray"
 )
 
@@ -72,7 +73,7 @@ func TestNullSettingsKeepsManaged(t *testing.T) {
 	}
 }
 
-// trayFixture は、ビルドした tray の置き場（ANDON_HOME/tray）と、動いている serve の控え（pid は自分）を一時の置き場に作る。
+// trayFixture は、ビルドした tray の置き場（ANDON_HOME/tray）と、動いている serve の控え（pid は自分）と鍵を一時の置き場に作る。
 func trayFixture(t *testing.T, f *fixture, portless string) Env {
 	t.Helper()
 	home := t.TempDir()
@@ -85,6 +86,11 @@ func trayFixture(t *testing.T, f *fixture, portless string) Env {
 		ListOrigin: "http://tray.cell.localhost:1355", PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
+	unlock, err := flock.Lock(tray.LockPath()) // 動いている serve は鍵を持つ
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unlock)
 	e := f.env()
 	e.Self = "/nonexistent/andon"
 	e.LookPath = func(n string) (string, error) {

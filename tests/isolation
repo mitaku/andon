@@ -17,6 +17,8 @@
 # 手元の検査が落ちるのを防ぐ。読んだかは atime で見る: 検査の前に番兵のファイルの atime を古い時刻へ戻す
 # （relatime でも、atime が mtime・ctime より古いファイルは読むと atime が動く）。atime が動かない置き場では落ちる。
 # 番兵には本物のセルで起きた形も置く（中身が空の memory の目録・壊れた JSON の plugin の控え）。
+# 動いているローカルの tray の控え（serve.json）も置く。ANDON_TRAY_OFF の切りを外した検査は、報告を送る前に控えを読むので落ちる
+# （ADR-0064 決めたこと 15・受け入れ条件 16）。宛先は閉じた番号で、読んでも届かない。
 # 引数があれば tests/*.sh はそれだけ（go test ./... は毎回回す）。
 set -euo pipefail
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -50,6 +52,9 @@ printf '# 番兵\n' >"$ws/home/.codex/config.toml"
 printf '# 番兵\n' >"$ws/AGENTS.local.md"
 : >"$ws/memory/MEMORY.md"                                # 中身が空の memory の目録（本物のセルで起きた形）
 printf '{"version": 2, "plugins": {\n' >"$ws/home/.claude/plugins/installed_plugins.json" # 壊れた JSON
+mkdir -p "$ws/home/.local/state/andon/tray"
+printf '{"list": "http://127.0.0.1:9", "upload": "http://127.0.0.1:9", "list_origin": "http://tray.sentinel.localhost:1355", "view_origin": "http://tray-view.sentinel.localhost:1355", "pid": 1}\n' \
+  >"$ws/home/.local/state/andon/tray/serve.json"
 mkdir -p "$repo/tests/.task-tmp"
 # 一時置き場は写しの git から外す。git ls-files --others で tests/ を数える検査が、並んで走る検査の作っては消すファイルを拾わないように
 printf '/tests/.task-tmp/\n' >>"$repo/.git/info/exclude"
