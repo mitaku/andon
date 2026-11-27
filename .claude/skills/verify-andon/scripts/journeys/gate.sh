@@ -30,6 +30,20 @@ else
     [ -n "$st" ] || { st='?'; unread=$((unread + 1)); }
     echo "  | $id: 判定 $decision・merged $merged・今の status $st"
     [ "$decision" = behind ] || continue
+    # 前の PR 待ちのまま（課題の最後の gate の記録がこの behind で、報告の commit がその head）なら、課題は review にいる。
+    # 動かしてよいのは Chief of Staff（差し戻し・取り消し）だけで、最後に status を変えた行の書き手が今の Chief of Staff の端末なら数えない
+    lib=${file%/gate/*} k=${file%%/issues/*}
+    last=$(for r in "$lib"/gate/*.json; do jq -r '.at // empty' "$r" 2>/dev/null; done | sort | sed -n '$p')
+    now=$(jq -r '.commit // empty' "$lib/report.json" 2>/dev/null)
+    if [ "$(jq -r '.at' "$file")" = "$last" ] && { [ -z "$now" ] || [ "$now" = "$(jq -r .head "$file")" ]; } && [ "$st" != review ]; then
+      cos=$(sed -n 's/^chief_of_staff: *//p' "$k/config.yaml" 2>/dev/null | tr -d "\"'" | sed -n 1p)
+      by=$(jq -r --arg id "$id" 'select(.id == $id and .change.status) | .by' "$k/log.jsonl" 2>/dev/null | sed -n '$p')
+      if [ -n "$cos" ] && [ "$by" = "terminal:$cos" ]; then
+        echo "  | $id: 前の PR 待ちのあと Chief of Staff（$by）が $st に動かした"
+      else
+        fail "gt-route: 前の PR 待ち（behind）のままの課題 $id が review でなく $st（最後に status を変えたのは ${by:-不明}。behind では dispatcher は課題を動かさない）"
+      fi
+    fi
     for q in "${file%/gate/*}"/questions/*.json; do
       [ -f "$q" ] || continue
       jq -e --arg f "gate の記録 $file" '.from == "gate" and ((.facts // []) | index($f))' "$q" >/dev/null 2>&1 \

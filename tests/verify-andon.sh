@@ -719,6 +719,20 @@ if [ "$self" = true ]; then
     id=$(KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" add "gate の問い")
     lib=$g/kanban/issues/$id/library && mkdir -p "$lib/gate" "$lib/questions"
     echo "{\"at\": \"2026-01-01T00:12:00Z\", \"id\": \"$id\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"C\", \"decision\": \"${3:-needs_human}\", \"merged\": false, \"reasons\": ${4:-[]}}" >"$lib/gate/$head.json"
+    # GST: 課題の今の status（既定は todo のまま）。review・done・cosdoing は担当 tw が review まで返し、done は担当が片付け、
+    # cosdoing は Chief of Staff tc が doing に戻す（差し戻し）。doing は担当が start しただけ
+    case ${GST:-} in
+      review | done | cosdoing)
+        KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null && KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" report "$id" <<<"## Report" >/dev/null \
+          && KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" review "$id" >/dev/null || die "gt-route の場面の課題を review にできない"
+        ;;&
+      doing) KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" start "$id" >/dev/null || die "gt-route の場面の課題を doing にできない" ;;
+      done) KANBAN_ROOT=$g HC_TERMINAL_ID=tw "$kanban" done "$id" --force >/dev/null || die "gt-route の場面の課題を done にできない" ;;
+      cosdoing)
+        KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" config set chief_of_staff=tc >/dev/null && KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" start "$id" >/dev/null \
+          || die "gt-route の場面の課題を Chief of Staff が doing に戻せない"
+        ;;
+    esac
     [ -n "$1" ] || return 0
     KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" ask "$id" - --kind line <<<"マージするか" >/dev/null
     echo "{\"from\": \"$1\", \"facts\": ${5:-[]}}" | sed "s|<lib>|$lib|g" >"$lib/questions/1.json"
@@ -740,9 +754,24 @@ if [ "$self" = true ]; then
   ok "verify-andon: gate の gt-answer は、gate の外の問いを閉じたか、答えが名指す gate の記録が無いと落ち、閉じた問いが無ければ note を出す"
   # gt-record は、積んだ課題の前の PR 待ち（behind。ADR-0067 決めたこと 8）の記録を形の違う記録と読まない。知らない判定では落ちる（当たる場合）
   why='["前の課題 G-0009 の PR がまだ main に入っていない", "base が既定ブランチでない"]'
-  gsetup "" "" behind "$why"
+  GST=review gsetup "" "" behind "$why"
   journey gate
   [ "$jrc" = 0 ] && grep -qF 'ok   gt-record' <<<"$jout" && grep -qF 'ok   gt-route' <<<"$jout" || die "gate: behind の記録を gt-record・gt-route が形の違う記録と読んだ（$jrc）: $jout"
+  # 前の PR 待ちのままの課題が review でなければ gt-route が落ちる（todo・担当が doing・担当が done）。Chief of Staff が戻したなら落ちない（当たる場合）
+  for st in todo doing done; do
+    GST=$st gsetup "" "" behind "$why"
+    journey gate
+    [ "$jrc" = 1 ] && grep -qF 'FAIL gt-route' <<<"$jout" && grep -qF "review でなく $st" <<<"$jout" || die "gate: 前の PR 待ちのままの課題が $st なのに gt-route が落ちない（$jrc）: $jout"
+  done
+  GST=cosdoing gsetup "" "" behind "$why"
+  journey gate
+  [ "$jrc" = 0 ] && grep -qF 'ok   gt-route' <<<"$jout" || die "gate: Chief of Staff が戻した前の PR 待ちの課題で gt-route が落ちた（$jrc）: $jout"
+  # 前の PR 待ちのあとに gate の記録が増えた（前の課題が入って判定し直した）課題は、behind の記録では status を見ない
+  GST=done gsetup "" "" behind "$why"
+  echo "{\"at\": \"2026-01-01T00:20:00Z\", \"id\": \"G-0001\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"B\", \"decision\": \"approve\", \"merged\": true, \"reasons\": []}" \
+    >"$g/kanban/issues/G-0001/library/gate/after.json"
+  journey gate
+  [ "$jrc" = 0 ] && grep -qF 'ok   gt-route' <<<"$jout" || die "gate: 前の PR 待ちのあとに判定し直してマージした課題で gt-route が落ちた（$jrc）: $jout"
   gsetup "" "" bogus "$why"
   journey gate
   [ "$jrc" = 1 ] && grep -qF 'FAIL gt-record' <<<"$jout" || die "gate: 知らない判定の記録で gt-record が落ちない（$jrc）: $jout"
@@ -762,7 +791,7 @@ if [ "$self" = true ]; then
   gsetup gate "閉じた" behind "$why" "[\"gate の記録 <lib>/gate/$head.json\"]"
   journey gate
   [ "$jrc" = 1 ] && grep -qF 'FAIL gt-route' <<<"$jout" && grep -qF '名指す gate の問い' <<<"$jout" || die "gate: behind の記録を名指す問いで gt-route が落ちない（$jrc）: $jout"
-  gsetup gate "閉じた" behind "$why" '["gate の記録 /elsewhere/gate.json"]'
+  GST=review gsetup gate "閉じた" behind "$why" '["gate の記録 /elsewhere/gate.json"]'
   journey gate
   [ "$jrc" = 0 ] && grep -qF 'ok   gt-route' <<<"$jout" || die "gate: behind の記録を名指さない問いで gt-route が落ちた（$jrc）: $jout"
   ok "verify-andon: gate の gt-record は、behind の記録を形どおりと読み、知らない判定・理由の空や先頭の違う behind・マージした behind で落ちる。gt-route は behind の記録を名指す gate の問いで落ちる"
