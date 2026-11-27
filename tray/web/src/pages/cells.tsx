@@ -14,7 +14,7 @@ import { Dialog, DialogBackdrop, DialogClose, DialogContent, DialogDescription, 
 import { Field, FieldLabel } from "@ui-sdk/solid/field";
 import { Input } from "@ui-sdk/solid/input";
 import { createMemo, createSignal, Errored, For, Loading, refresh, Show } from "solid-js";
-import { type Cell, issueKey, listCells, revokeKey } from "../api";
+import { APIError, type Cell, issueKey, listCells, reissueKey, revokeKey } from "../api";
 import { colors } from "../theme.stylex";
 import { base, Shell, when } from "../ui";
 
@@ -98,26 +98,31 @@ export function Cells() {
   const [ask, setAsk] = createSignal<Ask | null>(null);
   const [copied, setCopied] = createSignal(false);
 
-  async function issue(cell: string) {
-    const r = await issueKey(cell);
-    setCopied(false);
-    setIssued(r);
-    refresh(data);
+  const EXISTS = "このセルはもう鍵を持つ。作り直すなら、一覧の「作り直す」を使う。";
+
+  // issue: 鍵を作り、1度だけ見せる。作る口は有効な鍵があると 409 で断る（一覧が古いときや二重押しでも、前の鍵を残す）。
+  // 前の鍵を効かなくするのは、確かめのダイアログを通した作り直し（replace）だけ
+  async function issue(cell: string, replace = false) {
+    setFormError("");
+    try {
+      const r = await (replace ? reissueKey(cell) : issueKey(cell));
+      setCopied(false);
+      setIssued(r);
+      return true;
+    } catch (e) {
+      setFormError(e instanceof APIError && e.status === 409 ? EXISTS : `鍵を作れない: ${(e as Error).message}`);
+      return false;
+    } finally {
+      refresh(data);
+    }
   }
 
   async function create() {
     setFormError("");
     const cell = name().trim();
     if (!cell) return setFormError("セルの名前を入れる。");
-    if (data().cells.some((c) => c.cell === cell && c.key === "active")) {
-      return setFormError("このセルはもう鍵を持つ。作り直すなら、一覧の「作り直す」を使う。");
-    }
-    try {
-      await issue(cell);
-      setName("");
-    } catch (e) {
-      setFormError(`鍵を作れない: ${(e as Error).message}`);
-    }
+    if (data().cells.some((c) => c.cell === cell && c.key === "active")) return setFormError(EXISTS);
+    if (await issue(cell)) setName("");
   }
 
   async function answer(a: Ask) {
@@ -125,7 +130,7 @@ export function Cells() {
       await revokeKey(a.cell);
       refresh(data);
     } else {
-      await issue(a.cell);
+      await issue(a.cell, true);
     }
   }
 

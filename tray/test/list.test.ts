@@ -194,20 +194,40 @@ describe("セルの鍵", () => {
     expect(k1).toMatch(/^tray_[0-9a-f]{64}$/);
     const stored = await env.DB.prepare("SELECT hash FROM keys WHERE cell = 'c9'").first<{ hash: string }>();
     expect(stored?.hash).not.toBe(k1);
-    const { key: k2 } = (await (await post("/api/cells/c9/key")).json()) as { key: string };
+    // 有効な鍵があるとき、作る口は断り、前の鍵を効かなくしない（古い画面や二重押しでも）
+    const again = await post("/api/cells/c9/key");
+    expect(again.status).toBe(409);
+    expect(await again.text()).not.toMatch(/tray_[0-9a-f]{64}/);
+    const { key: k2 } = (await (await post("/api/cells/c9/reissue")).json()) as { key: string };
+    expect(k2).toMatch(/^tray_[0-9a-f]{64}$/);
     const { cellForKey } = await import("../src/lib/upload-api");
     const req = (k: string) => new Request("https://x/", { headers: { Authorization: `Bearer ${k}` } });
     expect(await cellForKey(req(k1), env.DB)).toBeNull();
     expect(await cellForKey(req(k2), env.DB)).toBe("c9");
     expect((await post("/api/cells/c9/revoke")).status).toBe(200);
     expect(await cellForKey(req(k2), env.DB)).toBeNull();
+    // 失効させたセルには、作る口でもう1度作れる
+    const { key: k3 } = (await (await post("/api/cells/c9/key")).json()) as { key: string };
+    expect(await cellForKey(req(k3), env.DB)).toBe("c9");
+    expect((await post("/api/cells/c9/revoke")).status).toBe(200);
     const cells = (await (await call("/api/cells")).json()) as { cells: { cell: string; revoked: boolean }[] };
     expect(cells.cells).toEqual([expect.objectContaining({ cell: "c9", revoked: true })]);
+  });
+
+  it("作る口を同時に2度打っても、鍵は1本だけ作られ、もう1本は断られる（二重押し）", async () => {
+    const res = await Promise.all([post("/api/cells/c8/key"), post("/api/cells/c8/key")]);
+    expect(res.map((r) => r.status).sort()).toEqual([200, 409]);
+    const ok = res.find((r) => r.status === 200) as Response;
+    const { key } = (await ok.json()) as { key: string };
+    const { cellForKey } = await import("../src/lib/upload-api");
+    expect(await cellForKey(new Request("https://x/", { headers: { Authorization: `Bearer ${key}` } }), env.DB)).toBe("c8");
   });
 
   it("鍵の口も Access と Origin を確かめる", async () => {
     expect((await call("/api/cells/c9/key", { method: "POST", headers: { Origin: LIST_ORIGIN }, jwt: null })).status).toBe(403);
     expect((await call("/api/cells/c9/key", { method: "POST" })).status).toBe(403);
+    expect((await call("/api/cells/c9/reissue", { method: "POST", headers: { Origin: LIST_ORIGIN }, jwt: null })).status).toBe(403);
+    expect((await call("/api/cells/c9/reissue", { method: "POST" })).status).toBe(403);
     expect(await env.DB.prepare("SELECT count(*) AS n FROM keys").first("n")).toBe(0);
   });
 });
@@ -229,6 +249,10 @@ describe("開き方（受け入れ条件 6・決めたこと 22）", () => {
     ["text/csv", "download"],
     ["application/octet-stream", "download"],
     ["text/htmlx", "download"],
+    // 表の引き方が Object の prototype の名前をすり抜けない
+    ["constructor", "download"],
+    ["__proto__", "download"],
+    ["toString; x=1", "download"],
   ];
 
   it("開く口は形式ごとに枠・新しいタブ・ダウンロードを返し、報告の面はダウンロードの形式だけを attachment で返す", async () => {

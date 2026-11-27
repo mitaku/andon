@@ -63,5 +63,9 @@ export const listCells = () => call<{ days: number; cells: Cell[] }>("/api/cells
 export const issueKey = (cell: string) =>
   call<{ cell: string; key: string }>(`/api/cells/${encodeURIComponent(cell)}/key`, { method: "POST" });
 
+// 有効な鍵があると 409 で断る（前の鍵を効かなくするのは reissueKey だけ）
+export const reissueKey = (cell: string) =>
+  call<{ cell: string; key: string }>(`/api/cells/${encodeURIComponent(cell)}/reissue`, { method: "POST" });
+
 export const revokeKey = (cell: string) =>
   call<{ cell: string; revoked: true }>(`/api/cells/${encodeURIComponent(cell)}/revoke`, { method: "POST" });

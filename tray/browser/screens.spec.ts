@@ -106,6 +106,25 @@ test("セルの画面で鍵を1度だけ見せ、失効と作り直しができ�
   await expect(b).toContainText("鍵は有効");
 });
 
+test("画面の一覧が古いままでも、有効な鍵を持つセルの鍵を作る口は前の鍵を効かなくしない", async ({ page }) => {
+  await page.goto(`${tray.list_origin}/cells`);
+  await expect(page.locator("main")).toContainText("cell-a");
+  // 画面を開いたあと、別の画面（ここでは API を直に）で cell-c の鍵を作る。この画面の一覧には cell-c が無い
+  const first = await page.evaluate(async () => {
+    const res = await fetch("/api/cells/cell-c/key", { method: "POST" });
+    return ((await res.json()) as { key: string }).key;
+  });
+  expect(first).toMatch(/^tray_[0-9a-f]{64}$/);
+  await expect(page.locator('[data-cell="cell-c"]')).toHaveCount(0);
+
+  await page.getByLabel("セルの名前").fill("cell-c");
+  await page.getByRole("button", { name: "鍵を作る" }).first().click();
+  await expect(page.getByRole("alert")).toContainText("作り直す");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // 一覧は読み直され、前の鍵は有効のまま
+  await expect(page.locator('[data-cell="cell-c"]')).toContainText("鍵は有効");
+});
+
 test("ホーム画面への追加は manifest とアイコンだけで支え、service worker を置かない", async ({ page, request }) => {
   await page.goto(`${tray.list_origin}/`);
   const manifestHref = await page.locator('link[rel="manifest"]').getAttribute("href");

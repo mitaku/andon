@@ -2,7 +2,8 @@
 //   GET  /api/reports?view=unread|recent|old  報告の一覧（既定は未読。old は最後に上がってから 30 日を過ぎたもの）
 //   POST /api/reports/<id>/open               既読を書き、報告の面の署名付き URL を返す
 //   GET  /api/cells                           セルの一覧（鍵の有無と、直近7日に上がった枚数と開いた枚数）
-//   POST /api/cells/<セル>/key                 鍵を発行し直す（鍵は1度だけ返す。前の鍵は効かなくなる）
+//   POST /api/cells/<セル>/key                 鍵を作る（鍵は1度だけ返す）。有効な鍵があれば 409 で断り、前の鍵を残す
+//   POST /api/cells/<セル>/reissue             鍵を作り直す（鍵は1度だけ返す。前の鍵は効かなくなる）
 //   POST /api/cells/<セル>/revoke              鍵を失効させる
 // 書き込む要求は Origin が一覧の面のオリジンと同じでなければ断る。GET に書き込みを持たせない。
 
@@ -118,16 +119,20 @@ async function cells(env: ListEnv, now: number): Promise<Response> {
   });
 }
 
-async function issueKey(cell: string, env: ListEnv, now: number): Promise<Response> {
+// issueKey: replace が false なら、有効な鍵が無いとき（無いか失効したとき）だけ作る。画面の一覧が古いときや、
+// 送信の二重押しで、前の鍵を黙って効かなくしないため。置き換えるのは作り直す口（replace が true）だけ
+async function issueKey(cell: string, env: ListEnv, now: number, replace: boolean): Promise<Response> {
   const key = `tray_${randomHex(32)}`;
   const hash = await sha256Hex(key);
-  await env.DB.prepare(
+  const r = await env.DB.prepare(
     `INSERT INTO keys (cell, hash, created_at, revoked_at) VALUES (?1, ?2, ?3, NULL)
-     ON CONFLICT (cell) DO UPDATE SET hash = excluded.hash, created_at = excluded.created_at, revoked_at = NULL`,
+     ON CONFLICT (cell) DO UPDATE SET hash = excluded.hash, created_at = excluded.created_at, revoked_at = NULL
+     WHERE ?4 OR keys.revoked_at IS NOT NULL
+     RETURNING cell`,
   )
-    .bind(cell, hash, now)
-    .run();
-  return json({ cell, key });
+    .bind(cell, hash, now, replace ? 1 : 0)
+    .first();
+  return r ? json({ cell, key }) : error(409, "key_exists", "そのセルには有効な鍵がある。前の鍵を効かなくするなら作り直す");
 }
 
 async function revokeKey(cell: string, env: ListEnv, now: number): Promise<Response> {
@@ -151,11 +156,12 @@ async function route(req: Request, env: ListEnv, now: number): Promise<Response>
   if (seg.length === 2 && seg[1] === "cells") {
     return req.method === "GET" ? cells(env, now) : error(405, "method", "GET だけ");
   }
-  if (seg.length === 4 && seg[1] === "cells" && (seg[3] === "key" || seg[3] === "revoke")) {
+  if (seg.length === 4 && seg[1] === "cells" && (seg[3] === "key" || seg[3] === "reissue" || seg[3] === "revoke")) {
     if (req.method !== "POST") return error(405, "method", "POST だけ");
     const cell = decodeName(seg[2] ?? "");
     if (cell === null || cell === "-") return error(400, "cell", "セルの名前を読めない");
-    return seg[3] === "key" ? issueKey(cell, env, now) : revokeKey(cell, env, now);
+    if (seg[3] === "revoke") return revokeKey(cell, env, now);
+    return issueKey(cell, env, now, seg[3] === "reissue");
   }
   return error(404, "not_found", "無い");
 }

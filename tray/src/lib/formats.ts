@@ -6,7 +6,8 @@
 
 export type OpenAs = "frame" | "tab" | "download";
 
-const OPEN_AS: Record<string, OpenAs> = {
+// Map で引く（素のオブジェクトだと "constructor" などの型名が prototype に当たり、ダウンロードをすり抜ける）
+const OPEN_AS = new Map<string, OpenAs>(Object.entries({
   "text/html": "frame",
   "text/markdown": "frame",
   "text/plain": "frame",
@@ -16,7 +17,7 @@ const OPEN_AS: Record<string, OpenAs> = {
   "image/webp": "frame",
   "image/svg+xml": "frame",
   "application/pdf": "tab",
-};
+} satisfies Record<string, OpenAs>));
 
 // baseType: "text/html; charset=utf-8" を "text/html" にする
 export function baseType(contentType: string): string {
@@ -24,5 +25,5 @@ export function baseType(contentType: string): string {
 }
 
 export function openAs(contentType: string): OpenAs {
-  return OPEN_AS[baseType(contentType)] ?? "download";
+  return OPEN_AS.get(baseType(contentType)) ?? "download";
 }
