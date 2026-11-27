@@ -99,7 +99,7 @@ const mf = new Miniflare({
       {
         config: {
           assets: {
-            directory: join(root, "public"),
+            directory: join(root, "dist/public"),
             hasUserWorker: true,
             notFoundHandling: "single-page-application",
             runWorkerFirst: true,

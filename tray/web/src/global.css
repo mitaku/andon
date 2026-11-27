@@ -1,0 +1,13 @@
+/* 一覧の面の全体の決まり。部品の見た目は StyleX で書き、StyleX の CSS はビルドがこのファイルの後ろに足す */
+/* UI SDK が足す層を先に宣言し、こちらの見た目が勝つようにする（UI SDK の手引き） */
+@layer ui-sdk;
+
+@layer ui-sdk {
+  :where([data-slot][hidden]:not([hidden="until-found"])) {
+    display: none !important;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
