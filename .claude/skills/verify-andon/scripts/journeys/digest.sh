@@ -95,7 +95,8 @@ if [ ! -f "$pkg/tray/scripts/serve.mjs" ]; then
 else
   printf 'TRAY_PORT=0\nPORTLESS_PORT=1355\n' >>"$ANDON_WORKSPACE/.env"
   ctl=$HOME/.local/state/andon/tray/serve.json
-  ANDON_TRAY_OFF=0 "$andon" tray serve >"$tmp/serve.log" 2>&1 &
+  # serve は検証するパッケージ（$pkg）の tray を動かす（既定の /opt/andon なら ANDON_HOME を付けないのと同じ）
+  ANDON_TRAY_OFF=0 ANDON_HOME="$pkg" "$andon" tray serve >"$tmp/serve.log" 2>&1 &
   spid=$!
   for _ in $(seq 120); do [ -s "$ctl" ] && break; kill -0 "$spid" 2>/dev/null || break; sleep 0.5; done
   echo "  | 控え: $(cat "$ctl" 2>/dev/null || echo 無い)"
@@ -119,7 +120,8 @@ else
     fi
     # dg-tray-old: 同じ slug で中身を変えて出し直すと、報告は新しいバージョンになり、アップロードの口が前の中身の掃除を通る。
     # 前の中身は置いてから1日に満たないので残り、前に開いた署名付き URL（5分）で読める。今の中身も開ける。
-    # 1日を過ぎた中身を消すことは、当てたあとに1日を待てないので、tray の CI の検査が時刻を進めて見る
+    # 続けて、切り離したローカルの tray の R2（miniflare の sqlite）で、前の中身の置いた時刻を 25 時間前と 23 時間前に、
+    # ほかの報告の中身を 25 時間前に書き換えてから出し直し、同じ報告の 25 時間前の中身だけが消えるのを見る
     lst=$(jq -r '.list // empty' "$ctl" 2>/dev/null) lo=$(jq -r '.list_origin // empty' "$ctl" 2>/dev/null)
     rid=${purl##*/r/}
     # open_report <id>: 一覧の面の既読の口を、ローカルの tray の一覧の面の番号へ Host を付けて打ち、署名付き URL を出す
@@ -137,6 +139,38 @@ else
       ok "dg-tray-old: 出し直すと今の中身が開け、置いてから1日に満たない前の中身は前の URL で読める"
     else
       fail "dg-tray-old: 出し直したあと、今の中身か前の中身が読めない"
+    fi
+    # r2 keys <prefix> は置いた順にキーを出し、r2 age <key> <時間> はそのキーの置いた時刻を今からその時間前にする
+    r2db=$(find "$HOME/.local/state/andon/tray/data/r2/miniflare-R2BucketObject" -name '*.sqlite' ! -name metadata.sqlite 2>/dev/null | sed -n 1p)
+    r2() {
+      node -e '
+        const { DatabaseSync } = require("node:sqlite");
+        const [db, op, a, h] = process.argv.slice(1);
+        const d = new DatabaseSync(db);
+        if (op === "keys") for (const r of d.prepare("SELECT key FROM _mf_objects WHERE key LIKE ? ORDER BY uploaded, key").all(a + "%")) console.log(r.key);
+        else if (op === "age") d.prepare("UPDATE _mf_objects SET uploaded = ? WHERE key = ?").run(Date.now() - Number(h) * 3600e3, a);
+      ' "$r2db" "$@"
+    }
+    echo "dg-tray-old の確かめ 3" >"$tmp/tray-check.md"
+    step "dg-tray-old: 3 つ目の中身を publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+    mapfile -t k < <(r2 keys "$rid/")
+    oid=${turl##*/r/}
+    okey=$(r2 keys "$oid/" | sed -n 1p)
+    echo "  | R2: ${r2db:-無い}。この報告の中身 ${#k[@]} 個（${k[*]}）。ほかの報告の中身 ${okey:-無い}"
+    if [ "${#k[@]}" = 3 ] && [ -n "$okey" ]; then
+      r2 age "${k[0]}" 25 && r2 age "${k[1]}" 23 && r2 age "$okey" 25 || fail "dg-tray-old: R2 の置いた時刻を書き換えられない"
+      echo "dg-tray-old の確かめ 4" >"$tmp/tray-check.md"
+      step "dg-tray-old: 置いた時刻を戻したあとに publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+      after=$(r2 keys "$rid/")
+      echo "  | 出し直したあとのこの報告の中身: $(tr '\n' ' ' <<<"$after")。ほかの報告の中身: $(r2 keys "$oid/" | tr '\n' ' ')"
+      if ! grep -qxF "${k[0]}" <<<"$after" && grep -qxF "${k[1]}" <<<"$after" && grep -qxF "${k[2]}" <<<"$after" \
+        && [ "$(grep -c . <<<"$after")" = 3 ] && grep -qxF "$okey" < <(r2 keys "$oid/"); then
+        ok "dg-tray-old: 出し直すと、同じ報告の置いてから 25 時間の中身だけが消え、23 時間の中身・前の中身・今の中身・ほかの報告の中身は残る"
+      else
+        fail "dg-tray-old: 消えた中身が違う（25 時間の中身が残ったか、残すべき中身が消えた）"
+      fi
+    else
+      fail "dg-tray-old: 出し直した3つの中身か、ほかの報告の中身が R2 に無い"
     fi
     # dg-tray-remote: owner の commit で project.json に tray を書くと、そのプロジェクトは Cloudflare の tray へ送ると読む。
     # 鍵を置かないので Cloudflare へは何も出ず、publish はローカルの tray に倒れて理由を出す。owner でない commit の tray は読まない
