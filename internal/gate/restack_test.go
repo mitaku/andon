@@ -1,6 +1,8 @@
 package gate
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -69,5 +71,50 @@ func TestDecidePrevDone(t *testing.T) {
 	f.StackedOn, f.PrevMerged = "", true
 	if d, r := Decide(f); d != "approve" || Restacking(f) {
 		t.Errorf("積んでいない課題: %s %q want approve", d, r)
+	}
+}
+
+// 前の課題の report.json が在るのに読めないときは、マージされずに終わったと読まず誤りを返す（gate が判定できず、merge が回し直す）。
+// 無いとき（PR を出さずに終わった）と pr が空のときは、main に入っていないと読む。
+func TestPrevInMainUnreadableReport(t *testing.T) {
+	l := &ledger.Ledger{Dir: t.TempDir()}
+	lib := l.Library("A-0001")
+	if in, err := prevInMain(l, "A-0001", "main"); in || err != nil {
+		t.Fatalf("report.json が無い: in=%v err=%v、want false nil", in, err)
+	}
+	if err := os.MkdirAll(lib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, body string
+		mode       os.FileMode
+	}{{"壊れた JSON", "{", 0o644}, {"空のファイル", "", 0o644}, {"形の違う pr", `{"commit": "0123456789abcdef0123456789abcdef01234567", "pr": "not-a-pr"}`, 0o644},
+		{"読む権限が無い", `{"commit": "0123456789abcdef0123456789abcdef01234567", "pr": "https://github.com/example/app/pull/8"}`, 0o000}} {
+		path := filepath.Join(lib, "report.json")
+		if err := os.WriteFile(path, []byte(c.body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, c.mode); err != nil {
+			t.Fatal(err)
+		}
+		if c.mode == 0o000 {
+			if f, err := os.Open(path); err == nil {
+				f.Close()
+				t.Logf("%s: 権限を外しても読める（root で走っている）ので飛ばす", c.name)
+				continue
+			}
+		}
+		if _, err := prevInMain(l, "A-0001", "main"); err == nil {
+			t.Errorf("%s: 読めない報告をマージされずに終わったと読んだ（誤りを返さない）", c.name)
+		}
+	}
+	if err := os.Chmod(filepath.Join(lib, "report.json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(lib, "report.json"), []byte(`{"commit": "0123456789abcdef0123456789abcdef01234567"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if in, err := prevInMain(l, "A-0001", "main"); in || err != nil {
+		t.Fatalf("pr の無い報告: in=%v err=%v、want false nil", in, err)
 	}
 }

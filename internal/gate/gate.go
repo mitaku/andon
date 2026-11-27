@@ -647,12 +647,19 @@ func ParseCompare(b []byte) ([]File, int, bool, error) {
 // GitHub に聞けなければ誤り（判定しない。dispatcher が前の PR 待ちのまま置き、次の巡で回し直す）。
 func prevInMain(l *ledger.Ledger, prev, def string) (bool, error) {
 	rep, err := contract.ReadReport(filepath.Join(l.Library(prev), "report.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil // PR を出さずに終わった
+	}
 	if err != nil {
+		// 在るのに読めない報告を、マージされずに終わったと読まない（オーナーへやめるかを聞かせてしまう）
+		return false, fmt.Errorf("積んだ課題の前の課題 %s の report.json が読めない: %v", prev, err)
+	}
+	if rep.PR == "" {
 		return false, nil
 	}
 	owner, name, number, ok := contract.ParsePR(rep.PR)
 	if !ok {
-		return false, nil
+		return false, fmt.Errorf("積んだ課題の前の課題 %s の report.json の pr が PR の URL でない: %q", prev, rep.PR)
 	}
 	b, err := gh("pr", "view", number, "--repo", owner+"/"+name, "--json", "state,baseRefName")
 	if err != nil {

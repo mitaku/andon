@@ -90,6 +90,13 @@ func (c *ctx) restack(stdout io.Writer) error {
 	if rep != nil {
 		pr = rep.PR
 	}
+	if pr == "" {
+		// 報告に pr がまだ無くても PR は出ていることがある（PR を出してから andon issue report --pr の前に打った）。
+		// branch から引き、付け替えと draft を外すことを飛ばさない
+		if pr, err = branchPR(c.issue.Str("repo"), branch); err != nil {
+			return err
+		}
+	}
 	draft := false
 	if pr != "" {
 		v, err := restackPR(pr)
@@ -104,7 +111,7 @@ func (c *ctx) restack(stdout io.Writer) error {
 				return fail("PR %s が閉じられていて開き直せない（%s）。PR を出し直して andon issue report --pr で書き換え、andon issue restack %s を打ち直す", pr, firstLine(string(out)), c.id)
 			}
 		default:
-			return fail("PR %s が %s。載せ替えない（Chief of Staff に知らせる）", pr, v.State)
+			return fail("PR %s が %s。載せ替えない（報告に書いて Chief of Staff へ返す）", pr, v.State)
 		}
 		if v.Base != def {
 			if out, err := exec.Command("gh", "pr", "edit", pr, "--base", def).CombinedOutput(); err != nil {
@@ -154,6 +161,22 @@ func restackPR(pr string) (restackView, error) {
 		return v, fail("PR %s が読めない（打ち直す）: %v %s", pr, err, firstLine(errb.String()))
 	}
 	return v, nil
+}
+
+// branchPR は、課題の branch から出ている PR の URL を GitHub に聞く（無ければ空）。repo は issue.yaml の repo（github.com/<owner>/<name>）。
+func branchPR(repo, branch string) (string, error) {
+	slug := strings.TrimPrefix(repo, "github.com/")
+	if slug == repo || slug == "" {
+		return "", fail("issue.yaml の repo が github.com/<owner>/<name> でない（%q）。PR を branch から引けない", repo)
+	}
+	cmd := exec.Command("gh", "pr", "list", "--repo", slug, "--head", branch, "--state", "all", "--json", "url", "--jq", ".[0].url // \"\"")
+	var errb strings.Builder
+	cmd.Stderr = &errb
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fail("branch %s の PR を GitHub に聞けない（打ち直す）: %v %s", branch, err, firstLine(errb.String()))
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // rebasing は worktree dir で rebase が途中か（git の rebase-merge・rebase-apply の置き場が在る）。

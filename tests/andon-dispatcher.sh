@@ -70,9 +70,11 @@ case "\$*" in
     elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" --argjson r "\$r" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository,baseRefName}' \$d/view.json
     else jq --argjson r "\$r" '{state:"OPEN",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository,baseRefName}' \$d/view.json; fi ;;
   "repo view example/"*" --json defaultBranchRef -q .defaultBranchRef.name") echo main ;;   # settle がマージされた PR の base と比べる
-  "pr view 8 --repo example/app --json state,baseRefName")   # 積んだ課題の前の課題の PR（gate が main に入ったかを読む。ADR-0067 決めたこと 12。prev8fail があれば 1 回落ちる）
-    if [ -f \$d/prev8fail ]; then rm -f \$d/prev8fail; echo "HTTP 502: Bad Gateway" >&2; exit 1; fi
+  "pr view 8 --repo example/app --json state,baseRefName")   # 積んだ課題の前の課題の PR（gate が main に入ったかを読む。ADR-0067 決めたこと 12。prev8fail の数だけ落ちる）
+    n=\$(cat \$d/prev8fail 2>/dev/null || echo 0)
+    if [ "\$n" -gt 0 ]; then echo \$((n - 1)) > \$d/prev8fail; echo "HTTP 502: Bad Gateway" >&2; exit 1; fi
     cat \$d/prev8.json ;;
+  "pr view 8 --repo example/app --json state,commits,comments,reviews") echo '{"state":"MERGED","commits":[],"comments":[],"reviews":[]}' ;;   # 前の課題の done のあとのオーナーの手直し（無い）
   "pr view https://github.com/example/app/pull/8 --json state,mergeCommit,files") echo '{"state":"CLOSED","mergeCommit":null,"files":[]}' ;;   # 前の課題の done のあとの影響（見ない）
   "pr view 7 --repo example/app --json state,commits,comments,reviews")   # オーナーの手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
@@ -1209,15 +1211,25 @@ dispatcher
 [ "$(restacks)" = 0 ] || die "前の課題が done でないのに載せ替えを頼んだ: $(grep -F "$sk（" "$tmp/hc/sent")"
 echo '{"state":"MERGED","baseRefName":"main"}' > "$tmp/gh/prev8.json"
 HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
-# 前の課題の PR を一時に読めない巡では、知らせずに次の巡で回し直す
-touch "$tmp/gh/prev8fail"
-ngate=$(jq --arg t "$sk" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state")
+# 前の課題の PR を読めない巡では、2 回までは知らせずに次の巡で回し直し、3 回目に 1 回だけ知らせる（理由は「判定できない」で、
+# 「まだ main に入っていない」と言わない）。そのあとも 1 分に 1 回回し直し、読めたら載せ替えの直しが届く
+echo 3 > "$tmp/gh/prev8fail"
+gates_of() { jq --arg t "$sk" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state"; }
+# 同じ種類の通知は置き換わって数が変わらないので、消してから届くかを見る
+drop_gates() { jq --arg t "$sk" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.tmp" && mv "$state.tmp" "$state"; }
+drop_gates
+dispatcher; dispatcher
+[ "$(cat "$tmp/gh/prev8fail")" = 1 ] || die "前提: 回し直しで前の課題の PR を 2 回読んでいない: $(cat "$tmp/gh/prev8fail")"
+[ "$(restacks)" = 0 ] && [ "$(gates_of)" = 0 ] || die "前の課題の PR を読めなかった巡で、載せ替えを頼んだ・知らせた: $(restacks) $(jq -c .pending "$state")"
 dispatcher
-[ ! -e "$tmp/gh/prev8fail" ] || die '前提: 回し直しで前の課題の PR を読んでいない'
-[ "$(restacks)" = 0 ] && [ "$(jq --arg t "$sk" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state")" = "$ngate" ] ||
-    die "前の課題の PR を一時に読めなかった巡で、載せ替えを頼んだ・知らせた: $(restacks) $(jq -c .pending "$state")"
+[ "$(gates_of)" = 1 ] || die "3 回読めなかったのに知らせない: $(jq -c .pending "$state")"
+pending "$sk" gate | jq -e --arg p "$pk" '.detail.decision == "behind" and (.detail.reasons[0] | startswith("前の課題 \($p) が done になったが、main に入ったかを gate が判定できない"))' >/dev/null ||
+    die "3 回読めなかった知らせの理由が違う: $(pending "$sk" gate)"
+drop_gates
 dispatcher
-[ "$(restacks)" = 1 ] || die "前の課題が main に入ったのに、読めなかった次の巡で載せ替えの直しが 1 回届かない: $(restacks) $(tail -5 "$tmp/dispatcher.log")"
+[ "$(restacks)" = 0 ] && [ "$(gates_of)" = 0 ] || die "知らせたあと 1 分たたずに回し直した・二度知らせた: $(restacks) $(gates_of)"
+mpoll "$sk"; dispatcher
+[ "$(restacks)" = 1 ] || die "前の課題が main に入ったのに、読めるようになった巡で載せ替えの直しが 1 回届かない: $(restacks) $(tail -5 "$tmp/dispatcher.log")"
 jq -e --arg p "$pk" '.decision == "fix" and .restack == true and .reasons == ["前の課題 \($p) が main に入った。andon issue restack で載せ替える"]' "$L/issues/$sk/library/gate/$head.json" >/dev/null ||
     die "載せ替えの直しの記録が違う: $(cat "$L/issues/$sk/library/gate/$head.json")"
 emit "$L/issues/$sk/library/gate/$head.json" gate-restack.json
@@ -1251,6 +1263,40 @@ dispatcher
 kanban show "$sk" --json | jq -e '.issue.status == "review"' >/dev/null || die '前の課題がやめになった積んだ課題が review でない'
 unstack
 ok '前の課題がマージされずに done になると、積んだ課題の gate の記録の理由が替わり、通知 gate が 1 回届く（問いも載せ替えの直しも出さない）'
+
+# 積んだ PR をオーナーが前の課題の branch へマージしたあとで前の課題が done になっても、gate を回し直さず、担当に直しを送らない
+# （open でない PR は片付けの道。ADR-0067 決めたこと 15）
+echo '{"state":"MERGED","baseRefName":"main"}' > "$tmp/gh/prev8.json"
+prev '前の課題（積んだ PR がその branch へマージされる）'
+stack_on "$pk" '積んだ課題（前の課題の branch へマージされる）'
+echo "$head" > "$tmp/gh/merged"
+jq '.state = "MERGED"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"   # merge が聞く state,headRefOid も MERGED
+watch_due "$sk"; dispatcher
+pending "$sk" merged | jq -e '.detail.held | startswith("PR が既定の branch でない base")' >/dev/null || die "前提: 積んだ PR の前の課題の branch へのマージを知らせていない: $(pending "$sk" merged)"
+fixes() { grep -c -F "[gate] $sk（" "$tmp/hc/sent" 2>/dev/null || true; }
+nfix=$(fixes)
+HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
+dispatcher; dispatcher
+[ "$(fixes)" = "$nfix" ] || die "マージされた積んだ PR の担当に直しを送った: $(grep -F "$sk（" "$tmp/hc/sent")"
+grep -q "$sk の前の課題 $pk が done になったが、PR が open でないので gate を回し直さない" "$tmp/dispatcher.log" || die "open でない PR を回し直さない理由を出さない: $(tail -5 "$tmp/dispatcher.log")"
+[ "$(regates)" = 0 ] || die "open でない PR の gate を回し直した: $(regates)"
+rm -f "$tmp/gh/merged"
+jq '.baseRefName = "main" | .state = "OPEN"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+unstack
+# 変種: 積んだ PR が閉じられている（マージなし）
+prev '前の課題（積んだ PR が閉じられる）'
+stack_on "$pk" '積んだ課題（PR が閉じられる）'
+touch "$tmp/gh/closed"
+jq '.state = "CLOSED"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+nfix=$(fixes)
+HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
+dispatcher; dispatcher
+[ "$(fixes)" = "$nfix" ] && [ "$(regates)" = 0 ] || die "閉じた積んだ PR の担当に直しを送った・gate を回し直した: $(grep -F "$sk（" "$tmp/hc/sent") $(regates)"
+grep -q "$sk の前の課題 $pk が done になったが、PR が open でないので" "$tmp/dispatcher.log" || die "閉じた PR を回し直さない理由を出さない: $(tail -5 "$tmp/dispatcher.log")"
+rm -f "$tmp/gh/closed"
+jq '.baseRefName = "main" | .state = "OPEN"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+unstack
+ok '積んだ PR が前の課題の branch へマージされたか閉じられたあとに前の課題が done になっても、gate を回し直さず担当に直しを送らない'
 
 # 受け入れ条件 12: 既定の branch でない base にマージされた PR の課題は片付かず、通知 merged（held）が Chief of Staff に 1 回届く
 bk=$(newtask '前の課題の branch へマージされる' person)

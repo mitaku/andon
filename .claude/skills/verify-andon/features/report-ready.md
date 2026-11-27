@@ -43,7 +43,7 @@
 - **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`・`acceptance` が `1`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
 - **積んだ課題を起動する。** `rr-ready` のあと、前の課題を `review` に置き、それを `after` に持つ課題を2つ足す。1つは担当の端末 `tw` が `stacked_on`・`stacked_base` を書き、`rr-stacked` の行に `kanban start` の終了コード 1 と理由1行（`… waits for <前の課題> …`）が出て、課題は `queued` のまま。もう1つは Chief of Staff の端末 `tc` が書き、`kanban start` が通って `status` が `doing`、`after` が前の課題のまま。`log.jsonl` の `terminal:tc` の `stacked_on` の行と `terminal:tw` の `{"status":"doing"}` の行が出る。両方の `ok   rr-stacked` が見えれば動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
-- **載せ替える（`rr-restack`）。** 通しの道は打たない。本物のセルで、Chief of Staff が積んだ課題を試しに起動し、前の課題が main に入って載せ替えの直しが届いたら、担当の画面で `andon issue restack <id>` が「ふつうの課題になった」の 1 行で終わり、`kanban show <id>` に `stacked_on`・`stacked_base`・`restack_onto` が無く、`gh pr view <PR> --json baseRefName,isDraft` が既定の branch と `false` を返せば動いた。
+- **載せ替える（`rr-restack`）。** 通しの道は打たない。本物のセルで、Chief of Staff が積んだ課題を試しに起動し、前の課題が main に入って載せ替えの直しが届いたら、担当が restack の前に打った `andon issue ready <id>` が「先に andon issue restack <id> で既定の branch の先へ載せ替えて」の 1 行で断り（検証の担当が担当に頼んで打ってもらう）、`andon issue restack <id>` が「ふつうの課題になった」の 1 行で終わり、`kanban show <id>` に `stacked_on`・`stacked_base`・`restack_onto` が無く、`gh pr view <PR> --json baseRefName,isDraft` が既定の branch と `false` を返せば動いた。
 
 ## 変えたら動かすパス
 

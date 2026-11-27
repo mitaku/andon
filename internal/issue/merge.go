@@ -143,10 +143,27 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		if w.Merged == "" && contract.IsSHA(w.Sha) {
 			c.closeStaleGateQuestions(w.Sha, res)
 		}
+		due := pollDue(w.Polled, now) // headMoved が聞けば Polled を今にするので、先に読む
 		if !c.headMoved(&w, rep, res, now) {
 			// 前の PR 待ちのあと前の課題が done になったら、同じ head でも 1 回だけ gate を回し直す（ADR-0067 決めたこと 12・14）。
 			// gate が、前の課題が main に入っていれば載せ替えを頼む直しを、マージされずに終わっていれば理由を替えた behind を決める
 			if w.Decision != "behind" || !prevDone || w.Prev != "" {
+				return &w
+			}
+			// 判定できないまま prevTries 回落ちて知らせたあとは、1 分に 1 回だけ回し直す（GitHub が戻れば載せ替えの直しが届く）
+			if w.PrevFails >= prevTries && !due {
+				return &w
+			}
+			// open でない PR（前の課題の branch へマージされた・閉じた）は回し直さない。片付けの道が Chief of Staff に知らせる
+			// （担当に直しを送らない。決めたこと 15。モデルの回し直しも open の PR だけ）
+			open, err := c.prOpen(rep)
+			if err != nil {
+				res.Log = append(res.Log, fmt.Sprintf("%s の前の課題 %s が done になったが、PR が open かを読めない（次の巡で聞き直す）: %v", c.id, prev, err))
+				return &w
+			}
+			if !open {
+				res.Log = append(res.Log, fmt.Sprintf("%s の前の課題 %s が done になったが、PR が open でないので gate を回し直さない（片付けの道に任せる）", c.id, prev))
+				w.Prev = prev
 				return &w
 			}
 			res.Log = append(res.Log, fmt.Sprintf("%s の前の課題 %s が done になった。前の PR 待ちの gate を回し直す", c.id, prev))
@@ -185,10 +202,14 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 				w.Sha = rep.Commit
 			}
 			w.Polled = now.UTC().Format("2006-01-02T15:04:05Z")
-			// 前の課題が done になってからの回し直しが落ちた（前の課題の PR を一時に読めないなど）: 印を立てずに次の巡で回し直す。
-			// 3 回落ちたら印を立てて知らせる（載せ替えの直しが黙って届かないままにしない）
-			if w.Prev != "" && prevFails+1 < prevTries {
+			// 前の課題が done になってからの gate が落ちた（前の課題の PR を一時に読めないなど）: 印を立てずに次の巡で回し直す。
+			// prevTries 回目に落ちたら 1 回だけ知らせ、そのあとも 1 分に 1 回回し直す（載せ替えの直しが黙って届かないままにしない）
+			if w.Prev != "" {
 				w.Prev, w.PrevFails = "", prevFails+1
+				if w.PrevFails == prevTries {
+					res.Notify = append(res.Notify, contract.Notice{Kind: "gate", Detail: map[string]any{"decision": "behind",
+						"reasons": []string{PrevUnreadReason(prev), "gate が判定できない: " + why}}})
+				}
 				return &w
 			}
 			res.Notify = append(res.Notify, contract.Notice{Kind: "gate",
@@ -253,6 +274,27 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 		res.State = "merged"
 	}
 	return &w
+}
+
+// PrevUnreadReason は、前の課題が done になってからの gate が続けて判定できないときに Chief of Staff へ知らせる理由の 1 行目。
+func PrevUnreadReason(prev string) string {
+	return "前の課題 " + prev + " が done になったが、main に入ったかを gate が判定できない（1 分に 1 回回し直す）"
+}
+
+// pollDue は、Polled（PR を最後に聞いた時刻）から prPoll たったか。読めなければたったと読む。
+func pollDue(polled string, now time.Time) bool {
+	at, err := time.Parse("2006-01-02T15:04:05Z", polled)
+	return err != nil || now.Sub(at) >= prPoll
+}
+
+// prOpen は、報告の PR が GitHub で open か。PR が名指せない（報告に pr が無い・形が違う）ときは open と読み、gate に任せる。
+func (c *ctx) prOpen(rep *contract.Report) (bool, error) {
+	owner, name, number, ok := contract.ParsePR(rep.PR)
+	if !ok {
+		return true, nil
+	}
+	state, _, err := prOpenHead(number, owner+"/"+name)
+	return state == "OPEN", err
 }
 
 // prevTries は、前の課題が done になってからの gate の回し直しを、判定できないまま打ち直す回数の上限。

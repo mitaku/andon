@@ -479,7 +479,7 @@ Chief of Staff が1ターンも使わずに、レビュー依頼から片付け�
 | `review`・`doing` の課題の PR をオーナーがマージした（`andon issue settle`。1分に1回だけ `gh pr view`。Chief Engineer の課題は `doing` の間は片付けない。§2.7） | gate の問いを「オーナーがマージした」と閉じて finish（settle が打つ）。通知 `merged`（`by: person`）。gate の外の問いが開いている・commit していない変更があれば片付けずに通知 `merged`（`held`）。マージせずに閉じた PR は通知 `closed` を閉じるたびに1回（開き直してマージされたら片付ける） | オーナー（マージ） |
 | gate が `fix` | 理由を担当へ `hc send`（担当はオーナーが打つ端末ではないので、離席の守りは要らない）。文の先頭に送り手の印 `[gate] ` を置く | gate |
 | gate が `needs_human` | 問いを出す（contract.md §5。`from: gate`）。通知 `asked` | オーナー |
-| gate が `behind`（積んだ課題の前の PR 待ち。積んだ課題で gate が判定できなかったときも） | マージも問いもしない。通知 `gate` を Chief of Staff に届ける。印は黄。head が動くか止められたら回し直す（[ADR-0067](adr/0067-stacked-start.md) 決めたこと 8） | 前の課題 |
+| gate が `behind`（積んだ課題の前の PR 待ち。積んだ課題で gate が判定できなかったときも） | マージも問いもしない。通知 `gate` を Chief of Staff に届ける。印は黄。head が動くか止められたら回し直す（[ADR-0067](adr/0067-stacked-start.md) 決めたこと 8）。前の課題が kanban で `done` になったら、PR が open のときだけ同じ head で 1 回回し直す（merge の記録の `prev`）。gate は、前の課題が既定の branch に入っていれば載せ替えを頼む `fix` を、マージされずに終わっていれば理由を替えた `behind` を決める。PR が open でなければ回し直さず、片付けの道に任せる。回し直しで gate が判定できなければ次の巡で回し直し、3 回目に 1 回だけ通知 `gate` を届け、そのあとは 1 分に 1 回回し直す（`prev_fails`。決めたこと 12・14） | 前の課題 |
 
 - **二度起動しない・二度回さない**: 起動したレビュアー（`issue` → `reviewer_issue`・`commit`）と回した gate（`issue` → `sha`。`review` に入った `log.jsonl` の行ごと）を控えに持ち、同じ組では打たない。
   控えに無い組（初めて見た kanban・控えを無くした）は kanban を見る: parent がその課題のレビュアーで、依頼書にその commit がある課題があれば、`todo` でなければもう受けているとして起動しない。`todo` でも端末が起動していることがある（`hc run` は通ったが `kanban start` の前に落ちた）ので、ラベル `project=<slug>`・`issue=<子>` の live な端末を引く（課題の id はプロジェクトをまたいで同じことがあるので、返った端末のラベルも両方で確かめる）。何か受けていれば（`turn` が 1 以上）起動せず、まだなら address を引き継いで最初のメッセージから続ける。端末が無いときだけ起動するところから続ける。

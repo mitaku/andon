@@ -1362,6 +1362,7 @@ case "\$1 \$2 \$4 \$5" in
   "pr view --json state,baseRefName,isDraft") cat "$tmp/rs-view" ;;
   "pr edit --base "*) jq --arg b "\$5" '.baseRefName = \$b' "$tmp/rs-view" > "$tmp/rs-view.new" && mv "$tmp/rs-view.new" "$tmp/rs-view" ;;
   "pr ready  ") jq '.isDraft = false' "$tmp/rs-view" > "$tmp/rs-view.new" && mv "$tmp/rs-view.new" "$tmp/rs-view" ;;
+  "pr list example/app --head") cat "$tmp/rs-list" ;;   # branch から引いた PR の URL（--jq で 1 つ目の url を出した形。無ければ空）
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
 esac
 EOF
@@ -1420,6 +1421,30 @@ restacked_ok merge
 ok 'restack: 前の課題が squash でもマージ commit でも入ったあと、既定の branch の先へ載せ、差分は自分の変更だけ、付け替えを push より先に打ち、draft を外し、キーを消す'
 as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "済んだあとの restack が落ちた: $(cat "$tmp/out")"
 grep -q '積んでいない' "$tmp/out" || die "済んだあとの restack が積んでいないと言わない: $(cat "$tmp/out")"
+# PR を出したが報告に pr をまだ書いていない: branch から PR を引いて、付け替えと draft を外すことを飛ばさない
+stacked nopr squash
+jq -n --arg c "$rc" '{commit: $c}' > "kanban/issues/$rs/library/report.json"
+echo "$pr" > "$tmp/rs-list"
+as t5 kanban set "$rp" status=done --force >/dev/null
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "報告に pr の無い restack が落ちた: $(cat "$tmp/out")"
+grep -q '^gh pr list --repo example/app --head stk ' "$tmp/rs-log" || die "報告に pr が無いのに branch から PR を引かない: $(cat "$tmp/rs-log")"
+restacked_ok nopr
+rm -f "$tmp/rs-list"
+ok 'restack: 報告に pr がまだ無くても、branch から PR を引いて向き先の付け替えと draft を外すことを飛ばさない'
+# 変種: branch から引いても PR が無い（まだ出していない）: push とキーを消すことだけをし、PR には触らない
+stacked nopr-none squash
+jq -n --arg c "$rc" '{commit: $c}' > "kanban/issues/$rs/library/report.json"
+: > "$tmp/rs-list"
+as t5 kanban set "$rp" status=done --force >/dev/null
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "PR の無い restack が落ちた: $(cat "$tmp/out")"
+git -C "$rg" fetch -q origin
+[ "$(git -C "$rg" diff --name-only origin/main HEAD)" = a.txt ] && [ "$(git -C "$rg" rev-parse origin/stk)" = "$(git -C "$rg" rev-parse HEAD)" ] && [ "$(rkey)" = ,, ] ||
+    die "PR の無い restack が載せ替え・push・キーを消すことをしない: $(rkey) $(cat "$tmp/rs-log")"
+if grep -q -e '^gh pr edit' -e '^gh pr ready' -e '^gh pr view' "$tmp/rs-log"; then die "PR が無いのに PR に触った: $(cat "$tmp/rs-log")"; fi
+grep -q '^gh pr list --repo example/app --head stk ' "$tmp/rs-log" || die '前提: branch から PR を引いていない'
+grep -q -e '^gh pr edit' <<<"gh pr edit $pr --base main" || die '上の否定の grep が、記録の付け替えの行に当たらない'
+rm -f "$tmp/rs-list"
+ok 'restack: branch から引いても PR が無ければ、載せ替えて push しキーを消すだけで、PR には触らない'
 
 # 衝突: 前の課題のあとの main が、積んだ課題と同じ行を変えている。1 で止まり、解いて git rebase --continue のあと打ち直すと済む
 stacked conflict squash
