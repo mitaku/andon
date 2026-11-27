@@ -16,7 +16,7 @@
 #   7. 記録を読む道（dispatcher-news・boot・worker-launch〈wl-resume を含む〉・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban・Claude Code のセッションの記録）で、証拠が足りないときに 0 で終わらない。
 #      drive.sh は検証する commit を省けず、省く・空・短い・16進数でないと 2 で断り、道を動かさない（検証の途中で次の commit が当たっても、新しい間を読まない）
 #      drive.sh は細かい機能ごとの結果を1行ずつ出し、3つ目の引数で名指した細かい機能（見る道が検証の担当だけのもの）だけで 0 と 3 を決める。FAIL は名指しによらず 1
-#   8. 道が ok を出す細かい機能は、7 に当たる場合（証拠が足りないか中身の違う記録では ok にならない確かめ）を1つ以上持つ。前からの無いものは控えに載せ、控えは減らすだけ
+#   8. 道が名指す細かい機能は、7 に当たる場合（証拠が足りないか中身の違う記録では ok にならない確かめ）を1つ以上持つ。前からの無いものは控えに載せ、控えは減らすだけ
 # 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。andon は tests/lib/andon.sh が用意し、写しの回にも渡す）
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -943,16 +943,16 @@ if [ "$self" = true ]; then
   ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
 fi
 
-# 8. 当たる場合の確かめ: 道が ok を出す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことの確かめ（当たる場合）を
+# 8. 当たる場合の確かめ: 道が名指す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことの確かめ（当たる場合）を
 #    1つ以上持つ。ok を出す道を足すか変えた変更は、同じ変更で 7 に当たる場合を書く（確かめを打てない回に ok を出す道や、理由の空な記録を通す道を、
 #    レビューの前に見つける）
-#   - 道が ok を出す細かい機能: 地図の「## 細かい機能」の名前のうち、scripts/ の下に ok "<名前> の行があるもの
-#   - 当たる場合: 7 の注釈でない行の、die の文より前に、その名前の FAIL を求める grep（'FAIL <名前>'）か、drive.sh の未確認の行（「名指したうち未確認: <名前>」
-#     「結果 <名前> 未確認」「結果 <名前> FAIL」）を求める grep か、ok でないことを求める grep（! grep -q '^ok   <名前>'）がある。
-#     否定の grep と if grep の中の FAIL は数えない。note は ok に添うこともあるので数えない
+#   - 道が名指す細かい機能: 地図の「## 細かい機能」の名前のうち、scripts/ の下に語として出るもの（ok の出し方によらない）
+#   - 当たる場合: 7 の || die で受ける判定の文の中で、その名前の FAIL を求める grep（'FAIL <名前>'）か、drive.sh の未確認の行（「名指したうち未確認: <名前>」
+#     「結果 <名前> 未確認」「結果 <名前> FAIL」）を求める grep か、ok でないことを求める grep（! grep -q '^ok   <名前>'）の項がある。読み方は hit_names。
+#     ほかの書き方（二重引用符のパターン・if の文・|| true・grep -c・[[ ]] など）は数えない。note は ok に添うこともあるので数えない
 #   - 前からある当たる場合の無い細かい機能は、控え（hits_allow）に載せる。控えは減らすだけで、base の控えに無い名前を足す・当たる場合を書いた名前を残す・
-#     ok を出さなくなった名前を残すと落ちる。base から HEAD までに scripts/ の下で足した行が控えの名前を含めば（道を変えた）、控えから外して当たる場合を書く
-#   当たる場合が、変えた振る舞いを本当に通るか（記録の形だけを見ていないか）は見ない
+#     道が名指さなくなった名前を残すと落ちる。base から HEAD までに scripts/ の下で控えの細かい機能の道を変えたら（touched_names）、控えから外して当たる場合を書く
+#   当たる場合が、変えた振る舞いを本当に通るか（記録の形だけを見ていないか）と、名前の出ない共通の部品の変更は見ない
 if [ "$self" = true ]; then
   hits_allow='
 bt-generated bt-managed bt-tray
@@ -963,7 +963,7 @@ hd-dispatch-discard hd-dispatch-hold hd-dispatch-release hd-gate-wait hd-hold hd
 hk-other-pass hk-pre-deny hk-pre-pass hk-stop-block hk-stop-pass hk-wired
 mg-reread mg-reread-exhausted mg-reread-race
 ms-breakdown ms-flow ms-knowledge ms-question-later ms-readonly ms-table ms-tokens
-ot-applied ot-codex ot-listen ot-records ot-trace
+ot-applied ot-codex ot-listen ot-records ot-restart ot-trace
 ow-anywhere ow-ask-later ow-ask-new ow-json ow-later ow-old-name ow-same-title ow-slots ow-stackable ow-tray-deploy ow-waiting
 rr-acceptance rr-ready rr-ready-refuse rr-ready-report rr-record rr-report rr-stacked
 rt-collect rt-later rt-not-cos rt-old-owner rt-patterns
@@ -972,85 +972,164 @@ wl-review-brief wl-terminal
 '
   # allow_of: 検査のシェル（stdin）の控えの名前を1行1つで出す。控えが無ければ何も出さない
   allow_of() { sed -n "/^  hits_allow='\$/,/^'\$/p" | grep -E '^[a-z0-9 -]+$' | tr ' ' '\n' | grep . || true; }
-  # hit_names <skill> <検査のシェル>: 道が ok を出す細かい機能ごとに、7 に当たる場合があれば「HIT <名前>」、無ければ「MISS <名前>」を1行ずつ出す
+  # names_of <skill>: 地図の細かい機能の名前を1行1つで出す
+  names_of() { for f in "$1"/features/*.md; do [ "${f##*/}" = README.md ] || sed -n '/^## 細かい機能$/,/^## /p' "$f" | sed -n 's/^- `\([^`]*\)`.*/\1/p'; done | sort -u; }
+  # words_in: stdin の行から、細かい機能の名前の形の語（英小文字と数字を - でつないだもの）を1行1つで出す
+  words_in() { grep -oE '[a-z0-9]+(-[a-z0-9]+)+' || true; }
+  # hit_names <skill> <検査のシェル>: 道が名指す細かい機能（scripts/ の下に名前が語として出るもの。drive.sh は道の出力の ok の行から名前を読むので、
+  #   ok の出し方〈一重引用符・変数・包む関数・echo〉によらず数える）ごとに、7 に当たる場合があれば「HIT <名前>」、無ければ「MISS <名前>」を1行ずつ出す。
+  #   当たる場合に数えるのは、7 の注釈でない文（行末の \ の続きをつなぐ）のうち、if・while でなく || die で受ける文の、die より前を && で割った項で、
+  #   一重引用符のパターンを <<<"$<変数>" に当てる grep -q（旗は F・x だけ）の項だけ。! の無い項は FAIL・未確認のパターン、! の付いた項は ok のパターンを数える
   hit_names() {
-    local sec pos n
-    sec=$(sed -n '/^# 7\. /,/^# 8\. /p' "$2" | { grep -v '^[[:space:]]*#' || true; } | sed 's/die ".*//')
-    [ -n "$sec" ] || die "$2 から 7 の節が読めない（当たる場合の確かめが何も見ない）"
-    pos=$(sed -E "s/(! |if )grep [^']*'[^']*'//g" <<<"$sec") # 否定の grep と if grep の型を外す
+    local sec terms pos neg n
+    sec=$(sed -n '/^# 7\. /,/^# 8\. /p' "$2" | { grep -v '^[[:space:]]*#' || true; } | sed -e ':a' -e '/\\$/{N;s/\\\n//;ba}' \
+      | { grep -E '\|\| die( |$)' || true; } | { grep -vE '^[[:space:]]*(if|elif|while|until) ' || true; } | sed -E 's/\|\| die( .*|$)//')
+    [ -n "$sec" ] || die "$2 から 7 の節の判定の文が読めない（当たる場合の確かめが何も見ない）"
+    terms=$(sed 's/ && /\n/g' <<<"$sec" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+    pos=$(sed -nE "s/^grep -q[Fx]* '([^']*)' <<<\"\\\$[a-z_]+\"\$/\1/p" <<<"$terms")
+    neg=$(sed -nE "s/^! grep -q[Fx]* '([^']*)' <<<\"\\\$[a-z_]+\"\$/\1/p" <<<"$terms")
     while read -r n; do
-      grep -rqE "(^|[^a-z0-9_])ok \"$n([^a-z0-9-]|\$)" "$1/scripts" || continue
-      if grep -qE "(FAIL $n|未確認: $n|結果 $n (未確認|FAIL))([^a-z0-9-]|\$)" <<<"$pos" || grep -qE "! grep -qF? '\\^?ok   $n([^a-z0-9-]|\$)" <<<"$sec"; then
+      grep -rqE "(^|[^a-z0-9-])$n([^a-z0-9-]|\$)" "$1/scripts" || continue
+      if grep -qE "(FAIL $n|未確認: $n|結果 $n (未確認|FAIL))([^a-z0-9-]|\$)" <<<"$pos" || grep -qE "^\\^?ok   $n([^a-z0-9-]|\$)" <<<"$neg"; then
         echo "HIT $n"
       else
         echo "MISS $n"
       fi
-    done < <(for f in "$1"/features/*.md; do [ "${f##*/}" = README.md ] || sed -n '/^## 細かい機能$/,/^## /p' "$f" | sed -n 's/^- `\([^`]*\)`.*/\1/p'; done | sort -u)
+    done < <(names_of "$1")
   }
-  # hit_gaps <hit_names の出力> <控え> <base の控え（- は base が無いか、base に控えが無い）> <base から HEAD までに scripts/ の下で足した行>: 足りないものを1行ずつ出す
+  # touched_names <repo> <skill（repo からの相対）> <base>: base から HEAD までに <skill>/scripts/ の下で変えた道の細かい機能の名前を1行1つで出す。
+  #   変えた行（足した行と消した行）に出る名前と、HEAD のファイルで変えた所の上の行を辿って最初に名前の出る行（その行が確かめる細かい機能）の名前。
+  #   名前の出ない共通の部品（common.sh の step など）の変更は、どの細かい機能にも数えない
+  touched_names() {
+    local names f c d i start lines
+    names=$(names_of "$1/$2")
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      git -C "$1" diff -U0 --no-renames "$3" HEAD -- "$f" | sed -n '/^[-+][-+][-+] /d; s/^[-+]//p'
+      [ -f "$1/$f" ] || continue
+      mapfile -t lines <"$1/$f"
+      while read -r c d; do
+        if [ "${d:-1}" = 0 ]; then start=$((c - 1)); else start=$((c - 2)); fi # 変えた所の上の行（配列の番号）
+        for ((i = start; i >= 0; i--)); do
+          if [ -n "$(words_in <<<"${lines[i]}" | grep -xF -f <(echo "$names") || true)" ]; then echo "${lines[i]}"; break; fi
+        done
+      done < <(git -C "$1" diff -U0 --no-renames "$3" HEAD -- "$f" | sed -nE 's/^@@ -[0-9,]+ \+([0-9]+)(,([0-9]+))? @@.*/\1 \3/p')
+    done < <(git -C "$1" -c core.quotepath=off diff --name-only --no-renames "$3" HEAD -- "$2/scripts/") | words_in | { grep -xF -f <(echo "$names") || true; } | sort -u
+  }
+  # base_allow_of: base の検査のシェル（stdin）の控えを出す。8 の節の無い base なら -（比べない）。節があるのに控えが読めなければ落ちる
+  base_allow_of() {
+    local t
+    t=$(cat)
+    if ! grep -q '^  hit_names() {$' <<<"$t"; then echo -; return; fi
+    grep -q "^  hits_allow='\$" <<<"$t" || die "base の検査のシェルに 8 の節があるのに、控え hits_allow が読めない（控えの置き方を変えたなら、読み方も同じ変更で直す）"
+    allow_of <<<"$t"
+  }
+  # hit_gaps <hit_names の出力> <控え> <base の控え（- は比べない）> <base から HEAD までに道を変えた細かい機能の名前>: 足りないものを1行ずつ出す
   hit_gaps() {
     local st n
     while read -r st n; do
       [ "$st" = MISS ] || continue
-      grep -qxF -- "$n" <<<"$2" || echo "$n: 道が ok を出すのに、7 に当たる場合の確かめが無い"
+      grep -qxF -- "$n" <<<"$2" || echo "$n: 道が名指すのに、7 に当たる場合の確かめが無い"
     done <<<"$1"
     while read -r n; do
       [ -n "$n" ] || continue
       if grep -qxF -- "HIT $n" <<<"$1"; then
         echo "$n: 7 に当たる場合の確かめがあるのに、控えに残る（控えから消す）"
       elif ! grep -qxF -- "MISS $n" <<<"$1"; then
-        echo "$n: 控えにあるが、道が ok を出す細かい機能でない（控えから消す）"
+        echo "$n: 控えにあるが、道が名指す細かい機能でない（控えから消す）"
       fi
       if [ "$3" != - ] && ! grep -qxF -- "$n" <<<"$3"; then echo "$n: base の控えに無い名前を、控えに足した（控えは減らすだけ。7 に当たる場合を書く）"; fi
-      if grep -qE "(^|[^a-z0-9-])$n([^a-z0-9-]|\$)" <<<"$4"; then echo "$n: 道の行を変えたのに、控えに残る（控えから外し、7 に当たる場合を書く）"; fi
+      if grep -qxF -- "$n" <<<"$4"; then echo "$n: 道の行を変えたのに、控えに残る（控えから外し、7 に当たる場合を書く）"; fi
     done <<<"$2"
   }
   hits=$(hit_names "$skill" tests/verify-andon.sh)
   allow=$(tr ' ' '\n' <<<"$hits_allow" | grep . || true)
   [ "$(allow_of <tests/verify-andon.sh)" = "$allow" ] || die "控え hits_allow を検査のシェルから読み直せない（base の控えと比べられない）"
-  base_allow=- added=
+  base_allow=- touched=
   if [ -z "$base" ]; then
     echo "skip verify-andon: 当たる場合の控えの減り方と、変えた道（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
   else
-    bt=$(git show "$base:tests/verify-andon.sh" 2>/dev/null || true)
-    if grep -q "^  hits_allow='\$" <<<"$bt"; then base_allow=$(allow_of <<<"$bt"); fi
-    added=$(git diff -U0 --no-renames "$base" HEAD -- "$skill/scripts/" | sed -n '/^+++ /d; s/^+//p')
+    git cat-file -e "$base:tests/verify-andon.sh" || die "比べる base $base に tests/verify-andon.sh が読めない"
+    bt=$(git show "$base:tests/verify-andon.sh")
+    base_allow=$(base_allow_of <<<"$bt")
+    touched=$(touched_names "$root" "$skill" "$base")
   fi
-  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$added")
-  [ -z "$gaps" ] || die "当たる場合の確かめが足りない（道が ok を出す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことを確かめる。SKILL.md の 6）:
+  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$touched")
+  [ -z "$gaps" ] || die "当たる場合の確かめが足りない（道が名指す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことを確かめる。SKILL.md の 6）:
 $gaps"
-  ok "verify-andon: 道が ok を出す細かい機能 $(grep -c . <<<"$hits") 件のうち、7 に当たる場合を持つものは $(grep -c '^HIT ' <<<"$hits") 件で、ほかは前からの控え $(grep -c . <<<"$allow") 件"
+  ok "verify-andon: 道が名指す細かい機能 $(grep -c . <<<"$hits") 件のうち、7 に当たる場合を持つものは $(grep -c '^HIT ' <<<"$hits") 件で、ほかは前からの控え $(grep -c . <<<"$allow") 件"
 
   # 自分の確かめ: 7 から当たる場合を消した写し（確かめを打てない回に ok を出す wl-settings・理由の空な記録を通す gt-record）で、名前つきで落ちる
   sed '/"$drc" = 3 \].*wl-settings/d' tests/verify-andon.sh >"$tmp/hits-a.sh"
   grep -qxF 'HIT wl-settings' <<<"$hits" && grep -qxF 'MISS wl-settings' <<<"$(hit_names "$skill" "$tmp/hits-a.sh")" \
     || die "7 から wl-settings の当たる場合を消した写しで、wl-settings を当たる場合の無いものと読まない"
   gaps=$(hit_gaps "$(hit_names "$skill" "$tmp/hits-a.sh")" "$allow" - '')
-  grep -qxF 'wl-settings: 道が ok を出すのに、7 に当たる場合の確かめが無い' <<<"$gaps" || die "7 から wl-settings の当たる場合を消した写しで落ちない: $gaps"
+  grep -qxF 'wl-settings: 道が名指すのに、7 に当たる場合の確かめが無い' <<<"$gaps" || die "7 から wl-settings の当たる場合を消した写しで落ちない: $gaps"
   sed "/'FAIL gt-record'/d" tests/verify-andon.sh >"$tmp/hits-b.sh"
   grep -qxF 'HIT gt-record' <<<"$hits" && grep -qxF 'MISS gt-record' <<<"$(hit_names "$skill" "$tmp/hits-b.sh")" \
     || die "7 から gt-record の当たる場合を消した写しで、gt-record を当たる場合の無いものと読まない"
-  # 数えない形: 否定の grep の FAIL・die の文の中・if grep の中・注釈・8 の後ろ・別の名前。ok でないことを求める grep は数える
-  printf '%s\n' '# 7. 写し' \
-    "  [ \"\$jrc\" = 0 ] && ! grep -qF 'FAIL wl-settings' <<<\"\$jout\" || die \"FAIL wl-record 名指したうち未確認: wl-record\"" \
-    "  if grep -q 'FAIL gt-record' <<<\"\$jout\"; then die x; fi" \
-    "  # [ \"\$jrc\" = 1 ] && grep -qF 'FAIL gt-route' <<<\"\$jout\" || die x" \
-    "  [ \"\$jrc\" = 3 ] && ! grep -q '^ok   gt-skip' <<<\"\$jout\" || die x" \
-    "  grep -qF 'FAIL gt-answers' <<<\"\$jout\" || die x" \
-    '# 8. 写し' "  grep -qF 'FAIL dn-live' <<<\"\$jout\" || die x" >"$tmp/hits-c.sh"
+  # 数えない形（hd-hold）: 否定の grep の FAIL・二重引用符のパターン・if の文・行末の注釈・grep -c・[[ ]]・-e・|| true・受けの無い ! grep・-v・echo・
+  # die の文の中・行頭の注釈・別の名前・8 の後ろ。数える形: ok でないことを求める grep・行末の \ でつないだ文・FAIL を求める grep。
+  # 写しの 7 と 8 の見出しは行頭の | を外して作る（この検査のシェルの 7 の読み方に、写しの行を混ぜない）
+  sed 's/^|//' >"$tmp/hits-c.sh" <<'EOS'
+|# 7. 写し
+  [ "$jrc" = 0 ] && ! grep -qF 'FAIL hd-hold' <<<"$jout" || die x
+  [ "$jrc" = 0 ] && grep -qF "FAIL hd-hold" <<<"$jout" || die x
+  if grep -qF 'FAIL hd-hold' <<<"$jout"; then die x; fi
+  if ! grep -q '^ok   hd-hold' <<<"$jout"; then die x; fi
+  grep -q '^ok   hd-hold' <<<"$jout" || die x # FAIL hd-hold
+  [ "$(grep -c 'FAIL hd-hold' <<<"$jout")" = 0 ] || die x
+  [[ "$jout" != *'FAIL hd-hold'* ]] || die x
+  ! grep -qF -e x -e 'FAIL hd-hold' <<<"$jout" || die x
+  grep -qF 'FAIL hd-hold' <<<"$jout" || true
+  ! grep -q '^ok   hd-hold' <<<"$jout"
+  grep -qvF 'FAIL hd-hold' <<<"$jout" || die x
+  echo 'FAIL hd-hold: x' >"$c/fake"
+  [ "$jrc" = 0 ] || die 'FAIL hd-hold'
+  [ "$jrc" = 0 ] || die "名指したうち未確認: hd-hold"
+  # [ "$jrc" = 1 ] && grep -qF 'FAIL hd-hold' <<<"$jout" || die x
+  grep -qF 'FAIL hd-holdx' <<<"$jout" || die x
+  [ "$jrc" = 3 ] && ! grep -q '^ok   gt-skip' <<<"$jout" || die x
+  [ "$drc" = 1 ] && grep -qx '結果 wl-terminal FAIL（補い）' <<<"$dout" \
+    || die x
+  grep -qF 'FAIL gt-record' <<<"$jout" || die x
+|# 8. 写し
+  grep -qF 'FAIL hd-hold' <<<"$jout" || die x
+EOS
   nb=$(hit_names "$skill" "$tmp/hits-c.sh")
-  for n in wl-settings wl-record gt-record gt-route gt-answer dn-live; do
-    grep -qxF "MISS $n" <<<"$nb" || die "数えない形の写しで $n を当たる場合のあるものと読む: $nb"
+  grep -qxF 'MISS hd-hold' <<<"$nb" || die "数えない形の写しで hd-hold を当たる場合のあるものと読む: $nb"
+  for n in gt-skip wl-terminal gt-record; do
+    grep -qxF "HIT $n" <<<"$nb" || die "数える形の写しで $n を当たる場合と読まない: $nb"
   done
-  grep -qxF 'HIT gt-skip' <<<"$nb" || die "ok でないことを求める grep を当たる場合と読まない: $nb"
-  # 控え: 当たる場合を書いた名前・ok を出さない名前・base の控えに無い名前・道の行を変えた名前が残ると落ちる。名前の一部だけの行では変えたと読まない
-  gaps=$(hit_gaps $'HIT gt-record\nMISS wl-terminal\nMISS rr-ready\nMISS hd-hold' $'gt-record\nwl-terminal\nwl-nosuch\nrr-ready' $'gt-record\nwl-nosuch\nrr-ready' \
-    $'  ok "wl-terminal: 端末"\n  ok "rr-readyx: x"')
-  for want in 'hd-hold: 道が ok を出すのに、7 に当たる場合の確かめが無い' 'gt-record: 7 に当たる場合の確かめがあるのに' 'wl-nosuch: 控えにあるが、道が ok を出す細かい機能でない' \
+  # 道が名指す細かい機能は、ok の出し方（変数で組んだ名前など）によらず照らす
+  cp -r "$skill" "$tmp/hits-d" && sed -i '/^## 細かい機能$/a - `hd-zz` 試し。見る道: 検証の担当だけ。' "$tmp/hits-d/features/hold.md" \
+    && echo 'for s in hd-zz; do ok "$s: 試し"; done' >>"$tmp/hits-d/scripts/journeys/hold.sh" || die "写し hits-d が作れない"
+  gaps=$(hit_gaps "$(hit_names "$tmp/hits-d" tests/verify-andon.sh)" "$allow" - '')
+  grep -qxF 'hd-zz: 道が名指すのに、7 に当たる場合の確かめが無い' <<<"$gaps" || die "変数で組んだ名前で ok を出す細かい機能を照らさない: $gaps"
+  # 控え: 当たる場合を書いた名前・道が名指さない名前・base の控えに無い名前・道を変えた名前が残ると落ちる
+  gaps=$(hit_gaps $'HIT gt-record\nMISS wl-terminal\nMISS rr-ready\nMISS hd-hold' $'gt-record\nwl-terminal\nwl-nosuch\nrr-ready' $'gt-record\nwl-nosuch\nrr-ready' 'wl-terminal')
+  for want in 'hd-hold: 道が名指すのに、7 に当たる場合の確かめが無い' 'gt-record: 7 に当たる場合の確かめがあるのに' 'wl-nosuch: 控えにあるが、道が名指す細かい機能でない' \
     'wl-terminal: base の控えに無い名前を、控えに足した' 'wl-terminal: 道の行を変えたのに'; do
     grep -qF -- "$want" <<<"$gaps" || die "控えの崩れ（$want）を拾わない: $gaps"
   done
-  if grep -qF 'rr-ready' <<<"$gaps"; then die "控えにある rr-ready を、名前の一部（rr-readyx）だけの行で変えたと読む: $gaps"; fi
-  [ -z "$(hit_gaps $'HIT gt-record\nMISS wl-terminal' 'wl-terminal' - '')" ] || die "base の控えが無いとき、控えにある当たる場合の無い名前で落ちる"
-  ok "verify-andon: 当たる場合の照らしは、7 から wl-settings・gt-record の当たる場合を消した写しで名前つきで落ち、否定の grep・die の文・if grep・注釈の FAIL を数えず、控えの崩れを拾う"
+  if grep -qF 'rr-ready' <<<"$gaps"; then die "道を変えていない控えの rr-ready で落ちる: $gaps"; fi
+  [ -z "$(hit_gaps $'HIT gt-record\nMISS wl-terminal' 'wl-terminal' - '')" ] || die "base の控えと比べないとき、控えにある当たる場合の無い名前で落ちる"
+  # base の控え: 8 の節の無い base は比べず、節があるのに控えが読めなければ落ちる。この検査のシェルからは控えを読む
+  [ "$(base_allow_of <<<'# 7. だけ')" = - ] || die "8 の節の無い base の控えを、比べない印 - と読まない"
+  [ "$(base_allow_of <tests/verify-andon.sh)" = "$allow" ] || die "この検査のシェルを base と見て、控えを読まない"
+  if (base_allow_of <<<"$(sed '/^  hits_allow=/d' tests/verify-andon.sh)" >/dev/null 2>&1); then die "8 の節があるのに控えの読めない base で落ちない"; fi
+  # 道を変えた細かい機能: 名前の出ない判定の行を変えるか消しても、上の行を辿って、その行が確かめる細かい機能を数える。名前の出ない共通の部品は数えない。触らない道は数えない
+  tr=$tmp/touch; mkdir -p "$tr/s/features" "$tr/s/scripts/journeys"
+  printf '## 細かい機能\n- `xx-a` a\n- `xx-b` b\n- `xx-c` c\n## 辿り着き方（利用者から）\n' >"$tr/s/features/x.md"
+  printf '%s\n' '# xx-a: 一つ目' 'if [ -s "$f" ] && [ "$(cat "$f")" = a ]; then' '  ok "xx-a: 読めた"' 'fi' '# xx-b: 二つ目' 'v=1' 'ok "xx-b: $v"' '# xx-c: 三つ目' 'ok "xx-c: c"' >"$tr/s/scripts/journeys/x.sh"
+  echo 'step() { "$@"; }' >"$tr/s/scripts/common.sh"
+  tcommit() { git -C "$tr" add -A && git -C "$tr" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -qm "$1"; }
+  git -C "$tr" init -q && tcommit one || die "道を変えた細かい機能の場面の repo が作れない"
+  tb=$(git -C "$tr" rev-parse HEAD)
+  sed -i 's/ && \[ "$(cat "$f")" = a ]//; /^v=1$/d' "$tr/s/scripts/journeys/x.sh" && echo 'step() { true; }' >"$tr/s/scripts/common.sh" && tcommit two \
+    || die "道を変えた細かい機能の場面の変更が作れない"
+  ! grep -qF 'cat "$f"' "$tr/s/scripts/journeys/x.sh" || die "場面の xx-a の条件を消せない（自分の確かめが何も見ない）"
+  t=$(touched_names "$tr" s "$tb")
+  [ "$t" = $'xx-a\nxx-b' ] || die "名前の出ない行を変えた道（xx-a・xx-b）だけを数えない: $t"
+  ok "verify-andon: 当たる場合の照らしは、7 から wl-settings・gt-record の当たる場合を消した写しで名前つきで落ち、判定でない形と二重引用符・if の文の FAIL を数えず、ok の出し方によらず照らし、名前の出ない行の変更も上の行の細かい機能に数え、控えの崩れと読めない base の控えを拾う"
 fi
