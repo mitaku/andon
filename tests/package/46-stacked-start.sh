@@ -34,7 +34,9 @@ stack_miss() {
   r1=$(grep '^| `stacked_on` が、マージした課題そのもの' "$2"); r2=$(grep '^| `stacked_on` があり、マージしたのがほかの課題' "$2")
   [ "$(cut -d'|' -f3 <<<"$r1")" = ' 影響なし（gate が載せ替えを頼む） ' ] || m="$m [finish.md の積んだ相手の行の判断]"
   [ "$(cut -d'|' -f3 <<<"$r2")" = ' rebase を頼まない ' ] && grep -qF 'があっても rebase を頼まない' <<<"$r2" && grep -qF '（rebase は頼まない）' <<<"$r2" || m="$m [finish.md のほかの課題の行の判断]"
-  grep -qF '片付けていない: PR が既定の branch でない base' "$2" || m="$m [finish.md の既定でない base の行]"
+  grep -qF '片付けていない: PR が既定の branch でない base' "$2" && grep -qF '`kanban show <前の課題>` を見て、`done` になっていたら' "$2" || m="$m [finish.md の既定でない base の行]"
+  grep -qF '積んだ課題の PR が open なら、dispatcher が gate を回し直し' "$2" || m="$m [finish.md の積んだ相手の行の open の条件]"
+  grep -qF '「既定の branch でない base」の行で手で片付けた課題なら、聞かずに' "$3" || m="$m [watch.md の手で片付けた前の課題の但し書き]"
   grep -qF 'その課題の上に積んだ課題' "$2" || m="$m [finish.md のやめる課題]"
   grep -qF '答えを送るまで andon issue restack・PR・ready を打たずに待って' "$2" || m="$m [finish.md の doing の担当を待たせる]"
   wb=$(grep -F '`<id> gate: behind（前の課題 <id> の PR がまだ main に入っていない…）`' "$3")
