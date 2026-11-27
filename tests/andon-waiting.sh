@@ -146,17 +146,33 @@ for id in S-0001 S-0002; do
     | put "$bk/issues/$id/library/gate/$head.json"
 done
 printf 'id: S-0003\ntitle: 動いている\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' | put "$bk/issues/S-0003/issue.yaml"
+# S-0004〜S-0006 は積んだ課題（stacked_on・stacked_base）。S-0004 は Chief of Staff（t1）が鍵を書き、今の回の gate の記録が無い
+# （gate が判定できず、dispatcher が記録を書かずに前の PR 待ちに置いた）ので behind。S-0005 は担当（t2）が鍵を書いたので積んだ課題と
+# 読まず working。S-0006 は t1 が鍵を書いたが、今の回の gate の記録が fix（担当へ返した）なので working
+sb=$(printf 'c%.0s' $(seq 40))
+for id in S-0004 S-0005 S-0006; do
+  printf 'id: %s\ntitle: 積んだ課題\nstatus: review\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\nstacked_on: S-0009\nstacked_base: %s\n' "$id" "$sb" \
+    | put "$bk/issues/$id/issue.yaml"
+  printf '{"commit": "%s", "pr": "%s"}\n' "$head" "$pr" | put "$bk/issues/$id/library/report.json"
+done
+printf '{"head": "%s", "at": "2026-11-21T05:00:00Z", "decision": "fix", "reasons": ["検査が落ちた"]}\n' "$head" | put "$bk/issues/S-0006/library/gate/$head.json"
 # S-0001 は記録の前に review に入った（今の回）。S-0002 は記録のあとに review に入り直した（記録は前の回）
-printf '%s\n' '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"review"}}' \
+stk() { printf '{"at":"2026-11-21T03:00:00Z","by":"terminal:%s","id":"%s","change":{"stacked_on":"S-0009","stacked_base":"%s"}}' "$2" "$1" "$sb"; }
+printf '%s\n' '{"at":"2026-11-21T00:00:00Z","by":"terminal:t1","config":{"chief_of_staff":"t1"}}' \
+  "$(stk S-0004 t1)" "$(stk S-0005 t2)" "$(stk S-0006 t1)" \
+  '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"review"}}' \
+  '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0004","change":{"status":"review"}}' \
+  '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0005","change":{"status":"review"}}' \
+  '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0006","change":{"status":"review"}}' \
   '{"at":"2026-11-21T06:00:00Z","by":"terminal:t3","id":"S-0002","change":{"status":"review"}}' | put "$bk/log.jsonl"
 KANBAN_ROOT=$bp "$andon" waiting list --json >"$tmp/behind.json"
-jq -e '.items == [] and .slots == {limit: 2, working: 2, waiting: 0, behind: 1, free: 0}' "$tmp/behind.json" >/dev/null \
-  || die "前の PR 待ちの課題の数え方が違う: $(jq -c '{slots, items}' "$tmp/behind.json")"
+jq -e '.items == [] and .slots == {limit: 2, working: 4, waiting: 0, behind: 2, free: 0}' "$tmp/behind.json" >/dev/null \
+  || die "前の PR 待ちの課題の数え方が違う（behind は S-0001・S-0004、working は S-0002・S-0003・S-0005・S-0006）: $(jq -c '{slots, items}' "$tmp/behind.json")"
 emit "$tmp/behind.json" waiting-behind.json
 KANBAN_ROOT=$bp "$andon" waiting list >"$tmp/behind.text"
-grep -q '^behind の枠: 上限 2、動いている 2、オーナー待ち 0、前の PR 待ち 1、空き 0$' "$tmp/behind.text" \
+grep -q '^behind の枠: 上限 2、動いている 4、オーナー待ち 0、前の PR 待ち 2、空き 0$' "$tmp/behind.text" \
   || die "前の PR 待ちの枠の行が違う: $(cat "$tmp/behind.text")"
-echo 'ok 前の PR 待ち: 今の回の behind の記録を持つ review の課題は behind に数え、working にも waiting にも items にも入れない'
+echo 'ok 前の PR 待ち: 今の回の behind の記録を持つ review の課題と、記録がまだ無い信じられる積んだ課題は behind に数え、working にも waiting にも items にも入れない'
 
 set +e
 "$andon" waiting list --project nothing >/dev/null 2>"$tmp/err"; rc=$?

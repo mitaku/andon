@@ -713,15 +713,15 @@ if [ "$self" = true ]; then
   # 偽のセルに本物の kanban の CLI で kanban を作り、dispatcher の端末として問いを出して答えて受け取る（今の時刻なので、上の beef02 の間に入る）
   . tests/lib/kanban.sh
   g=$c/ws/projects/g head=$(printf 'a%.0s' {1..40})
-  gsetup() { # gsetup <問いの from> <答え> [<記録の判定>]: kanban を作り直し、gate の記録 1 つと、dispatcher が閉じた問い 1 つを置く（from が空なら問いを置かない）
+  gsetup() { # gsetup <問いの from> <答え> [<記録の判定>] [<記録の理由の JSON>] [<問いの facts の JSON>]: kanban を作り直し、gate の記録 1 つと、dispatcher が閉じた問い 1 つを置く（from が空なら問いを置かない）
     rm -rf "$g" && mkdir -p "$g" && (cd "$g" && "$kanban" init --prefix G >/dev/null) || die "gt-answer の場面の kanban が作れない"
     local id lib
     id=$(KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" add "gate の問い")
     lib=$g/kanban/issues/$id/library && mkdir -p "$lib/gate" "$lib/questions"
-    echo "{\"at\": \"2026-01-01T00:12:00Z\", \"id\": \"$id\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"C\", \"decision\": \"${3:-needs_human}\", \"merged\": false, \"reasons\": []}" >"$lib/gate/$head.json"
+    echo "{\"at\": \"2026-01-01T00:12:00Z\", \"id\": \"$id\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"C\", \"decision\": \"${3:-needs_human}\", \"merged\": false, \"reasons\": ${4:-[]}}" >"$lib/gate/$head.json"
     [ -n "$1" ] || return 0
     KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" ask "$id" - --kind line <<<"マージするか" >/dev/null
-    echo "{\"from\": \"$1\"}" >"$lib/questions/1.json"
+    echo "{\"from\": \"$1\", \"facts\": ${5:-[]}}" | sed "s|<lib>|$lib|g" >"$lib/questions/1.json"
     KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" answer --decided-by machine -- "$id#1" "${2//<lib>/$lib}" >/dev/null
     KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" received "$id#1" >/dev/null
   }
@@ -739,13 +739,33 @@ if [ "$self" = true ]; then
   [ "$jrc" = 0 ] && grep -qF 'note gt-answer' <<<"$jout" || die "gate: dispatcher が閉じた問いが無いのに note gt-answer が出ない（$jrc）: $jout"
   ok "verify-andon: gate の gt-answer は、gate の外の問いを閉じたか、答えが名指す gate の記録が無いと落ち、閉じた問いが無ければ note を出す"
   # gt-record は、積んだ課題の前の PR 待ち（behind。ADR-0067 決めたこと 8）の記録を形の違う記録と読まない。知らない判定では落ちる（当たる場合）
-  gsetup "" "" behind
+  why='["前の課題 G-0009 の PR がまだ main に入っていない", "base が既定ブランチでない"]'
+  gsetup "" "" behind "$why"
   journey gate
-  [ "$jrc" = 0 ] && grep -qF 'ok   gt-record' <<<"$jout" || die "gate: behind の記録を gt-record が形の違う記録と読んだ（$jrc）: $jout"
-  gsetup "" "" bogus
+  [ "$jrc" = 0 ] && grep -qF 'ok   gt-record' <<<"$jout" && grep -qF 'ok   gt-route' <<<"$jout" || die "gate: behind の記録を gt-record・gt-route が形の違う記録と読んだ（$jrc）: $jout"
+  gsetup "" "" bogus "$why"
   journey gate
   [ "$jrc" = 1 ] && grep -qF 'FAIL gt-record' <<<"$jout" || die "gate: 知らない判定の記録で gt-record が落ちない（$jrc）: $jout"
-  ok "verify-andon: gate の gt-record は、behind の記録を形どおりと読み、知らない判定の記録で落ちる"
+  # behind の理由が空・先頭が前の課題を名指さない・dispatcher がマージした（merged が true）記録は、形の違う記録
+  for bad in '[]' '["base が既定ブランチでない"]' merged; do
+    if [ "$bad" = merged ]; then
+      gsetup "" "" behind "$why"
+      f=$g/kanban/issues/G-0001/library/gate/$head.json
+      jq '.merged = true' "$f" >"$f.new" && mv "$f.new" "$f"
+    else
+      gsetup "" "" behind "$bad"
+    fi
+    journey gate
+    [ "$jrc" = 1 ] && grep -qF 'FAIL gt-record' <<<"$jout" || die "gate: behind の記録（$bad）で gt-record が落ちない（$jrc）: $jout"
+  done
+  # behind の記録を名指す gate の問いがあれば gt-route が落ちる（behind は問いを出さない）。記録を名指さない gate の問いでは落ちない（当たる場合）
+  gsetup gate "閉じた" behind "$why" "[\"gate の記録 <lib>/gate/$head.json\"]"
+  journey gate
+  [ "$jrc" = 1 ] && grep -qF 'FAIL gt-route' <<<"$jout" && grep -qF '名指す gate の問い' <<<"$jout" || die "gate: behind の記録を名指す問いで gt-route が落ちない（$jrc）: $jout"
+  gsetup gate "閉じた" behind "$why" '["gate の記録 /elsewhere/gate.json"]'
+  journey gate
+  [ "$jrc" = 0 ] && grep -qF 'ok   gt-route' <<<"$jout" || die "gate: behind の記録を名指さない問いで gt-route が落ちた（$jrc）: $jout"
+  ok "verify-andon: gate の gt-record は、behind の記録を形どおりと読み、知らない判定・理由の空や先頭の違う behind・マージした behind で落ちる。gt-route は behind の記録を名指す gate の問いで落ちる"
 
   # gate の gt-skip: 自分の commit の無い課題（報告の commit が既定の branch に入っている）が PR 無しで review に入ったら、
   # 担当がそのあと doing に戻していない（gate の fix を受けていない）。偽のセルに repo の clone（.ghq）を置き、本物の kanban の CLI で返す

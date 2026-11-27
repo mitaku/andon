@@ -1255,7 +1255,7 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 | `project` | プロジェクトの slug（kanban の根のディレクトリの名前） |
 | `slots.limit` | `project.json` の `chief_of_staff.parallel`。無ければ 2 |
 | `slots.waiting` | `doing` か `review` の担当の課題（レビュアーの子課題〈`<id>-r<k>`・`profile` が `-review` で終わる〉・Chief Engineer の課題・オーナーの課題を除く）のうち、`items` に `merge` か `decision` の行があるものか、Chief of Staff が止めているものの数 |
-| `slots.behind` | 同じ課題のうち、`review` にいて、今の head（`report.json` の `commit`）に今の `review` の回（課題が最後に `review` に入った時刻から）の gate の記録があり、判定が `behind`（前の PR 待ち）のものの数。`waiting` にも `working` にも数えない。`items` に行を足さない。キーを足しただけなので出力のバージョンは 1 のまま（古い読み手は読まない。[ADR-0067](adr/0067-stacked-start.md) 決めたこと 10） |
+| `slots.behind` | 同じ課題のうち、`review` にいて、今の head（`report.json` の `commit`）に今の `review` の回（課題が最後に `review` に入った時刻から）の gate の記録があり、判定が `behind`（前の PR 待ち）のものと、予約キー `stacked_on`・`stacked_base` が信じられる積んだ課題で今の回の gate の記録がまだ無いもの（gate がまだ判定していないか、判定できずに dispatcher が記録を書かずに前の PR 待ちに置いた。積んだ課題の gate は approve も needs_human も出さず、`fix` なら記録が書かれて `working` に戻る）の数。`waiting` にも `working` にも数えない。`items` に行を足さない。キーを足しただけなので出力のバージョンは 1 のまま（古い読み手は読まない。[ADR-0067](adr/0067-stacked-start.md) 決めたこと 10） |
 | `slots.working` | 同じ課題のうち、残りの数（オーナー待ちでも前の PR 待ちでもないもの） |
 | `slots.free` | `limit` から `working` を引いた数で、0 より小さくしない。`waiting` がいくつでも変わらない（[ADR-0065](adr/0065-owner-waits-never-stop-launch.md) 決めたこと 4）。Chief of Staff は 1 以上ならその数まで起動する |
 | `items[]` | オーナー待ちの行。`call` が真の行が先で、`holds` の数の多い順、同じなら `since` の古い順。そのあとに `call` が偽の行を `since` の古い順に並べる。Chief Engineer の文書の PR とオーナーの課題は、行には出るが枠には数えない |

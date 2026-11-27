@@ -12,7 +12,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/waiting/open_unix.go`、`internal/waiting/open_other.go`、`schema/waiting.schema.json`
 - `ow-old-name` 名前を変える前の andon waiting --json（古いホストの部品が打つ形）は、`andon waiting list` に名前が変わったと1行で言って終了コード 2 で終わり、オーナー待ちを出さない。2語の古い名前（andon delegate show --json）・消えた名詞だけ（andon delegate）・子の無い1語の古い名前（andon measure --json）も、新しい名前の1行で断る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/cli/cli.go`、`internal/cli/leaves.go`
-- `ow-slots` オーナー待ちの担当の課題が上限以上でも、動いている課題が上限より少なければ、`andon waiting list --json` の `slots.free` は上限から動いている課題の数を引いた正の数で、`slots` に `waiting_full` は無い。人が読む出力の枠の行にも、新しい課題を起動しないの文が無い。今の回の gate の記録が `behind` の `review` の課題は、`slots.working` にも `slots.waiting` にも数えず `slots.behind` に数え、`items` に行を足さない。見る道: 検証の担当だけ。
+- `ow-slots` オーナー待ちの担当の課題が上限以上でも、動いている課題が上限より少なければ、`andon waiting list --json` の `slots.free` は上限から動いている課題の数を引いた正の数で、`slots` に `waiting_full` は無い。人が読む出力の枠の行にも、新しい課題を起動しないの文が無い。今の回の gate の記録が `behind` の `review` の課題と、今の回の gate の記録がまだ無い信じられる積んだ `review` の課題は、`slots.working` にも `slots.waiting` にも数えず `slots.behind` に数え、`items` に行を足さない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`schema/waiting.schema.json`
 - `ow-later` Chief of Staff が `kanban set <id> later=<理由>` を書いたオーナーの課題は、`andon waiting list --json` で `call: false` と理由を持ち、呼んでいる行の後に並ぶ。人が読む出力は「置いてあるもの N 件」の見出しの下に置いた理由つきで出す。`later_until` の日が先なら置いたまま、来たらまた呼ぶ。担当の端末が書き直した印は信じない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`

@@ -19,7 +19,7 @@
         "limit": { "description": "project.json chief_of_staff.parallel, else 2.", "type": "integer", "minimum": 1 },
         "working": { "description": "Counted issues that neither wait on the owner nor on the previous PR.", "type": "integer", "minimum": 0 },
         "waiting": { "description": "Counted issues that have a merge or decision item.", "type": "integer", "minimum": 0 },
-        "behind": { "description": "Counted issues in review whose current head has a gate record of this review round deciding behind (waiting on the previous PR). Neither working nor waiting. Readers before this key do not read it.", "type": "integer", "minimum": 0 },
+        "behind": { "description": "Counted issues in review whose current head has a gate record of this review round deciding behind (waiting on the previous PR), and trusted stacked issues in review with no gate record of this round yet. Neither working nor waiting. Readers before this key do not read it.", "type": "integer", "minimum": 0 },
         "free": { "description": "limit minus working, never below 0. Waiting issues do not reduce it: launch while it is 1 or more.", "type": "integer", "minimum": 0 }
       }
     },

@@ -15,20 +15,32 @@ if [ "$n" = 0 ]; then
   echo "note 当てたあとに gate が回っていない。gt-record・gt-route は未確認。次の課題が review に入ったあとで打ち直す"
 else
   jq -c '{at, id, pr, head: .head[0:12], tier, decision, merged, reasons: (.reasons | length), checks: .github_checks.state, review: .review.state}' <<<"$recs" | sed 's/^/  | /'
-  bad=$(jq -c 'select((.decision | IN("approve", "fix", "needs_human", "behind") | not) or (.tier | IN("A", "B", "C") | not) or (.head | test("^[0-9a-f]{40}$") | not) or (.reasons | type) != "array")' <<<"$recs")
-  [ -z "$bad" ] && ok "gt-record: 当てたあとの gate $n 回は、全部が判定・レベル・head・理由の形を持つ" \
+  # behind（前の PR 待ち。ADR-0067 決めたこと 8）は、理由の 1 行目が前の課題を名指す決まった文で、dispatcher はマージしない（merged が false）
+  bad=$(jq -c 'select((.decision | IN("approve", "fix", "needs_human", "behind") | not) or (.tier | IN("A", "B", "C") | not) or (.head | test("^[0-9a-f]{40}$") | not) or (.reasons | type) != "array"
+    or (.decision == "behind" and (((.reasons[0] // "") | test("^前の課題 [A-Z]+-[0-9]+ の PR がまだ main に入っていない$") | not) or .merged != false)))' <<<"$recs")
+  [ -z "$bad" ] && ok "gt-record: 当てたあとの gate $n 回は、全部が判定・レベル・head・理由の形を持つ（behind は前の課題を名指す理由が先頭で、マージしていない）" \
     || { fail "gt-record: 形の違う gate の記録がある"; sed 's/^/  | /' <<<"$bad"; }
 
   # gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージかオーナーへ、behind は review のまま）。課題の今の status を並べる。
+  # behind は問いを出さないので、その記録を名指す gate の問い（facts に「gate の記録 <パス>」）があれば落とす。
   # $ws を cwd にしても kanban は見つからない（projects/*/kanban が複数あり得る）ので、記録のパスから kanban の親を KANBAN_ROOT に渡す
-  unread=0
+  unread=0 f0=$fails
   while IFS=$'\t' read -r id decision merged file; do
     st=$(KANBAN_ROOT="${file%%/kanban/issues/*}" kanban show "$id" --json 2>/dev/null | jq -r '.issue.status // empty')
     [ -n "$st" ] || { st='?'; unread=$((unread + 1)); }
     echo "  | $id: 判定 $decision・merged $merged・今の status $st"
+    [ "$decision" = behind ] || continue
+    for q in "${file%/gate/*}"/questions/*.json; do
+      [ -f "$q" ] || continue
+      jq -e --arg f "gate の記録 $file" '.from == "gate" and ((.facts // []) | index($f))' "$q" >/dev/null 2>&1 \
+        && fail "gt-route: 前の PR 待ち（behind）の記録 $file を名指す gate の問い ${q##*/} がある（behind は問いを出さない）"
+    done
   done < <(jq -r '[.id, .decision, (.merged | tostring), .file] | @tsv' <<<"$recs")
-  [ "$unread" = 0 ] && ok "gt-route: 判定ごとの課題の今の status を並べた（読み方は features/gate.md）" \
-    || fail "gt-route: 課題 $unread 件の今の status を kanban show で読めない"
+  if [ "$unread" != 0 ]; then
+    fail "gt-route: 課題 $unread 件の今の status を kanban show で読めない"
+  elif [ "$fails" = "$f0" ]; then
+    ok "gt-route: 判定ごとの課題の今の status を並べた（読み方は features/gate.md）。behind の記録を名指す gate の問いは無い"
+  fi
 fi
 
 # gt-answer: dispatcher が閉じた問い（kanban の履歴で by が terminal:dispatcher の received）は、gate の問い（from: gate）だけ。

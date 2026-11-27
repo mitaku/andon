@@ -351,6 +351,9 @@ pending "$id" gate | jq -e --arg p "$prv" '.detail.decision == "behind" and (.de
     die "gate が判定できない積んだ課題の通知が、記録の無い behind でない: $(jq -c .pending "$state")"
 jq -e --arg t "$id" --arg h "$head" '.[$t].decision == "behind" and .[$t].sha == $h' "$mergerec" >/dev/null || die "判定できない積んだ課題の merge の記録が behind・報告の commit でない: $(jq -c --arg t "$id" '.[$t]' "$mergerec")"
 emit <(pending "$id" gate) notification-gate-behind-unread.json
+# 記録の無い前の PR 待ちも、並行の枠では前の PR 待ちに数え、動いている課題に数えない（担当は手を止めている）
+"$andon" waiting list --project demo --json >"$tmp/w0g.json" 2>"$tmp/w0g.err" || die "andon waiting list が落ちた: $(cat "$tmp/w0g.err")"
+jq -e '.slots.behind == 1' "$tmp/w0g.json" >/dev/null || die "記録の無い前の PR 待ちを枠の前の PR 待ちに数えない: $(jq -c .slots "$tmp/w0g.json")"
 jq --arg t "$id" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.new" && mv "$state.new" "$state"   # Chief of Staff に届いたことにする
 # 前の課題の branch が kanban に書かれたら、gate が判定する（merge の記録の決めたことを消して、次の巡で回し直させる）
 HC_TERMINAL_ID=t5 kanban set "$prv" "branch=demo/$prv" >/dev/null

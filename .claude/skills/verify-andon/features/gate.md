@@ -4,9 +4,9 @@
 
 ## 細かい機能
 
-- `gt-record` 当てたあとの gate の記録（`library/gate/<head>.json`）が、判定・レベル・head・理由の形を持つ。積んだ課題の前の PR 待ち（判定 `behind`・終了コード 6）の記録も同じ形で、理由の 1 行目が前の課題を名指す。見る道: 検証の担当だけ。
+- `gt-record` 当てたあとの gate の記録（`library/gate/<head>.json`）が、判定・レベル・head・理由の形を持つ。積んだ課題の前の PR 待ち（判定 `behind`・終了コード 6）の記録も同じ形で、理由の 1 行目が「前の課題 <id> の PR がまだ main に入っていない」で、`merged` が false。手順はこの 2 つも確かめ、外れた behind の記録で落ちる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/gate/gate.go`、`internal/gate/decide.go`、`internal/gate/comment.go`、`internal/gate/mark.go`、`internal/gate/review.go`、`internal/gate/stacked.go`、`internal/cli/leaves.go`、`package/gate.json`
-- `gt-route` 判定ごとに課題が動いた（`approve` はマージかオーナーへ、`fix` は `doing`、`needs_human` は問い、`behind` はマージも問いもせず `review` のまま通知 `gate` を Chief of Staff へ届ける）。見る道: 検証の担当だけ。
+- `gt-route` 判定ごとに課題が動いた（`approve` はマージかオーナーへ、`fix` は `doing`、`needs_human` は問い、`behind` はマージも問いもせず `review` のまま通知 `gate` を Chief of Staff へ届ける）。手順は behind の記録を名指す gate の問い（facts の「gate の記録 <パス>」）があれば落ちる。通知は届いたあと控えから消えるので、手順は読まない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/merge.go`、`internal/issue/finish.go`、`internal/issue/writeback.go`、`internal/dispatcher/route.go`、`internal/contract/merge.go`、`internal/delegate/delegate.go`、`process/states/gate.yaml`、`schema/notification.schema.json`
 - `gt-answer` dispatcher が閉じた問いは gate の問い（`from: gate`）だけで、dispatcher が書いた答えは印が `machine`、「決め直した」の答えが名指す gate の記録が在る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/settle.go`、`internal/contract/settle.go`、`internal/dispatcher/humanmerge.go`、`process/states/human-merge.yaml`
