@@ -4,16 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun build src/list.ts src/view.ts src/upload.ts src/local.ts src/local-upload.ts --outdir dist/workers --target browser --format esm",
-    "typecheck": "tsc --noEmit",
+    "build": "bun build src/list.ts src/view.ts src/upload.ts src/local.ts src/local-upload.ts --outdir dist/workers --target browser --format esm && vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "test": "vitest run",
     "browser": "playwright test",
     "e2e": "node scripts/e2e.mjs",
     "serve": "node scripts/serve.mjs"
   },
   "dependencies": {
+    "@solidjs/router": "2.0.1",
+    "@solidjs/vite-plugin": "3.0.1",
+    "@solidjs/web": "2.0.4",
+    "@stylexjs/stylex": "0.19.2",
+    "@stylexjs/unplugin": "0.19.2",
+    "@ui-sdk/core": "0.1.0-beta.17",
+    "@ui-sdk/solid": "0.1.0-beta.17",
     "marked": "18.3.0",
-    "miniflare": "5.20261123.1-beta"
+    "miniflare": "5.20261123.1-beta",
+    "solid-js": "2.0.4",
+    "vite": "8.4.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.9.2",
