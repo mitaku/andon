@@ -22,9 +22,10 @@ case "\$*" in
     [ "\$7" != state,mergeCommit ] || flaky viewfail
     [ "\$7" != state,mergeCommit,headRefOid ] || flaky rereadfail
     jq --arg s "\$(st)" '{state: \$s, headRefOid, mergeCommit: (if \$s == "MERGED" then {oid: .headRefOid} else null end), mergedAt: (if \$s == "MERGED" then "2026-01-01T00:00:00Z" else null end)}' $d/view.json ;;
-  "pr view 7 --repo example/sample-site --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")
-    jq --arg s "\$(st)" --arg m "\$(tail -1 $d/marks 2>/dev/null)" '{state: \$s, headRefOid, headRefName, isCrossRepository, mergeCommit: (if \$s == "MERGED" then {oid: .headRefOid} else null end),
+  "pr view 7 --repo example/sample-site --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName")
+    jq --arg s "\$(st)" --arg m "\$(tail -1 $d/marks 2>/dev/null)" '{state: \$s, headRefOid, headRefName, isCrossRepository, baseRefName, mergeCommit: (if \$s == "MERGED" then {oid: .headRefOid} else null end),
       statusCheckRollup: (if \$m == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: (\$m | ascii_upcase)}] end)}' $d/view.json ;;
+  "repo view example/sample-site --json defaultBranchRef -q .defaultBranchRef.name") echo main ;;   # settle がマージされた PR の base と比べる
   "pr view 7 --repo example/sample-site --json state,commits,comments,reviews") jq --arg s "\$(st)" '{state: \$s, commits: [{oid: .headRefOid, messageHeadline: "x"}], comments: [], reviews: []}' $d/view.json ;;
   "pr view https://github.com/example/sample-site/pull/7 --json state,mergeCommit,files") jq --arg s "\$(st)" '{state: \$s, mergeCommit: null, files: []}' $d/view.json ;;
   "pr view 7 --repo example/sample-site --json "*) cat $d/view.json ;;

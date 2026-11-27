@@ -161,6 +161,8 @@ var leaves = []leaf{
 		usage: issue.RecordUsage, examples: []string{"issue record S-0012 -- go test ./..."}, writes: true, project: true, run: issue.Record},
 	{name: "issue ready", who: []who{role}, about: "HEAD・report.json・PR・レビューが揃っていれば kanban を review にする",
 		usage: issue.ReadyUsage, examples: []string{"issue ready S-0012"}, writes: true, project: true, run: issue.Ready},
+	{name: "issue restack", who: []who{role}, about: "積んだ課題を、前の課題が main に入ったあと既定の branch の先へ載せ替える",
+		usage: issue.RestackUsage, examples: []string{"issue restack S-0012"}, writes: true, project: true, run: issue.Restack},
 	{name: "news ack", who: []who{role}, about: "届いた <news> にオーナーへ言うことが無いと示す",
 		usage: dispatcher.NewsUsage, examples: []string{"news ack"}, writes: true, run: dispatcher.NewsAck},
 	{name: "publish", who: []who{role}, about: "生成したファイルを tray へ出し、オーナーに渡す URL を1行返す",

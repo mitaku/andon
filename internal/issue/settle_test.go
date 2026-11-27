@@ -52,7 +52,7 @@ func TestSettleHeldOldWords(t *testing.T) {
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			rec := map[string]contract.Settled{"T-0001": {PR: pr, Commit: f.head, State: "MERGED", Head: f.head, Sha: f.head, Held: c.held}}
+			rec := map[string]contract.Settled{"T-0001": {PR: pr, Commit: f.head, State: "MERGED", Head: f.head, Sha: f.head, Held: c.held, BaseOK: true}}
 			if err := contract.WriteState(path, rec); err != nil {
 				t.Fatal(err)
 			}

@@ -10,11 +10,11 @@ states:
   - id: closed
     title: CLOSED（マージなし）と知らせた（開き直されうるので、PR ごとに 1 分に 1 回 gh pr view を続ける）
   - id: held
-    title: 片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉。同じ理由は 1 回だけ知らせる）
+    title: 片付けられない（gate の外の問いが開いている・finish が失敗した〈commit していない変更など〉・既定の branch でない base にマージされた〈Base。main に入っていない。ADR-0067 決めたこと 15〉。同じ理由は 1 回だけ知らせる）
     record: settle:Held
   - id: finished
     title: 片付けた
-positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha]
+positions: [settle:PR, settle:Commit, settle:At, settle:Head, settle:Sha, settle:Base, settle:BaseOK]
 transitions:
   - { from: "[*]", to: watching, on: "review か doing にいて report.json に pr がある（dispatcher が andon issue settle を打つ）", by: machine, command: andon issue settle }
   - { from: watching, to: watching, on: "開いている PR の今の head の印が課題の状態と違う（gate の判定の印・doing に戻った課題の赤・Chief Engineer の文書の PR の緑。判定の無い head には書かない）", by: machine, command: andon issue settle }
@@ -22,6 +22,7 @@ transitions:
   - { from: watching, to: closed, on: "CLOSED になった", by: person }
   - { from: merged, to: finished, on: "オーナーがマージした PR を拾って片付ける（gate の問いを閉じる。§7.2 #19）", by: machine, command: andon issue settle, once: true }
   - { from: merged, to: held, on: "gate の外の問いが開いている・finish が失敗した", by: machine, command: andon issue settle }
+  - { from: merged, to: held, on: "既定の branch でない base にマージされた（積んだ PR を前の課題の branch へ。片付けず、通知 merged〈held〉を Chief of Staff に 1 回。前の課題の PR が main に入ったら Chief of Staff が andon issue finish で片付ける。ADR-0067 決めたこと 15）", by: machine, command: andon issue settle }
   - { from: held, to: finished, on: "オーナーがマージした PR を拾って片付ける（問いが閉じた次の巡。§7.2 #19）", by: machine, command: andon issue settle, once: true }
   - { from: watching, to: "[*]", on: "review にも doing にもいなくなった・report.json の pr か commit が替わった（記録を捨てる）", by: machine, command: andon issue settle }
   - { from: closed, to: watching, on: "開き直された（OPEN に戻った。また閉じたら知らせる）", by: person }

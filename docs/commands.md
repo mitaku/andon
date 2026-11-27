@@ -45,6 +45,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon issue ask` | 役 | 問いの JSON を検査し、kanban に問う |
 | `andon issue record` | 役 | worktree で command を走らせ、出力と終了コードを証拠として残す |
 | `andon issue ready` | 役 | HEAD・report.json・PR・レビューが揃っていれば kanban を review にする |
+| `andon issue restack` | 役 | 積んだ課題を、前の課題が main に入ったあと既定の branch の先へ載せ替える |
 | `andon news ack` | 役 | 届いた &lt;news&gt; にオーナーへ言うことが無いと示す |
 | `andon publish` | 役 | 生成したファイルを tray へ出し、オーナーに渡す URL を1行返す |
 | `andon triage collect` | 役 | kanban の溜まったものと repo ごとの最新の main を JSON に集める |

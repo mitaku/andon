@@ -580,11 +580,31 @@ type Facts struct {
 	StackedOn     string
 	StackedDraft  bool
 	StackedBaseOK bool
+	// 前の課題が done になったあと（ADR-0067 決めたこと 12・14）。PrevMerged は前の課題の PR が既定の branch にマージされた、
+	// PrevGone は前の課題が done だが既定の branch に入っていない（マージされずに終わった・既定でない base にマージされた。決めたこと 15）
+	PrevMerged bool
+	PrevGone   bool
 }
 
 // BehindReason は前の PR 待ち（behind）の記録の 1 行目（ADR-0067 決めたこと 8）。
 func BehindReason(prev string) string {
 	return "前の課題 " + prev + " の PR がまだ main に入っていない"
+}
+
+// PrevGoneReason は、前の課題がマージされずに終わったときの behind の記録の 1 行目（ADR-0067 決めたこと 14）。
+func PrevGoneReason(prev string) string {
+	return "前の課題 " + prev + " がマージされずに終わった"
+}
+
+// RestackReason は、前の課題が main に入ったあとの載せ替えの直し（fix）の理由（ADR-0067 決めたこと 12）。
+func RestackReason(prev string) string {
+	return "前の課題 " + prev + " が main に入った。andon issue restack で載せ替える"
+}
+
+// Restacking は、積んだままの open の PR で前の課題が main に入ったか（載せ替えを頼む直し。ADR-0067 決めたこと 12）。
+// open でない PR の担当には載せ替えを頼まない（決めたこと 15）。
+func Restacking(f Facts) bool {
+	return f.StackedOn != "" && f.PROpen && f.PrevMerged
 }
 
 const staleBaseShown = 3
@@ -621,13 +641,23 @@ func StaleBaseReason(files []string, unread bool) string {
 // 今と同じ順で見る。behind の reasons は BehindReason を 1 行目に、写したオーナーへ回す理由を続ける。
 // 積んだ PR では、draft であること・向き先が既定の branch でないこと・衝突・ファイルの件数（gate.go が Blockers に足さない）と、
 // 古い base の 2 つの向きを見ない。代わりに、向き先が前の課題の branch でも既定の branch でもない PR と、draft でない PR を担当へ返す。
+//
+// 前の課題が main に入ったら、ほかの理由より先に載せ替えを頼む直し（fix）を返す（Restacking。ADR-0067 決めたこと 12）。
+// 前の課題がマージされずに終わったら、待ち（wait）のほかは behind のまま 1 行目を PrevGoneReason にし、担当へ返す理由も写す
+// （続けるかはオーナーが決める。Chief of Staff が聞いてから担当へ返す。決めたこと 14）。
 func Decide(f Facts) (string, []string) {
 	if f.StackedOn == "" {
 		return decide(f, nil)
 	}
+	if Restacking(f) {
+		return "fix", []string{RestackReason(f.StackedOn)}
+	}
 	held := []string{}
 	d, r := decide(f, &held)
-	if d == "approve" || d == "needs_human" {
+	switch {
+	case f.PrevGone && d != "wait":
+		return "behind", append(append([]string{PrevGoneReason(f.StackedOn)}, held...), r...)
+	case d == "approve" || d == "needs_human":
 		return "behind", append(append([]string{BehindReason(f.StackedOn)}, held...), r...)
 	}
 	return d, r

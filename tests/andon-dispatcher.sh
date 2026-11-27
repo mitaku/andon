@@ -62,13 +62,20 @@ case "\$*" in
     elif [ -f \$d/closed ]; then jq '{state:"CLOSED",mergeCommit:null,headRefOid}' \$d/view.json
     elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid}' \$d/view.json
     else jq '{state:"OPEN",mergeCommit:null,headRefOid}' \$d/view.json; fi ;;
-  "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")   # andon issue settle。打った回数を states に（上と同じ）。
+  "pr view 7 --repo example/"*" --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName")   # andon issue settle。打った回数を states に（上と同じ）。
     echo x >> \$d/states                                                                    # statusCheckRollup は head に書いた gate の印（marks/<sha>。説明文は出さない）
     h=\$(jq -r .headRefOid \$d/view.json); m=\$(cat \$d/marks/\$h 2>/dev/null || :)
     r=\$(jq -n --arg m "\$m" 'if \$m == "" then [] else [{__typename: "StatusContext", context: "andon/gate", state: (\$m | ascii_upcase)}] end')
-    if [ -f \$d/closed ]; then jq --argjson r "\$r" '{state:"CLOSED",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository}' \$d/view.json
-    elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" --argjson r "\$r" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository}' \$d/view.json
-    else jq --argjson r "\$r" '{state:"OPEN",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository}' \$d/view.json; fi ;;
+    if [ -f \$d/closed ]; then jq --argjson r "\$r" '{state:"CLOSED",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository,baseRefName}' \$d/view.json
+    elif [ -f \$d/merged ]; then jq --arg o "\$(cat \$d/merged)" --argjson r "\$r" '{state:"MERGED",mergeCommit:{oid:\$o},headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository,baseRefName}' \$d/view.json
+    else jq --argjson r "\$r" '{state:"OPEN",mergeCommit:null,headRefOid,statusCheckRollup:\$r,headRefName,isCrossRepository,baseRefName}' \$d/view.json; fi ;;
+  "repo view example/"*" --json defaultBranchRef -q .defaultBranchRef.name") echo main ;;   # settle がマージされた PR の base と比べる
+  "pr view 8 --repo example/app --json state,baseRefName")   # 積んだ課題の前の課題の PR（gate が main に入ったかを読む。ADR-0067 決めたこと 12。prev8fail の数だけ落ちる）
+    n=\$(cat \$d/prev8fail 2>/dev/null || echo 0)
+    if [ "\$n" -gt 0 ]; then echo \$((n - 1)) > \$d/prev8fail; echo "HTTP 502: Bad Gateway" >&2; exit 1; fi
+    cat \$d/prev8.json ;;
+  "pr view 8 --repo example/app --json state,commits,comments,reviews") echo '{"state":"MERGED","commits":[],"comments":[],"reviews":[]}' ;;   # 前の課題の done のあとのオーナーの手直し（無い）
+  "pr view https://github.com/example/app/pull/8 --json state,mergeCommit,files") echo '{"state":"CLOSED","mergeCommit":null,"files":[]}' ;;   # 前の課題の done のあとの影響（見ない）
   "pr view 7 --repo example/app --json state,commits,comments,reviews")   # オーナーの手直し（prcfail があれば落ちる。prc.json があればその中身）
     [ ! -f \$d/prcfail ] || { echo "HTTP 502" >&2; exit 1; }
     if [ -f \$d/prc.json ]; then cat \$d/prc.json
@@ -371,6 +378,8 @@ pending "$id" gate | jq -e --arg r "$rec" '.detail.decision == "behind" and .det
 emit <(pending "$id" gate) notification-gate-behind.json
 jq --arg t "$id" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.new" && mv "$state.new" "$state"   # Chief of Staff に届いたことにする
 HC_TERMINAL_ID=dispatcher kanban done "$rev" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$id" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$prv" --force >/dev/null
+# PR の向き先を既定の branch に戻す（あとの場面のオーナーのマージは既定の branch へ。向き先が違うと片付けない。ADR-0067 決めたこと 15）
+jq '.baseRefName = "main"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
 dispatcher
 jq -e '[.gates[] | select(.decision == "behind")] | length == 1' "$L/issues/$id/library/outcome.json" >/dev/null ||
     die "behind の記録が残った課題の結果の記録が無い・behind が入らない: $(cat "$L/issues/$id/library/outcome.json" 2>/dev/null; tail -3 "$tmp/dispatcher.log")"
@@ -1162,6 +1171,178 @@ kanban show "$hd" --json | jq -e --argjson n "$nq" '.questions | length == $n + 
 ok '止めて判定を捨てたあとに merge の記録が消えても、外したら止める前の判定を引き継がず、gate を今の head で回し直す'
 HC_TERMINAL_ID=t5 kanban done "$hd" --force >/dev/null; sed -i "/^t7 $hd\$/d" "$tmp/hc/live"
 jq --arg t "$hd" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+
+# 4k. 積んだ課題の前の課題が done になったら（ADR-0067 決めたこと 12・14）。前の課題の PR は PR 8（$tmp/gh/prev8.json）。
+#     stack_on <前の課題> <タイトル>: 前の課題の上に積んだ課題 $sk を作り、draft の PR（向き先は前の課題の branch）で review まで進め、
+#     gate が behind（前の PR 待ち）を決めたことを確かめる。prev <タイトル>: PR 8 を報告に持つ前の課題 $pk を足す
+prev() {
+    pk=$(HC_TERMINAL_ID=t5 kanban add "$1" --profile claude --repo github.com/example/app) || die "前の課題を足せない: $1"
+    HC_TERMINAL_ID=t5 kanban set "$pk" "branch=demo/$pk" >/dev/null
+    mkdir -p "$L/issues/$pk/library"
+    jq -n --arg c "$(git -C "$tmp/origin" rev-parse main)" '{commit: $c, pr: "https://github.com/example/app/pull/8"}' > "$L/issues/$pk/library/report.json"
+}
+stack_on() {
+    sk=$(newtask "$2" auto)
+    local fork; fork=$(git -C "$ANDON_WORKSPACE/.worktrees/app/demo-$sk" rev-parse HEAD)
+    HC_TERMINAL_ID=t5 kanban set "$sk" stacked_on="$1" stacked_base="$fork" >/dev/null
+    work "$sk" docs/a.md
+    jq --arg b "demo/$1" '.isDraft = true | .baseRefName = $b' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+    as_worker "$sk" report --pr https://github.com/example/app/pull/7
+    as_worker "$sk" review-request
+    dispatcher
+    review_by "$(kanban list --all --json | jq -r --arg p "$sk" '[.[] | select(.parent == $p)] | last | .id')" '[]'
+    as_worker "$sk" ready
+    dispatcher
+    jq -e --arg p "$1" '.decision == "behind" and .reasons[0] == "前の課題 \($p) の PR がまだ main に入っていない"' "$L/issues/$sk/library/gate/$head.json" >/dev/null ||
+        die "前提: 積んだ課題の gate が behind を決めていない: $(cat "$L/issues/$sk/library/gate/$head.json" 2>/dev/null)"
+}
+restacks() { grep -F "$sk（" "$tmp/hc/sent" 2>/dev/null | grep -c 'andon issue restack' || true; }   # 担当へ送った載せ替えの直しの数
+regates() { grep -c "$sk の前の課題 .* が done になった。前の PR 待ちの gate を回し直す" "$tmp/dispatcher.log" || true; }
+unstack() { # 積んだ課題とレビュアーの課題を片付ける（あとの場面の数をずらさない）
+    kanban list --all --json | jq -r --arg p "$sk" '.[] | select(.parent == $p and .status != "done") | .id' | while read -r r; do HC_TERMINAL_ID=dispatcher kanban done "$r" --force >/dev/null; done
+    HC_TERMINAL_ID=t5 kanban done "$sk" --force >/dev/null; sed -i "/^t7 $sk\$/d" "$tmp/hc/live"
+    jq --arg t "$sk" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+}
+# 受け入れ条件 8: 前の課題が done でない間は載せ替えを頼まない。done になり PR が既定の branch にマージされていれば、次の巡で担当に
+# 載せ替えの直しが 1 回だけ届く（記録は fix に restack の印。差し戻しの率に数えない）
+prev '前の課題（main に入る）'
+stack_on "$pk" '積んだ課題（載せ替えを頼まれる）'
+dispatcher
+[ "$(restacks)" = 0 ] || die "前の課題が done でないのに載せ替えを頼んだ: $(grep -F "$sk（" "$tmp/hc/sent")"
+echo '{"state":"MERGED","baseRefName":"main"}' > "$tmp/gh/prev8.json"
+HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
+# 前の課題の PR を読めない巡では、2 回までは知らせずに次の巡で回し直し、3 回目に 1 回だけ知らせる（理由は「判定できない」で、
+# 「まだ main に入っていない」と言わない）。そのあとも 1 分に 1 回回し直し、読めたら載せ替えの直しが届く
+echo 3 > "$tmp/gh/prev8fail"
+gates_of() { jq --arg t "$sk" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state"; }
+# 同じ種類の通知は置き換わって数が変わらないので、消してから届くかを見る
+drop_gates() { jq --arg t "$sk" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.tmp" && mv "$state.tmp" "$state"; }
+drop_gates
+dispatcher; dispatcher
+[ "$(cat "$tmp/gh/prev8fail")" = 1 ] || die "前提: 回し直しで前の課題の PR を 2 回読んでいない: $(cat "$tmp/gh/prev8fail")"
+[ "$(restacks)" = 0 ] && [ "$(gates_of)" = 0 ] || die "前の課題の PR を読めなかった巡で、載せ替えを頼んだ・知らせた: $(restacks) $(jq -c .pending "$state")"
+dispatcher
+[ "$(gates_of)" = 1 ] || die "3 回読めなかったのに知らせない: $(jq -c .pending "$state")"
+pending "$sk" gate | jq -e --arg p "$pk" '.detail.decision == "behind" and (.detail.reasons[0] | startswith("前の課題 \($p) が done になったが、main に入ったかを gate が判定できない"))' >/dev/null ||
+    die "3 回読めなかった知らせの理由が違う: $(pending "$sk" gate)"
+drop_gates
+dispatcher
+[ "$(restacks)" = 0 ] && [ "$(gates_of)" = 0 ] || die "知らせたあと 1 分たたずに回し直した・二度知らせた: $(restacks) $(gates_of)"
+mpoll "$sk"; dispatcher
+[ "$(restacks)" = 1 ] || die "前の課題が main に入ったのに、読めるようになった巡で載せ替えの直しが 1 回届かない: $(restacks) $(tail -5 "$tmp/dispatcher.log")"
+jq -e --arg p "$pk" '.decision == "fix" and .restack == true and .reasons == ["前の課題 \($p) が main に入った。andon issue restack で載せ替える"]' "$L/issues/$sk/library/gate/$head.json" >/dev/null ||
+    die "載せ替えの直しの記録が違う: $(cat "$L/issues/$sk/library/gate/$head.json")"
+emit "$L/issues/$sk/library/gate/$head.json" gate-restack.json
+dispatcher
+[ "$(restacks)" = 1 ] || die "載せ替えの直しを 2 回送った: $(restacks)"
+[ ! -e "$L/issues/$sk/library/questions" ] || die '載せ替えでオーナーへの問いを出した'
+# 否定の確かめが当たる場合があることを同じ所で見る: 送った直しの文は数える形に当たる
+grep -q 'andon issue restack' <<<"$(grep -F "$sk（" "$tmp/hc/sent")" || die '載せ替えの直しの数え方が送った文に当たらない'
+unstack
+ok '積んだ課題の前の課題が done になり既定の branch にマージされていれば、次の巡で担当に載せ替えの直しが 1 回だけ届く（done でない間は届かない）'
+
+# 受け入れ条件 11: 前の課題がマージされずに done になると、gate の記録の理由の 1 行目が替わり、通知 gate が Chief of Staff に 1 回届く。
+# gate の問いは出さず、担当へ載せ替えも頼まない（続けるかはオーナーが決める）
+echo '{"state":"MERGED","baseRefName":"main"}' > "$tmp/gh/prev8.json"
+prev '前の課題（やめになる）'
+stack_on "$pk" '積んだ課題（前の課題がやめになる）'
+jq --arg t "$sk" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.new" && mv "$state.new" "$state"   # behind の通知は届いたことにする
+echo '{"state":"CLOSED","baseRefName":"main"}' > "$tmp/gh/prev8.json"
+HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
+dispatcher
+rec=$L/issues/$sk/library/gate/$head.json
+jq -e --arg p "$pk" '.decision == "behind" and .reasons[0] == "前の課題 \($p) がマージされずに終わった"' "$rec" >/dev/null || die "前の課題がやめになった gate の記録が違う: $(cat "$rec")"
+gates() { jq --arg t "$sk" '[.pending[] | select(.issue == $t and .kind == "gate")] | length' "$state"; }
+[ "$(gates)" = 1 ] || die "前の課題がやめになった通知 gate が 1 件でない: $(gates)"
+pending "$sk" gate | jq -e --arg p "$pk" --arg r "$rec" '.detail.decision == "behind" and .detail.record == $r and .detail.reasons[0] == "前の課題 \($p) がマージされずに終わった"' >/dev/null ||
+    die "前の課題がやめになった通知 gate が違う: $(pending "$sk" gate)"
+emit <(pending "$sk" gate) notification-gate-behind-gone.json
+[ ! -e "$L/issues/$sk/library/questions" ] && [ "$(restacks)" = 0 ] || die '前の課題がやめになったのに gate の問いを出した・載せ替えを頼んだ'
+dispatcher
+[ "$(gates)" = 1 ] && [ "$(regates)" = 1 ] || die "前の課題がやめになったことを同じ head で 2 回知らせた・回し直した: 通知 $(gates)・回し直し $(regates)"
+kanban show "$sk" --json | jq -e '.issue.status == "review"' >/dev/null || die '前の課題がやめになった積んだ課題が review でない'
+unstack
+ok '前の課題がマージされずに done になると、積んだ課題の gate の記録の理由が替わり、通知 gate が 1 回届く（問いも載せ替えの直しも出さない）'
+
+# 積んだ PR をオーナーが前の課題の branch へマージしたあとで前の課題が done になっても、gate を回し直さず、担当に直しを送らない
+# （open でない PR は片付けの道。ADR-0067 決めたこと 15）
+echo '{"state":"MERGED","baseRefName":"main"}' > "$tmp/gh/prev8.json"
+prev '前の課題（積んだ PR がその branch へマージされる）'
+stack_on "$pk" '積んだ課題（前の課題の branch へマージされる）'
+echo "$head" > "$tmp/gh/merged"
+jq '.state = "MERGED"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"   # merge が聞く state,headRefOid も MERGED
+watch_due "$sk"; dispatcher
+pending "$sk" merged | jq -e '.detail.held | startswith("PR が既定の branch でない base")' >/dev/null || die "前提: 積んだ PR の前の課題の branch へのマージを知らせていない: $(pending "$sk" merged)"
+fixes() { grep -c -F "[gate] $sk（" "$tmp/hc/sent" 2>/dev/null || true; }
+nfix=$(fixes)
+HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
+dispatcher; dispatcher
+[ "$(fixes)" = "$nfix" ] || die "マージされた積んだ PR の担当に直しを送った: $(grep -F "$sk（" "$tmp/hc/sent")"
+grep -q "$sk の前の課題 $pk が done になったが、PR が open でないので gate を回し直さない" "$tmp/dispatcher.log" || die "open でない PR を回し直さない理由を出さない: $(tail -5 "$tmp/dispatcher.log")"
+[ "$(regates)" = 0 ] || die "open でない PR の gate を回し直した: $(regates)"
+rm -f "$tmp/gh/merged"
+jq '.baseRefName = "main" | .state = "OPEN"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+unstack
+# 変種: 積んだ PR が閉じられている（マージなし）
+prev '前の課題（積んだ PR が閉じられる）'
+stack_on "$pk" '積んだ課題（PR が閉じられる）'
+touch "$tmp/gh/closed"
+jq '.state = "CLOSED"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+nfix=$(fixes)
+HC_TERMINAL_ID=t5 kanban done "$pk" --force >/dev/null
+dispatcher; dispatcher
+[ "$(fixes)" = "$nfix" ] && [ "$(regates)" = 0 ] || die "閉じた積んだ PR の担当に直しを送った・gate を回し直した: $(grep -F "$sk（" "$tmp/hc/sent") $(regates)"
+grep -q "$sk の前の課題 $pk が done になったが、PR が open でないので" "$tmp/dispatcher.log" || die "閉じた PR を回し直さない理由を出さない: $(tail -5 "$tmp/dispatcher.log")"
+rm -f "$tmp/gh/closed"
+jq '.baseRefName = "main" | .state = "OPEN"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+unstack
+ok '積んだ PR が前の課題の branch へマージされたか閉じられたあとに前の課題が done になっても、gate を回し直さず担当に直しを送らない'
+
+# 受け入れ条件 12: 既定の branch でない base にマージされた PR の課題は片付かず、通知 merged（held）が Chief of Staff に 1 回届く
+bk=$(newtask '前の課題の branch へマージされる' person)
+work "$bk" docs/a.md
+as_worker "$bk" report --pr https://github.com/example/app/pull/7
+jq '.baseRefName = "demo/other"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+echo "$head" > "$tmp/gh/merged"
+dispatcher
+kanban show "$bk" --json | jq -e '.issue.status == "doing"' >/dev/null || die '既定の branch でない base にマージされた課題を片付けた'
+pending "$bk" merged | jq -e '.detail.by == "person" and (.detail.held | startswith("PR が既定の branch でない base（demo/other）にマージされた"))' >/dev/null ||
+    die "既定の branch でない base へのマージを知らせていない: $(pending "$bk" merged) $(tail -3 "$tmp/dispatcher.log")"
+emit <(pending "$bk" merged) notification-merged-held-base.json
+jq --arg t "$bk" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+watch_due "$bk"; dispatcher
+[ "$(pending "$bk" merged)" = null ] || die '既定の branch でない base へのマージを 2 回知らせた'
+kanban show "$bk" --json | jq -e '.issue.status == "doing"' >/dev/null || die '2 回目の巡で片付けた'
+# 対照: 既定の branch にマージされた PR は片付く（上の held が base で決まったことを見る）
+jq '.baseRefName = "main"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+jq --arg t "$bk" 'del(.[$t])' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+dispatcher
+kanban show "$bk" --json | jq -e '.issue.status == "done"' >/dev/null || die "既定の branch にマージされた PR を片付けない: $(tail -3 "$tmp/dispatcher.log")"
+rm -f "$tmp/gh/merged"; sed -i "/^t7 $bk\$/d" "$tmp/hc/live"
+jq --arg t "$bk" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+ok '既定の branch でない base にマージされた PR の課題は片付けず、Chief of Staff に 1 回だけ知らせる（既定の branch なら片付ける）'
+# 前のバージョンが書いた MERGED の記録（向き先を比べた印 base_ok が無い）も、片付ける前に向き先を比べ直す
+ob=$(newtask '前のバージョンの MERGED の記録' person)
+work "$ob" docs/a.md
+as_worker "$ob" report --pr https://github.com/example/app/pull/7
+jq '.baseRefName = "demo/other"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+echo "$head" > "$tmp/gh/merged"
+oc=$(jq -r .commit "$L/issues/$ob/library/report.json")
+# 前のバージョンが問いで片付けを止めていた記録（held つき）。問いはもう閉じている
+jq --arg t "$ob" --arg c "$oc" --arg h "$head" '.[$t] = {pr: "https://github.com/example/app/pull/7", commit: $c, state: "MERGED", head: $h, sha: $h, held: "gate の外の問いが開いている: \($t)#1"}' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+dispatcher
+kanban show "$ob" --json | jq -e '.issue.status == "doing"' >/dev/null || die "前のバージョンの MERGED の記録を、向き先を比べずに片付けた: $(tail -3 "$tmp/dispatcher.log")"
+pending "$ob" merged | jq -e '.detail.held | startswith("PR が既定の branch でない base（demo/other）にマージされた")' >/dev/null ||
+    die "前のバージョンの MERGED の記録で、既定の branch でない base へのマージを知らせない: $(pending "$ob" merged) $(tail -3 "$tmp/dispatcher.log")"
+jq -e --arg t "$ob" '.[$t].base_ok == true and .[$t].base == "demo/other"' "$settled" >/dev/null || die "比べ直した印を記録に残さない: $(jq -c --arg t "$ob" '.[$t]' "$settled")"
+# 対照: 比べ直して既定の branch なら片付ける
+jq '.baseRefName = "main"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+jq --arg t "$ob" --arg c "$oc" --arg h "$head" '.[$t] = {pr: "https://github.com/example/app/pull/7", commit: $c, state: "MERGED", head: $h, sha: $h}' "$settled" > "$settled.new" && mv "$settled.new" "$settled"
+dispatcher
+kanban show "$ob" --json | jq -e '.issue.status == "done"' >/dev/null || die "前のバージョンの MERGED の記録で、既定の branch へのマージを片付けない: $(tail -3 "$tmp/dispatcher.log")"
+rm -f "$tmp/gh/merged"; sed -i "/^t7 $ob\$/d" "$tmp/hc/live"
+jq --arg t "$ob" '.pending |= map(select(.issue != $t))' "$state" > "$state.new" && mv "$state.new" "$state"
+ok '前のバージョンが書いた MERGED の記録も、片付ける前に PR の向き先を比べ直し、既定の branch でない base なら片付けない'
 
 # 5. 上限を超えた回（extra）は起動しない（Chief of Staff が決める）
 HC_TERMINAL_ID=t5 kanban set "$id" review_rounds=1 >/dev/null

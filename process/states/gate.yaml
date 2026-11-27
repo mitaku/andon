@@ -26,7 +26,8 @@ states:
   - id: needs-human
     title: needs_human（問いを出した）
   - id: behind
-    title: behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8）
+    title: behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8。前の課題が done になってから回した gate は Prev に前の課題の id を持ち、同じ head では二度回さない。PR が open でなければ回し直さない〈片付けの道〉。その回し直しで gate が判定できなければ PrevFails を数えて次の巡で回し直し、3 回目に 1 回だけ知らせ、そのあとは 1 分に 1 回回し直す。決めたこと 12・14）
+    record: [merge:Prev, merge:PrevFails]
   - id: merged
     title: マージした
     record: merge:Merged
@@ -61,6 +62,7 @@ transitions:
   - { from: needs-human, to: "[*]", on: "オーナーが答えた", by: person }
   - { from: needs-human, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から）", by: machine, command: andon issue merge }
   - { from: behind, to: waiting, on: "PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から）", by: machine, command: andon issue merge }
+  - { from: behind, to: waiting, on: "前の課題が kanban で done になり、PR が open（同じ head で 1 回だけ。前の課題が main に入っていれば gate は載せ替えを頼む fix を、マージされずに終わっていれば 1 行目を替えた behind を決める。ADR-0067 決めたこと 12・14）", by: machine, command: andon issue merge }
   - { from: behind, to: on-hold, on: "behind のあとに止められた（判定を捨てる）", by: machine, command: andon issue merge }
   - { from: waiting, to: on-hold, on: "Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す）", by: machine, command: andon issue merge }
   - { from: approved, to: on-hold, on: "approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9）", by: machine, command: andon issue merge }

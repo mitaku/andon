@@ -62,6 +62,11 @@ func recordReasons(t *testing.T) []string {
 		func(f *Facts) { f.StackedOn, f.StackedDraft, f.StackedBaseOK = "S-0001", true, true },
 		func(f *Facts) { f.StackedOn, f.StackedDraft = "S-0001", true },
 		func(f *Facts) { f.StackedOn, f.StackedBaseOK = "S-0001", true },
+		// 前の課題が done になった（ADR-0067 決めたこと 12・14）: 載せ替えの直しと、マージされずに終わった behind の 1 行目
+		func(f *Facts) {
+			f.StackedOn, f.StackedDraft, f.StackedBaseOK, f.PrevMerged = "S-0001", true, true, true
+		},
+		func(f *Facts) { f.StackedOn, f.StackedDraft, f.StackedBaseOK, f.PrevGone = "S-0001", true, true, true },
 	}
 	var out []string
 	for _, m := range mods {

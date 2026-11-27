@@ -17,7 +17,7 @@ stateDiagram-v2
   state "Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9）" as s_on_hold
   state "fix（理由を担当へ送った）" as s_fix
   state "needs_human（問いを出した）" as s_needs_human
-  state "behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8）" as s_behind
+  state "behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8。前の課題が done になってから回した gate は Prev に前の課題の id を持ち、同じ head では二度回さない。PR が open でなければ回し直さない〈片付けの道〉。その回し直しで gate が判定できなければ PrevFails を数えて次の巡で回し直し、3 回目に 1 回だけ知らせ、そのあとは 1 分に 1 回回し直す。決めたこと 12・14）" as s_behind
   state "マージした" as s_merged
   state "片付けた" as s_finished
   [*] --> s_waiting: review に入った
@@ -47,6 +47,7 @@ stateDiagram-v2
   s_needs_human --> [*]: オーナーが答えた
   s_needs_human --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から）
   s_behind --> s_waiting: PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から）
+  s_behind --> s_waiting: 前の課題が kanban で done になり、PR が open（同じ head で 1 回だけ。前の課題が main に入っていれば gate は載せ替えを頼む fix を、マージされずに終わっていれば 1 行目を替えた behind を決める。ADR-0067 決めたこと 12・14）
   s_behind --> s_on_hold: behind のあとに止められた（判定を捨てる）
   s_waiting --> s_on_hold: Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す）
   s_approved --> s_on_hold: approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9）
@@ -69,7 +70,7 @@ stateDiagram-v2
 | `on-hold` | Chief of Staff が止めている（issue.yaml の予約キー hold。gate を回さず GitHub も読まない。判定のあとに止められたら判定を捨てて gate の問いを閉じる。ADR-0056 決めたこと 9） |  |
 | `fix` | fix（理由を担当へ送った） |  |
 | `needs-human` | needs_human（問いを出した） |  |
-| `behind` | behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8） |  |
+| `behind` | behind（積んだ課題の前の PR 待ち。マージも問いもせず、通知 gate を Chief of Staff に届けた。印は黄。ADR-0067 決めたこと 8。前の課題が done になってから回した gate は Prev に前の課題の id を持ち、同じ head では二度回さない。PR が open でなければ回し直さない〈片付けの道〉。その回し直しで gate が判定できなければ PrevFails を数えて次の巡で回し直し、3 回目に 1 回だけ知らせ、そのあとは 1 分に 1 回回し直す。決めたこと 12・14） | `merge:Prev`・`merge:PrevFails` |
 | `merged` | マージした | `merge:Merged` |
 | `finished` | 片付けた |  |
 
@@ -106,6 +107,7 @@ stateDiagram-v2
 | `needs-human` | （始まり・終わり） | オーナーが答えた | オーナー |  |  |
 | `needs-human` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞き、前の head の gate の問いを閉じる。その見回りで今の head の gate から） | 機械 | `andon issue merge` |  |
 | `behind` | `waiting` | PR の head が判定した head から動いた（merge が課題ごとに1分に1回だけ聞く。その見回りで今の head の gate から） | 機械 | `andon issue merge` |  |
+| `behind` | `waiting` | 前の課題が kanban で done になり、PR が open（同じ head で 1 回だけ。前の課題が main に入っていれば gate は載せ替えを頼む fix を、マージされずに終わっていれば 1 行目を替えた behind を決める。ADR-0067 決めたこと 12・14） | 機械 | `andon issue merge` |  |
 | `behind` | `on-hold` | behind のあとに止められた（判定を捨てる） | 機械 | `andon issue merge` |  |
 | `waiting` | `on-hold` | Chief of Staff が止めている（andon issue hold。gate を回さない。merge は state hold を返す） | 機械 | `andon issue merge` |  |
 | `approved` | `on-hold` | approve のあとに止められた（判定を捨て、マージしない。直前の読み直しも止めを見る。ADR-0056 決めたこと 9） | 機械 | `andon issue merge` |  |

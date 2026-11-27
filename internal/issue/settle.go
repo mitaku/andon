@@ -41,6 +41,7 @@ func settlePath(slug string) string {
 //	MERGED                                   → gate の問い（from: gate）を「オーナーがマージした」と閉じて finish、通知 merged（by: person）
 //	MERGED で gate の外の問いが開いている     → 片付けずに通知 merged（held）。同じ理由では二度知らせない
 //	CLOSED                                   → 片付けない。通知 closed を閉じるたびに1回。開き直されうるので聞き続ける
+//	MERGED で base が既定の branch でない      → 片付けずに通知 merged（held）。main に入っていない（ADR-0067 決めたこと 15）
 //
 // doing の課題（担当が働いているうちにオーナーがマージした）も同じ道で片付ける。受け取られていない問い・commit していない変更が
 // あれば片付けずに held で知らせる（finish の拒みを越えない）。
@@ -122,6 +123,17 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 		switch state {
 		case "MERGED":
 			w.State, w.Head, w.Sha = state, head, sha
+			// 既定の branch でない base（積んだ PR を前の課題の branch へ）へのマージは main に入っていない。片付けず、
+			// 後ろの課題を起動できるようにしない（ADR-0067 決めたこと 15）。既定の branch が読めなければ次に打ったとき聞き直す
+			def, err := defaultBranchOf(owner + "/" + name)
+			if err != nil {
+				w.State, w.Head, w.Sha = "", "", ""
+				return &w, fail("%s の PR の向き先と比べる既定の branch が読めない（次に打ったとき聞き直す）: %v", c.id, err)
+			}
+			if v.Base != def {
+				w.Base = v.Base
+			}
+			w.BaseOK = true
 		case "CLOSED":
 			if engineerDoing {
 				break
@@ -138,6 +150,35 @@ func (c *ctx) settleOne(w contract.Settled, res *contract.Settle, stderr io.Writ
 		}
 	}
 	if w.State != "MERGED" || engineerDoing {
+		return &w, nil
+	}
+	if !w.BaseOK {
+		// 前のバージョンが MERGED と書いた記録は向き先を比べていない。片付ける前に 1 度だけ比べ直す（既定の branch でない base への
+		// マージを片付けない。ADR-0067 決めたこと 15）。読めなければ 1 分おいて聞き直す
+		if at, err := time.Parse("2006-01-02T15:04:05Z", w.At); err == nil && now.Sub(at) < prPoll {
+			return &w, nil
+		}
+		w.At = now.UTC().Format("2006-01-02T15:04:05Z")
+		v, err := prState(number, owner+"/"+name)
+		if err != nil {
+			return &w, fail("%s の PR の向き先が読めない（次に打ったとき聞き直す）: %v", c.id, err)
+		}
+		def, err := defaultBranchOf(owner + "/" + name)
+		if err != nil {
+			return &w, fail("%s の PR の向き先と比べる既定の branch が読めない（次に打ったとき聞き直す）: %v", c.id, err)
+		}
+		if v.Base != def {
+			w.Base = v.Base
+		}
+		w.BaseOK = true
+	}
+	if w.Base != "" {
+		why := fmt.Sprintf("PR が既定の branch でない base（%s）にマージされた。main に入っていないので片付けない（Chief of Staff が、前の課題の PR にまとめて進めるかを決め、入ったら andon issue finish で片付ける）", w.Base)
+		res.State = "held"
+		if why != w.Held {
+			res.Notify = append(res.Notify, contract.Notice{Kind: "merged", Detail: map[string]any{"pr": w.PR, "sha": w.Sha, "by": "person", "held": why}})
+			w.Held = why
+		}
 		return &w, nil
 	}
 	// dispatcher が自分でマージした PR は gate の記録の merged が true（dispatcher の控えは読まない。ADR-0017 決めたこと 5 の (d)）
@@ -357,13 +398,13 @@ func orNone(s string) string {
 
 // prView は settle が読む PR の状態。Branch と Cross は、report.json の PR がこの課題の PR かを照らす（PR の branch・fork から出ているか）
 type prView struct {
-	State, Head, Sha, Branch string
-	Cross                    bool
-	Mark                     gate.Mark
+	State, Head, Sha, Branch, Base string
+	Cross                          bool
+	Mark                           gate.Mark
 }
 
 func prState(number, slug string) (prView, error) {
-	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository")
+	cmd := exec.Command("gh", "pr", "view", number, "--repo", slug, "--json", "state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName")
 	var errb strings.Builder
 	cmd.Stderr = &errb
 	out, err := cmd.Output()
@@ -374,6 +415,7 @@ func prState(number, slug string) (prView, error) {
 		State       string `json:"state"`
 		HeadRefOid  string `json:"headRefOid"`
 		HeadRefName string `json:"headRefName"`
+		BaseRefName string `json:"baseRefName"`
 		Cross       bool   `json:"isCrossRepository"`
 		MergeCommit *struct {
 			Oid string `json:"oid"`
@@ -383,7 +425,7 @@ func prState(number, slug string) (prView, error) {
 	if json.Unmarshal(out, &view) != nil {
 		return prView{}, fmt.Errorf("gh pr view の返事が読めない")
 	}
-	v := prView{State: view.State, Branch: view.HeadRefName, Cross: view.Cross}
+	v := prView{State: view.State, Branch: view.HeadRefName, Base: view.BaseRefName, Cross: view.Cross}
 	switch view.State {
 	case "MERGED":
 		if view.MergeCommit == nil || !contract.IsSHA(view.MergeCommit.Oid) {
@@ -398,6 +440,20 @@ func prState(number, slug string) (prView, error) {
 		return v, nil
 	}
 	return prView{}, fmt.Errorf("PR の state が知らない値: %q", view.State)
+}
+
+// defaultBranchOf は repo（owner/name）の既定の branch の名前を GitHub に聞く（settle がマージされた PR の base と比べる。
+// MERGED と分かった 1 回だけ聞く）。
+func defaultBranchOf(slug string) (string, error) {
+	cmd := exec.Command("gh", "repo", "view", slug, "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name")
+	var errb strings.Builder
+	cmd.Stderr = &errb
+	out, err := cmd.Output()
+	name := strings.TrimSpace(string(out))
+	if err != nil || name == "" {
+		return "", fmt.Errorf("gh repo view: %v %s", err, firstLine(errb.String()))
+	}
+	return name, nil
 }
 
 func firstLine(s string) string {

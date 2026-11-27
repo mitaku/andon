@@ -15,6 +15,11 @@
 - `gt-skip` 当てたあとに PR 無しで `review` に入った課題（検証・マージ後のレビュー）のうち、報告の課題（`deliverable: report` を書いた時点の Chief of Staff が書いた課題。報告の commit を見ない。数えるのは印を書いた行より後の `review` の行だけ）と、報告の commit が既定の branch に入っているもの（自分の commit が無い）に、gate が fix を返していない（kanban の履歴で、`review` に入った行の次の status の行が同じ担当の端末の `doing` でない。`<slug>.merge.json` にその行の分が残っていれば、`decision` が `fix` でない）。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/merge.go`、`process/states/gate.yaml`
 
+- `gt-restack` 積んだ課題の前の課題が `done` になると、dispatcher が次の巡で、PR が open の積んだ課題の gate を 1 回だけ回し直す（前の課題の PR を読めなければ次の巡で回し直し、3 回目に Chief of Staff へ知らせる）。前の課題の PR が既定の branch へマージされていれば、gate は理由「前の課題 <id> が main に入った。andon issue restack で載せ替える」の `fix`（記録に `restack: true`）を返し、担当へ載せ替えの直しが 1 回届く。マージされずに終わっていれば `behind` のまま理由の 1 行目を「前の課題 <id> がマージされずに終わった」に替え、通知 `gate` が Chief of Staff に 1 回届く（問いは出さない。ADR-0067 決めたこと 12・14）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/gate/gate.go`、`internal/gate/decide.go`、`internal/gate/comment.go`、`internal/issue/merge.go`、`internal/contract/merge.go`、`process/states/gate.yaml`
+- `gt-settle-base` オーナーが既定の branch でない base（前の課題の branch）にマージした PR の課題を、settle が片付けず、通知 `merged`（`held` に「PR が既定の branch でない base（<base>）にマージされた」）を Chief of Staff に 1 回届ける（ADR-0067 決めたこと 15）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/issue/settle.go`、`internal/contract/settle.go`、`process/states/human-merge.yaml`
+
 ## 辿り着き方（利用者から）
 
 - 担当が `andon issue ready <id>` で `review` に入れると、dispatcher の見回りが gate を回す。
@@ -33,6 +38,7 @@
 - **閉じた問いを読む。** `gt-answer` の行に、検証する間に dispatcher が閉じた問い（kanban の `log.jsonl` で `by` が `terminal:dispatcher` の `received`）が1件ずつ（問いの `from`・答えた端末・印・答え）出る。`ok   gt-answer` が見えれば動いた。閉じた問いが無ければ `note gt-answer` が出て、gt-answer は未確認になる（終了コードは変えない）。gate の記録が無い回は、`ok   gt-answer` が見えても終了コードは 3 のままなので、報告には gt-answer だけを動いたと書き、gt-record・gt-route は未確認と書く。
 - **PR 無しの課題を読む。** `gt-skip` の行に、当てたあとに PR 無しで `review` に入った、報告の課題か自分の commit の無い課題が1件ずつ（報告の課題か報告の commit・`review` にした端末・次の status の行・merge の記録の `decision`）出る。`ok   gt-skip` が見えれば動いた。該当する課題が無ければ `note gt-skip` が出て、gt-skip は未確認になる（終了コードは変えない）。検証の課題そのものが PR 無しで返るので、自分の課題が `review` に入ったあとに打ち直せば読める。
 - **印を読む。** `drive.sh` は GitHub の印を読まない。`internal/gate/mark.go` を変えた差分では、記録の head ごとに `gh api repos/<owner>/<repo>/commits/<head>/statuses --jq '.[] | select(.context == "andon/gate") | [.created_at, .state, .description] | @tsv'` で印を読む。`approve` と `needs_human` は `success`（緑）、`fix` は `failure`（赤）、`behind` は `pending`（黄）で、説明文の見出しが判定に合えば動いた。
+- **積んだ課題の前の課題が終わる（`gt-restack`・`gt-settle-base`）。** 本物のセルで、Chief of Staff が積んだ課題を試しに起動し（`stacked_on` を持つ課題）、前の PR 待ちで `review` に置かれたところで、前の課題をマージする。dispatcher の端末のログ（`hc read dispatcher`）に「<id> の前の課題 <前の id> が done になった。前の PR 待ちの gate を回し直す」が 1 回出て、積んだ課題の `library/gate/<head>.json` が理由「前の課題 <前の id> が main に入った。andon issue restack で載せ替える」の `fix` で `restack: true` を持ち、担当の画面に載せ替えの直しが 1 回届けば `gt-restack` は動いた。前の課題をマージせずにやめた回は、記録が `behind` で理由の 1 行目が「前の課題 <前の id> がマージされずに終わった」、Chief of Staff に通知 `gate` が 1 回。積んだ PR を前の課題の branch へオーナーがマージした回は、課題が片付かず、Chief of Staff に通知 `merged` の `held` が「PR が既定の branch でない base」で始まれば `gt-settle-base` は動いた。
 
 ## 変えたら動かすパス
 
