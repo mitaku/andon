@@ -954,24 +954,25 @@ fi
 #     道が名指さなくなった名前を残すと落ちる。base から HEAD までに scripts/ の下で控えの細かい機能の道を変えたら（touched_names）、控えから外して当たる場合を書く
 #   当たる場合が、変えた振る舞いを本当に通るか（記録の形だけを見ていないか）と、名前の出ない共通の部品の変更は見ない
 if [ "$self" = true ]; then
+  # 控えの名前の - は _ で書き、読むときに - に戻す（tests/ の下に書いてはいけない語を含む名前がある。workflow_test.go の TestWorkflowTrayOnlyInTrayJob）
   hits_allow='
-bt-generated bt-managed bt-tray
-cr-create cr-exists-refuse cr-list cr-role-refuse
-dg-build dg-build-refuse dg-check-refuse dg-collect dg-later dg-send dg-tray dg-tray-old dg-tray-remote
-dn-corrections dn-idle dn-signal
-hd-dispatch-discard hd-dispatch-hold hd-dispatch-release hd-gate-wait hd-hold hd-refuse hd-unhold hd-worker
-hk-other-pass hk-pre-deny hk-pre-pass hk-stop-block hk-stop-pass hk-wired
-mg-reread mg-reread-exhausted mg-reread-race
-ms-breakdown ms-flow ms-knowledge ms-question-later ms-readonly ms-table ms-tokens
-ot-applied ot-codex ot-listen ot-records ot-restart ot-trace
-ow-anywhere ow-ask-later ow-ask-new ow-json ow-later ow-old-name ow-same-title ow-slots ow-stackable ow-tray-deploy ow-waiting
-rr-acceptance rr-ready rr-ready-refuse rr-ready-report rr-record rr-report rr-stacked
-rt-collect rt-later rt-not-cos rt-old-owner rt-patterns
-tr-call tr-collect tr-later tr-not-cos tr-old-shape
-wl-review-brief wl-terminal
+bt_generated bt_managed bt_tray
+cr_create cr_exists_refuse cr_list cr_role_refuse
+dg_build dg_build_refuse dg_check_refuse dg_collect dg_later dg_send dg_tray dg_tray_old dg_tray_remote
+dn_corrections dn_idle dn_signal
+hd_dispatch_discard hd_dispatch_hold hd_dispatch_release hd_gate_wait hd_hold hd_refuse hd_unhold hd_worker
+hk_other_pass hk_pre_deny hk_pre_pass hk_stop_block hk_stop_pass hk_wired
+mg_reread mg_reread_exhausted mg_reread_race
+ms_breakdown ms_flow ms_knowledge ms_question_later ms_readonly ms_table ms_tokens
+ot_applied ot_codex ot_listen ot_records ot_restart ot_trace
+ow_anywhere ow_ask_later ow_ask_new ow_json ow_later ow_old_name ow_same_title ow_slots ow_stackable ow_tray_deploy ow_waiting
+rr_acceptance rr_ready rr_ready_refuse rr_ready_report rr_record rr_report rr_stacked
+rt_collect rt_later rt_not_cos rt_old_owner rt_patterns
+tr_call tr_collect tr_later tr_not_cos tr_old_shape
+wl_review_brief wl_terminal
 '
   # allow_of: 検査のシェル（stdin）の控えの名前を1行1つで出す。控えが無ければ何も出さない
-  allow_of() { sed -n "/^  hits_allow='\$/,/^'\$/p" | grep -E '^[a-z0-9 -]+$' | tr ' ' '\n' | grep . || true; }
+  allow_of() { sed -n "/^  hits_allow='\$/,/^'\$/p" | grep -E '^[a-z0-9 _]+$' | tr ' _' '\n-' | grep . || true; }
   # names_of <skill>: 地図の細かい機能の名前を1行1つで出す
   names_of() { for f in "$1"/features/*.md; do [ "${f##*/}" = README.md ] || sed -n '/^## 細かい機能$/,/^## /p' "$f" | sed -n 's/^- `\([^`]*\)`.*/\1/p'; done | sort -u; }
   # words_in: stdin の行から、細かい機能の名前の形の語（英小文字と数字を - でつないだもの）を1行1つで出す
@@ -1043,7 +1044,7 @@ wl-review-brief wl-terminal
     done <<<"$2"
   }
   hits=$(hit_names "$skill" tests/verify-andon.sh)
-  allow=$(tr ' ' '\n' <<<"$hits_allow" | grep . || true)
+  allow=$(tr ' _' '\n-' <<<"$hits_allow" | grep . || true)
   [ "$(allow_of <tests/verify-andon.sh)" = "$allow" ] || die "控え hits_allow を検査のシェルから読み直せない（base の控えと比べられない）"
   base_allow=- touched=
   if [ -z "$base" ]; then
