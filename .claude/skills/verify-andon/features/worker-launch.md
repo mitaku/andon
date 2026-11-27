@@ -83,6 +83,12 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 
 - **依頼書の欄を読む（`wl-settings`）。** 同じ `drive.sh` の出力の `wl-settings` の行を読む。道は、当てたパッケージの `andon` で、`andon issue create "verify wl-settings" who=person --dry-run` が終了コード 1 で断ることと、`--brief - review=off estimate=small --dry-run` が `- Review: off`・`- Estimate: 小` の欄と `kanban set <足した id> 'profile=<名前>'` の次の1手を出すことを見る（どちらも何も書かない）。続けて、当てたあとに足した（`log.jsonl` の `change.add` の行）課題のうち、`todo` で、予約キーを書いた行が1行だけ（足した直後の分。あとから `kanban set` で変えた値は次の起動まで欄に写らないのが正しいので比べない）のものを選び、依頼書が `andon issue start <id> --dry-run --json` の `.brief`（予約キーから書き直した欄）と同じで `## Settings` の見出しを持つかを見る。起動の確かめで断る課題は比べない。`ok   wl-settings` が見えれば動いた。`ok` は、`--dry-run` の確かめと依頼書の比べの両方を通したときだけ出る。セルにプロジェクトが無いか、比べられる課題が無ければ `note wl-settings` だけが出て未確認になる。そのときは報告の `## Next` に「Chief of Staff が `andon issue create` で課題を足したあとで打ち直す」と書く。
 
+- **積んで起動したかを読む（`wl-stacked`）。** 検証の担当は自分で起動しない。当てたあとに Chief of Staff が、`andon waiting list --json` の `stackable` に出た課題へ `andon issue start` を打ったときだけ確かめられる（積んだ列を作るのは ADR-0067 受け入れ条件 14 の課題）。打った課題ごとに次を読む。
+  1. `kanban show <id> --json` の `status` が `doing` で、`stacked_on` が `stackable` の `on`、`stacked_base` が前の課題の `report.json` の `commit` と同じ。`log.jsonl` の `stacked_on` を書いた行の `by` が Chief of Staff の端末。
+  2. 課題の worktree で `git merge-base HEAD <stacked_base>` が `stacked_base` を返す（branch の根元が前の課題の PR の head）。
+  3. 担当の最初のメッセージ（`hc read <担当の address>` か、起動を打った Chief of Staff の画面）に「前の課題 `<on>` の PR の branch `<branch>` の上に積んで起動した」と `gh pr create --draft --base <branch>` の行がある。
+  積めない課題に打った画面があれば、理由の1行（「積んでも起動できない: …」「Chief of Staff の端末（…）だけ」など）が出て、`kanban show` の `branch`・`worktree`・`stacked_on` が空のままかも読む。当てたあとに積む起動が1つも無ければ未確認と書き、報告の `## Next` に「次に積む起動を打ったとき wl-stacked を読む」と書く。
+
 ## 変えたら動かすパス
 
 - `internal/tools/`

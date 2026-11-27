@@ -163,6 +163,32 @@ if grep -q '起動しない' "$tmp/step.out"; then fail "ow-slots: 人が読む�
 elif grep -qE 'の枠: 上限 2、動いている 0、オーナー待ち 2、空き 2$' "$tmp/step.out"; then ok "ow-slots: 人が読む枠の行は空き 2 で、新しい課題を起動しないの文が無い"
 else fail "ow-slots: 人が読む枠の行が違う"; fi
 
+# ow-stackable: 前の課題が今の回の gate（approve）を通って review にいて、after の済んでいない相手がその1つだけの queued の課題は
+# stackable に出る。待つ相手が2つ残る queued の課題は出ない（ADR-0067 決めたこと 4・6）
+sh=1111111111111111111111111111111111111111
+# 積めるのは repo のある課題だけなので、切り離した kanban に repo を1つ登録する（kanban の CLI に登録の口は無い）
+sed -i 's|^repos: \[\]$|repos:\n  - github.com/example/app|' "$tmp/project/kanban/config.yaml"
+grep -q '^  - github.com/example/app$' "$tmp/project/kanban/config.yaml" || fail "ow-stackable: 切り離した kanban に repo を登録できない"
+sp=$("$kanban" add "$run の積む先の課題" --profile claude --repo github.com/example/app)
+sw=$("$kanban" add "$run の動いている課題" --profile claude --repo github.com/example/app)
+step "ow-stackable: 担当の端末 tw3 が $sp を doing にする" env HC_TERMINAL_ID=tw3 "$kanban" start "$sp"
+step "ow-stackable: 担当の端末 tw3 が $sp を review にする" env HC_TERMINAL_ID=tw3 "$kanban" review "$sp"
+step "ow-stackable: 担当の端末 tw4 が $sw を doing にする" env HC_TERMINAL_ID=tw4 "$kanban" start "$sw"
+mkdir -p "$tmp/project/kanban/issues/$sp/library/gate"
+jq -n --arg c "$sh" '{commit: $c, pr: "https://github.com/example/app/pull/1"}' >"$tmp/project/kanban/issues/$sp/library/report.json"
+jq -n --arg h "$sh" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{head: $h, at: $at, decision: "approve", reasons: []}' >"$tmp/project/kanban/issues/$sp/library/gate/$sh.json"
+sn=$("$kanban" add "$run の積める課題" --profile claude --repo github.com/example/app --after "$sp")
+s2=$("$kanban" add "$run の待つ相手が2つの課題" --profile claude --repo github.com/example/app --after "$sp,$sw")
+step "ow-stackable: andon waiting list --json を打つ" "$andon" waiting list --json >/dev/null
+echo "  stackable: $(jq -c .stackable "$tmp/step.out" 2>/dev/null)"
+jq -e --arg n "$sn" --arg p "$sp" --arg s2 "$s2" '(.stackable | index({id: $n, on: $p})) != null and ([.stackable[] | select(.id == $s2)] | length) == 0' "$tmp/step.out" >/dev/null \
+  && ok "ow-stackable: $sn は $sp の上に積める課題として stackable に出て、待つ相手が2つの $s2 は出ない" \
+  || fail "ow-stackable: stackable に $sn が無いか、待つ相手が2つの $s2 が出た"
+step "ow-stackable: andon waiting list を打つ（人が読む出力）" "$andon" waiting list
+grep -qF "$sn（$sp の上）" "$tmp/step.out" && grep -q '^積める課題 [0-9]* 件: ' "$tmp/step.out" \
+  && ok "ow-stackable: 人が読む出力に「積める課題 N 件」の行が出て、$sn（$sp の上）を持つ" \
+  || fail "ow-stackable: 人が読む出力に積める課題の行が無い"
+
 # ow-anywhere: どこで打っても読む。一時のセルにプロジェクト2つ（x・y）と1つ（solo）を作り、KANBAN_ROOT を外して打つ
 c2=$tmp/cell2 c1=$tmp/cell1
 for p in "$c2/projects/x" "$c2/projects/y" "$c1/projects/solo"; do

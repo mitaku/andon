@@ -582,6 +582,11 @@ func (c *ctx) stackOn(p *startPlan) error {
 	if why != "" {
 		return fail("%s は after（%s）が済んでいない。積んでも起動できない: %s", c.id, after, why)
 	}
+	// 積んだ印（stacked_on・stacked_base）は Chief of Staff の端末が書いたものだけを kanban が信じる（ledger.Stacked）。
+	// ほかの端末や端末の外で書くと kanban start が前の課題を待つ相手に数えて落ち、起きた担当と半端な課題が残るので、作る前に断る
+	if cos := c.l.ChiefOfStaff(); cos == "" || os.Getenv("HC_TERMINAL_ID") != cos {
+		return fail("%s を積んで起動できるのは Chief of Staff の端末（%s）だけ（積んだ印は Chief of Staff の端末が書いたものだけを信じる）", c.id, cos)
+	}
 	if _, err := exec.LookPath("gh"); err != nil {
 		return fail("gh が無い（前の課題 %s の PR を確かめられない）", onto.On)
 	}

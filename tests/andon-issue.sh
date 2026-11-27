@@ -1517,7 +1517,8 @@ sn1=$(nextof 'Stack next' "$sp1")
 "$andon" waiting list --json > "$tmp/st-wait" || die "andon waiting list が落ちた"
 jq -e --arg n "$sn1" --arg p "$sp1" '.stackable == [{id: $n, on: $p}]' "$tmp/st-wait" >/dev/null || die "stackable に出ない: $(jq -c .stackable "$tmp/st-wait")"
 "$andon" issue start "$sn1" --dry-run --json > "$tmp/st-dry" || die "積む start の dry-run が落ちた: $(cat "$tmp/st-dry")"
-jq -e --arg p "$sp1" --arg s "$sp" '.stacked_on == $p and .stacked_base == $s and .stack_branch == "stack-prev"
+jq -e --arg p "$sp1" --arg s "$sp" --arg n "$sn1" '.stacked_on == $p and .stacked_base == $s and .stack_branch == "stack-prev"
+  and .branch == "demo/\($n)-stack-next" and (.worktree | endswith("/demo-\($n)"))
   and ([.checks[] | select(.name == "after" and .result == "ok")] | length) == 1' "$tmp/st-dry" >/dev/null || die "dry-run が積むことを出さない: $(cat "$tmp/st-dry")"
 [ "$(field "$sn1" status)" = queued ] && [ -z "$(field "$sn1" stacked_on)" ] || die 'dry-run が kanban を書いた'
 "$andon" issue start "$sn1" > "$tmp/out" || die "積む start が落ちた: $(cat "$tmp/err" 2>/dev/null) $(cat "$tmp/out")"
@@ -1566,6 +1567,16 @@ sn6=$(kanban add 'Stack lib' --repo github.com/example/lib --profile claude --af
 expect_fail "前の課題 $sp6 の repo（github.com/example/app）が $sn6 の repo（github.com/example/lib）と違う" "$andon" issue start "$sn6"
 [ -z "$(field "$sn6" stacked_on)$(field "$sn6" worktree)" ] && [ "$(field "$sn6" status)" = queued ] || die "repo の違う課題で何か残った"
 ok 'start: 待つ相手が 2 つ残る・前の課題が doing・前の課題が止められている・前の課題の今の head に今の回の gate の記録が無い・repo が違う課題は、理由を 1 行出して断り、worktree も branch もキーも残さない（受け入れ条件 2）'
+# Chief of Staff でない端末（別の端末・端末の外）で打つと、書いた積んだ印を kanban が信じず kanban start が落ちるので、作る前に断る
+sp8=$(prevof 'Stack prev cos')
+sn8=$(nextof 'Stack cos' "$sp8")
+expect_fail "積んで起動できるのは Chief of Staff の端末（t5）だけ" env HC_TERMINAL_ID=t9 "$andon" issue start "$sn8"
+nothing_left "$sn8" stack-cos
+expect_fail "積んで起動できるのは Chief of Staff の端末（t5）だけ" env -u HC_TERMINAL_ID "$andon" issue start "$sn8"
+nothing_left "$sn8" stack-cos
+"$andon" waiting list --json > "$tmp/st-wait"
+jq -e --arg n "$sn8" '[.stackable[] | select(.id == $n)] | length == 1' "$tmp/st-wait" >/dev/null || die "前提: $sn8 が積める課題でない: $(jq -c .stackable "$tmp/st-wait")"
+ok 'start: 積む起動を Chief of Staff でない端末や端末の外で打つと、何も作らずに断る（積める課題のままにする）'
 # GitHub と origin で確かめる所: PR が open でない・PR の今の head が gate の通した commit と違う・origin の branch の先が違う
 sp7=$(prevof 'Stack prev gh')
 sn7=$(nextof 'Stack gh' "$sp7")
