@@ -405,7 +405,7 @@ PR を出したあとは、rebase や push の前に `gh pr view <n> --json stat
 **載せ替え**（積んだ課題。ADR-0067 決めたこと 12・13）: 前の課題が main に入ると、gate が「前の課題 <id> が main に入った。`andon issue restack` で載せ替える」の `fix` を送ってくる（`doing` のうちなら、PR を出す前か `andon issue ready` の前の `andon issue restack` が載せ替える）。前の課題がマージされずに終わり、Chief of Staff から「その変更なしで続ける」と届いたときも、同じ手順で載せ替える:
 
 1. `review` にいれば `kanban start <id>` で `doing` に戻す。
-2. `andon issue restack <id>` を打つ。command が origin を取り直し、自分の commit だけを既定の branch の先へ移し、PR の向き先を既定の branch に付け替え、push し、draft を外し、`stacked_on`・`stacked_base` を消す。この5つを自分の `git rebase`・`gh pr edit --base`・`gh pr ready` で代えない（順を誤ると CI が古い base で回る）。
+2. `andon issue restack <id>` を打つ。command が origin を取り直し、自分の commit だけを既定の branch の先へ移し、PR の向き先を既定の branch に付け替え、push し、draft を外し、`stacked_on`・`stacked_base` を消す。これらを自分の `git rebase`・`gh pr edit --base`・`gh pr ready` で代えない（順を誤ると CI が古い base で回る）。
 3. 衝突して終了コード 1 で止まったら、衝突を解き（依頼書の向きのまま。解き方が決められなければ §5）、`git rebase --continue` で済ませてから `andon issue restack <id>` を打ち直す。rebase は打ち直さない（command が続きから進む）。push や draft で止まったら、理由の1行に従って打ち直す。PR が閉じられていて開き直せないと出たら、PR を出し直して `andon issue report <id> --pr <url>` で書き換えてから打ち直す。
 4. 載せ替えたあとは、ふつうの課題になる。§3 の検査を通し、`andon issue report` で書き直す。レビューが要る課題は `andon issue review-request <id> < /dev/null` を打つ。前の課題の直しが自分の変更を囲む行を変えていなければ、command は積んでいた間のレビューを引き継ぎ、頼まずに止まるので、頼み直さない。そのあと `andon issue ready` で返す。
 
