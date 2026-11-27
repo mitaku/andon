@@ -28,6 +28,12 @@ if ! flock -n 9; then
   flock 9
 fi
 echo "pid $$ $PWD" >"$lock"
+# 鍵の場所を、この worktree の git の置き場（andon-tests-run-lock。1行1つ）に残す。書き込みを断るフックは、Claude Code の環境の
+# ANDON_TEST_LOCK を知らなくても、書く先の worktree からこの回の鍵を辿る。中身の古い行は、フックが鍵と控えで見分ける
+case $lock in /*) abs=$lock ;; *) abs=$PWD/$lock ;; esac
+if gd=$(git rev-parse --absolute-git-dir 2>/dev/null); then
+  grep -qxF "$abs" "$gd/andon-tests-run-lock" 2>/dev/null || echo "$abs" >>"$gd/andon-tests-run-lock" 2>/dev/null || true
+fi
 
 [ "$#" -gt 0 ] || exec bash tests/lib/run-tests.sh
 base=${2:-$(git merge-base HEAD origin/main)}

@@ -3,7 +3,9 @@
 # tests/run が鍵を持って走っている間、その回の worktree の中のファイルへ書く呼び出しを deny し、理由の1行を返す。
 # 走っている回が読む台本や差分を途中で書き換えると、その回の結果が当てにならなくなり、止めて回し直すことになる。
 # 走っている回は tests/run の鍵のファイル（ANDON_TEST_LOCK。既定は /tmp/andon-tests-run.lock）で見る。tests/run は鍵を flock で取り、
-# 「pid <pid> <PWD>」を書く。次の3つが揃うときだけ断る:
+# 「pid <pid> <PWD>」を書き、鍵の場所を worktree の git の置き場の andon-tests-run-lock にも残す。見る鍵は、この環境の
+# ANDON_TEST_LOCK（無ければ既定）と、書く先の worktree の andon-tests-run-lock の行（tests/run にだけ ANDON_TEST_LOCK を渡した回も辿る）。
+# どれかの鍵で次の3つが揃うときだけ断る:
 #   1. 鍵が今も flock で持たれている（共有の鍵を待たずに取れなければ持たれている。取れたらすぐ外す）
 #   2. 控えの pid が生きている（鍵を取った回が控えを書き直す前の控えは、終わった回のもの）
 #   3. 書く先のファイルの worktree（上へ辿って最初に .git がある所）が、控えの PWD と同じ（どちらも symlink を解いて比べる）。
@@ -23,7 +25,7 @@ DEFAULT_LOCK = "/tmp/andon-tests-run.lock"
 def running(lock):
     """鍵が持たれていれば控えの (pid, PWD) を、無ければ None を返す。鍵のファイルは作らない。"""
     try:
-        fd = os.open(lock, os.O_RDONLY)
+        fd = os.open(lock, os.O_RDONLY | os.O_NONBLOCK)  # FIFO を指されても待たない
     except OSError:
         return None
     try:
@@ -67,6 +69,34 @@ def worktree_of(path):
         d = up
 
 
+def git_dir(root):
+    """worktree の根の git の置き場。.git がディレクトリならそれ、ファイルなら gitdir: の行の先。読めなければ None。"""
+    dot = os.path.join(root, ".git")
+    if os.path.isdir(dot):
+        return dot
+    try:
+        with open(dot, encoding="utf-8") as f:
+            line = f.readline().strip()
+    except OSError:
+        return None
+    if not line.startswith("gitdir:"):
+        return None
+    return os.path.join(root, line[len("gitdir:"):].strip())
+
+
+def locks(root):
+    """見る鍵のファイル。この環境の ANDON_TEST_LOCK（無ければ既定）と、tests/run が worktree の git の置き場に残した鍵の場所。"""
+    out = [os.environ.get("ANDON_TEST_LOCK") or DEFAULT_LOCK]
+    gd = git_dir(root)
+    if gd:
+        try:
+            with open(os.path.join(gd, "andon-tests-run-lock"), encoding="utf-8") as f:
+                out += [line.rstrip("\n") for line in f if line.startswith("/")]
+        except OSError:
+            pass
+    return list(dict.fromkeys(out))
+
+
 def main():
     try:
         data = json.load(sys.stdin)
@@ -83,14 +113,17 @@ def main():
     if not os.path.isabs(path):
         cwd = data.get("cwd")
         path = os.path.join(cwd if isinstance(cwd, str) and cwd else os.getcwd(), path)
-    run = running(os.environ.get("ANDON_TEST_LOCK") or DEFAULT_LOCK)
-    if run is None:
-        return
-    pid, pwd = run
-    if not alive(pid):
-        return
     root = worktree_of(path)
-    if root is None or root != os.path.realpath(pwd):
+    if root is None:
+        return
+    for lock in locks(root):
+        run = running(lock)
+        if run is None:
+            continue
+        pid, pwd = run
+        if alive(pid) and root == os.path.realpath(pwd):
+            break
+    else:
         return
     reason = (
         f"裏の tests/run（pid {pid}）がこの worktree（{pwd}）で走っている。書き換えると走っている回の結果が当てにならなくなるので、"

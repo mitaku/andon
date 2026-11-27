@@ -152,8 +152,29 @@ ANDON_TEST_LOCK=$tmp/lock3 bash "$real/tests/run" >/dev/null 2>&1 &
 holders+=("$!")
 for i in $(seq 100); do grep -q '^pid ' "$tmp/lock3" 2>/dev/null && break; sleep 0.1; done
 deny "本物の tests/run が鍵を持つ worktree" "$tmp/lock3" Edit "$real/tests/run"
+# tests/run にだけ ANDON_TEST_LOCK を渡し、フックの環境は既定の鍵（ここでは無い鍵）を見る
+deny "tests/run にだけ渡した ANDON_TEST_LOCK の鍵を、worktree の git の置き場から辿る" "$tmp/none.lock" Edit "$real/tests/run"
 pass "本物の tests/run が鍵を持つ worktree とは別の worktree" "$tmp/lock3" Edit "$tmp/wt/tests/a.sh"
+pass "tests/run にだけ渡した鍵の回とは別の worktree" "$tmp/none.lock" Edit "$tmp/wt/tests/a.sh"
 release
 pass "本物の tests/run が止まったあと" "$tmp/lock3" Edit "$real/tests/run"
+pass "本物の tests/run が止まったあと（git の置き場に鍵の場所が残る）" "$tmp/none.lock" Edit "$real/tests/run"
+# ANDON_TEST_LOCK が相対のパス（tests/run は worktree の根から読む）
+ANDON_TEST_LOCK=rel.lock bash "$real/tests/run" >/dev/null 2>&1 &
+holders+=("$!")
+for i in $(seq 100); do grep -q '^pid ' "$real/rel.lock" 2>/dev/null && break; sleep 0.1; done
+deny "tests/run にだけ相対のパスの ANDON_TEST_LOCK を渡した" "$tmp/none.lock" Edit "$real/tests/run"
+release
+# clone（.git がディレクトリ）の worktree でも、tests/run にだけ渡した鍵を辿る
+mkdir -p "$tmp/wt/tests/lib"
+cp tests/run "$tmp/wt/tests/run"
+cp "$real/tests/lib/run-tests.sh" "$tmp/wt/tests/lib/run-tests.sh"
+ANDON_TEST_LOCK=$tmp/lock4 bash "$tmp/wt/tests/run" >/dev/null 2>&1 &
+holders+=("$!")
+for i in $(seq 100); do grep -q '^pid ' "$tmp/lock4" 2>/dev/null && break; sleep 0.1; done
+deny "clone の worktree で tests/run にだけ渡した ANDON_TEST_LOCK の鍵を辿る" "$tmp/none.lock" Edit "$tmp/wt/tests/a.sh"
+pass "clone の worktree の中の入れ子の worktree" "$tmp/none.lock" Edit "$tmp/wt/nested/x.sh"
+release
+if [ ! -e "$tmp/none.lock" ]; then ok "フックは見る鍵のファイルを作らない（git の置き場から辿った回も）"; else ng "フックが鍵のファイルを作った"; fi
 
 exit "$fail"
