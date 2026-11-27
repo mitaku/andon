@@ -1209,12 +1209,12 @@ emit "$(launches "$ce")" launch-chief-engineer.json
 ok 'andon design start: Chief Engineer の課題に起動の記録が1件（役 chief-engineer・session・worktree の commit。ADR-0028 受け入れ条件 2）'
 
 # 止める口（ADR-0056 決めたこと 7・8。受け入れ条件 A5）: andon issue hold・unhold。偽の gh を止めの場面のものに替える:
-# pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository は $tmp/hold-view を返し、
+# pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName は $tmp/hold-view を返し、
 # api -X POST …/statuses/<sha> は引数を $tmp/hold-gh に1行で足す（$tmp/hold-fail があれば落ちる）
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 case "\$1 \$2" in
-  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository ] || { echo "unexpected gh \$*" >&2; exit 99; }
+  "pr view") [ "\$7" = state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName ] || { echo "unexpected gh \$*" >&2; exit 99; }
     cat "$tmp/hold-view" ;;
   "api -X") echo "\$*" >> "$tmp/hold-gh"; [ ! -e "$tmp/hold-fail" ] || { echo "HTTP 502" >&2; exit 1; } ;;
   *) echo "unexpected gh \$*" >&2; exit 99 ;;
@@ -1351,5 +1351,108 @@ sid=$(restacked squash t7)
 as t7 "$andon" issue review-request "$sid" <<<'## Report' >/dev/null || { cat "$tmp/err" >&2; die '担当の端末が書いた review_base のレビューを引き継いだ'; }
 jq -e '.review_request.round == 2' "kanban/issues/$sid/library/report.json" >/dev/null || die "担当の端末が書いた review_base で 2 回目を頼まない: $(jq -c .review_request "kanban/issues/$sid/library/report.json")"
 ok 'review-request: 担当の端末が書いた review_base は信じず、既定の branch との merge-base から数えて、載せ替えのあとに頼み直す'
+
+# 載せ替えの口 andon issue restack（ADR-0067 決めたこと 13・受け入れ条件 9）。bare な origin と担当の clone で、前の課題の branch の上に
+# 積んだ branch を作り、前の課題を main に入れてから打つ。偽の gh は呼び出しを $tmp/rs-log に 1 行ずつ足し（pr view は $tmp/rs-view を返す。
+# pr edit --base と pr ready は $tmp/rs-view を書き換える）、origin の pre-receive は push を同じ記録に足す（$tmp/rs-pushfail があれば 1 回落ちる）
+cat > "$tmp/bin/gh" <<EOF
+#!/bin/sh
+echo "gh \$*" >> "$tmp/rs-log"
+case "\$1 \$2 \$4 \$5" in
+  "pr view --json state,baseRefName,isDraft") cat "$tmp/rs-view" ;;
+  "pr edit --base "*) jq --arg b "\$5" '.baseRefName = \$b' "$tmp/rs-view" > "$tmp/rs-view.new" && mv "$tmp/rs-view.new" "$tmp/rs-view" ;;
+  "pr ready  ") jq '.isDraft = false' "$tmp/rs-view" > "$tmp/rs-view.new" && mv "$tmp/rs-view.new" "$tmp/rs-view" ;;
+  *) echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
+EOF
+stacked() { # stacked <名前> <squash|merge>: 積んだ課題を作り、id を $rs、worktree を $rg、分かれ目を $rf、積んだ commit を $rc に置く。前の課題 $rp は todo
+    local o="$tmp/rs-$1.git"
+    rg="$tmp/rs-$1"
+    git init -q --bare -b main "$o"
+    printf '#!/bin/sh\nif [ -e "%s" ]; then rm -f "%s"; echo "偽の push の失敗" >&2; exit 1; fi\necho push >> "%s"\n' "$tmp/rs-pushfail" "$tmp/rs-pushfail" "$tmp/rs-log" > "$o/hooks/pre-receive"
+    chmod +x "$o/hooks/pre-receive"
+    git clone -q "$o" "$rg" 2>/dev/null; git -C "$rg" symbolic-ref HEAD refs/heads/main
+    printf 'a1\na2\na3\na4\na5\n' > "$rg/a.txt"; printf 'p1\n' > "$rg/p.txt"; printf 'm1\n' > "$rg/m.txt"
+    git -C "$rg" add -A; git -C "$rg" commit -qm base; git -C "$rg" push -q origin main 2>/dev/null || die "$1: 見本の origin へ push できない"
+    git -C "$rg" switch -qc prev; echo p2 >> "$rg/p.txt"; git -C "$rg" commit -qam 'prev change'; rf=$(git -C "$rg" rev-parse HEAD)
+    git -C "$rg" push -q origin prev 2>/dev/null
+    git -C "$rg" switch -qc stk; sed -i 's/^a5$/A5/' "$rg/a.txt"; git -C "$rg" commit -qam 'stacked change'; rc=$(git -C "$rg" rev-parse HEAD)
+    git -C "$rg" push -q origin stk 2>/dev/null
+    rp=$(as t5 kanban add "前の課題（$1）" --profile claude)
+    rs=$(as t5 kanban add "積んだ課題（$1）" --profile claude --after "$rp")
+    as t5 kanban set "$rs" status=doing review=on must_fix=major "worktree=$rg" branch=stk repo=github.com/example/app stacked_on="$rp" stacked_base="$rf" >/dev/null
+    mkdir -p "kanban/issues/$rs/library"
+    jq -n --arg c "$rc" --arg pr "$pr" '{commit: $c, pr: $pr}' > "kanban/issues/$rs/library/report.json"
+    echo '{"state": "OPEN", "baseRefName": "prev", "isDraft": true}' > "$tmp/rs-view"
+    # 前の課題を origin の main に入れる（別の clone から。担当の clone の origin/main は古いまま）
+    git clone -q "$o" "$rg-m" 2>/dev/null; git -C "$rg-m" fetch -q origin prev
+    if [ "$2" = squash ]; then git -C "$rg-m" merge -q --squash origin/prev >/dev/null; git -C "$rg-m" commit -qm 'prev (squash)'
+    else git -C "$rg-m" merge -q --no-ff -m 'prev (merge)' origin/prev >/dev/null; fi
+    git -C "$rg-m" push -q origin main 2>/dev/null || die "$1: 前の課題を origin の main へ入れられない"
+    : > "$tmp/rs-log"
+}
+rkey() { kanban show "$rs" --json | jq -r '[.issue.stacked_on // "", .issue.stacked_base // "", .issue.restack_onto // ""] | join(",")'; }
+restacked_ok() { # restacked_ok <場面>: 載せ替えが済んだ形（main の先・差分は自分の変更だけ・付け替えが push より先・draft が外れた・キーが消えた）
+    git -C "$rg" fetch -q origin
+    [ "$(git -C "$rg" merge-base HEAD origin/main)" = "$(git -C "$rg" rev-parse origin/main)" ] || die "$1: 既定の branch の先に載っていない: $(git -C "$rg" log --oneline -5)"
+    [ "$(git -C "$rg" diff --name-only origin/main HEAD)" = a.txt ] || die "$1: 既定の branch との差分が自分の変更だけでない: $(git -C "$rg" diff --name-only origin/main HEAD)"
+    [ "$(git -C "$rg" rev-parse origin/stk)" = "$(git -C "$rg" rev-parse HEAD)" ] || die "$1: 載せ替えた branch を push していない"
+    grep -n -e '^gh pr edit' -e '^push$' -e '^gh pr ready' "$tmp/rs-log" | tail -3 | cut -d: -f2- | tr '\n' '|' > "$tmp/rs-order"
+    [ "$(cat "$tmp/rs-order")" = "gh pr edit $pr --base main|push|gh pr ready $pr|" ] || die "$1: 付け替え・push・draft の順が違う: $(cat "$tmp/rs-log")"
+    jq -e '.baseRefName == "main" and .isDraft == false' "$tmp/rs-view" >/dev/null || die "$1: 向き先が main でない・draft のまま: $(cat "$tmp/rs-view")"
+    [ "$(rkey)" = ,, ] || die "$1: stacked_on・stacked_base・restack_onto が残った: $(rkey)"
+}
+stacked squash squash
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "前の課題が done でないのに restack が 0 で終わらない: $(cat "$tmp/out")"
+grep -q 'まだ done でない' "$tmp/out" && [ "$(git -C "$rg" rev-parse HEAD)" = "$rc" ] && [ ! -s "$tmp/rs-log" ] && [ "$(rkey)" = "$rp,$rf," ] ||
+    die "前の課題が done でないのに何か変えた: $(cat "$tmp/out") $(cat "$tmp/rs-log") $(rkey)"
+ok 'restack: 前の課題がまだ done でなければ、何も変えずに 1 行出して 0 で終わる'
+as t5 kanban set "$rp" status=done --force >/dev/null
+expect_fail "前の課題 $rp が done になった。先に andon issue restack $rs" as t7 "$andon" issue ready "$rs"
+ok 'ready: 積んだ課題の前の課題が done になったら、載せ替えるまで review にしない'
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "squash の前の課題のあとの restack が落ちた: $(cat "$tmp/out")"
+restacked_ok squash
+grep -q 'ふつうの課題になった' "$tmp/out" || die "載せ替えた 1 行を出さない: $(cat "$tmp/out")"
+stacked merge merge
+as t5 kanban set "$rp" status=done --force >/dev/null
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "マージ commit の前の課題のあとの restack が落ちた: $(cat "$tmp/out")"
+restacked_ok merge
+ok 'restack: 前の課題が squash でもマージ commit でも入ったあと、既定の branch の先へ載せ、差分は自分の変更だけ、付け替えを push より先に打ち、draft を外し、キーを消す'
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "済んだあとの restack が落ちた: $(cat "$tmp/out")"
+grep -q '積んでいない' "$tmp/out" || die "済んだあとの restack が積んでいないと言わない: $(cat "$tmp/out")"
+
+# 衝突: 前の課題のあとの main が、積んだ課題と同じ行を変えている。1 で止まり、解いて git rebase --continue のあと打ち直すと済む
+stacked conflict squash
+sed -i 's/^a5$/B5/' "$rg-m/a.txt"; git -C "$rg-m" commit -qam 'main changes a5'; git -C "$rg-m" push -q origin main 2>/dev/null; : > "$tmp/rs-log"
+as t5 kanban set "$rp" status=done --force >/dev/null
+expect_fail '衝突を解いて git rebase --continue' as t7 "$andon" issue restack "$rs"
+[ "$(kanban show "$rs" --json | jq -r '.issue.stacked_on')" = "$rp" ] && ! grep -q '^push$' "$tmp/rs-log" || die "衝突したのにキーを消した・push した: $(rkey) $(cat "$tmp/rs-log")"
+expect_fail 'rebase の途中' as t7 "$andon" issue restack "$rs"
+sed -i 's/^<<<<<<<.*$//; s/^=======$//; s/^>>>>>>>.*$//; s/^B5$//' "$rg/a.txt"; sed -i '/^$/d' "$rg/a.txt"
+git -C "$rg" add a.txt; GIT_EDITOR=true git -C "$rg" rebase --continue >/dev/null 2>&1 || die "衝突を解いた rebase が続かない: $(git -C "$rg" status --short)"
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "衝突を解いたあとの restack が落ちた: $(cat "$tmp/out") $(cat "$tmp/err" 2>/dev/null)"
+restacked_ok conflict
+ok 'restack: 衝突したら rebase の途中で 1 で止まり（途中で打ち直しても止まる）、解いて git rebase --continue のあと打ち直すと済む'
+
+# push の失敗のあとの打ち直し: 分かれ目より後の main に、同じ行を 2 回変えた commit の並びが在る。済んだ rebase を打ち直すと main の
+# commit を積み直して偽の衝突で止まるので、打ち直しは rebase をせずに続きから進む（事実 17）
+stacked retry squash   # 場面の名前は置き場の名前になる（$tmp/rs-pushfail は push を落とす印なので使わない）
+sed -i 's/^m1$/m2/' "$rg-m/m.txt"; git -C "$rg-m" commit -qam 'm to m2'
+sed -i 's/^m2$/m3/' "$rg-m/m.txt"; git -C "$rg-m" commit -qam 'm to m3'; git -C "$rg-m" push -q origin main 2>/dev/null; : > "$tmp/rs-log"
+as t5 kanban set "$rp" status=done --force >/dev/null
+touch "$tmp/rs-pushfail"
+expect_fail 'push できない' as t7 "$andon" issue restack "$rs"
+[ "$(kanban show "$rs" --json | jq -r '.issue.restack_onto')" = "$(git -C "$rg" rev-parse origin/main)" ] || die "push の失敗のあと restack_onto が移す先でない: $(rkey)"
+mid=$(git -C "$rg" rev-parse HEAD)
+as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "push の失敗のあとの打ち直しが落ちた: $(cat "$tmp/out")"
+[ "$(git -C "$rg" rev-parse HEAD)" = "$mid" ] || die '打ち直しで rebase をやり直した（HEAD が変わった）'
+restacked_ok retry
+# 対照: 済んだ rebase を同じ分かれ目から打ち直すと、この origin では済まない（打ち直しが rebase をしないことに意味がある）
+git -C "$rg" switch -q --detach "$mid"
+if git -C "$rg" rebase -q --onto "$(git -C "$rg" rev-parse origin/main)" "$rf" >/dev/null 2>&1; then
+    die '対照: 済んだ rebase を同じ分かれ目から打ち直しても衝突しない（この origin が事実 17 の形でない）'
+fi
+git -C "$rg" rebase --abort
+ok 'restack: rebase のあとの push を 1 回失敗させてから打ち直すと、rebase をやり直さずに続きから済む（main に同じ行を 2 回変えた commit の並びがあっても）'
 
 echo "all passed ($pass)"

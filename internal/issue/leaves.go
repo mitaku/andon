@@ -29,6 +29,11 @@ const (
 		"HEAD・report.json・PR の head・レビューが揃えば kanban を review にする。\n" +
 		"deliverable: candidates なら PR の代わりに candidates.json を確かめる。\n" +
 		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
+	RestackUsage = "usage: andon issue restack <id>\n" +
+		"積んだ課題の前の課題が done になったら、自分の commit だけを既定の branch の先へ載せ替える（担当が doing の課題に打つ）。\n" +
+		"移す先を restack_onto に控え、git rebase --onto <移す先> <stacked_base>、PR の向き先の付け替え、push、draft を外す、\n" +
+		"stacked_on・stacked_base・restack_onto を消す、の順。積んでいない・前の課題がまだ done でない課題は何も変えずに 0。\n" +
+		"衝突したら rebase の途中で止まり 1。解いて git rebase --continue のあと打ち直すと、rebase を打ち直さずに続きから進む。\n"
 	AskUsage = "usage: andon issue ask <id> <question.json|->\n" +
 		"       andon issue ask --new (--now | --later \"<理由>\" [--until <YYYY-MM-DD>]) [--parent <id>] [--after <id>,…] <question.json|->\n" +
 		"問いの JSON を検査し、人向けの text を描いて kanban に問い、library/questions/<n>.json に置く。\n" +
@@ -154,6 +159,15 @@ func Ready(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return errUsage
 		}
 		return withIssue(id, guard("ready", func(c *ctx) error { return c.ready(stdout) }))
+	})
+}
+
+func Restack(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	return leaf("restack", RestackUsage, args, stderr, func(id string, rest []string) error {
+		if len(rest) > 0 {
+			return errUsage
+		}
+		return withIssue(id, func(c *ctx) error { return c.restack(stdout) })
 	})
 }
 

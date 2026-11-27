@@ -12,6 +12,11 @@ type Merging struct {
 	Approved string `json:"approved,omitempty"` // merge: auto の approve でマージに進み始めた時刻（決まったら消す。10 分たてば dispatcher が届ける）
 	Retries  int    `json:"retries,omitempty"`  // base が動いて通らなかったマージを打ち直した回数（決まったら消す）
 	Polled   string `json:"polled,omitempty"`   // approve・needs_human・behind を決めたあと、PR の head を最後に読んだ時刻（1分に1回だけ聞く。動いていれば gate を回し直す）
+	// Prev は、積んだ課題の前の課題が done になってから gate を回した印（前の課題の id。ADR-0067 決めたこと 12・14）。
+	// behind のあと前の課題が done になったら 1 回だけ回し直す（同じ head では二度回さない・二度知らせない）。head が動けば消える
+	Prev string `json:"prev,omitempty"`
+	// PrevFails は、前の課題が done になってからの回し直しで gate が判定できなかった回数（3 回までは知らせずに次の巡で回し直す）
+	PrevFails int `json:"prev_fails,omitempty"`
 }
 
 // Merge は andon issue merge の出力（docs/contract.md の「gate のあとのマージと片付け」）。Notify を待ちに積むのは dispatcher。

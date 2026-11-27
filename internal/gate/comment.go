@@ -127,6 +127,8 @@ var reasonRewrites = []rewrite{
 	{regexp.MustCompile(`^files の件数が changedFiles と合わない`), fixed("変更されたファイルの一覧を読み切れなかった")},
 	{regexp.MustCompile(`^conflict$`), fixed("既定ブランチと衝突している")},
 	{regexp.MustCompile(`^前の課題 .* の PR がまだ main に入っていない$`), fixed("この変更が載っている前の変更が、まだ既定ブランチに入っていない")},
+	{regexp.MustCompile(`^前の課題 .* が main に入った。`), fixed("この変更が載っている前の変更が既定ブランチに入った。この変更を既定ブランチの先へ載せ替える")},
+	{regexp.MustCompile(`^前の課題 .* がマージされずに終わった$`), fixed("この変更が載っている前の変更が、マージされずに終わった")},
 	{regexp.MustCompile(`^積んだ PR の向き先が、前の課題 .* の branch でも既定ブランチでもない$`), fixed("PR の向き先が、この変更が載っている前の変更の branch でも既定ブランチでもない")},
 	{regexp.MustCompile(`^積んだ PR が draft でない`), fixed("前の変更が既定ブランチに入るまで、この PR は draft で置く")},
 	{regexp.MustCompile(`^fork の PR$`), fixed("fork からの PR")},

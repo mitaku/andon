@@ -10,6 +10,7 @@ type Settled struct {
 	Head   string `json:"head,omitempty"`   // マージされた PR の head（gate の記録 library/gate/<head>.json を引く）
 	Sha    string `json:"sha,omitempty"`    // マージの commit
 	Held   string `json:"held,omitempty"`   // 片付けずに知らせた理由（同じ理由では二度知らせない）
+	Base   string `json:"base,omitempty"`   // 既定の branch でない base にマージされたときの base（片付けない。ADR-0067 決めたこと 15）
 }
 
 // Settle は andon issue settle の出力（docs/contract.md の「オーナーのマージの片付け」）。Notify を待ちに積むのは dispatcher。

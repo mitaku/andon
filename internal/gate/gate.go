@@ -393,10 +393,11 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	// 積んだ課題（信じられる stacked_on がある）: draft でもよく、PR の事情のうち base・衝突・分かれ目から数えたファイルの件数と古い base を見ない
 	// （ADR-0067 決めたこと 8。Decide が approve と needs_human を behind に置き換える）
 	// 前の課題の branch が読めなければ判定しない（誤り。向き先が違うと取り違えて担当へ返さない。dispatcher が前の PR 待ちに置く）
-	prevBranch, from := "", ""
+	prevBranch, prevDone, from := "", false, ""
 	if on, base, ok := ledger.Stacked(rows, t, l.ChiefOfStaff()); ok {
 		facts.StackedOn, facts.PROpen, facts.StackedDraft = on, pv.State == "OPEN", pv.IsDraft
 		p, err := l.Show(on)
+		prevDone = err == nil && p.Str("status") == "done"
 		if err != nil {
 			return nil, "", fmt.Errorf("積んだ課題の前の課題 %s が kanban で読めない: %v", on, err)
 		}
@@ -482,6 +483,15 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	case pv.BaseRefName != cr.DefaultBranch:
 		facts.Blockers = append(facts.Blockers, "base が既定ブランチでない")
 	}
+	if prevDone {
+		// 前の課題が done: その PR が既定の branch にマージされていれば載せ替えを頼み、そうでなければマージされずに終わったと読む
+		// （既定でない base へのマージは main に入ったと読まない。ADR-0067 決めたこと 12・14・15）
+		in, err := prevInMain(l, facts.StackedOn, cr.DefaultBranch)
+		if err != nil {
+			return nil, "", err
+		}
+		facts.PrevMerged, facts.PrevGone = in, !in
+	}
 	if pv.Author.Login != cr.Viewer {
 		facts.Blockers = append(facts.Blockers, "作者がセルの gh アカウントでない")
 	}
@@ -500,7 +510,8 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 	gated := len(facts.LedgerReasons) == 0 && facts.PROpen && len(facts.Blockers) == 0 && facts.SettingsReason == "" && known
 	if stacked {
 		// 積んだ課題では、オーナーへ回す理由があっても判定を止めない（Decide が写す）。担当へ返す理由を拾うため、検査も回す
-		gated = len(facts.LedgerReasons) == 0 && facts.PROpen && facts.StackedBaseOK && facts.StackedDraft && known
+		// 載せ替えを頼むときは、載せ替えたあとの head で見るので検査を回さない（ADR-0067 決めたこと 12）
+		gated = len(facts.LedgerReasons) == 0 && facts.PROpen && facts.StackedBaseOK && facts.StackedDraft && known && !Restacking(facts)
 	}
 	if facts.ReviewRequired {
 		tasks, err := l.List()
@@ -542,6 +553,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		}
 	}
 	rec.Decision, rec.Reasons = Decide(facts)
+	rec.Restack = rec.Decision == "fix" && Restacking(facts)
 	if dry || rec.Decision == "wait" {
 		return rec, "", nil
 	}
@@ -628,6 +640,32 @@ func ParseCompare(b []byte) ([]File, int, bool, error) {
 		files = append(files, File{Path: f.Filename, PreviousPath: f.PreviousFilename})
 	}
 	return files, *v.AheadBy, len(*v.Files) >= compareFilesLimit, nil
+}
+
+// prevInMain は、積んだ課題の前の課題 prev（done）の PR が既定の branch def にマージされたか（ADR-0067 決めたこと 12・15）。
+// PR の場所は前の課題の report.json の pr だけ。PR が無い・読めない report.json は、マージされずに終わったと読む。
+// GitHub に聞けなければ誤り（判定しない。dispatcher が前の PR 待ちのまま置き、次の巡で回し直す）。
+func prevInMain(l *ledger.Ledger, prev, def string) (bool, error) {
+	rep, err := contract.ReadReport(filepath.Join(l.Library(prev), "report.json"))
+	if err != nil {
+		return false, nil
+	}
+	owner, name, number, ok := contract.ParsePR(rep.PR)
+	if !ok {
+		return false, nil
+	}
+	b, err := gh("pr", "view", number, "--repo", owner+"/"+name, "--json", "state,baseRefName")
+	if err != nil {
+		return false, fmt.Errorf("積んだ課題の前の課題 %s の PR が読めない: %v", prev, err)
+	}
+	var v struct {
+		State       string `json:"state"`
+		BaseRefName string `json:"baseRefName"`
+	}
+	if json.Unmarshal(b, &v) != nil || v.State == "" {
+		return false, fmt.Errorf("積んだ課題の前の課題 %s の PR の状態が読めない", prev)
+	}
+	return v.State == "MERGED" && v.BaseRefName == def, nil
 }
 
 // stackedFrom は、積んだ課題の差分を数える起点（信じられる stacked_base）。PR の向き先 prBase が前の課題（stacked_on）の branch で

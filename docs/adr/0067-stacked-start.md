@@ -16,15 +16,15 @@
 | 5 | `andon issue start` が、積める課題の branch を前の課題の PR の head から切り、予約キー 2 つに控える。kanban は、積んだ相手を待つ相手に数えない | この ADR | まだ実装していない |
 | 6 | 積める課題を `andon waiting list --json` の `stackable` に出し、積む深さに上限を置かない | この ADR | まだ実装していない |
 | 7 | 積んだ PR は draft で出し、向き先を前の課題の branch にする。積んでいる間は、base が既定の branch でないことをオーナーへ回す理由にしない | この ADR | まだ実装していない |
-| 8 | gate に判定 `behind`（前の PR 待ち）を足す。積んでいる間、gate は approve もオーナー待ちも決めない | `internal/gate/decide.go` | 生きている（一部。載せ替えを頼む直しの印 `restack` を数えない所まで。前の課題が入ったあとに載せ替えを頼む gate は決めたこと 12 の課題） |
+| 8 | gate に判定 `behind`（前の PR 待ち）を足す。積んでいる間、gate は approve もオーナー待ちも決めない | `internal/gate/decide.go` | 生きている |
 | 9 | 積んでいる間の差分は、gate も照合もレビュアーも、分かれ目から数える。レビューが見た差分の起点は、レビュアーの課題に控える | この ADR | まだ実装していない |
 | 10 | 前の PR 待ちの課題は並行の枠に数えず、オーナー待ちにも数えない。数は `slots.behind` に出す | `internal/waiting/waiting.go` | 生きている |
 | 11 | 積んだ課題は、前の PR が動いても追わず、ほかの PR のマージでも rebase を頼まれない | この ADR | まだ実装していない |
-| 12 | 前の課題が main に入ったら、gate が積んだ課題の担当に載せ替えを頼む | この ADR | まだ実装していない |
-| 13 | 載せ替えは担当の口 `andon issue restack` の 1 つで済ませる | この ADR | まだ実装していない |
-| 14 | 前の課題がマージされずに終わったら、積んだ課題をどうするかを、Chief of Staff がオーナーに 1 問聞く | この ADR | まだ実装していない |
-| 15 | 既定の branch でない base にマージされた PR は、片付けずに Chief of Staff へ知らせる | この ADR | まだ実装していない |
-| 16 | 課題の一生のモデルに、積んだ課題の動き 6 つと規則 7 本を足す | `model/IssueLife.tla` | 生きている（一部。モデルは前の課題が入ったあとの gate の回し直しと、前の課題がマージされずに終わったことの知らせまで写す。コードのその 2 つの口は決めたこと 12・14 の課題） |
+| 12 | 前の課題が main に入ったら、gate が積んだ課題の担当に載せ替えを頼む | `internal/gate/decide.go`・`internal/issue/merge.go` | 生きている |
+| 13 | 載せ替えは担当の口 `andon issue restack` の 1 つで済ませる | `internal/issue/restack.go` | 生きている（担当の skill の手順は決めたこと 17 の課題） |
+| 14 | 前の課題がマージされずに終わったら、積んだ課題をどうするかを、Chief of Staff がオーナーに 1 問聞く | `internal/gate/decide.go` | 生きている（一部。gate の記録と通知まで。Chief of Staff がオーナーに聞く手引きは決めたこと 17 の課題） |
+| 15 | 既定の branch でない base にマージされた PR は、片付けずに Chief of Staff へ知らせる | `internal/issue/settle.go` | 生きている |
+| 16 | 課題の一生のモデルに、積んだ課題の動き 6 つと規則 7 本を足す | `model/IssueLife.tla` | 生きている |
 | 17 | Chief of Staff の手引きと担当の skill を、積む起動と載せ替えに合わせて直す | この ADR | まだ実装していない |
 
 ## 問題（オーナーの言葉で。言い直しの段落）

@@ -525,6 +525,12 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 }
 
 func (c *ctx) ready(stdout io.Writer) error {
+	// 積んだままの課題の前の課題が done なら、載せ替えが先（ADR-0067 決めたこと 12）。前の課題がまだなら今のまま
+	if on, _, ok := ledger.Stacked(c.l.Log(), c.issue, c.l.ChiefOfStaff()); ok {
+		if p, err := c.l.Show(on); err == nil && p.Str("status") == "done" {
+			return fail("前の課題 %s が done になった。先に andon issue restack %s で既定の branch の先へ載せ替えてから打ち直す", on, c.id)
+		}
+	}
 	stale, err := c.staleGateQuestions()
 	if err != nil {
 		return err

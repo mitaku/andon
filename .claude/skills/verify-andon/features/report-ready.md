@@ -16,6 +16,8 @@
   - 見るファイル: `internal/issue/issue.go`、`internal/contract/runs.go`
 - `rr-stacked` Chief of Staff の端末が `stacked_on`・`stacked_base` を書いた課題（積んだ課題）は、`after` の前の課題が `review` のままでも `kanban start` で `doing` に入り、`after` は残る。担当の端末が自分で書いたキーは信じず、前の課題を待つ相手に数えて断る（ADR-0067 決めたこと 5）。見る道: 検証の担当だけ。
   - 見るファイル: `cmd/kanban/ledger.go`、`internal/ledger/stacked.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
+- `rr-restack` 積んだ課題の前の課題が `done` になると、`ready` は「先に andon issue restack で載せ替える」と断る。担当が `andon issue restack <id>` を打つと、自分の commit だけが既定の branch の先に載り、PR の向き先の付け替えが push より先に打たれ、draft が外れ、`stacked_on`・`stacked_base`・`restack_onto` が消える。前の課題がまだ `done` でなければ何も変えずに 0（ADR-0067 決めたこと 12・13）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+  - 見るファイル: `internal/issue/restack.go`、`internal/issue/issue.go`、`internal/issue/leaves.go`、`internal/cli/leaves.go`
 - `rr-ready` 揃った報告の `ready` で課題が `review` に入り、kanban の履歴に担当の端末の行が残る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/issue/leaves.go`、`internal/issue/transition.go`、`internal/ledger/ledger.go`、`internal/ledger/id.go`、`internal/ledger/config.go`、`internal/ledger/review.go`、`internal/gate/review.go`、`internal/gate/gate.go`、`cmd/andon/main.go`、`internal/cli/cli.go`、`internal/cli/leaves.go`、`cmd/kanban/ledger.go`、`cmd/kanban/lock_unix.go`、`cmd/kanban/main.go`、`cmd/kanban/paths.go`、`cmd/kanban/rename_other.go`、`cmd/kanban/yamldoc.go`
 
@@ -41,6 +43,7 @@
 - **ready する。** `rr-ready` の行のあとに `kanban show` の `status` が `review`・`acceptance` が `1`、`log.jsonl` に `terminal:tw` の `{"status":"review"}` が出る。`ok   rr-ready` が見えれば動いた。`ready` はレビューが要るかを gate と同じ関数で決めるので、最後の `gh.calls` に PR の head・PR のファイル（`gh api … /pulls/7/files`）・差分（`gh pr diff`）の3行が出る。偽の `gh` は文書1行のレベル A の差分を返し、`review: off` のまま通る。
 - **積んだ課題を起動する。** `rr-ready` のあと、前の課題を `review` に置き、それを `after` に持つ課題を2つ足す。1つは担当の端末 `tw` が `stacked_on`・`stacked_base` を書き、`rr-stacked` の行に `kanban start` の終了コード 1 と理由1行（`… waits for <前の課題> …`）が出て、課題は `queued` のまま。もう1つは Chief of Staff の端末 `tc` が書き、`kanban start` が通って `status` が `doing`、`after` が前の課題のまま。`log.jsonl` の `terminal:tc` の `stacked_on` の行と `terminal:tw` の `{"status":"doing"}` の行が出る。両方の `ok   rr-stacked` が見えれば動いた。
 - **片付く。** 最後に `ok   片付けた` が出る。
+- **載せ替える（`rr-restack`）。** 通しの道は打たない。本物のセルで、Chief of Staff が積んだ課題を試しに起動し、前の課題が main に入って載せ替えの直しが届いたら、担当の画面で `andon issue restack <id>` が「ふつうの課題になった」の 1 行で終わり、`kanban show <id>` に `stacked_on`・`stacked_base`・`restack_onto` が無く、`gh pr view <PR> --json baseRefName,isDraft` が既定の branch と `false` を返せば動いた。
 
 ## 変えたら動かすパス
 
