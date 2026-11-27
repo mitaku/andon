@@ -1008,6 +1008,18 @@ wl-review-brief wl-terminal
   hits=$(hit_names "$skill" tests/verify-andon.sh)
   allow=$(tr ' ' '\n' <<<"$hits_allow" | grep . || true)
   [ "$(allow_of <tests/verify-andon.sh)" = "$allow" ] || die "控え hits_allow を検査のシェルから読み直せない（base の控えと比べられない）"
+  base_allow=- added=
+  if [ -z "$base" ]; then
+    echo "skip verify-andon: 当たる場合の控えの減り方と、変えた道（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
+  else
+    bt=$(git show "$base:tests/verify-andon.sh" 2>/dev/null || true)
+    if grep -q "^  hits_allow='\$" <<<"$bt"; then base_allow=$(allow_of <<<"$bt"); fi
+    added=$(git diff -U0 --no-renames "$base" HEAD -- "$skill/scripts/" | sed -n '/^+++ /d; s/^+//p')
+  fi
+  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$added")
+  [ -z "$gaps" ] || die "当たる場合の確かめが足りない（道が ok を出す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことを確かめる。SKILL.md の 6）:
+$gaps"
+  ok "verify-andon: 道が ok を出す細かい機能 $(grep -c . <<<"$hits") 件のうち、7 に当たる場合を持つものは $(grep -c '^HIT ' <<<"$hits") 件で、ほかは前からの控え $(grep -c . <<<"$allow") 件"
 
   # 自分の確かめ: 7 から当たる場合を消した写し（確かめを打てない回に ok を出す wl-settings・理由の空な記録を通す gt-record）で、名前つきで落ちる
   sed '/"$drc" = 3 \].*wl-settings/d' tests/verify-andon.sh >"$tmp/hits-a.sh"
@@ -1040,17 +1052,5 @@ wl-review-brief wl-terminal
   done
   if grep -qF 'rr-ready' <<<"$gaps"; then die "控えにある rr-ready を、名前の一部（rr-readyx）だけの行で変えたと読む: $gaps"; fi
   [ -z "$(hit_gaps $'HIT gt-record\nMISS wl-terminal' 'wl-terminal' - '')" ] || die "base の控えが無いとき、控えにある当たる場合の無い名前で落ちる"
-
-  base_allow=- added=
-  if [ -z "$base" ]; then
-    echo "skip verify-andon: 当たる場合の控えの減り方と、変えた道（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
-  else
-    bt=$(git show "$base:tests/verify-andon.sh" 2>/dev/null || true)
-    if grep -q "^  hits_allow='\$" <<<"$bt"; then base_allow=$(allow_of <<<"$bt"); fi
-    added=$(git diff -U0 --no-renames "$base" HEAD -- "$skill/scripts/" | sed -n '/^+++ /d; s/^+//p')
-  fi
-  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$added")
-  [ -z "$gaps" ] || die "当たる場合の確かめが足りない（道が ok を出す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことを確かめる。SKILL.md の 6）:
-$gaps"
-  ok "verify-andon: 道が ok を出す細かい機能 $(grep -c . <<<"$hits") 件のうち、7 に当たる場合を持つものは $(grep -c '^HIT ' <<<"$hits") 件で、ほかは前からの控え $(grep -c . <<<"$allow") 件"
+  ok "verify-andon: 当たる場合の照らしは、7 から wl-settings・gt-record の当たる場合を消した写しで名前つきで落ち、否定の grep・die の文・if grep・注釈の FAIL を数えず、控えの崩れを拾う"
 fi
