@@ -6,6 +6,8 @@
 //     X-Tray-Sha256   本文の sha256 の16進（必須。本文と合わなければ断る）
 //   答え: {"url": 開く URL, "version": バージョンの番号, "bumped": バージョンが上がったか}
 //   GET /v1/meta  tray のバージョン
+//   GET /v1/stats?days=<1〜90>  そのセルの直近の日数に上がった枚数と開いた枚数（andon tray status。既定 7 日）
+//     答え: {"days": 日数, "uploaded": 上げた回数（バージョンを上げた回）, "opened": 開いた報告の数}
 // セルは呼ぶ側が決める（Cloudflare の tray は API キー〈src/upload.ts〉、ローカルの tray はセルの名前〈src/local-upload.ts〉）。
 // 本文にセルの名前を書かせない。欄は足すだけで変え、消すか意味を変えるときは /v2/ を足す。
 
@@ -74,11 +76,32 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
   return json({ url, version: up.version, bumped: true });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function stats(req: Request, env: UploadEnv, cell: string, now: number): Promise<Response> {
+  const raw = new URL(req.url).searchParams.get("days") ?? "7";
+  if (!/^[0-9]{1,2}$/.test(raw) || Number(raw) < 1 || Number(raw) > 90) return error(400, "days", "days は 1〜90");
+  const days = Number(raw);
+  const since = now - days * DAY_MS;
+  const up = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM uploads u JOIN reports r ON r.id = u.report_id WHERE r.cell = ?1 AND u.at >= ?2",
+  )
+    .bind(cell, since)
+    .first<{ n: number }>();
+  const op = await env.DB.prepare(
+    "SELECT COUNT(DISTINCT o.report_id) AS n FROM opens o JOIN reports r ON r.id = o.report_id WHERE r.cell = ?1 AND o.at >= ?2",
+  )
+    .bind(cell, since)
+    .first<{ n: number }>();
+  return json({ days, uploaded: up?.n ?? 0, opened: op?.n ?? 0 });
+}
+
 // uploadAPI: セルが決まったあとの要求に答える。now は検査が時刻を決めるための口
 export async function uploadAPI(req: Request, env: UploadEnv, cell: string, now = Date.now()): Promise<Response> {
   const seg = segments(new URL(req.url).pathname);
   if (seg[0] !== "v1") return error(404, "not_found", "無い");
   if (seg.length === 2 && seg[1] === "meta") return req.method === "GET" ? meta() : error(405, "method", "GET だけ");
+  if (seg.length === 2 && seg[1] === "stats") return req.method === "GET" ? stats(req, env, cell, now) : error(405, "method", "GET だけ");
   if (seg.length === 4 && seg[1] === "reports") {
     if (req.method !== "PUT") return error(405, "method", "PUT だけ");
     const project = decodeName(seg[2] ?? "");

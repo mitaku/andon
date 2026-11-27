@@ -229,3 +229,28 @@ describe("名前とヘッダ", () => {
     expect(typeof res.body.version).toBe("string");
   });
 });
+
+describe("枚数（andon tray status）", () => {
+  const key = "tray_stats000000000000";
+  it("GET /v1/stats はそのセルの直近の日数に上げた回数と開いた報告の数だけを返す", async () => {
+    await putKey("c1", key);
+    await putKey("c2", "tray_otherkey000000000");
+    const now = Date.now();
+    for (const body of ["v1", "v2"]) expect((await send(await putRequest({ name: "a", body, key }))).status).toBe(200);
+    expect((await send(await putRequest({ name: "b", body: "x", key }))).status).toBe(200);
+    expect((await send(await putRequest({ name: "c", body: "x", key: "tray_otherkey000000000" }))).status).toBe(200);
+    const ids = (await env.DB.prepare("SELECT id, cell FROM reports ORDER BY name").all<{ id: string; cell: string }>()).results;
+    // a を2度、c（ほかのセル）を1度開き、8日前に上げて開いた古い記録を1つ置く
+    for (const r of [ids[0], ids[0], ids[2]])
+      await env.DB.prepare("INSERT INTO opens (report_id, version, at) VALUES (?1, 1, ?2)").bind(r?.id, now).run();
+    await env.DB.prepare("INSERT INTO uploads (report_id, version, at) VALUES (?1, 9, ?2)").bind(ids[1]?.id, now - 8 * 86400000).run();
+    await env.DB.prepare("INSERT INTO opens (report_id, version, at) VALUES (?1, 9, ?2)").bind(ids[1]?.id, now - 8 * 86400000).run();
+    const stats = (days?: string) =>
+      send(new Request(`${UPLOAD_ORIGIN}/v1/stats${days ? `?days=${days}` : ""}`, { headers: { Authorization: `Bearer ${key}` } }));
+    expect(await stats()).toEqual({ status: 200, body: { days: 7, uploaded: 3, opened: 1 } });
+    expect(await stats("9")).toEqual({ status: 200, body: { days: 9, uploaded: 4, opened: 2 } });
+    for (const bad of ["0", "91", "x", "7.5"]) expect((await stats(bad)).status).toBe(400);
+    // 鍵の無い要求は断る（ほかのセルの数を見せない）
+    expect((await send(new Request(`${UPLOAD_ORIGIN}/v1/stats`))).status).toBe(401);
+  });
+});
