@@ -137,9 +137,7 @@ func Send(r Report, remote *Remote) Delivery {
 		if remote.Key == "" {
 			d.RemoteErr = fmt.Errorf("API キーが無い（andon tray auth で %s に置く）", KeyPath())
 		} else {
-			out := r
-			out.Body = Redact(r.ContentType, r.Body)
-			d.Remote, d.RemoteErr = Put(remote.Upload, remote.Key, out)
+			d.Remote, d.RemoteErr = Put(remote.Upload, remote.Key, ForRemote(r))
 		}
 	}
 	return d
@@ -264,6 +262,16 @@ func cleanTitle(title, name string) string {
 		return name
 	}
 	return t
+}
+
+// ForRemote は Cloudflare の tray へ送る r の写しを返す。本文と、一覧のメタデータに残るタイトルの秘密の形を伏せる（決めたこと 10）。
+func ForRemote(r Report) Report {
+	out := r
+	out.Body = Redact(r.ContentType, r.Body)
+	if t, n := redact.JSON([]byte(r.Title)); n > 0 {
+		out.Title = string(t)
+	}
+	return out
 }
 
 // Redact は Cloudflare へ送る写しの秘密の形を伏せる（決めたこと 10）。HTML は文の部分と属性の値だけ、

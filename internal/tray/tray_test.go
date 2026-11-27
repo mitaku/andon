@@ -287,13 +287,20 @@ func TestSendRedactsRemoteHTMLOnly(t *testing.T) {
 	script := `<script>const token = new Date(); const x = "` + fakeSecret + `";</script>`
 	page := `<!doctype html><html><head><title>t</title>` + style + `</head><body><p>鍵は ` + fakeSecret + ` です</p>` +
 		`<a title="` + fakeSecret + `" href="#a">a</a>` + script + `</body></html>`
-	r := Report{Name: "p", Title: "t", Kind: KindPublish, ContentType: "text/html; charset=utf-8", Body: []byte(page)}
+	r := Report{Name: "p", Title: "鍵 " + fakeSecret, Kind: KindPublish, ContentType: "text/html; charset=utf-8", Body: []byte(page)}
 	d := Send(r, &Remote{Upload: cf.srv.URL, Key: "tray_key000000000000"})
 	if d.LocalErr != nil || d.RemoteErr != nil {
 		t.Fatal(d.Warnings())
 	}
 	if string(loc.received()[0].Body) != page {
 		t.Errorf("ローカルの写しが変わった: %s", loc.received()[0].Body)
+	}
+	// タイトル（X-Tray-Title。一覧のメタデータ）も Cloudflare へは伏せ、ローカルへはそのまま
+	if title := cf.received()[0].Title; strings.Contains(title, fakeSecret) || !strings.Contains(title, "REDACTED") {
+		t.Errorf("Cloudflare へ送るタイトルに秘密が残った: %s", title)
+	}
+	if title := loc.received()[0].Title; !strings.Contains(title, fakeSecret) {
+		t.Errorf("ローカルへ送るタイトルが変わった: %s", title)
 	}
 	remote := string(cf.received()[0].Body)
 	if strings.Contains(strings.SplitN(remote, "<script>", 2)[0], fakeSecret) {

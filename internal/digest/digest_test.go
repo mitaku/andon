@@ -893,3 +893,18 @@ func TestCheckRemoteKey(t *testing.T) {
 		t.Error("確かめで Cloudflare の tray へ送った")
 	}
 }
+
+// 送り直しの口（placeRemote）も、Cloudflare へは本文とタイトルの秘密の形を伏せて送る（ADR-0064 決めたこと 10）。
+func TestPlaceRemoteRedactsTitle(t *testing.T) {
+	cf := traytest.New(t)
+	traytest.Local(t, nil)
+	secret := "ghp_" + strings.Repeat("a", 36)
+	r := tray.Report{Project: "sample-site", Name: "d", Title: "週 " + secret, Kind: tray.KindDigest,
+		ContentType: "text/html; charset=utf-8", Body: []byte("<title>週 " + secret + "</title><p>" + secret + "</p>")}
+	if _, err := placeRemote(&tray.Remote{Upload: cf.URL, Key: "tray_key000000000000"}, r); err != nil {
+		t.Fatal(err)
+	}
+	if g := cf.Last(t); strings.Contains(g.Title, secret) || !strings.Contains(g.Title, "REDACTED") {
+		t.Errorf("Cloudflare へ送るタイトルに秘密が残った: %q", g.Title)
+	}
+}

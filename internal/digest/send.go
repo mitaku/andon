@@ -321,9 +321,7 @@ func placeRemote(remote *tray.Remote, r tray.Report) (string, error) {
 	case remote.Key == "":
 		return "", fmt.Errorf("API キーが無い（andon tray auth で %s に置く）", tray.KeyPath())
 	}
-	out := r
-	out.Body = tray.Redact(r.ContentType, r.Body)
-	a, err := tray.Put(remote.Upload, remote.Key, out)
+	a, err := tray.Put(remote.Upload, remote.Key, tray.ForRemote(r))
 	if err != nil {
 		return "", err
 	}
