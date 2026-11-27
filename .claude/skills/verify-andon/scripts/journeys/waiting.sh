@@ -75,6 +75,21 @@ step "ow-json: andon issue show --help を打つ" "$andon" issue show --help >/d
   && ok "ow-json: JSON を出せる葉の --help は JSON の行を持ち、JSON を出せない葉は持たない" \
   || fail "ow-json: --help の JSON の行が違う"
 
+# ow-tray-deploy: Cloudflare へ出す葉 andon tray deploy は、一覧の葉に載り、--help がセルの外で打つことを言う。
+# トークンの無い本番の打ち方は、設定のファイルも node も読む前に終了コード 2 で断る（Cloudflare に触れない）
+step "ow-tray-deploy: andon help --all を打つ" "$andon" help --all >/dev/null \
+  && grep -q '^ *tray deploy ' "$tmp/step.out" \
+  && step "ow-tray-deploy: andon tray deploy --help を打つ" "$andon" tray deploy --help >/dev/null \
+  && grep -qF 'bin/bootstrap tray-deploy' "$tmp/step.out" \
+  && ok "ow-tray-deploy: andon tray deploy は一覧の葉に載り、--help がセルの外の bin/bootstrap tray-deploy から打つと言う" \
+  || fail "ow-tray-deploy: andon tray deploy が一覧に無いか、--help が打つ場所を言わない"
+rc=0; step "ow-tray-deploy: トークンなしで andon tray deploy --config を打つ" env -u CLOUDFLARE_API_TOKEN "$andon" tray deploy --config "$tmp/none.json" || rc=$?
+if [ "$rc" = 2 ] && grep -qF 'CLOUDFLARE_API_TOKEN が無い' "$tmp/step.out"; then
+  ok "ow-tray-deploy: トークンの無い本番の打ち方は終了コード 2 で断る"
+else
+  fail "ow-tray-deploy: トークンの無い本番の打ち方を断らない（終了コード $rc）"
+fi
+
 # ow-later: Chief of Staff が印 later を書いたオーナーの課題は、呼ばずに置いてある行になる。日（later_until）が来るか、
 # 印を担当の端末が書き直すと、また呼ぶ
 row_of() { jq -c --arg id "$1" '.items[] | select(.id == $id) | {id, call, later, later_until}' "$tmp/step.out" 2>/dev/null; }

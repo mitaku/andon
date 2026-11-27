@@ -546,10 +546,10 @@ func trayProblems(wfs, tests map[string]string) []string {
 			if !trayRe.MatchString(l) {
 				continue
 			}
-			// tray を名指してよいのは、パスを振り分ける道具とその確かめと、番兵に控えを置く tests/isolation（ADR-0064 決めたこと 15）だけ。
-			// そこでも走らせる行は書かない
+			// tray を名指してよいのは、パスを振り分ける道具とその確かめと、番兵に控えを置く tests/isolation（ADR-0064 決めたこと 15）と、
+			// bin/bootstrap tray-deploy の打つものを --dry-run で見る tests/andon-init.sh（決めたこと 27）だけ。そこでも走らせる行は書かない
 			switch f {
-			case "tests/ci.sh", "tests/lib/scope.sh", "tests/lib/image-scope.sh", "tests/isolation":
+			case "tests/ci.sh", "tests/lib/scope.sh", "tests/lib/image-scope.sh", "tests/isolation", "tests/andon-init.sh":
 				if runs.MatchString(l) {
 					bad("tests の %s:%d が tray を走らせる", f, i+1)
 				}
@@ -617,6 +617,8 @@ func trayProblems(wfs, tests map[string]string) []string {
 	need := map[string]int{
 		"bun install --frozen-lockfile --ignore-scripts": 0, "bun run typecheck": 0, "bun run test": 0,
 		"bun run build": 0, `ANDON_BIN="$RUNNER_TEMP/andon" bun run e2e`: 0, "bun run browser": 0,
+		// Cloudflare に出す設定を、トークン無しで wrangler に確かめさせる（ADR-0064 決めたこと 27）
+		"bun run deploy-check": 0,
 		// 端から端の検査の後半（セルの側）が打つ andon は、この checkout から焼く
 		`go build -trimpath -o "$RUNNER_TEMP/andon" ../cmd/andon`: 0,
 	}

@@ -533,6 +533,27 @@ andon delegation show          # 型と効いている値（commit の前は「�
   4. セルの中で `andon digest auth slack` を打ち、Bot User OAuth Token を貼る。`~/.config/andon/digest/slack.token`（mode 600。compose の volume `digest`）に置かれる。引数に書かない。トークンはセルに 1 本で、ワークスペースはセルに 1 つ。
   5. オーナーが `projects/<slug>/project.json` に `"digest": {"destinations": [{"kind": "slack", "channel": "<チャンネルの ID>"}]}` を足して commit する。1 で上げる前に書くと、古いバージョンは `project.json` ごと読めなくなる。ID はチャンネルの詳細の一番下にある（`C` か `G` で始まる。名前ではない）。書いたことが、毎回の送信への go になる。
   6. `projects/<slug>/` で `andon digest check` を打つ。**通ったら見えるもの**: `送った: Slack の <ID> に確かめのファイル F…` と、チャンネルに小さなテキストのファイル。**落ちたら見る所**: `設定が無い` — commit していない。`送り先を読めない` — owner の commit でないか、形が違う。`not_in_channel`・`channel_not_found` — 3 の招待か ID。`invalid_auth`・`missing_scope` — 2 の scope を確かめて 4 をやり直す。
+- Cloudflare の tray に出す（[ADR-0064](adr/0064-tray.md) 決めたこと 5・16〜19・23・27。出さないなら何もしなくてよい。報告はセルの中のローカルの tray にだけ届く）。スマホで読み、どの端末で開いても既読が揃うのは Cloudflare の tray だけである。tray は Cloudflare のアカウントに 1 つで、全部のセルが同じ tray に送る。デプロイはオーナーがセルを動かしている PC で打ち、セルの中には Cloudflare の資格情報を置かない:
+  1. セルのパッケージを、`andon tray deploy` を知るバージョンに上げる（`bin/bootstrap rebuild`）。古いバージョンは `project.json` の `tray` を知らず、`project.json` ごと読めなくなる（8 で書く前に上げる）。
+  2. Cloudflare のアカウントで、Workers の有料プラン（Workers Paid。月 5 ドルから）を契約し、R2 を使うために支払いの方法を登録して R2 を有効にする。3 つのホスト名を置くドメインを Cloudflare のゾーンにしておく。ホスト名は、そのドメインの下の 3 つの名前（例 `tray.example.com`・`tray-view.example.com`・`tray-up.example.com`）にする。DNS のレコードは作らない（デプロイが custom domain として作る。同じ名前のレコードが既にあると、デプロイが落ちる）。
+  3. Zero Trust で Access を設定する（チームが無ければ作る。チームのドメインは `https://<チーム>.cloudflareaccess.com`）。
+     - 一覧の面のホスト名で Self-hosted のアプリを 1 つ作る。ポリシーは Allow で、Include はオーナーのメールアドレス 1 つだけにする。セッションの長さは 30 日にする。アプリの AUD タグ（64 桁の16進）を控える。スマホを失くしたときは、Access のダッシュボードでセッションを切る。
+     - 同じホスト名のパス `pwa/` に、もう 1 つ Self-hosted のアプリを作り、ポリシーを Bypass・Include を Everyone にする。ホーム画面への追加の manifest とアイコンだけを素通しにする（素通しにしないと、iOS が cookie 無しで取りに来てログインへ飛ばされる。決めたこと 23）。データは入っていない。
+     - 報告の面とアップロードの口のホスト名には Access を置かない（報告の面は 5 分で切れる署名付き URL、アップロードの口はセルごとの API キーで守る）。
+  4. Cloudflare の API トークンを作る（My Profile → API Tokens → Create Token）。テンプレートの「Edit Cloudflare Workers」を元に、Account の D1 の Edit を足し、Zone Resources に 2 のゾーンを入れる。権限が足りなければ、6 で wrangler が権限の誤りを出す。トークンは 6 の 1 回にだけ渡し、ファイルにもセルにも置かない（1Password に置くなら、6 の前で `op read` する）。
+  5. セルの repo の根に `tray-deploy.json` を書き、owner の email で commit する。値は公開の repo（andon の repo）には書かない:
+
+     ```json
+     {"account_id": "<アカウントの ID。32 桁の16進>",
+      "hosts": {"list": "<一覧の面のホスト名>", "view": "<報告の面のホスト名>", "upload": "<アップロードの口のホスト名>"},
+      "access": {"team_domain": "https://<チーム>.cloudflareaccess.com", "aud": "<3 で控えた AUD タグ>"}}
+     ```
+
+  6. ホストのセルの repo で `CLOUDFLARE_API_TOKEN=<トークン> bin/bootstrap tray-deploy` を打つ（1Password なら `CLOUDFLARE_API_TOKEN=$(op read 'op://<保管庫>/<項目>/credential') bin/bootstrap tray-deploy`）。セルのイメージから使い捨てのコンテナを起動して `andon tray deploy` を打つ。D1 のデータベースと R2 のバケット（どちらも `andon-tray`）が無ければ作り、D1 の移行を当て、3 つの Worker（`andon-tray-list`・`andon-tray-view`・`andon-tray-upload`）を custom domain で出す。workers.dev の名前は切る。何度打ってもよい。andon を上げて tray が変わったときも同じ 1 行を打ち直す（署名の鍵が作り直され、開いていた報告は開き直す）。**通ったら見えるもの**: `出した: 一覧の面 https://<一覧の面のホスト名>/ …` と次の手の行。**落ちたら見る所**: `tray-deploy.json が無い` — 5。`CLOUDFLARE_API_TOKEN が無い` — 6 の打ち方。`tray-deploy.json: … でない` — 5 の値の形。`wrangler … が落ちた` — その上の wrangler の出力（`Authentication error` は 4 の権限、custom domain の誤りは 2 の DNS のレコードかゾーン、R2 の誤りは 2 の R2 の有効化）。
+  7. 一覧の面（`https://<一覧の面のホスト名>/cells`）を開き、Access でログインして、セルの名前（slug）で鍵を作る。鍵は 1 度だけ見える。セルの中で `andon tray auth` を打ち、鍵を貼る（`~/.config/andon/tray/cloudflare.token`。mode 600。compose の volume `tray`）。1Password に置いたなら、ホストで `op read 'op://<保管庫>/<項目>/credential' | ssh andon-<slug> andon tray auth` と打つ。鍵が漏れたら、同じ画面で失効させて作り直す。
+  8. 送るプロジェクトの `projects/<slug>/project.json` に `"tray": {"upload": "https://<アップロードの口のホスト名>"}` を足し、owner の email で commit する（[contract.md](contract.md) §11）。書いたことが、そのプロジェクトの報告を毎回 Cloudflare へ送ることへの go になる。書かないプロジェクトの報告は、ローカルの tray にだけ届く。
+  9. `projects/<slug>/` で `andon tray status` を打つ。**通ったら見えるもの**: `Cloudflare の tray: <slug> は https://<アップロードの口のホスト名> へ送る` と `Cloudflare の tray のバージョン: … （届く）`。**落ちたら見る所**: `設定を読めない` — 8 の commit が owner の email でないか、形が違う。`API キー: 無い` — 7。`届かない（HTTP 401 …）` — 鍵の貼り間違いか失効。`届かない（… no such host …）` — 8 のホスト名か 6。
+  10. iPhone の Safari で一覧の面を開き、Access のログインを通す。共有からホーム画面に追加し、ホーム画面から開いてもログインを通って一覧が出るかを見る。通らなければ、ホーム画面への追加をやめて Safari のブックマークで使う（決めたこと 23）。PC で開いた報告が、スマホの一覧でも既読になっているかを見る。
 - 並行の上限と独立レビューを入れる条件は `project.json` の `chief_of_staff`（`parallel`・`review_when`。[contract.md](contract.md) §11）に書く。無ければ並行の上限は 2。`projects/andon/AGENTS.md` の「Chief of Staff」の節（目標・指示）は任意。
 - 課題の id は `A-0001` から 4 桁で振られる。打つときは `A-1` でもよい（同じ課題）。
 

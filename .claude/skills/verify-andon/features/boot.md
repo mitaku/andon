@@ -12,6 +12,8 @@
   - 見るファイル: `internal/boot/codex.go`、`internal/boot/trust.go`、`internal/boot/gitauthor.go`、`package/codex.rules`、`package/templates/`、`package/environment.md`、`package/writing.md`、`init/.dockerignore`、`init/.gitignore`、`init/AGENTS.local.md`、`init/Dockerfile.tmpl`、`init/andon.toml.tmpl`、`init/files/`、`init/gate.local.json`、`init/local/`、`init/projects/`、`init/wiki/`
 - `bt-entry` ホストの `bin/bootstrap`（薄い入口）が、打つたびにセルの image から本体を `.andon/bootstrap` に取り出して走らせる。分ける前の入口のまま上げると、`docker compose` が止まって入口を置き換える 1 行を出す。見る道: オーナーが見る。
   - 見るファイル: `init/bin/bootstrap`、`package/host/bootstrap`、`package/compose.yaml`
+- `bt-tray-deploy` ホストのセルの repo で `CLOUDFLARE_API_TOKEN=<トークン> bin/bootstrap tray-deploy` を打つと、セルの image から使い捨てのコンテナを起動して `andon tray deploy` を打ち、Cloudflare に3つの Worker を出して、一覧の面の URL と次の手を出す。トークンはセルにも repo にも残らない。見る道: オーナーが見る。
+  - 見るファイル: `package/host/bootstrap`、`internal/tray/deploy.go`
 - `bt-managed` managed settings の hook が `/opt/andon/hooks` を指す。見る道: 検証の担当だけ。
   - 見るファイル: `package/settings.json`
 - `bt-skills` `/opt/andon/skills` の skill ごとに、`~/.agents/skills/andon-<名>` の symlink がその置き場を指す。リンクが無いもの・パッケージの外を指す `andon-*` があれば落ちる。見る道: 検証の担当だけ。
@@ -34,6 +36,7 @@
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh boot <検証する commit>` を打つ。生成物と控えを読むだけで、boot は打たない。
 - **走ったことを読む。** `bt-ran` の行に dispatcher の端末の起動の時刻が出る。当てた時刻より後で、`ok   bt-ran` が見えれば動いた。
 - **生成物を読む。** `bt-generated` の行に控えのファイルの数と、控えと違うものの数が出る。違うものが 0 で、`ok   bt-generated` が見えれば動いた。
+- **Cloudflare の tray を出す（`bt-tray-deploy`）。** ホストで動き、オーナーの Cloudflare のアカウントに触れるので、検証の担当は動かせない。報告の `acceptance[]` に `manual` と書き、オーナーが見る次の証拠を `evidence` に書く。`bin/bootstrap tray-deploy` の最後に `出した: 一覧の面 https://<一覧の面のホスト名>/ …` の行が出る。そのあと `projects/<slug>/` で打った `andon tray status` が `Cloudflare の tray のバージョン: …（届く）` を出す。手順は `docs/operate.md` §8 の Cloudflare の tray。
 - **ローカルの tray を読む。** `bt-tray` の行に控えの pid・実体・起動の時刻と、一覧の面の `GET /` の答えが出る。`ok   bt-tray` が見えれば、当てたパッケージで起動し直している。`note bt-tray` なら、パッケージに tray が無い。報告の `## Report` にそう書く。
 - **配った先を読む。** `bt-managed` と `bt-skills` の行に、hook の置き場と skill の symlink の先が出る。`ok   bt-managed` が見え、`bt-skills` に FAIL が無ければ動いた。
 
@@ -48,6 +51,7 @@
 - `internal/boot/`
 - `internal/tray/serve.go`
 - `internal/tray/cmd.go`
+- `internal/tray/deploy.go`
 - `package/settings.json`
 - `package/codex.rules`
 - `package/templates/`
