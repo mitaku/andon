@@ -158,10 +158,11 @@ func TestStaleBaseGoTests(t *testing.T) {
 }
 
 // tray の検査も検査の置き場: job tray が回す検査（Workers の検査・ブラウザの検査・端から端の検査と、その設定）だけが既定ブランチで
-// 変わっても、それより前の base で checks を通した PR は今の tray の検査を通っていない。tray のコードと依存は置き場に入れない。
+// 変わっても、それより前の base で checks を通した PR は今の tray の検査を通っていない。検査の command（scripts）を持つ package.json も同じ。
+// tray のコードと bun.lock は置き場に入れない。
 func TestStaleBaseTrayChecks(t *testing.T) {
 	moved := []string{"tray/test/list.test.ts", "tray/test/helpers.ts", "tray/browser/screens.spec.ts", "tray/scripts/e2e.mjs",
-		"tray/vitest.config.ts", "tray/playwright.config.ts"}
+		"tray/vitest.config.ts", "tray/playwright.config.ts", "tray/package.json"}
 	for _, p := range moved {
 		files, _, _, err := ParseCompare([]byte(`{"ahead_by": 1, "files": [{"filename": "` + p + `", "previous_filename": null}]}`))
 		if err != nil {
@@ -173,7 +174,7 @@ func TestStaleBaseTrayChecks(t *testing.T) {
 			t.Errorf("%s が既定ブランチで変わったあとの古い base を戻さない: %s %v", p, d, r)
 		}
 	}
-	for _, p := range []string{"tray/src/lib/list-api.ts", "tray/public/app.js", "tray/scripts/serve.mjs", "tray/package.json",
+	for _, p := range []string{"tray/src/lib/list-api.ts", "tray/public/app.js", "tray/scripts/serve.mjs", "tray/scripts/deploy.mjs",
 		"tray/bun.lock", "tray/web/main.tsx", "tray/README.md", "tray/testdata.ts", "tray/browser.ts"} {
 		if IsCheckPlace(p) {
 			t.Errorf("%s は tray の検査の置き場ではない", p)
