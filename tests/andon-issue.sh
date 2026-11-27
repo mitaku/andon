@@ -1480,4 +1480,117 @@ fi
 git -C "$rg" rebase --abort
 ok 'restack: rebase のあとの push を 1 回失敗させてから打ち直すと、rebase をやり直さずに続きから済む（main に同じ行を 2 回変えた commit の並びがあっても）'
 
+# 積んで起動する（ADR-0067 決めたこと 4・5・受け入れ条件 1・2）: 前の課題が review にいて、その PR の今の head に今の review の回の
+# gate の記録（approve）があるとき、after でそれを待つ queued の課題に andon issue start を打つと、前の課題の PR の head から branch を切り、
+# stacked_on・stacked_base を Chief of Staff の端末で書いて doing にする。条件を 1 つずつ欠くと、理由を 1 行出して断り、何も残さない。
+# 偽の gh は前の課題の PR を $tmp/st-view で返す。案件の repo は start の場面の bare な origin とその clone（$appdir）
+cat > "$tmp/bin/gh" <<EOF
+#!/bin/sh
+case "\$1 \$2 \$4 \$5" in
+  "pr view --json state,headRefOid,headRefName") cat "$tmp/st-view" ;;
+  *) echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
+EOF
+git -C "$appdir" fetch -q origin main; git -C "$appdir" switch -qc stack-prev origin/main
+echo prev > "$appdir/prev.txt"; git -C "$appdir" add prev.txt; git -C "$appdir" commit -qm 'prev change'
+sp=$(git -C "$appdir" rev-parse HEAD); git -C "$appdir" push -q origin stack-prev 2>/dev/null; git -C "$appdir" switch -q --detach origin/main
+pv() { jq -n --arg h "${2:-$sp}" --arg s "${1:-OPEN}" '{state: $s, headRefOid: $h, headRefName: "stack-prev"}' > "$tmp/st-view"; }
+pv
+gateat() { jq -n --arg h "$2" --arg at "$3" --arg d "${4:-approve}" '{at: $at, decision: $d, head: $h}' > "kanban/issues/$1/library/gate/$2.json"; }
+prevof() { # prevof <タイトル>: review にいる前の課題（PR の head は $sp、今の回の gate の記録は approve）を作り、id を返す
+    local p
+    p=$(kanban add "$1" --repo github.com/example/app --profile claude --brief - <<<'# prev')
+    keys "$p"; kanban start "$p" >/dev/null; kanban review "$p" >/dev/null
+    mkdir -p "kanban/issues/$p/library/gate"
+    jq -n --arg c "$sp" --arg pr "$pr" '{commit: $c, pr: $pr}' > "kanban/issues/$p/library/report.json"
+    gateat "$p" "$sp" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "$p"
+}
+nextof() { # nextof <タイトル> <after…>: after で待つ queued の課題を作り、id を返す
+    local n t=$1; shift
+    n=$(kanban add "$t" --repo github.com/example/app --profile claude --after "$(IFS=,; echo "$*")" --brief - <<<'# next')
+    keys "$n"; echo "$n"
+}
+sp1=$(prevof 'Stack prev')
+sn1=$(nextof 'Stack next' "$sp1")
+[ "$(field "$sn1" status)" = queued ] || die "前提: 後ろの課題が queued でない: $(field "$sn1" status)"
+"$andon" waiting list --json > "$tmp/st-wait" || die "andon waiting list が落ちた"
+jq -e --arg n "$sn1" --arg p "$sp1" '.stackable == [{id: $n, on: $p}]' "$tmp/st-wait" >/dev/null || die "stackable に出ない: $(jq -c .stackable "$tmp/st-wait")"
+"$andon" issue start "$sn1" --dry-run --json > "$tmp/st-dry" || die "積む start の dry-run が落ちた: $(cat "$tmp/st-dry")"
+jq -e --arg p "$sp1" --arg s "$sp" --arg n "$sn1" '.stacked_on == $p and .stacked_base == $s and .stack_branch == "stack-prev"
+  and .branch == "demo/\($n)-stack-next" and (.worktree | endswith("/demo-\($n)"))
+  and ([.checks[] | select(.name == "after" and .result == "ok")] | length) == 1' "$tmp/st-dry" >/dev/null || die "dry-run が積むことを出さない: $(cat "$tmp/st-dry")"
+[ "$(field "$sn1" status)" = queued ] && [ -z "$(field "$sn1" stacked_on)" ] || die 'dry-run が kanban を書いた'
+"$andon" issue start "$sn1" > "$tmp/out" || die "積む start が落ちた: $(cat "$tmp/err" 2>/dev/null) $(cat "$tmp/out")"
+swt=$ANDON_WORKSPACE/.worktrees/app/demo-$sn1
+[ "$(git -C "$swt" merge-base HEAD "$sp")" = "$sp" ] && [ "$(git -C "$swt" rev-parse HEAD)" = "$sp" ] || die "branch の根元が前の課題の PR の head でない: $(git -C "$swt" log --oneline -3)"
+[ "$(git -C "$swt" rev-parse --abbrev-ref HEAD)" = "demo/$sn1-stack-next" ] || die "branch の名前: $(git -C "$swt" rev-parse --abbrev-ref HEAD)"
+[ "$(field "$sn1" status)" = doing ] && [ "$(field "$sn1" stacked_on)" = "$sp1" ] && [ "$(field "$sn1" stacked_base)" = "$sp" ] || die "kanban: $(kanban show "$sn1" --json | jq -c .issue)"
+jq -se --arg n "$sn1" '[.[] | select(.id == $n and (.change | has("stacked_on")))] | length == 1 and .[0].by == "terminal:t5"' kanban/log.jsonl >/dev/null || die '積んだ印を書いたのが Chief of Staff の端末でない'
+grep -q "前の課題 \`$sp1\` の PR の branch \`stack-prev\`" "$tmp/hc/log" && grep -q -- "gh pr create --draft --base stack-prev" "$tmp/hc/log" || die "最初のメッセージに積んだことと PR の出し方が無い: $(tail -5 "$tmp/hc/log")"
+ok 'start: 積める queued の課題は、前の課題の PR の head から branch を切り、stacked_on・stacked_base を Chief of Staff の端末で書いて doing にし、最初のメッセージに draft の PR の出し方を足す（受け入れ条件 1）'
+"$andon" waiting list --json > "$tmp/st-wait"
+jq -e '.stackable == []' "$tmp/st-wait" >/dev/null || die "起動した課題が stackable に残る: $(jq -c .stackable "$tmp/st-wait")"
+ok 'waiting list: 起動した積んだ課題は stackable から外れる'
+
+# 受け入れ条件 2: 条件を 1 つずつ欠いた課題。断ったあと、worktree も branch もキーも残さない
+nothing_left() { # nothing_left <id> <タイトルの英字の短い形>
+    [ ! -e "$ANDON_WORKSPACE/.worktrees/app/demo-$1" ] && [ -z "$(git -C "$appdir" branch --list "demo/$1-$2")" ] \
+      && [ -z "$(git -C "$appdir" ls-remote --heads origin "demo/$1-$2")" ] && [ "$(field "$1" status)" = queued ] \
+      && [ -z "$(field "$1" stacked_on)$(field "$1" stacked_base)$(field "$1" branch)$(field "$1" worktree)" ] || die "$1: 断ったのに何か残った: $(kanban show "$1" --json | jq -c .issue)"
+}
+sp2=$(prevof 'Stack prev two')
+sq2=$(kanban add 'Other todo' --repo github.com/example/app --profile claude --brief - <<<'# x')
+sn2=$(nextof 'Stack two' "$sp2" "$sq2")
+expect_fail "の待つ相手が 2 つ残る" "$andon" issue start "$sn2"
+nothing_left "$sn2" stack-two
+sp3=$(kanban add 'Stack prev doing' --repo github.com/example/app --profile claude --brief - <<<'# x'); keys "$sp3"; kanban start "$sp3" >/dev/null
+sn3=$(nextof 'Stack doing' "$sp3")
+expect_fail "前の課題 $sp3 が review でない（doing）" "$andon" issue start "$sn3"
+nothing_left "$sn3" stack-doing
+sp4=$(prevof 'Stack prev held')
+sn4=$(nextof 'Stack held' "$sp4")
+kanban set "$sp4" "hold=$sq2" >/dev/null
+expect_fail "前の課題 $sp4 が止められている" "$andon" issue start "$sn4"
+nothing_left "$sn4" stack-held
+kanban set "$sp4" hold= >/dev/null
+sp5=$(prevof 'Stack prev nogate')
+sn5=$(nextof 'Stack nogate' "$sp5")
+rm "kanban/issues/$sp5/library/gate/$sp.json"
+expect_fail "前の課題 $sp5 の今の head（${sp:0:12}）に、今の review の回の gate の記録が無い" "$andon" issue start "$sn5"
+nothing_left "$sn5" stack-nogate
+gateat "$sp5" "$sp" "2000-01-01T00:00:00Z"   # 前の review の回の記録は数えない
+expect_fail "今の review の回の gate の記録が無い" "$andon" issue start "$sn5"
+nothing_left "$sn5" stack-nogate
+sp6=$(prevof 'Stack prev lib')
+sn6=$(kanban add 'Stack lib' --repo github.com/example/lib --profile claude --after "$sp6" --brief - <<<'# x'); keys "$sn6"
+expect_fail "前の課題 $sp6 の repo（github.com/example/app）が $sn6 の repo（github.com/example/lib）と違う" "$andon" issue start "$sn6"
+[ -z "$(field "$sn6" stacked_on)$(field "$sn6" worktree)" ] && [ "$(field "$sn6" status)" = queued ] || die "repo の違う課題で何か残った"
+ok 'start: 待つ相手が 2 つ残る・前の課題が doing・前の課題が止められている・前の課題の今の head に今の回の gate の記録が無い・repo が違う課題は、理由を 1 行出して断り、worktree も branch もキーも残さない（受け入れ条件 2）'
+# Chief of Staff でない端末（別の端末・端末の外）で打つと、書いた積んだ印を kanban が信じず kanban start が落ちるので、作る前に断る
+sp8=$(prevof 'Stack prev cos')
+sn8=$(nextof 'Stack cos' "$sp8")
+expect_fail "積んで起動できるのは Chief of Staff の端末（t5）だけ" env HC_TERMINAL_ID=t9 "$andon" issue start "$sn8"
+nothing_left "$sn8" stack-cos
+expect_fail "積んで起動できるのは Chief of Staff の端末（t5）だけ" env -u HC_TERMINAL_ID "$andon" issue start "$sn8"
+nothing_left "$sn8" stack-cos
+"$andon" waiting list --json > "$tmp/st-wait"
+jq -e --arg n "$sn8" '[.stackable[] | select(.id == $n)] | length == 1' "$tmp/st-wait" >/dev/null || die "前提: $sn8 が積める課題でない: $(jq -c .stackable "$tmp/st-wait")"
+ok 'start: 積む起動を Chief of Staff でない端末や端末の外で打つと、何も作らずに断る（積める課題のままにする）'
+# GitHub と origin で確かめる所: PR が open でない・PR の今の head が gate の通した commit と違う・origin の branch の先が違う
+sp7=$(prevof 'Stack prev gh')
+sn7=$(nextof 'Stack gh' "$sp7")
+pv MERGED
+expect_fail "前の課題 $sp7 の PR が open でない（MERGED）" "$andon" issue start "$sn7"
+nothing_left "$sn7" stack-gh
+pv OPEN "$c1"
+expect_fail "前の課題 $sp7 の PR の今の head（${c1:0:12}）が gate の通した commit（${sp:0:12}）と違う" "$andon" issue start "$sn7"
+nothing_left "$sn7" stack-gh
+pv
+git -C "$appdir" switch -q stack-prev; echo more >> "$appdir/prev.txt"; git -C "$appdir" commit -qam 'prev moved'; git -C "$appdir" push -q origin stack-prev 2>/dev/null
+git -C "$appdir" switch -q --detach origin/main; git -C "$appdir" update-ref refs/remotes/origin/stack-prev "$sp"
+expect_fail "前の課題の branch origin/stack-prev の先（" "$andon" issue start "$sn7"
+nothing_left "$sn7" stack-gh
+ok 'start: 前の課題の PR が open でない・PR の今の head が gate の通した commit と違う・origin の branch の先が違う（取り直して見る）ときも断り、何も残さない'
+
 echo "all passed ($pass)"

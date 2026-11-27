@@ -18,21 +18,29 @@ type ImpactIssue struct {
 	Branch        string   `json:"branch"`
 	Head          string   `json:"head,omitempty"`
 	PR            string   `json:"pr,omitempty"`
-	Contains      bool     `json:"contains"`       // branch がもうマージの commit を含む（影響は済んでいる）
-	Conflict      bool     `json:"conflict"`       // マージの commit と git merge-tree でぶつかる
-	ConflictFiles []string `json:"conflict_files"` // ぶつかるファイル
-	Overlap       []string `json:"overlap"`        // マージした PR と、この課題の branch（＋worktree の commit していない変更）の両方が触ったファイル
-	BriefRefs     []string `json:"brief_refs"`     // マージした PR が触ったファイルのうち、この課題の依頼書に path か名前が出てくるもの
-	ChecksMoved   []string `json:"checks_moved"`   // マージした PR が変えた検査の置き場（gate.CheckPlaces）のファイル。branch がマージの commit を含まないときだけ（古い base の checks は今の検査を通っていない）
+	StackedOn     string   `json:"stacked_on,omitempty"` // 積んだ課題（信じられる予約キー stacked_on がある）の前の課題（ADR-0067 決めたこと 11）
+	Contains      bool     `json:"contains"`             // branch がもうマージの commit を含む（影響は済んでいる）
+	Conflict      bool     `json:"conflict"`             // マージの commit と git merge-tree でぶつかる
+	ConflictFiles []string `json:"conflict_files"`       // ぶつかるファイル
+	Overlap       []string `json:"overlap"`              // マージした PR と、この課題の branch（＋worktree の commit していない変更）の両方が触ったファイル
+	BriefRefs     []string `json:"brief_refs"`           // マージした PR が触ったファイルのうち、この課題の依頼書に path か名前が出てくるもの
+	ChecksMoved   []string `json:"checks_moved"`         // マージした PR が変えた検査の置き場（gate.CheckPlaces）のファイル。branch がマージの commit を含まないときだけ（古い base の checks は今の検査を通っていない）
 	Error         string   `json:"error,omitempty"`
 }
 
-// Affected は Chief of Staff が見るべきか（ぶつかる・重なる・依頼書が指す・review の課題で検査の置き場が動いた・事実を読めなかった）。
-// 検査の置き場の動きは review の課題だけ数える: doing の課題は ready のあと gate が古い base を返す（gate.CheckPlaces）ので、
-// Go の検査（*_test.go）を変えるマージのたびに doing の課題を並べない。
-func (t ImpactIssue) Affected() bool {
-	if t.Error != "" {
+// Affected は、課題 merged のマージで Chief of Staff が見るべきか（ぶつかる・重なる・依頼書が指す・review の課題で検査の置き場が動いた・
+// 事実を読めなかった）。検査の置き場の動きは review の課題だけ数える: doing の課題は ready のあと gate が古い base を返す
+// （gate.CheckPlaces）ので、Go の検査（*_test.go）を変えるマージのたびに doing の課題を並べない。
+// 積んだ課題（StackedOn がある）は、前の課題が main に入った時の載せ替えで取り込むので、ぶつかり・重なり・検査の置き場の動きでは数えず、
+// 依頼書が指すファイルの変更だけを数える。マージしたのが積んだ相手そのものなら数えない（gate が載せ替えを頼む。ADR-0067 決めたこと 11）。
+func (t ImpactIssue) Affected(merged string) bool {
+	switch {
+	case t.Error != "":
 		return true
+	case t.Contains:
+		return false
+	case t.StackedOn != "":
+		return t.StackedOn != merged && len(t.BriefRefs) > 0
 	}
-	return !t.Contains && (t.Conflict || len(t.Overlap) > 0 || len(t.BriefRefs) > 0 || (t.Status == "review" && len(t.ChecksMoved) > 0))
+	return t.Conflict || len(t.Overlap) > 0 || len(t.BriefRefs) > 0 || (t.Status == "review" && len(t.ChecksMoved) > 0)
 }

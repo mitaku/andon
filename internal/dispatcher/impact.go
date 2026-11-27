@@ -60,7 +60,7 @@ func (p *project) impact(id string) bool {
 func ImpactDetail(res contract.Impact) map[string]any {
 	var rows []any
 	for _, t := range res.Issues {
-		if !t.Affected() {
+		if !t.Affected(res.Issue) {
 			continue
 		}
 		row := map[string]any{"issue": t.Issue, "conflict": t.Conflict, "overlap": cap20(t.Overlap), "brief_refs": cap20(t.BriefRefs),

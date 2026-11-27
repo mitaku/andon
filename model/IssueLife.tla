@@ -66,7 +66,8 @@ Finish ==
     /\ reviewing' = {}
     /\ UNCHANGED <<ci, result, headSeen, dirty, qVars>>
 
-\* andon issue start（internal/issue/start.go start。transition.go が todo の課題だけを通す）: worktree と branch を作り、担当の端末を起こす
+\* andon issue start（internal/issue/start.go start。transition.go が todo と queued の課題だけを通す）: worktree と branch を作り、担当の端末を起こす。
+\* queued はモデルに無いので、積める queued の課題の起動（前の課題が gate を通って review にいる間）は prev = "waiting" の枝として写す
 ChiefOfStaffStarts ==
     /\ status = "todo"
     /\ status' = "doing" /\ worker' = "live" /\ wt' = "here"

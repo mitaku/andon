@@ -1083,6 +1083,10 @@ fail|waiting|.items[1].ask.options = [{"label": "一つ"}]|選択肢が 1 つ
 fail|waiting|.items[1].answerable = "yes"|answerable が真偽値でない
 pass|waiting|.items[1] += {"call": false, "later": "急がない", "later_until": "2026-12-01"}|置いてある判断の行（ADR-0062）
 pass|waiting|.items |= map(del(.call))|call の無い行（前のバージョンの出力。読み手は今の規則で読む）
+pass|waiting|del(.stackable)|stackable の無い出力（前のバージョンの出力。ADR-0067）
+pass|waiting|.stackable = [{"id": "S-0002", "on": "S-0001"}]|積める課題（ADR-0067 決めたこと 6）
+fail|waiting|.stackable = [{"id": "S-0002"}]|積める課題に on が無い
+fail|waiting|.stackable = [{"id": "S-0002", "on": "S-0001", "pr": "x"}]|積める課題に知らないキー
 fail|waiting|.items[0].call = "true"|call が真偽値でない
 fail|waiting|.items[1].later = ""|later が空
 pass|digest-input|.previous = null|前に送ったダイジェストが無い
@@ -1399,6 +1403,7 @@ waiting.json|waiting|andon waiting list --json の出力（問いの番号の無
 waiting-empty.json|waiting|andon waiting list --json の出力（オーナー待ちが無い kanban）
 waiting-later.json|waiting|andon waiting list --json の出力（置いてある判断の行を含む）
 waiting-behind.json|waiting|andon waiting list --json の出力（前の PR 待ちの課題を数えた枠）
+waiting-stackable.json|waiting|andon waiting list --json の出力（積める課題の stackable）
 digest-input.json|digest-input|andon digest collect の input.json
 digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
 digest.json|digest|andon digest build の digest.json

@@ -819,3 +819,107 @@ func TestAnswerMarksOwner(t *testing.T) {
 		t.Errorf("decidedBy: owner が %d 件（2 件のはず）:\n%s", got, b)
 	}
 }
+
+// ADR-0067 決めたこと 4・6・受け入れ条件 7 の後半: 積める課題（queued の担当の課題で、待つ相手がちょうど 1 つ残り、その前の課題が
+// 同じ repo の担当の課題で review にいて、止められておらず、今の head に今の review の回の gate の記録があり、判定が approve・
+// needs_human・behind で、not_before の日が来ている）を stackable に出す。条件を 1 つずつ欠いた課題は出さず、StackOf が理由を返す。
+func TestStackable(t *testing.T) {
+	const repo = "repo: github.com/example/sample-site"
+	prev := func(f *fake, id, decision, gateAt string, keys ...string) {
+		f.issue(id, "review", append([]string{"profile: claude", "merge: person", repo}, keys...)...)
+		f.report(id, head)
+		f.gate(id, head, gateAt, decision, false)
+		f.row("2026-11-21T03:00:00Z", "terminal:t9", id, `{"status":"review"}`)
+	}
+	next := func(f *fake, id string, keys ...string) {
+		f.issue(id, "queued", append([]string{"profile: claude", repo}, keys...)...)
+	}
+	cases := []struct {
+		name string
+		set  func(f *fake)
+		why  string // 空なら積める
+	}{
+		{"approve の上に積める", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			next(f, "S-0002", "after: [S-0001]")
+		}, ""},
+		{"needs_human の上に積める", func(f *fake) {
+			prev(f, "S-0001", "needs_human", "2026-11-21T03:10:00Z")
+			next(f, "S-0002", "after: [S-0001]")
+		}, ""},
+		{"behind の上に積める（3 つ目）", func(f *fake) {
+			prev(f, "S-0001", "behind", "2026-11-21T03:10:00Z")
+			next(f, "S-0002", "after: [S-0001]")
+		}, ""},
+		{"済んだ相手は数えない", func(f *fake) {
+			f.issue("S-0009", "done")
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			next(f, "S-0002", "after: [S-0009, S-0001]")
+		}, ""},
+		{"待つ相手が 2 つ残る", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			f.issue("S-0003", "doing", "profile: claude", repo)
+			next(f, "S-0002", "after: [S-0001, S-0003]")
+		}, "待つ相手が 2 つ残る"},
+		{"前の課題が doing", func(f *fake) {
+			f.issue("S-0001", "doing", "profile: claude", repo)
+			next(f, "S-0002", "after: [S-0001]")
+		}, "前の課題 S-0001 が review でない（doing）"},
+		{"前の課題が止められている", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z", "hold: S-0010")
+			f.row("2026-11-21T05:00:00Z", "terminal:t1", "S-0001", `{"hold":"S-0010"}`)
+			next(f, "S-0002", "after: [S-0001]")
+		}, "前の課題 S-0001 が止められている"},
+		{"今の回の gate の記録が無い（前の回の記録だけ）", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T02:00:00Z")
+			next(f, "S-0002", "after: [S-0001]")
+		}, "今の review の回の gate の記録が無い"},
+		{"gate の判定が fix", func(f *fake) { prev(f, "S-0001", "fix", "2026-11-21T03:10:00Z"); next(f, "S-0002", "after: [S-0001]") }, "判定が fix"},
+		{"dispatcher がもうマージした", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			f.gate("S-0001", head, "2026-11-21T03:10:00Z", "approve", true)
+			next(f, "S-0002", "after: [S-0001]")
+		}, "もうマージした"},
+		{"repo が違う", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			f.issue("S-0002", "queued", "profile: claude", "repo: github.com/example/other", "after: [S-0001]")
+		}, "repo（github.com/example/sample-site）が S-0002 の repo（github.com/example/other）と違う"},
+		{"not_before の日が来ていない", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			next(f, "S-0002", "after: [S-0001]", "not_before: \"2026-11-22\"")
+		}, "not_before（2026-11-22）がまだ来ていない"},
+		{"前の課題が Chief Engineer の課題", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			f.issue("S-0001", "review", "profile: chief-engineer", repo)
+			next(f, "S-0002", "after: [S-0001]")
+		}, "担当の課題でない"},
+		{"todo の課題は積まない", func(f *fake) {
+			prev(f, "S-0001", "approve", "2026-11-21T03:10:00Z")
+			f.issue("S-0002", "todo", "profile: claude", repo, "after: [S-0001]")
+		}, "積めるのは queued の課題だけ"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFake(t, 2)
+			c.set(f)
+			r := f.read()
+			onto, why, err := StackOf(f.root, "S-0002", now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.why == "" {
+				if !slices.Equal(r.Stackable, []Stack{{ID: "S-0002", On: "S-0001"}}) || why != "" || onto != (Onto{On: "S-0001", PR: pr, Head: head}) {
+					t.Fatalf("積めない: stackable %v・理由 %q・%+v", r.Stackable, why, onto)
+				}
+				return
+			}
+			if len(r.Stackable) != 0 || !strings.Contains(why, c.why) {
+				t.Fatalf("stackable %v・理由 %q（%q を含むはず）", r.Stackable, why, c.why)
+			}
+		})
+	}
+	f := newFake(t, 2)
+	if r := f.read(); r.Stackable == nil || len(r.Stackable) != 0 {
+		t.Errorf("積める課題が無いときに空の並びでない: %#v", r.Stackable)
+	}
+}

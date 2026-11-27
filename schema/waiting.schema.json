@@ -23,6 +23,19 @@
         "free": { "description": "limit minus working, never below 0. Waiting issues do not reduce it: launch while it is 1 or more.", "type": "integer", "minimum": 0 }
       }
     },
+    "stackable": {
+      "description": "Queued worker issues that can be started on top of the previous issue's PR branch (stacked): exactly one issue in after is not done, it is a worker issue of the same repo in review, not held, and its current head (the report commit) has a gate record of this review round deciding approve, needs_human or behind; not_before has come. An estimate from the records: andon issue start checks the PR on GitHub and may still refuse. Empty when none. Readers before this key do not read it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "on"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "description": "The issue that can be stacked.", "$ref": "#/$defs/id" },
+          "on": { "description": "The previous issue whose PR branch it would start on.", "$ref": "#/$defs/id" }
+        }
+      }
+    },
     "items": {
       "description": "What waits on the owner. Calling items (call true) first, most held issues first, then oldest first; then the items left for later (call false), oldest first.",
       "type": "array",

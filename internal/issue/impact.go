@@ -90,26 +90,30 @@ func (c *ctx) impact(stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	rows, cos := c.l.Log(), c.l.ChiefOfStaff()
 	for _, t := range tasks {
 		s := t.Str("status")
 		if t.Str("id") == c.id || t.Str("repo") != repo || (s != "doing" && s != "review") || t.Str("branch") == "" ||
 			(t.Str("parent") != "" && strings.HasSuffix(t.Str("profile"), "-review")) {
 			continue
 		}
-		res.Issues = append(res.Issues, c.impactOf(t, repoDir, sha, res.Files, checks))
+		on, _, _ := ledger.Stacked(rows, t, cos) // 信じられる stacked_on だけを出す（担当が書いた値では積んだ課題にしない）
+		res.Issues = append(res.Issues, c.impactOf(t, repoDir, sha, res.Files, checks, on))
 	}
 	_, err = stdout.Write(contract.Marshal(res))
 	return err
 }
 
 // impactOf は1つの課題の事実を集める。checks はマージで変わった検査の置き場（mergedCheckPlaces）。
-func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged, checks []string) contract.ImpactIssue {
+func (c *ctx) impactOf(t ledger.Issue, repoDir, sha string, merged, checks []string, stackedOn string) contract.ImpactIssue {
 	id := t.Str("id")
 	it := contract.ImpactIssue{Issue: id, Title: t.Str("title"), Status: t.Str("status"), Agent: t.Str("agent"), Branch: t.Str("branch"),
 		ConflictFiles: []string{}, Overlap: []string{}, BriefRefs: []string{}, ChecksMoved: []string{}}
 	if r, err := contract.ReadReport(filepath.Join(c.l.Library(id), "report.json")); err == nil {
 		it.PR = r.PR
 	}
+	it.StackedOn = stackedOn
+
 	if b, err := os.ReadFile(filepath.Join(c.l.Dir, "issues", id, "brief.md")); err == nil {
 		it.BriefRefs = BriefRefs(string(b), merged)
 	}
