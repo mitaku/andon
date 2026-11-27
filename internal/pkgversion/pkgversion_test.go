@@ -121,6 +121,25 @@ func TestRecordsAndCacheAreNotContent(t *testing.T) {
 	check(t, "cache が増えた", Read(root), c1, "image", "false")
 }
 
+// tray の依存の置き場は数えない（大きいので毎回は読まない）。tray のほかの物は数える
+func TestTrayDepsAreNotContent(t *testing.T) {
+	root := pkg(t)
+	for _, d := range []string{"tray/node_modules/miniflare", "tray/scripts"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, filepath.Join(root, "tray/node_modules/miniflare/index.js"), "v1")
+	write(t, filepath.Join(root, "tray/scripts/serve.mjs"), "v1")
+	if err := Stamp(root, c1); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "tray/node_modules/miniflare/index.js"), "v2")
+	check(t, "依存が変わった", Read(root), c1, "image", "false")
+	write(t, filepath.Join(root, "tray/scripts/serve.mjs"), "v2")
+	check(t, "台本が変わった", Read(root), c1, "image", "true")
+}
+
 func TestDirtyRevision(t *testing.T) {
 	root := pkg(t)
 	if err := Stamp(root, c1+"-dirty"); err != nil {

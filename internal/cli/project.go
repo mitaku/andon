@@ -54,7 +54,7 @@ func project(l leaf, args []string, stderr io.Writer) ([]string, int, bool) {
 		return append(append([]string{}, args[:at]...), args[min(at+2, len(args)):]...)
 	}
 	refuse := func(format string, a ...any) ([]string, int, bool) {
-		if l.hook {
+		if l.hook || (l.optional && at < 0) { // 名指した --project の誤りは断る
 			return drop(), 0, true
 		}
 		fmt.Fprintf(stderr, "andon %s: %s\n", l.name, fmt.Sprintf(format, a...))
@@ -125,6 +125,9 @@ func inProject(ws string) bool {
 func projectText(l leaf) string {
 	if l.every {
 		return "--project <slug> で1つに絞る。省くとセルの全部のプロジェクトを回る"
+	}
+	if l.optional {
+		return "--project <slug> で指す。省くと KANBAN_ROOT、今いるフォルダ、セルに1つだけのプロジェクトの順で決め、決まらなければプロジェクトに依らずに動く"
 	}
 	return "--project <slug> で指す。省くと KANBAN_ROOT、今いるフォルダ、セルに1つだけのプロジェクトの順で決める"
 }

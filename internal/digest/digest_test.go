@@ -13,6 +13,8 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/ledger/ledgertest"
+	"andon/internal/tray"
+	"andon/internal/tray/traytest"
 	"andon/internal/waiting"
 )
 
@@ -32,6 +34,7 @@ type fake struct {
 	ws   string
 	log  []string
 	env  Env
+	tray *traytest.Fake
 }
 
 func newFake(t *testing.T) *fake {
@@ -50,6 +53,9 @@ func newFake(t *testing.T) *fake {
 	f.env = Env{Root: root, Workspace: f.ws, Hostname: "cell", Now: now,
 		Delivered: filepath.Join(base, "state", "sample-site.delivered.jsonl"), Signals: filepath.Join(base, "state", "sample-site.signals.json")}
 	f.issue("S-0100", "doing", "routine: daily-digest", "profile: claude")
+	// ローカルの tray は偽の口（セルの本物へ送らない）。止まっている場面は traytest.Local(t, nil) で作る
+	f.tray = traytest.New(t)
+	traytest.Local(t, f.tray)
 	return f
 }
 
@@ -573,7 +579,8 @@ func TestRedact(t *testing.T) {
 	}
 }
 
-// 受け入れ条件 8: 送り先が無い・信じられないときは files/ だけに出し、URL を出す。偽の Slack に1度も来ない。済んだ送り先には送り直さない。
+// 受け入れ条件 8（ADR-0044）: 送り先が無い・信じられないときはセルの中（ローカルの tray）だけに出し、URL を出す。偽の Slack に1度も来ない。
+// 済んだ送り先には送り直さない。ADR-0064 受け入れ条件 4: files の行の url はローカルの tray の URL。
 func TestSendNoDestination(t *testing.T) {
 	for name, setup := range map[string]func(f *fake){
 		"project.json が無い":          func(*fake) {},
@@ -601,41 +608,128 @@ func TestSendNoDestination(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			name := "2026-11-21-digest-sample-site-S-0100.html"
-			if until, _ := time.Parse(timeLayout, "2026-11-21T10:00:00Z"); until.In(time.Local).Format("2006-01-02") != "2026-11-21" {
-				name = until.In(time.Local).Format("2006-01-02") + "-digest-sample-site-S-0100.html"
+			got := f.tray.Received()
+			if len(got) != 1 || got[0].Project != "sample-site" || got[0].Name != pageDay()+"-digest-sample-site-S-0100" ||
+				got[0].Kind != "digest" || got[0].Title == "" || got[0].Auth != "" {
+				t.Fatalf("ローカルの tray に送った物: %+v", got)
 			}
-			if !strings.HasSuffix(url, "/"+name) || !strings.HasPrefix(url, "http://files.cell.localhost:") {
+			if page, _ := os.ReadFile(filepath.Join(dir(f.root, "S-0100"), htmlFile)); !bytes.Equal(got[0].Body, page) {
+				t.Error("組み立てた 1 枚と送った中身が違う")
+			}
+			if !strings.HasPrefix(url, f.tray.URL+"/r/") {
 				t.Errorf("URL %s", url)
 			}
-			if !strings.Contains(readMessage(t, f), url) {
-				t.Errorf("message に files/ の URL が無い")
+			if !strings.Contains(readMessage(t, f), "全文: "+url) {
+				t.Errorf("message にローカルの tray の URL が無い")
 			}
-			out := filepath.Join(f.ws, "files", name)
-			if _, err := os.Stat(out); err != nil {
-				t.Fatal(err)
+			if _, err := os.Stat(filepath.Join(f.ws, "files")); err == nil {
+				t.Errorf("tray に届いたのに files/ に置いた")
 			}
 			s, err := readSent(filepath.Join(dir(f.root, "S-0100"), sentFile))
-			if err != nil || len(s.Destinations) != 1 || !s.Destinations[0].OK || s.Destinations[0].URL != url {
+			if err != nil || len(s.Destinations) != 1 || s.Destinations[0].Kind != "files" || !s.Destinations[0].OK || s.Destinations[0].URL != url {
 				t.Fatalf("sent.json: %+v %v", s, err)
 			}
-			// 済んだ送り先には送らない（files/ から消しても打ち直しで作り直さない）
-			if err := os.Remove(out); err != nil {
-				t.Fatal(err)
-			}
-			if again, err := Send(f.env, "S-0100"); err != nil || again != url {
-				t.Errorf("打ち直し: %s %v", again, err)
-			}
-			if _, err := os.Stat(out); err == nil {
-				t.Errorf("済んだ送り先に送り直した")
+			// 済んだ送り先には送らない
+			if again, err := Send(f.env, "S-0100"); err != nil || again != url || len(f.tray.Received()) != 1 {
+				t.Errorf("打ち直し: %s %v %d", again, err, len(f.tray.Received()))
 			}
 		})
 	}
 }
 
-// 送りそこねた送り先は、打ち直しで送り直す（決めたこと 16）。
+// pageDay は検査の期間の終わり（2026-11-21T10:00:00Z）のセルの時刻の日。
+func pageDay() string {
+	until, _ := time.Parse(timeLayout, "2026-11-21T10:00:00Z")
+	return until.In(time.Local).Format("2006-01-02")
+}
+
+// ADR-0064 決めたこと 8: ローカルの tray が止まっていれば、andon publish と同じく files/ に置いて済みにする（終了コードは 0）。
+func TestSendWithoutLocalTray(t *testing.T) {
+	f := newFake(t)
+	traytest.Local(t, nil)
+	var warn bytes.Buffer
+	f.env.Stderr = &warn
+	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
+	f.collect("S-0100")
+	buildHTML(t, f, validText())
+	out, err := Send(f.env, "S-0100")
+	name := pageDay() + "-digest-sample-site-S-0100.html"
+	if err != nil || out != "files/"+name {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(f.ws, "files", name)); !bytes.Equal(b, mustRead(t, filepath.Join(dir(f.root, "S-0100"), htmlFile))) {
+		t.Error("files/ に置いた中身が組み立てたものと違う")
+	}
+	if !strings.Contains(warn.String(), "ローカルの tray が動いていない") {
+		t.Errorf("理由を出さない: %q", warn.String())
+	}
+	s, err := readSent(filepath.Join(dir(f.root, "S-0100"), sentFile))
+	if err != nil || len(s.Destinations) != 1 || !s.Destinations[0].OK || s.Destinations[0].Path != "files/"+name || s.Destinations[0].URL != "" {
+		t.Fatalf("sent.json: %+v %v", s, err)
+	}
+	if !strings.Contains(readMessage(t, f), "全文: files/"+name) {
+		t.Error("message に置いた場所が無い")
+	}
+}
+
+func mustRead(t *testing.T, p string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// ADR-0064 受け入れ条件 4: Cloudflare の tray を選んだプロジェクトでは kind tray の行が在り、伏せた写しを送る。
+// 落ちた send を打ち直すと、その行だけを送り直す。短い文の URL は届いた Cloudflare の tray の URL。
+func TestSendToRemoteTray(t *testing.T) {
+	f := newFake(t)
+	cf := traytest.New(t)
+	traytest.Remote(t, cf, "sample-site", "tray_key000000000000")
+	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
+	f.collect("S-0100")
+	buildHTML(t, f, validText())
+	cf.Fail(503)
+	local, err := Send(f.env, "S-0100")
+	if err == nil || !strings.Contains(err.Error(), "Cloudflare の tray に送れない") || !strings.HasPrefix(local, f.tray.URL) {
+		t.Fatalf("Cloudflare が落ちている send: %q %v", local, err)
+	}
+	s := f.sent()
+	if len(s.Destinations) != 2 || s.Destinations[0].Kind != "files" || !s.Destinations[0].OK ||
+		s.Destinations[1].Kind != "tray" || s.Destinations[1].OK || !strings.Contains(s.Destinations[1].Error, "落ちている") {
+		t.Fatalf("sent.json: %+v", s)
+	}
+	cf.Fail(0)
+	n := len(f.tray.Received())
+	url, err := Send(f.env, "S-0100")
+	if err != nil || !strings.HasPrefix(url, cf.URL) {
+		t.Fatalf("送り直し: %q %v", url, err)
+	}
+	if len(f.tray.Received()) != n {
+		t.Error("済んだ files の行を送り直した")
+	}
+	s = f.sent()
+	if len(s.Destinations) != 2 || !s.Destinations[1].OK || s.Destinations[1].URL != url {
+		t.Fatalf("送り直しの記録: %+v", s)
+	}
+	if g := cf.Last(t); g.Auth != "Bearer tray_key000000000000" || g.Kind != "digest" || g.Name != pageDay()+"-digest-sample-site-S-0100" {
+		t.Errorf("Cloudflare への要求: %+v", g)
+	}
+	if !strings.Contains(readMessage(t, f), "全文: "+url) {
+		t.Error("message に Cloudflare の tray の URL が無い")
+	}
+	// 済んだあとは、どこへも送らない
+	m := len(cf.Received())
+	if again, err := Send(f.env, "S-0100"); err != nil || again != url || len(cf.Received()) != m {
+		t.Errorf("済んだあとの打ち直し: %q %v", again, err)
+	}
+}
+
+// 送りそこねた送り先は、打ち直しで送り直す（決めたこと 16）。ローカルの tray も files/ も無いときは files の行が済まない。
 func TestSendRetry(t *testing.T) {
 	f := newFake(t)
+	traytest.Local(t, nil)
 	f.merged("S-0001", 1, "2026-11-21T08:00:00Z", sha1, true)
 	f.collect("S-0100")
 	buildHTML(t, f, validText())
@@ -647,14 +741,20 @@ func TestSendRetry(t *testing.T) {
 	if err != nil || len(s.Destinations) != 1 || s.Destinations[0].OK || s.Destinations[0].Error == "" {
 		t.Fatalf("失敗を記録していない: %+v %v", s, err)
 	}
-	if err := os.Remove(filepath.Join(f.ws, "files")); err != nil {
-		t.Fatal(err)
-	}
+	traytest.Local(t, f.tray)
 	if _, err := Send(f.env, "S-0100"); err != nil {
 		t.Fatalf("送り直せない: %v", err)
 	}
-	if s, _ := readSent(filepath.Join(dir(f.root, "S-0100"), sentFile)); len(s.Destinations) != 1 || !s.Destinations[0].OK {
+	if s, _ := readSent(filepath.Join(dir(f.root, "S-0100"), sentFile)); len(s.Destinations) != 1 || !s.Destinations[0].OK || !strings.HasPrefix(s.Destinations[0].URL, f.tray.URL) {
 		t.Errorf("送り直しの記録: %+v", s)
+	}
+}
+
+// Go の検査の中では、値が無くても送るのを切る（どの検査も本物のローカルの tray に送らない。ADR-0064 決めたこと 15）。
+func TestTrayOffByDefaultInTests(t *testing.T) {
+	t.Setenv(tray.OffEnv, "")
+	if !tray.Off() {
+		t.Fatal("検査の中で送るのを切っていない")
 	}
 }
 
@@ -772,5 +872,24 @@ func TestConcernRefs(t *testing.T) {
 	text = `{"headline": ["一。", "二。"], "themes": [{"title": "t", "body": ["文。"], "issues": ["S-0008"]}], "concerns": []}`
 	if _, errs := Build(f.env, "S-0100", []byte(text)); len(errs) == 0 {
 		t.Errorf("テーマが期間に片付いていない課題を指せた")
+	}
+}
+
+// ADR-0064 決めたこと 11: andon digest check は、Cloudflare の tray を選んだプロジェクトでは API キーが在ることも見る。
+func TestCheckRemoteKey(t *testing.T) {
+	f := newFake(t)
+	f.commitProject(projectWith(""), owner)
+	cf := traytest.New(t)
+	traytest.Remote(t, cf, "sample-site", "")
+	var out bytes.Buffer
+	if err := CheckDestinations(f.env, &out); err == nil || !strings.Contains(err.Error(), "andon tray auth") {
+		t.Errorf("鍵が無いのに通った: %v", err)
+	}
+	traytest.Remote(t, cf, "sample-site", "tray_key000000000000")
+	if err := CheckDestinations(f.env, &out); err != nil || !strings.Contains(out.String(), "API キーが置いてある") {
+		t.Errorf("鍵があるのに: %v %q", err, out.String())
+	}
+	if len(cf.Received()) != 0 {
+		t.Error("確かめで Cloudflare の tray へ送った")
 	}
 }

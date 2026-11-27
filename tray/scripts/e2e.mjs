@@ -3,11 +3,24 @@
 // 一覧・既読・報告の面までを HTTP で通す。job tray の中でだけ回す（tests/ のシェルにしない）。
 // 先に `bun run build` を打っておく。終了コード 0 で全部通った。
 //
-// セルの側の送り（andon publish）を足したら、アップロードの口を直に打つ所をその command に替える。
+// 後半はセルの側（ADR-0064 受け入れ条件 1・4・15）: 偽のセルで andon boot を打ってローカルの tray を起動させ、andon publish と
+// andon digest send の出力の URL・一覧・既読・files/ を見る。andon のバイナリは ANDON_BIN（job tray が repo から焼く）。
+// ANDON_BIN が無ければ後半を飛ばす（CI では落とす）。
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -120,6 +133,147 @@ function readdirSafe(p) {
   }
 }
 
+// cell: 偽のセルでセルの側の command を通す（受け入れ条件 1・4・15）
+async function cell() {
+  const andon = process.env.ANDON_BIN;
+  if (!andon) {
+    check(!process.env.CI, "セルの側は ANDON_BIN が無いので飛ばした（CI では落とす）");
+    return;
+  }
+  const c = join(dir, "cell");
+  const pkg = join(c, "opt/andon");
+  const ws = join(c, "workspace");
+  const bin = join(c, "bin");
+  const fake = join(c, "fake");
+  const repo = resolve(root, "..");
+  for (const d of [bin, fake, join(c, "home"), join(c, "state"), join(ws, "projects")]) mkdirSync(d, { recursive: true });
+  // パッケージは repo の package/ と schema/、tray はビルドした repo の tray/
+  cpSync(join(repo, "package"), pkg, { recursive: true });
+  cpSync(join(repo, "schema"), join(pkg, "schema"), { recursive: true });
+  symlinkSync(root, join(pkg, "tray"));
+  symlinkSync(resolve(andon), join(bin, "andon"));
+  symlinkSync(process.execPath, join(bin, "node"));
+  // 番号は空いたもの（セルで動いている本物の tray と取り合わない）
+  writeFileSync(join(ws, ".env"), "TRAY_PORT=0\nPORTLESS_PORT=1355\n");
+  const env = {
+    PATH: bin,
+    HOME: join(c, "home"),
+    ANDON_HOME: pkg,
+    ANDON_WORKSPACE: ws,
+    ANDON_MANAGED_SETTINGS: join(c, "managed-settings.json"),
+    XDG_STATE_HOME: join(c, "state"),
+    TMPDIR: c,
+    ANDON_TRAY_OFF: "0",
+  };
+  const run = (args, extra = {}, input = "") => {
+    try {
+      const out = execFileSync(join(bin, "andon"), args, { env: { ...env, ...extra }, cwd: c, input, encoding: "utf8", stdio: "pipe" });
+      return { rc: 0, out, err: "" };
+    } catch (e) {
+      return { rc: e.status ?? -1, out: String(e.stdout ?? ""), err: String(e.stderr ?? "") };
+    }
+  };
+  const control = join(c, "state/andon/tray/serve.json");
+  let pid = 0;
+  try {
+    // 受け入れ条件 15: boot のあとローカルの tray が動き、files サーバは無い
+    const boot = run(["boot"]);
+    const said = boot.out + boot.err;
+    check(boot.rc === 0 && /ローカルの tray: http:\/\/tray\.[^ ]+\.localhost:1355\//.test(said), `boot がローカルの tray を起動した（rc ${boot.rc}）`);
+    check(!/files: http/.test(said) && !said.includes("files サーバ"), "boot は files サーバを起動しない");
+    check(run(["boot", "serve-files", ws, "0"]).rc === 2, "葉 andon boot serve-files は無い");
+    check(existsSync(control), "ローカルの tray の控え（serve.json）がある");
+    const t = JSON.parse(readFileSync(control, "utf8"));
+    pid = t.pid;
+    await new Promise((ok) => setTimeout(ok, 5000));
+    const mb = rss(pid);
+    check(mb > 0 && mb < 600, `boot が起動した tray の止まっている間のメモリは 600 MB を超えない（andon tray serve と子の RSS 合計 ${mb} MB）`);
+
+    // 受け入れ条件 1: andon publish の1行がローカルの tray の URL で、一覧・既読・出し直し・files/ に無い
+    const md = join(c, "notes.md");
+    writeFileSync(md, "# 週の報告\n\n本文\n");
+    const p1 = run(["publish", md, "weekly"]);
+    const url = p1.out.trim();
+    check(p1.rc === 0 && url.startsWith(`${t.list_origin}/r/`) && p1.out.split("\n").length === 2, `publish の1行はローカルの tray の URL（${p1.out.trim()} ${p1.err}）`);
+    const id = url.split("/").pop();
+    let l = await list(t);
+    const row = l.json?.reports?.find((r) => r.id === id);
+    check(row?.unread === true && row?.title === "週の報告", "出した報告が一覧に未読で出て、タイトルは最初の見出し");
+    await open(t, id);
+    check(!(await list(t)).json?.reports?.some((r) => r.id === id), "開くと既読になる");
+    check(run(["publish", md, "weekly"]).out.trim() === url && !(await list(t)).json?.reports?.some((r) => r.id === id), "同じ中身の出し直しは既読のまま");
+    writeFileSync(md, "# 週の報告\n\n直した本文\n");
+    check(run(["publish", md, "weekly"]).out.trim() === url && (await list(t)).json?.reports?.some((r) => r.id === id), "同じ slug で中身を変えると未読に戻る");
+    const a1 = run(["publish", md]).out.trim();
+    const a2 = run(["publish", md]).out.trim();
+    check(a1.startsWith(`${t.list_origin}/r/`) && a2.startsWith(`${t.list_origin}/r/`) && a1 !== a2, "slug を省いて2度出すと2件の報告になる");
+    check(!existsSync(join(ws, "files")), "tray に届いた報告は files/ に無い");
+
+    // 受け入れ条件 4: andon digest send のページが同じ一覧に並び、sent.json の files の行の url がローカルの tray の URL
+    const sent = digest(ws, fake, bin, run);
+    const files = sent?.destinations?.find((d) => d.kind === "files");
+    check(files?.ok === true && files?.url?.startsWith(`${t.list_origin}/r/`), `ダイジェストの files の行の url はローカルの tray の URL（${JSON.stringify(sent?.destinations)}）`);
+    l = await list(t, "recent");
+    check(l.json?.reports?.some((r) => r.kind === "digest" && `${t.list_origin}/r/${r.id}` === files?.url), "ダイジェストが同じ一覧に並ぶ");
+    check(!existsSync(join(ws, "files")), "ダイジェストも files/ に写さない");
+
+    const st = run(["tray", "status"]);
+    check(st.rc === 0 && /直近 7 日: 上がった [1-9][0-9]* 枚、開いた 1 枚/.test(st.out), `andon tray status が枚数を出す（${st.out.trim().split("\n").join(" / ")}）`);
+  } finally {
+    if (pid) {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {}
+      for (let i = 0; i < 100 && alive(pid); i++) await new Promise((ok) => setTimeout(ok, 100));
+      check(!alive(pid) && !existsSync(control), "andon tray serve は TERM で止まり、控えを消す");
+    }
+  }
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return !/^State:\s+Z/m.test(readSafe(`/proc/${pid}/status`));
+  } catch {
+    return false;
+  }
+}
+
+// digest: 一時の kanban（ファイルを直に置く。tests/andon-digest.sh と同じ形）で collect・build・send を通し、sent.json を返す。
+// git・kanban・gh は偽（送り先の設定は無い・PR は無い）
+function digest(ws, fake, bin, run) {
+  const k = join(ws, "projects/sample-site/kanban");
+  const put = (p, body) => {
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, body);
+  };
+  put(join(k, "config.yaml"), "version: 3\nprefix: S\nchief_of_staff: t1\n");
+  put(
+    join(k, "issues/S-0100/issue.yaml"),
+    'id: S-0100\ntitle: デイリーダイジェスト\nstatus: doing\nroutine: daily-digest\nprofile: claude\ncreated: "2026-11-01T00:00:00Z"\n',
+  );
+  put(join(k, "log.jsonl"), "");
+  const script = (name, body) => {
+    writeFileSync(join(fake, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(fake, name), 0o755);
+  };
+  script("git", '[ "$3" = ls-tree ] && exit 0\nexit 128');
+  script("kanban", "exit 99");
+  script("gh", 'echo "[]"');
+  const extra = { PATH: `${fake}:${bin}:/bin:/usr/bin`, KANBAN_ROOT: join(ws, "projects/sample-site") };
+  const text = '{"headline": ["動きは無かった。", "待っているものも無い。"], "themes": [], "concerns": []}';
+  for (const args of [
+    ["digest", "collect", "S-0100"],
+    ["digest", "build", "S-0100", "-"],
+    ["digest", "send", "S-0100"],
+  ]) {
+    const r = run(args, extra, args[1] === "build" ? text : "");
+    check(r.rc === 0, `andon ${args.join(" ")}（rc ${r.rc}${r.rc === 0 ? "" : ` ${r.out}${r.err}`}）`);
+    if (r.rc !== 0) return null;
+  }
+  return JSON.parse(readFileSync(join(k, "issues/S-0100/library/digest/sent.json"), "utf8"));
+}
+
 try {
   let t = await start();
 
@@ -171,6 +325,8 @@ try {
   l = await list(t, "recent");
   check(l.json?.reports?.length === 5, "起動し直しても報告が残る");
   await stop(t);
+
+  await cell();
 } catch (e) {
   console.error(e);
   failed++;

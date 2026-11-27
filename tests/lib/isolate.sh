@@ -8,6 +8,8 @@
 #     hc の端末（HC_*）を外す。検査が HOME を一時に向ければ、置き場もその下になる。要る検査はこのあとで一時の置き場を指す。
 #   - セルの repo（ANDON_WORKSPACE）と clone の根（GHQ_ROOT）は、外すと既定（/workspace・ghq root）がセルの本物を指すので、
 #     一時ディレクトリの中の無い場所へ向ける。要る検査はこのあとで自分の置き場を指す。
+#   - 報告を集めて読む場所へ送るのを切る（ANDON_TRAY_OFF。ADR-0064 決めたこと 15）。andon publish と andon digest send は
+#     送らずに files/ へ写し、andon issue report は kanban にだけ書く。セルで動いている本物の送り先に検査の報告を届けない。
 # 呼ぶ側は $tmp（後片付けする一時ディレクトリ。mktemp -d）を先に作っておく。
 ceiling=$(cd "$(dirname "$tmp")/.." && pwd -P)
 case ":${GIT_CEILING_DIRECTORIES:-}:" in
@@ -15,4 +17,4 @@ case ":${GIT_CEILING_DIRECTORIES:-}:" in
   *) export GIT_CEILING_DIRECTORIES="$ceiling${GIT_CEILING_DIRECTORIES:+:$GIT_CEILING_DIRECTORIES}" ;;
 esac
 unset KANBAN_ROOT CLAUDE_CONFIG_DIR CODEX_HOME ANDON_HOME XDG_STATE_HOME XDG_CONFIG_HOME XDG_DATA_HOME HC_TERMINAL_ID HC_TERMINAL_SOCKET HC_SCOPE
-export ANDON_WORKSPACE="$tmp/.isolate/workspace" GHQ_ROOT="$tmp/.isolate/ghq"
+export ANDON_WORKSPACE="$tmp/.isolate/workspace" GHQ_ROOT="$tmp/.isolate/ghq" ANDON_TRAY_OFF=1

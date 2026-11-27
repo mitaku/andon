@@ -118,9 +118,9 @@ wait "$bg"; r=$?
 
 "$andon" boot --extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon boot' "$tmp/err" && pass "引数を取らない（usage で rc 2）" || fail "boot --extra: rc=$r"
-# boot は boot serve-files を子に持つので、知らない2語目は表に無い葉として断る（ADR-0053 決めたこと 12）
+# boot は子の葉を持たないので、2語目も引数として usage で断る
 "$andon" boot extra >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '近いのは andon boot' "$tmp/err" && pass "知らない2語目は表に無い葉として rc 2" || fail "boot extra: rc=$r $(cat "$tmp/err")"
+[ "$r" = 2 ] && grep -q '^usage: andon boot' "$tmp/err" && pass "2語目も引数として usage で rc 2" || fail "boot extra: rc=$r $(cat "$tmp/err")"
 
 mkdir -p "$tmp/sp ace" && cp -r "$pkg" "$tmp/sp ace/"
 env -i PATH="$tmp/path" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \

@@ -34,7 +34,7 @@
 - kanban とソースは `config.yaml` の `repos` でつなぐ（repo が複数でも並べるだけ）。書いてよい repo の正は `project.json` の `repos`（`config.yaml` の `repos` はその部分集合。`andon issue start` が両方を確かめる）。
 - 製品の仕様・設計の文書は、製品の repo の `docs/` に置く。
 - `projects/<slug>/` の予約名（`project.json`・`AGENTS.md`・`.claude/`・`kanban/`）と誰が書くかは [ADR-0004](adr/0004-project-layout.md)、セルの repo の直下・git で追跡するか（kanban は追跡しない）・別のマシンへの動かし方・オーナーのファイルの守りは [ADR-0005](adr/0005-cell-repo.md)。
-- **納品物 `files/`**: `andon publish` が `<日付>-<slug>` で置き、files サーバが公開する。git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。
+- **報告の置き場（tray）と `files/`**: `andon publish` は、報告を `<日付>-<slug>` の名前でローカルの tray に上げ、その URL を出す（[ADR-0064](adr/0064-tray.md)）。ローカルの tray は boot が起動する常駐で、オーナーは `http://tray.<セル>.localhost:<PORTLESS_PORT>/` の一覧で読む。データは volume `state` の下にあり、セルの repo と一緒には動かない。ローカルの tray が止まっているときだけ、`andon publish` は `files/` に写してそのパスを出す。`files/` は git で追跡する（ADR-0005）。1 ファイル 20 MiB を超えるものは `andon publish` が拒む。動いているかは `andon tray status` で見る。
 - **symlink にしない理由**: 委譲は「オーナーだけが書く」。これを、セルの repo はオーナーのもの、担当は製品の repo の worktree で書く、という分け方で守っている。`projects/<slug>` を製品の repo への symlink にすると `project.json`（委譲・書いてよい repo）が製品の repo に入り、担当の PR で書き換えうる。
 
 ## 0. 先に知っておくこと: 起草のあとに見つけて直した所
@@ -53,14 +53,9 @@ P7 で見つけた F5「Herdr App から起動した端末に `claude` が見え
 cd /workspace
 mv artifacts files           # 無ければ何もしない（files/ が既にあれば中身を files/ へ移す）
 git add files                # 追跡する（.gitignore の artifacts/ の行は消してよい）
-# files サーバは古い artifacts/ を見ているので、起動し直す（ポートから PID を引いて止め、boot をもう一度）
-port=$(grep -m1 '^FILES_PORT=' .env | cut -d= -f2)   # .env に無ければ boot の既定の番号
-pid=$(ss -ltnp "sport = :$port" | grep -o "pid=[0-9]*" | head -1 | cut -d= -f2)
-[ -n "$pid" ] && kill "$pid"
-andon boot
 ```
 
-URL（`http://files.<セル>.localhost:<番号>/…`）は変わらない。
+`files/` を配る files サーバは無くなった（報告はローカルの tray で読む。[ADR-0064](adr/0064-tray.md) 決めたこと 6）。`files/` の中身は、セルの repo のファイルとして読む。
 
 ## 1. image を取る
 
@@ -118,7 +113,7 @@ bin/bootstrap               # 初回: image を焼く → 本体と compose.yaml
 - `--dry-run` は docker を打たず、何も書かないので、本体が打つものまでは出ない（焼く・取り出す・走らせるの 3 行だけ）。全部を見るなら、本体のファイルを `ANDON_ENTRY_BODY` に名指しして打つ（例 `ANDON_ENTRY_BODY=.ghq/github.com/<owner>/andon/package/host/bootstrap bin/bootstrap --dry-run`）。
 - `bin/bootstrap --help` は本体の使い方を出す。image が無いか、docker に繋がらないときは、焼かずに短い案内を出す。
 
-番号（`SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT`）はセルの `.env` に書く。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
+番号（`SSH_PORT`・`PORTLESS_PORT`・`TRAY_PORT`）はセルの `.env` に書く。`TRAY_PORT` はローカルの tray がコンテナの中で listen する番号で、ホストには晒さない（portless が取り次ぐ。既定 8907）。前の `FILES_PORT` は読まない。**セルを2つ以上立てるなら、ずらす**（ホストの同じ番号を取り合う）。書かなければ既定。
 
 タイムゾーンはセルの `.env` の `CELL_TZ` に IANA の名前で書く（書かなければ `Asia/Tokyo`）。コンテナの `TZ` になり、`date`・git の commit・ssh のシェルの時刻がこれで出る。鍵の名前を `TZ` にしないのは、ホストのシェルの `TZ` がセルに入らないようにするため（compose は `.env` よりホストのシェルの変数を先に使う）。動いているセルで変えたら、`bin/bootstrap down` のあと `bin/bootstrap` で作り直す（`bin/bootstrap` だけでは、動いているコンテナをそのまま使う。焼き直しは要らない）。
 
@@ -133,11 +128,11 @@ grep -rn -i '^ *\(Port\|LocalForward\)' ~/.ssh/config ~/.ssh/config.d/    # ssh 
 ```
 
 - WSL＋Windows の App なら、Windows 側の ssh config（`C:\Users\<user>\.ssh\config`。4 の「WSL＋Windows の App から入る」）も同じ grep で見る。
-- **通ったら見えるもの**: 選んだ `SSH_PORT`・`PORTLESS_PORT`・`FILES_PORT` のどれも、上の3つの出力に出てこない。選んだ番号を `.env` に書いてから `bin/bootstrap`。
+- **通ったら見えるもの**: 選んだ `SSH_PORT`・`PORTLESS_PORT` のどちらも、上の3つの出力に出てこない。選んだ番号を `.env` に書いてから `bin/bootstrap`。
 - **落ちたら見る所**: `bin/bootstrap` が `port is already allocated`・`address already in use` で落ちる — 出た番号を上の3つで引き、その番号を使っている側を動かすか、`.env` の番号を変えて打ち直す。起動のあとで `.env` の番号を変えたなら、`host-install` が置いた ssh config の `Port`・`LocalForward` も同じ番号にする（4 の落ちたら見る所）。
 
 - **何が起きるか**: `Dockerfile` の `FROM` から `andon-home:local` を焼く（`local/setup.sh` を走らせる）→ image の本体を `.andon/bootstrap` に取り出して走らせる → 本体が image の `/opt/andon/compose.yaml` を `.andon/` に取り出す → `docker compose up -d` → ログに `[andon boot] ready` が出るまで待つ（最長5分）→ Herdr App での開き方と、TUI（herdr）で入る打ち方を2行で出す。herdr には入らない。TUI で入るなら `bin/bootstrap herdr`（もう一度打てば同じセッションに戻る）。手元に `andon-home:local` がもうあれば焼かず、それが `FROM` の image の上に焼いたものかを照らしてから起動する（`FROM` の image が手元に無ければ照らせないので、そのまま起動する）。
-- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・sshd・dispatcher を起動した行）。最後に `[andon-home] 開く: Herdr App で machine andon-home を選ぶ` と `[andon-home] TUI で入るなら: bin/bootstrap herdr` の2行。andon が uid 1001 だったバージョンの image から上げた最初の起動では、`置き場のオーナーを直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
+- **通ったら見えるもの**: `bin/bootstrap status` で `dev` が Up。`bin/bootstrap logs` に `[andon boot] ready`（と portless・ローカルの tray・sshd・dispatcher を起動した行）。最後に `[andon-home] 開く: Herdr App で machine andon-home を選ぶ` と `[andon-home] TUI で入るなら: bin/bootstrap herdr` の2行。andon が uid 1001 だったバージョンの image から上げた最初の起動では、`置き場のオーナーを直した: /opt/andon-home/…（uid 1001 → 1000）` の行も出る（volume ごとに1回だけ）。
 - **落ちたら見る所**:
   - `Dockerfile の FROM を埋める` — 2 の `--image`。
   - `セルの repo（…）のオーナーが uid <n>` — セルの repo が uid 1000 の利用者の持ち物でない。uid 1000 の利用者で 2 の `andon cell init` からやり直す（uid を合わせ直す仕組みは無い）。

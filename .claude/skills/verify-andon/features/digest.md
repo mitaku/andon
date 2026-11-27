@@ -13,7 +13,7 @@
 - `dg-later` 冒頭の「オーナーが呼ばれている」の数と琥珀は呼んでいるオーナー待ちだけで、節 2 は「呼んでいるもの」と「置いてあるもの」に分かれ、置いてある行に置いた理由が出る。`message.txt` は呼んでいるものと置いてあるものの 2 つの数を書く。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/build.go`、`internal/digest/render.go`、`internal/digest/digest.html.tmpl`、`internal/digest/collect.go`、`internal/digest/digest.go`、`internal/waiting/waiting.go`
 - `dg-send` 送り先の無い `project.json` では `digest.html` を files/ にそのまま出し、URL を返し、`sent.json` の送り先は files だけ。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/digest/send.go`、`internal/publish/publish.go`、`schema/digest-sent.schema.json`
+  - 見るファイル: `internal/digest/send.go`、`internal/publish/publish.go`、`internal/tray/tray.go`、`internal/tray/html.go`、`schema/digest-sent.schema.json`
 - `dg-check-refuse` 送り先が無ければ、`andon digest check` は何も送らずに断る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/send.go`
 - `dg-slack` 送り先の Slack のチャンネルに、`digest.html` と `message.txt` の文が届く。見る道: オーナーが見る。
@@ -45,6 +45,8 @@
 - `internal/digest/`
 - `internal/ledger/`
 - `internal/publish/`
+- `internal/tray/tray.go`
+- `internal/tray/html.go`
 - `internal/redact/`
 - `internal/measure/`
 - `internal/waiting/`
@@ -61,5 +63,6 @@
 
 - 本物の andon は Slack の API の根を差し替えられないので、Slack へ送る道は切り離して動かせない。切り離した HOME にはトークン（`~/.config/andon/digest/slack.token`）が無く、送り先を書いても送りそこねるだけで、`dg-slack` の証拠にならない。`dg-slack` はオーナーが見る。
 - `andon digest check` は、送り先があれば本物のチャンネルへ確かめのファイルを送る。検証の担当は、送り先のあるプロジェクトで打たない。
+- 切り離した道は、検査と同じく報告をローカルの tray へ送らない（`tests/lib/isolate.sh` が送りを切る）。`dg-send` が見るのは、tray に届かないときに `files/` へ倒れる道。tray へ送る道は、tray の CI の job の e2e と、当てたあとの `bt-tray`（ローカルの tray が動いていること）が見る。
 - `dg-send` の URL のホスト名とポートは、セルの名前と `.env` の値から決まる。URL がオーナーの手元で開けるかは見ない。
 - ダイジェストの期間は前に送ったダイジェストの `sent.json` から決まる。切り離した kanban には前のダイジェストが無いので、期間は 24 時間前から今まで。

@@ -1,7 +1,10 @@
-// Package publish は生成したファイルを「公開」する: <workspace>/files/ に日付つきでコピーし、URL を返す。
+// Package publish は生成したファイルを tray（セルが出した報告を集めて読む場所。ADR-0064）へ出し、オーナーに渡す URL を1行返す。
 //
-// files/ は files サーバ（files/ を ROOT として読み取り公開する静的サーバ）の表玄関。
-// 同じ日に同じ slug で公開し直すと上書きになる（再公開）。
+// 順はローカルの tray、プロジェクトが選んでいれば Cloudflare の tray（決めたこと 8）。どちらかに届いた物は files/ に写さない。
+// ローカルの tray にも届かなかったときだけ、今までどおり <workspace>/files/ に写し、そのパスを返す。
+// 同じ報告は、セルとプロジェクトと名前（<日付>-<slug>）の組で見分ける（決めたこと 9）。同じ日に同じ slug で出し直すと
+// 新しいバージョン（中身が同じならバージョンは上がらない）。slug を省くと名前に時刻を足し、いつも別の報告にする。
+// ローカルの tray のデータは volume の中にあり、セルの repo と一緒には動かない。動かしたい物は製品の repo か files/ に手で置く。
 package publish
 
 import (
@@ -13,50 +16,79 @@ import (
 	"time"
 
 	"andon/internal/delegate"
+	"andon/internal/ledger"
+	"andon/internal/tray"
 )
 
-// MaxSize は公開できる 1 ファイルの上限（バイト）。files/ は git で追跡する（ADR-0005）ので、
-// 大きいもの（動画など）は納品物の面に置かず拒む。LFS は使わない。
-const MaxSize = 20 << 20
+// MaxSize は出せる 1 ファイルの上限（バイト。HTML は参照を埋め込んだあとの大きさ）。files/ は git で追跡する（ADR-0005）ので、
+// 大きいもの（動画など）は拒む。LFS は使わない。tray の上限も同じ。
+const MaxSize = tray.MaxBytes
 
-const Usage = "usage: andon publish <file> [slug]\n" +
-	"セルの repo（ANDON_WORKSPACE。無ければ /workspace）の files/ に日付つきでコピーし、URL を返す。同じ日に同じ slug で打つと上書き。\n"
-
-// DefaultPort は .env に PORTLESS_PORT が無いときの番号。
-const DefaultPort = "1355"
+const Usage = "usage: andon publish <file> [slug] [--title <タイトル>]\n" +
+	"ファイルを tray へ出し、オーナーに渡す URL を1行出す（Cloudflare の tray に届けばその URL、届かなければローカルの tray の URL）。\n" +
+	"名前は <日付>-<slug>。同じ日に同じ slug で出し直すと新しいバージョン（中身が同じなら上がらない）。slug を省くとファイルの名前に時刻を足し、いつも別の報告。\n" +
+	"タイトルは --title、無ければ HTML の <title>・Markdown の最初の見出し・ファイルの名前の順。\n" +
+	"HTML は相対で引いた画像・スタイル・スクリプト・フォントを埋め込む（http・https の参照は埋めず、数を stderr に出す）。\n" +
+	"ローカルの tray にも届かなければ、セルの repo（ANDON_WORKSPACE。無ければ /workspace）の files/ に写してそのパスを出す。tray へ送れなくても終了コードは 0。\n"
 
 type Env struct {
 	Workspace string    // セルの repo（ANDON_WORKSPACE。無ければ /workspace）
-	Hostname  string    // URL のホスト名に使うセルの名前
-	Now       time.Time // 日付
+	Project   string    // プロジェクトの slug（引けなければ tray.NoProject）
+	Now       time.Time // 名前の日付と時刻
+	Warn      io.Writer // 送れなかった理由・埋めなかった参照（stderr）
 }
 
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) < 1 || len(args) > 2 || args[0] == "" {
+	var pos []string
+	title := ""
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; {
+		case a == "--title":
+			if i+1 >= len(args) || args[i+1] == "" {
+				fmt.Fprint(stderr, Usage)
+				return 2
+			}
+			title = args[i+1]
+			i++
+		case strings.HasPrefix(a, "--"):
+			fmt.Fprint(stderr, Usage)
+			return 2
+		default:
+			pos = append(pos, a)
+		}
+	}
+	if len(pos) < 1 || len(pos) > 2 || pos[0] == "" {
 		fmt.Fprint(stderr, Usage)
 		return 2
 	}
-	host, err := os.Hostname()
-	if err != nil {
-		fmt.Fprintf(stderr, "andon publish: ホスト名を読めない: %v\n", err)
-		return 1
-	}
 	slug := ""
-	if len(args) == 2 {
-		slug = args[1]
+	if len(pos) == 2 {
+		slug = pos[1]
 	}
-	url, err := Publish(Env{Workspace: delegate.Workspace(), Hostname: host, Now: time.Now()}, args[0], slug)
+	out, err := Publish(Env{Workspace: delegate.Workspace(), Project: Project(), Now: time.Now(), Warn: stderr}, pos[0], slug, title)
 	if err != nil {
 		fmt.Fprintf(stderr, "andon publish: %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, url)
+	fmt.Fprintln(stdout, out)
 	return 0
 }
 
-// Publish は file を <Workspace>/files/<日付>-<slug><拡張子> にコピーし、URL を返す。
-// slug が空なら file の名前から拡張子を除いたもの。拡張子の無い file は拡張子を付けない。
-func Publish(env Env, file, slug string) (string, error) {
+// Project はほかの葉と同じ引き方（--project・KANBAN_ROOT・今いるフォルダ・セルに1つだけ）で引いたプロジェクト。
+// 引けなければ tray.NoProject（ローカルの tray にだけ送る。決めたこと 8）。
+func Project() string {
+	if root := os.Getenv("KANBAN_ROOT"); root != "" {
+		return filepath.Base(root)
+	}
+	if l, err := ledger.Open(); err == nil {
+		return l.Slug
+	}
+	return tray.NoProject
+}
+
+// Publish は file を tray へ出し、オーナーに渡す URL を返す。ローカルの tray にも届かなければ files/ に写し、そのパスを返す。
+// slug が空なら file の名前から拡張子を除いたものに時刻を足す。
+func Publish(env Env, file, slug, title string) (string, error) {
 	st, err := os.Stat(file)
 	if err != nil || !st.Mode().IsRegular() {
 		return "", fmt.Errorf("not a file: %s", file)
@@ -64,57 +96,107 @@ func Publish(env Env, file, slug string) (string, error) {
 	if st.Size() > MaxSize {
 		return "", fmt.Errorf("大きすぎる（%d バイト、上限 %d）。files/ は git で追跡するので、大きいものは置かない: %s", st.Size(), MaxSize, file)
 	}
-	base := filepath.Base(file)
-	ext := filepath.Ext(base)
-	if slug == "" {
-		slug = strings.TrimSuffix(base, ext)
-	}
 	if strings.ContainsRune(slug, '/') {
 		return "", fmt.Errorf("slug に / は使えない: %s", slug)
 	}
+	base := filepath.Base(file)
+	ext := filepath.Ext(base)
+	name := Name(env.Now, slug)
+	if slug == "" {
+		name = Name(env.Now, strings.TrimSuffix(base, ext)) + "-" + env.Now.Format("150405.000")
+	}
+	body, err := os.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	ct := tray.ContentType(file)
+	if strings.HasPrefix(ct, "text/html") {
+		e, err := tray.Embed(file, body)
+		if err != nil {
+			return "", err
+		}
+		body = e.Body
+		if e.Left > 0 {
+			warn(env, "http・https の参照 %d 個は埋めずに残した（報告の面では表示されない）", e.Left)
+		}
+		if len(e.Missing) > 0 {
+			warn(env, "埋められなかった手元の参照: %s", strings.Join(e.Missing, "、"))
+		}
+	}
+	if title == "" {
+		title = Title(ct, body, base)
+	}
+	project := env.Project
+	if project == "" {
+		project = tray.NoProject
+	}
+	remote, err := tray.RemoteFor(env.Workspace, project)
+	if err != nil {
+		warn(env, "Cloudflare の tray の設定を読めないので、ローカルの tray にだけ送る: %v", err)
+		remote = nil
+	}
+	d := tray.Send(tray.Report{Project: project, Name: name, Title: title, Kind: tray.KindPublish, ContentType: ct, Body: body}, remote)
+	for _, w := range d.Warnings() {
+		warn(env, "%s", w)
+	}
+	if u := d.URL(); u != "" {
+		return u, nil
+	}
+	// ローカルの tray にも届かなかった: files/ に写す（tray へ送れなくても出す手は止めない）
 	dir := filepath.Join(env.Workspace, "files")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	name := Name(env, slug, ext)
-	if err := copyFile(file, filepath.Join(dir, name)); err != nil {
+	dst := filepath.Join(dir, name+ext)
+	if err := writeFile(dst, body); err != nil {
 		return "", err
 	}
-	return URL(env, name), nil
+	warn(env, "tray に届かなかったので files/ に写した")
+	return dst, nil
 }
 
-// Name は files/ に置く名前（<日付>-<slug><拡張子>。日付は env.Now の日）。
-func Name(env Env, slug, ext string) string {
-	return env.Now.Format("2006-01-02") + "-" + slug + ext
+// Name は報告の名前（<日付>-<slug>。日付は now の日）。
+func Name(now time.Time, slug string) string {
+	return now.Format("2006-01-02") + "-" + slug
 }
 
-// URL は files/ の name を開く URL（files サーバ。番号はセルの .env の PORTLESS_PORT）。
-func URL(env Env, name string) string {
-	return fmt.Sprintf("http://files.%s.localhost:%s/%s", env.Hostname, delegate.Dotenv(env.Workspace, "PORTLESS_PORT", DefaultPort), name)
-}
-
-// copyFile は同じディレクトリの一時ファイルに書いてから rename する。
-// src と dst が同じファイル（公開済みのものを公開し直す）でも中身を空にしない。
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
+// Title は --title の無いときのタイトル（HTML の <title>、Markdown の最初の見出し、どれも無ければファイルの名前）。
+func Title(contentType string, body []byte, base string) string {
+	var t string
+	switch {
+	case strings.HasPrefix(contentType, "text/html"):
+		t = tray.HTMLTitle(body)
+	case strings.HasPrefix(contentType, "text/markdown"):
+		t = tray.MarkdownTitle(body)
 	}
-	defer in.Close() //nolint:errcheck // 読むだけのファイルで、閉じる失敗は読んだ中身に効かない
+	if t == "" {
+		return base
+	}
+	return t
+}
+
+func warn(env Env, format string, a ...any) {
+	if env.Warn != nil {
+		fmt.Fprintf(env.Warn, "andon publish: "+format+"\n", a...)
+	}
+}
+
+// writeFile は同じディレクトリの一時ファイルに書いてから rename する。
+// dst が出す元と同じファイル（files/ に写したものを出し直す）でも中身を空にしない。
+func writeFile(dst string, body []byte) error {
 	out, err := os.CreateTemp(filepath.Dir(dst), ".publish-*")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(out.Name()) //nolint:errcheck // rename の後は無いので何もしない
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
-		return err
+	_, err = out.Write(body)
+	if err == nil {
+		err = out.Chmod(0o644)
 	}
-	if err := out.Chmod(0o644); err != nil {
-		out.Close() //nolint:errcheck // 先の失敗を返すので、片付けの失敗は見ない
-		return err
+	if cerr := out.Close(); err == nil {
+		err = cerr
 	}
-	if err := out.Close(); err != nil {
+	if err != nil {
 		return err
 	}
 	return os.Rename(out.Name(), dst)

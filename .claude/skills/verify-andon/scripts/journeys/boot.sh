@@ -13,6 +13,30 @@ echo "-- bt-ran: dispatcher の端末の起動 $( [ "$ms" -gt 0 ] && date -u -d 
 [ "$ms" -ge "$now_ms" ] && ok "bt-ran: boot が最後に当てたあとに走り、dispatcher を起動した" \
   || fail "bt-ran: dispatcher が当てる前から動いている（apply-main.sh の boot の打ち直しが通っていない）"
 
+# bt-tray: ローカルの tray（andon tray serve）の控えの pid が、当てたパッケージの serve で、最後に当てた時刻より後に起動し、一覧の面が答える。
+# パッケージに tray が無ければ（Node かビルドした tray の無いイメージ）boot は起動しないので、note にして確かめない
+if [ ! -f "$pkg/tray/scripts/serve.mjs" ]; then
+  echo "note bt-tray: $pkg/tray が無い（tray を入れていないパッケージ）。ローカルの tray は確かめていない"
+else
+  ctl=$state/tray/serve.json
+  tpid=$(jq -r '.pid // empty' "$ctl" 2>/dev/null) || tpid=
+  tlist=$(jq -r '.list // empty' "$ctl" 2>/dev/null) || tlist=
+  targv=
+  [ -n "$tpid" ] && mapfile -d '' -t targv 2>/dev/null <"/proc/$tpid/cmdline"
+  tstarted=0
+  if [ -n "$tpid" ] && st=$(cat "/proc/$tpid/stat" 2>/dev/null); then
+    read -ra f <<<"${st##*) }"
+    tstarted=$(($(awk '/^btime /{print $2}' /proc/stat) * 1000 + ${f[19]:-0} * 1000 / $(getconf CLK_TCK)))
+  fi
+  code=$([ -n "$tlist" ] && curl -s -m 5 -o /dev/null -w '%{http_code}' "$tlist/" 2>/dev/null) || code=
+  echo "-- bt-tray: 控え ${tpid:+pid $tpid・}${tlist:-無い}・argv ${targv[*]:-読めない}・起動 $( [ "$tstarted" -gt 0 ] && date -u -d "@$((tstarted / 1000))" +%Y-%m-%dT%H:%M:%SZ || echo ?)・GET / ${code:-答えない}"
+  if [ "${#targv[@]}" = 3 ] && [ "${targv[0]}" = "$pkg/bin/andon" ] && [ "${targv[1]} ${targv[2]}" = "tray serve" ] && [ "$tstarted" -ge "$now_ms" ] && [ "$code" = 200 ]; then
+    ok "bt-tray: ローカルの tray が当てたパッケージで、最後に当てた時刻より後に起動し、一覧の面が答える"
+  else
+    fail "bt-tray: 控えが無いか、控えの pid が当てたパッケージの serve でないか、当てる前から動いているか、一覧の面が 200 を返さない"
+  fi
+fi
+
 # bt-generated: boot が書いたファイルが、控えの sha256 のまま在る（生成物が揃い、あとから書き換わっていない）
 n=0 diff=0
 while IFS=$'\t' read -r path sum; do

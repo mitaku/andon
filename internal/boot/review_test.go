@@ -1,13 +1,12 @@
 package boot
 
 import (
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"andon/internal/tray"
 )
 
 func TestBacksUpHandWrittenFiles(t *testing.T) {
@@ -73,91 +72,83 @@ func TestNullSettingsKeepsManaged(t *testing.T) {
 	}
 }
 
-func TestFilesHandlerServesOnlyInsideRoot(t *testing.T) {
-	r := t.TempDir()
-	root := filepath.Join(r, "files")
-	put(t, filepath.Join(root, "report.html"), "納品物")
-	put(t, filepath.Join(r, "secret.json"), "秘密")
-	mustMkdir(t, filepath.Join(r, "outside"))
-	put(t, filepath.Join(r, "outside", "x.txt"), "外")
-	for link, to := range map[string]string{
-		"leak.json": filepath.Join(r, "secret.json"),
-		"inner":     "report.html", // 中を指す相対リンクは返す（絶対パスのリンクは os.Root が開かない）
-		"dir":       filepath.Join(r, "outside"),
-	} {
-		if err := os.Symlink(to, filepath.Join(root, link)); err != nil {
-			t.Fatal(err)
-		}
+// trayFixture は、ビルドした tray の置き場（ANDON_HOME/tray）と、動いている serve の控え（pid は自分）を一時の置き場に作る。
+func trayFixture(t *testing.T, f *fixture, portless string) Env {
+	t.Helper()
+	home := t.TempDir()
+	for _, rel := range []string{"scripts/serve.mjs", "dist/workers/local.js", "dist/workers/local-upload.js"} {
+		put(t, filepath.Join(home, "tray", rel), "")
 	}
-	mustMkdir(t, filepath.Join(root, "sub"))
-	if err := os.Symlink(filepath.Join(r, "secret.json"), filepath.Join(root, "sub", "index.html")); err != nil {
-		t.Fatal(err)
-	}
-	h, err := FilesHandler(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	get := func(path string) (int, string) {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.URL.Path = path
-		h.ServeHTTP(w, req)
-		return w.Code, w.Body.String()
-	}
-	// 中の実体は返す。外を指すものは返さない（os.Root が開かない。コードは 404 か 500、ディレクトリは一覧に落ちる）
-	for path, want := range map[string]string{"/report.html": "納品物", "/inner": "納品物"} {
-		if code, body := get(path); code != 200 || body != want {
-			t.Errorf("%s: code=%d body=%q", path, code, body)
-		}
-	}
-	for _, path := range []string{"/leak.json", "/sub/", "/sub/index.html", "/dir/x.txt", "/../secret.json", "/none"} {
-		code, body := get(path)
-		if strings.Contains(body, "秘密") || strings.Contains(body, "外") || (code == 200 && path != "/sub/") {
-			t.Errorf("%s: code=%d body=%q", path, code, body)
-		}
-	}
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/report.html", nil))
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("POST: %d", w.Code)
-	}
-
-	linked := filepath.Join(r, "linked")
-	if err := os.Symlink(filepath.Join(r, "outside"), linked); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := FilesHandler(linked); err == nil {
-		t.Error("files 自体が symlink なのに配った")
-	}
-}
-
-func TestFilesAliasFailureIsReported(t *testing.T) {
-	f := newFixture(t)
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ln.Close()
-	_, port, _ := net.SplitHostPort(ln.Addr().String())
-	put(t, filepath.Join(f.ws, ".env"), "FILES_PORT="+port+"\n")
-	portless := filepath.Join(f.root, "bin", "portless")
-	put(t, portless, "#!/bin/sh\necho alias に失敗 >&2\nexit 3\n")
-	if err := os.Chmod(portless, 0o755); err != nil {
+	t.Setenv("ANDON_HOME", home)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if err := tray.WriteControl(&tray.Control{List: "http://127.0.0.1:45678", Upload: "http://127.0.0.1:45679",
+		ListOrigin: "http://tray.cell.localhost:1355", PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
 	e := f.env()
 	e.Self = "/nonexistent/andon"
 	e.LookPath = func(n string) (string, error) {
-		if n == "portless" {
+		switch {
+		case n == "node":
+			return "/bin/sh", nil
+		case n == "portless" && portless != "":
 			return portless, nil
 		}
 		return "", os.ErrNotExist
 	}
-	err = startFiles(e)
+	return e
+}
+
+// ADR-0064 決めたこと 6: 動いているローカルの tray に、portless の名前 tray（一覧の面）と tray-view（報告の面）を付ける。
+func TestTrayAliases(t *testing.T) {
+	f := newFixture(t)
+	portless := filepath.Join(f.root, "bin", "portless")
+	calls := filepath.Join(f.root, "calls")
+	put(t, portless, "#!/bin/sh\necho \"$*\" >>"+calls+"\n")
+	if err := os.Chmod(portless, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := startTray(trayFixture(t, f, portless)); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, calls); got != "alias tray 45678\nalias tray-view 45678\n" {
+		t.Errorf("portless の呼び出し: %q", got)
+	}
+	if !strings.Contains(f.log.String(), "ローカルの tray: http://tray.cell.localhost:1355/") {
+		t.Errorf("ログ: %s", f.log.String())
+	}
+}
+
+func TestTrayAliasFailureIsReported(t *testing.T) {
+	f := newFixture(t)
+	portless := filepath.Join(f.root, "bin", "portless")
+	put(t, portless, "#!/bin/sh\necho alias に失敗 >&2\nexit 3\n")
+	if err := os.Chmod(portless, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := startTray(trayFixture(t, f, portless))
 	if err == nil || !strings.Contains(err.Error(), "alias に失敗") {
 		t.Errorf("err = %v", err)
 	}
-	if strings.Contains(f.log.String(), "files: http://") {
+	if strings.Contains(f.log.String(), "ローカルの tray: http://") {
 		t.Errorf("失敗したのに成功の行を出した: %s", f.log.String())
+	}
+}
+
+// Node が無ければ起動せず、理由を1行残す（報告は files/ に写る）。自分が andon のバイナリでなければ何もしない。
+func TestTraySkipped(t *testing.T) {
+	f := newFixture(t)
+	e := trayFixture(t, f, "")
+	if err := os.Remove(tray.ControlPath()); err != nil {
+		t.Fatal(err)
+	}
+	e.LookPath = func(string) (string, error) { return "", os.ErrNotExist }
+	if err := startTray(e); err != nil || !strings.Contains(f.log.String(), "ローカルの tray は起動しない（node が無い）") {
+		t.Errorf("err=%v log=%s", err, f.log.String())
+	}
+	f.log.Reset()
+	e.Self = "/tmp/boot.test"
+	if err := startTray(e); err != nil || f.log.Len() != 0 {
+		t.Errorf("andon のバイナリでないのに: err=%v log=%s", err, f.log.String())
 	}
 }

@@ -393,7 +393,9 @@ func TestWorkflowTrayOnlyInTrayJob(t *testing.T) {
 		{"別の step で入れ直す", tray, "      - name: Typecheck\n", "      - run: bun i\n      - name: Typecheck\n", "run の行"},
 		{"検査の step を止める", tray, "      - name: Typecheck\n", "      - name: Typecheck\n        if: false\n", "キー"},
 		{"落ちても通す", tray, "      - name: Workers tests\n", "      - name: Workers tests\n        continue-on-error: true\n", "キー"},
-		{"端から端の検査を外す", tray, "run: bun run e2e", "run: echo e2e", "run の行"},
+		{"端から端の検査を外す", tray, `run: ANDON_BIN="$RUNNER_TEMP/andon" bun run e2e`, "run: echo e2e", "run の行"},
+		{"セルの側を飛ばす", tray, `run: ANDON_BIN="$RUNNER_TEMP/andon" bun run e2e`, "run: bun run e2e", "run の行"},
+		{"andon を焼かない", tray, `go build -trimpath -o "$RUNNER_TEMP/andon" ../cmd/andon`, "go version", "run の行"},
 		{"checkout が資格情報を残す", tray, "persist-credentials: false", "persist-credentials: true", "persist-credentials"},
 		{"job を container で走らせる", tray, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    container: node:26\n", "キー"},
 		{"知らない action を使う", tray, "      - name: Typecheck\n", "      - uses: ./tray/ci\n      - name: Typecheck\n", "uses"},
@@ -555,7 +557,7 @@ func trayProblems(wfs, tests map[string]string) []string {
 	// tray.yml: 式は mise.toml から読んだバージョンだけ
 	for _, m := range exprRe.FindAllStringSubmatch(src, -1) {
 		switch strings.TrimSpace(m[1]) {
-		case "steps.tools.outputs.bun", "steps.tools.outputs.node":
+		case "steps.tools.outputs.bun", "steps.tools.outputs.node", "steps.tools.outputs.go":
 		default:
 			bad("tray.yml の式 %q は許していない（秘密や token を読める）", m[0])
 		}
@@ -599,17 +601,23 @@ func trayProblems(wfs, tests map[string]string) []string {
 		"set -euo pipefail": true,
 		`bun=$(sed -n 's/^bun = "\(.*\)"$/\1/p' ../mise.toml)`:                                             true,
 		`node=$(sed -n 's/^node = "\(.*\)"$/\1/p' ../mise.toml)`:                                           true,
+		`go=$(sed -n 's/^go = "\(.*\)"$/\1/p' ../mise.toml)`:                                               true,
 		`[ -n "$bun" ] && [ -n "$node" ] || { echo "::error::mise.toml に bun か node のバージョンが無い"; exit 1; }`: true,
+		`[ -n "$go" ] || { echo "::error::mise.toml に go のバージョンが無い"; exit 1; }`:                            true,
+		`echo "go=$go" >>"$GITHUB_OUTPUT"`:                                                                 true,
 		`echo "bun=$bun" >>"$GITHUB_OUTPUT"`:                                                               true,
 		`echo "node=$node" >>"$GITHUB_OUTPUT"`:                                                             true,
 		"bunx playwright install --with-deps chromium":                                                     true,
 	}
 	need := map[string]int{
 		"bun install --frozen-lockfile --ignore-scripts": 0, "bun run typecheck": 0, "bun run test": 0,
-		"bun run build": 0, "bun run e2e": 0, "bun run browser": 0,
+		"bun run build": 0, `ANDON_BIN="$RUNNER_TEMP/andon" bun run e2e`: 0, "bun run browser": 0,
+		// 端から端の検査の後半（セルの側）が打つ andon は、この checkout から焼く
+		`go build -trimpath -o "$RUNNER_TEMP/andon" ../cmd/andon`: 0,
 	}
 	allowUses := map[string][]string{
 		"actions/checkout@": {"persist-credentials"}, "oven-sh/setup-bun@": {"bun-version"}, "actions/setup-node@": {"node-version"},
+		"actions/setup-go@": {"go-version"},
 	}
 	steps, _ := job["steps"].([]any)
 	for i, x := range steps {
@@ -623,7 +631,7 @@ func trayProblems(wfs, tests map[string]string) []string {
 				}
 			}
 			if prefix == "" {
-				bad("tray.yml の step %d の uses %s は許していない（3つの action を commit の SHA で）", i+1, u)
+				bad("tray.yml の step %d の uses %s は許していない（4つの action を commit の SHA で）", i+1, u)
 				continue
 			}
 			with, _ := s["with"].(map[string]any)

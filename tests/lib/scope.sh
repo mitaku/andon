@@ -18,7 +18,7 @@ go_issue='embed.go init/ process/states/issue.yaml schema/*.schema.json cmd/ando
   internal/issue/ internal/dispatcher/ internal/gate/ internal/boot/ internal/chiefengineer/ internal/process/
   internal/triage/ internal/retro/ internal/ghpr/ internal/signal/ internal/launch/ internal/sessionlog/ internal/pkgversion/
   internal/ledger/ internal/flock/ internal/delegate/ internal/spawn/ internal/contract/ internal/redact/
-  internal/waiting/ internal/board/ internal/otel/ internal/trace/ internal/tools/'
+  internal/waiting/ internal/board/ internal/otel/ internal/trace/ internal/tools/ internal/tray/'
 declare -A heavy=(
   # andon dispatcher・andon issue・andon gate・kanban を打つ。ANDON_HOME を package/ に向け、gate.json とフックを読む
   [tests/andon-dispatcher.sh]="$go_issue package/gate.json package/hooks/"

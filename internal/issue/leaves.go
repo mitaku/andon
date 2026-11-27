@@ -135,7 +135,7 @@ func Report(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			}
 			rest = rest[2:]
 		}
-		return withIssue(id, guard("report", func(c *ctx) error { return c.report(stdin, stdout, pr, data) }))
+		return withIssue(id, guard("report", func(c *ctx) error { return c.report(stdin, stdout, stderr, pr, data) }))
 	})
 }
 
@@ -144,7 +144,7 @@ func ReviewRequest(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 		if len(rest) > 0 {
 			return errUsage
 		}
-		return withIssue(id, guard("review-request", func(c *ctx) error { return c.reviewRequest(stdin, stdout) }))
+		return withIssue(id, guard("review-request", func(c *ctx) error { return c.reviewRequest(stdin, stdout, stderr) }))
 	})
 }
 

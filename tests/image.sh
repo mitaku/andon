@@ -192,7 +192,7 @@ docker run --rm --network none andon:test cat /opt/andon/bin/andon >"$tmp/andon"
 chmod 755 "$tmp/andon"
 "$tmp/andon" cell init imgtest --dir "$plant" --image andon:test --owner owner@example.com
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
-printf 'SSH_PORT=%s\nPORTLESS_PORT=%s\nFILES_PORT=%s\n' "$(free_port)" "$(free_port)" "$(free_port)" >"$plant/.env"
+printf 'SSH_PORT=%s\nPORTLESS_PORT=%s\nTRAY_PORT=%s\n' "$(free_port)" "$(free_port)" "$(free_port)" >"$plant/.env"
 # セルの repo は uid 1000 の持ち物（WSL・cloud-init の既定の利用者。runner は 1000 とは限らないので root で渡す）。
 # 公開鍵は docs/operate.md の SSH の節のとおり 700 の .ssh・600 の authorized_keys。.andon/ は bootstrap（runner）が書く
 mkdir "$plant/.andon"

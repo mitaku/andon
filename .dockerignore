@@ -15,3 +15,9 @@
 !init/
 !init/**
 !process/states/issue.yaml
+!tray/
+!tray/**
+tray/node_modules
+tray/dist
+tray/test-results
+tray/playwright-report

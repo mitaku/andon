@@ -2,8 +2,8 @@
 # image/apply-main.sh apply [<commit>] | status | revert
 #
 # Andon を開発するセルで、origin/main の commit をイメージの焼き直しなしにセルへ当てる（ADR-0027）。
-#   apply [<commit>]  commit（既定は origin/main の先頭。origin/main に含まれるものだけ）の package/・schema/ を
-#                     /opt/andon に、そこから焼いた andon・kanban を置き、andon boot を打ち直して dispatcher とハーネスの受け口を起動し直す。
+#   apply [<commit>]  commit（既定は origin/main の先頭。origin/main に含まれるものだけ）の package/・schema/ と、ビルドした tray/ を
+#                     /opt/andon に、そこから焼いた andon・kanban を置き、andon boot を打ち直して dispatcher・ハーネスの受け口・ローカルの tray を起動し直す。
 #                     最初に当てる前に、イメージの /opt/andon と kanban を退避する。
 #   status            イメージのバージョン・当てた commit・origin/main の先頭からの遅れを出す。
 #                     イメージの元の commit から当てた commit（origin/main の先頭）までに image/ が変わっていたら警告も出す。
@@ -145,6 +145,36 @@ stop_otel() {
   done
 }
 
+# ローカルの tray（andon tray serve。ADR-0064 決めたこと 26）を止める。boot が、控えを書いた serve が動いていなければ当てたパッケージの
+# andon で起動し直す。止めるのは <根>/bin/andon から起動した serve だけ（boot がその実行ファイルの名前で起動する）。
+# serve は TERM を Node に渡して控えを消してから終わる（Node を待つのは 10 秒まで）。前のパッケージの files サーバも止める
+stop_tray() {
+  local bin=$root/bin/andon p argv pids=()
+  for p in /proc/[0-9]*; do
+    mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
+    if [ "${#argv[@]}" = 3 ] && [ "${argv[0]}" = "$bin" ] && [ "${argv[1]} ${argv[2]}" = "tray serve" ]; then
+      pids+=("${p#/proc/}")
+    fi
+    # 前のパッケージの files サーバ（andon boot serve-files <dir> <port>）も止める。tray は同じ番号を引き継ぐ
+    if [ "${#argv[@]}" = 5 ] && [ "${argv[0]}" = "$bin" ] && [ "${argv[1]} ${argv[2]}" = "boot serve-files" ]; then
+      pids+=("${p#/proc/}")
+    fi
+  done
+  for p in "${pids[@]}"; do
+    kill -TERM "$p" 2>/dev/null || { say "警告: ローカルの tray か files サーバ（pid $p）を止められなかった（前のパッケージのまま動く）"; continue; }
+    for _ in $(seq 150); do alive "$p" || break; sleep 0.1; done
+    if alive "$p"; then
+      kill -KILL "$p" 2>/dev/null || true
+      for _ in $(seq 20); do alive "$p" || break; sleep 0.1; done
+    fi
+    if alive "$p"; then
+      say "警告: ローカルの tray か files サーバ（pid $p）が止まらない（前のパッケージのまま動く）"
+    else
+      say "ローカルの tray か files サーバ（pid $p）を止めた（当てたパッケージの tray を起動し直す）"
+    fi
+  done
+}
+
 # 止めた受け口を、boot を打たない道（dispatcher の見回りが終わらない）で起動し直す。boot が起動するときと同じ形
 # （<andon> otel serve を新しいセッションで手放し、出力は一時の置き場の andon-otel.log に足す。internal/otel の Detach）。
 # 2 つ目は bind に失敗して終わるので、役の起動が先に起動していても重ならない
@@ -197,6 +227,7 @@ reboot() {
     say "dispatcher の端末（$addr）を片付けた"
   fi
   stop_otel
+  stop_tray
   # 前の dispatcher が止まった（か、もとから無かった）時刻。ここから後の dispatcher の記録は、当てたパッケージの dispatcher が書く
   local stopped=
   command -v hc >/dev/null && [ -z "$keep_old" ] && stopped=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -229,6 +260,18 @@ gobin() {
     (cd "$repo" && mise which go) || die "go が無い（mise の go も取れない）"
   else
     die "go が無い"
+  fi
+}
+
+# tray をビルドする bun（mise.toml の bun。gobin と同じ引き方）
+bunbin() {
+  if command -v bun >/dev/null; then
+    command -v bun
+  elif command -v mise >/dev/null; then
+    (cd "$repo" && mise install >&2) || echo "[apply-main] 警告: $repo の mise install が失敗した" >&2
+    (cd "$repo" && mise which bun) || die "bun が無い（mise の bun も取れない）"
+  else
+    die "bun が無い"
   fi
 }
 
@@ -270,6 +313,17 @@ apply() {
     && CGO_ENABLED=0 "$go" build -trimpath -ldflags "-s -w -X main.version=$(short "$commit")" -o "$build/kanban" ./cmd/kanban \
     && CGO_ENABLED=0 "$go" build -trimpath -ldflags "-s -w" -o "$build/pkg/bin/andon" ./cmd/andon) \
     || die "go build に失敗した（何も入れ替えていない）"
+  # ローカルの tray: image/Dockerfile の段 tray と同じ物を組む（ADR-0064 決めたこと 26）。tray/ の無い commit では組まない
+  if [ -d "$build/src/tray" ]; then
+    local bun
+    bun=$(bunbin)
+    (cd "$build/src/tray" \
+      && "$bun" install --frozen-lockfile --ignore-scripts --production >&2 \
+      && "$bun" run build >&2 \
+      && mkdir -p "$build/pkg/tray" \
+      && cp -R dist public migrations scripts node_modules package.json bun.lock "$build/pkg/tray/") \
+      || die "tray のビルドに失敗した（何も入れ替えていない）"
+  fi
 
   # 最初に当てる前に、イメージの /opt/andon と kanban を退避する
   local image terminals

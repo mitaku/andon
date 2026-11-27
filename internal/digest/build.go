@@ -82,7 +82,7 @@ func Build(env Env, id string, b []byte) ([]string, []string) {
 	if len(errs) > 0 {
 		return nil, errs
 	}
-	msg := Message(&text, in, loc, filesURL(env, in))
+	msg := Message(&text, in, loc, pendingURL)
 	dj, err := contract.Encode(contract.SchemaDigest, text)
 	if err != nil {
 		return nil, []string{"digest.json が schema/digest.schema.json に合わない（書かない）: " + err.Error()}

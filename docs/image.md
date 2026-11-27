@@ -132,7 +132,7 @@ tests の job は、ほとんどが image の build と `tests/image.sh` の検�
 | `docs/`・`tests/` のほか・`cmd/`・`internal/`・root の `*_test.go`（`package/` などの下のものは image に入るので含めない）・root の `README.md`・`README.ja.md`・`CHANGELOG.md`・`AGENTS.md`・`REVIEW.md`・`SECURITY.md`・`LICENSE` | 飛ばす | image に入らず、`tests/image.sh` も読まない |
 | `image/apply-main.sh` | 飛ばす | セルに main の commit を当てる道具（[ADR-0027](adr/0027-apply-package-without-rebuild.md)）。`image/` の下だが Dockerfile は COPY しない |
 | `model/` | 飛ばす | 課題の一生のモデルと検査器のバージョン。image に入らず、`tests/image.sh` も読まない。回すのは model の workflow の job（[ADR-0025](adr/0025-formal-model-in-repo.md)） |
-| `tray/` | 飛ばす | tray（[ADR-0064](adr/0064-tray.md)）。まだ image に入らず、`tests/image.sh` も読まない。回すのは tray の workflow の job。image に入れるときは「走らせる」に移す（`tests/ci.sh` が `.dockerignore` と Dockerfile を見る） |
+| `tray/test/` | 飛ばす | tray（[ADR-0064](adr/0064-tray.md)）の Workers の検査。image の段 tray は写さず、`tests/image.sh` も読まない。回すのは tray の workflow の job。`tray/` のほかは image の段 tray がビルドして焼くので走らせる（`tests/ci.sh` が段 tray の写すものを見る） |
 | `.claude/skills/`・`.agents/skills/` | 飛ばす | repo の中の skill の置き場（検証の skill。[ADR-0035](adr/0035-pstack-correct-and-verification-skill.md) 決めたこと 4）。image にも `andon` にも入らない。ほかの `.claude/` は知らないパスとして走らせる |
 | 上のどれでもないパス | 走らせる | 知らないものは安全な側に倒す |
 

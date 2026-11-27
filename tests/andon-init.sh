@@ -74,7 +74,7 @@ for sub in herdr enter; do
     pass "$sub は起動して herdr に入る" || fail "$sub: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 done
 # --help は先頭の注記の塊を出す（行番号で切らない）。注記を1行足した写しでも、最後の注記の行まで出て、コードの行は出さない
-last_note='番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。'
+last_note='番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・TRAY_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。'
 help_ok() { [ "$(head -n 1 "$1")" = 'セルの入口。ホストに要るのは docker と bash だけ。' ] && [ "$(tail -n 1 "$1")" = "$last_note" ] && ! grep -q 'set -euo' "$1"; }
 # help は本体（偽のイメージの opt/andon/host/bootstrap）が自分の先頭の注記を出す（ADR-0048 決めたこと 3）
 body=$img/opt/andon/host/bootstrap

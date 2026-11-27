@@ -2,7 +2,7 @@
 .andon/
 # 追加した repo（それぞれが独立した git repo）
 .ghq/
-# 秘密と番号（SSH_PORT・PORTLESS_PORT・FILES_PORT）
+# 秘密と番号（SSH_PORT・PORTLESS_PORT・TRAY_PORT）
 .env
 .env.*
 # 公開鍵（置くマシンごとに違う）
