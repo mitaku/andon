@@ -44,7 +44,9 @@ func NeedsReview(rows []ledger.Row, cos string, t ledger.Issue, review string, r
 		return false, Classified{}, err
 	}
 	slug := owner + "/" + name
-	files, diff, err := prChanges(rows, cos, t, slug, number, head)
+	// 積んだ課題は分かれ目から数える。PR の向き先はここでは読まない（gate は、向き先が前の課題の branch でなければ PR の差分で数え直す）
+	_, from, _ := ledger.Stacked(rows, t, cos)
+	files, diff, err := prChanges(from, t, slug, number, head)
 	if err != nil {
 		return false, Classified{}, err
 	}
