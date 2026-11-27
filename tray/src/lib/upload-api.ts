@@ -77,6 +77,8 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ version: number }>();
   if (!up) return error(500, "internal", "バージョンを上げられない");
   await env.DB.prepare("INSERT INTO uploads (report_id, version, at) VALUES (?1, ?2, ?3)").bind(cur.id, up.version, now).run();
+  // 切り替えたあとに、指す中身が R2 に在るかを確かめる。重なった上げ直しの掃除が、置いてから切り替えるまでの間に消していれば置き直す
+  if (!(await env.BUCKET.head(objectKey(cur.id, want)))) await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
   await dropOld(env, cur.id, want, now);
   return json({ url, version: up.version, bumped: true });
 }
@@ -87,18 +89,23 @@ export const OLD_CONTENT_MS = 24 * 60 * 60 * 1000;
 
 // dropOld: 同じ報告の前の中身のうち、R2 に置いてから OLD_CONTENT_MS を過ぎたものを消す。上げ直しのたびに、その報告の分だけを見る
 // （定期の処理を持たない）。消せなくても上げは成り立つ（次の上げ直しでまた消す）。
-// 一覧を読んでから消すまでに、同じ報告へ前の中身に戻す上げ直しが重なると、その中身が D1 の指す物になる。消す直前に D1 が今
-// 指す中身を読み直して除く（それでも消した分は、同じ中身の次の上げ直しが置き直す）
+// R2 の delete は条件を付けられないので、同じ報告へ前の中身に戻す上げ直しが重なると、消す中身が D1 の指す物になりうる。
+// 中身を読んでから消し、消したあとで D1 を読み直して、指す物を消していたら置き直す。上げ直しの側も、D1 を切り替えたあとに
+// 中身が在るかを確かめて置き直す。どちらが後に動いても、後の側が消えたのを見る
 async function dropOld(env: UploadEnv, id: string, keep: string, now: number) {
   try {
     const listed = await env.BUCKET.list({ prefix: `${id}/` });
     const old = listed.objects
       .filter((o) => o.key !== objectKey(id, keep) && now - o.uploaded.getTime() > OLD_CONTENT_MS)
       .map((o) => o.key);
-    if (old.length === 0) return;
-    const cur = await env.DB.prepare("SELECT sha256 FROM reports WHERE id = ?1").bind(id).first<{ sha256: string }>();
-    const drop = old.filter((k) => !cur || k !== objectKey(id, cur.sha256));
-    if (drop.length > 0) await env.BUCKET.delete(drop);
+    for (const key of old) {
+      const obj = await env.BUCKET.get(key);
+      if (!obj) continue;
+      const body = await obj.arrayBuffer();
+      await env.BUCKET.delete(key);
+      const cur = await env.DB.prepare("SELECT sha256 FROM reports WHERE id = ?1").bind(id).first<{ sha256: string }>();
+      if (cur && objectKey(id, cur.sha256) === key) await env.BUCKET.put(key, body, { httpMetadata: obj.httpMetadata });
+    }
   } catch {
     // 掃除の失敗で上げを落とさない
   }

@@ -90,6 +90,7 @@ step "dg-check-refuse: 送り先の無いまま確かめを打つ" "$andon" dige
 pkg=${VERIFY_PACKAGE:-/opt/andon}
 if [ ! -f "$pkg/tray/scripts/serve.mjs" ]; then
   echo "note dg-tray: $pkg/tray が無い（tray を入れていないパッケージ）。tray へ送る道は確かめていない"
+  echo "note dg-tray-old: $pkg/tray が無い（tray を入れていないパッケージ）。出し直しの掃除は確かめていない"
   echo "note dg-tray-remote: $pkg/tray が無い（tray を入れていないパッケージ）。project.json の tray の読み方は確かめていない"
 else
   printf 'TRAY_PORT=0\nPORTLESS_PORT=1355\n' >>"$ANDON_WORKSPACE/.env"
@@ -109,15 +110,37 @@ else
     step "dg-tray: publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
     purl=$(grep -m1 '^http' "$tmp/step.out")
     step "dg-tray: status" env ANDON_TRAY_OFF=0 "$andon" tray status
+    traystatus=$(cat "$tmp/step.out")
     if [ -n "$turl" ] && jq -e --arg u "$turl" '.destinations[0] | .kind == "files" and .ok and .url == $u and (has("path") | not)' "$d/sent.json" >/dev/null \
       && [[ "$purl" == http*"/r/"* ]] && ! [ -e "$ANDON_WORKSPACE/files/tray-check.md" ] && grep -qF '上がった 2 枚' "$tmp/step.out"; then
       ok "dg-tray: files/ に倒れた files の行が tray の URL に置き直り、publish が tray の URL を返して files/ に写さず、status が 2 枚と数える"
     else
       fail "dg-tray: files の行が置き直らないか、publish が tray の URL を返さないか files/ に写したか、status の枚数が違う"
     fi
+    # dg-tray-old: 同じ slug で中身を変えて出し直すと、報告は新しいバージョンになり、アップロードの口が前の中身の掃除を通る。
+    # 前の中身は置いてから1日に満たないので残り、前に開いた署名付き URL（5分）で読める。今の中身も開ける。
+    # 1日を過ぎた中身を消すことは、当てたあとに1日を待てないので、tray の CI の検査が時刻を進めて見る
+    lst=$(jq -r '.list // empty' "$ctl" 2>/dev/null) lo=$(jq -r '.list_origin // empty' "$ctl" 2>/dev/null)
+    rid=${purl##*/r/}
+    # open_report <id>: 一覧の面の既読の口を、ローカルの tray の一覧の面の番号へ Host を付けて打ち、署名付き URL を出す
+    open_report() { curl -s -X POST -H "Host: ${lo#http://}" -H "Origin: $lo" "$lst/api/reports/$1/open" | jq -r '.url // empty'; }
+    # fetch_view <署名付き URL>: 報告の面の URL を、同じ番号へ Host を付けて読む
+    fetch_view() { local hp=${1#http://}; hp=${hp%%/*}; curl -s -H "Host: $hp" "$lst${1#http://"$hp"}"; }
+    u1=$(open_report "$rid")
+    echo "dg-tray-old の確かめ 2" >"$tmp/tray-check.md"
+    step "dg-tray-old: 同じ slug で中身を変えて publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+    u2=$(open_report "$rid")
+    # Markdown は報告の面が HTML にして出すので、本文の段落（<p>…</p>）を取り出して比べる
+    b1=$(fetch_view "$u1" | sed -n 's/.*<p>\([^<]*\)<\/p>.*/\1/p') b2=$(fetch_view "$u2" | sed -n 's/.*<p>\([^<]*\)<\/p>.*/\1/p')
+    echo "  | 前の URL の中身: ${b1:-読めない}・今の URL の中身: ${b2:-読めない}"
+    if [ -n "$u1" ] && [ -n "$u2" ] && [[ "$u1" != "$u2" ]] && [[ "$b1" == "dg-tray の確かめ" ]] && [[ "$b2" == "dg-tray-old の確かめ 2" ]]; then
+      ok "dg-tray-old: 出し直すと今の中身が開け、置いてから1日に満たない前の中身は前の URL で読める"
+    else
+      fail "dg-tray-old: 出し直したあと、今の中身か前の中身が読めない"
+    fi
     # dg-tray-remote: owner の commit で project.json に tray を書くと、そのプロジェクトは Cloudflare の tray へ送ると読む。
     # 鍵を置かないので Cloudflare へは何も出ず、publish はローカルの tray に倒れて理由を出す。owner でない commit の tray は読まない
-    slug=$(sed -n 's/^Cloudflare の tray: \(.*\) は選んでいない.*/\1/p' "$tmp/step.out")
+    slug=$(sed -n 's/^Cloudflare の tray: \(.*\) は選んでいない.*/\1/p' <<<"$traystatus")
     echo "  | プロジェクト: ${slug:-引けない}"
     printf 'owner = "%s"\n' "$GIT_AUTHOR_EMAIL" >"$ANDON_WORKSPACE/andon.toml"
     mkdir -p "$ANDON_WORKSPACE/projects/${slug:-none}"
