@@ -16,6 +16,7 @@
 #   7. 記録を読む道（dispatcher-news・boot・worker-launch〈wl-resume を含む〉・gate の gt-answer）: 偽のセル（パッケージの置き場・HOME・hc・kanban・Claude Code のセッションの記録）で、証拠が足りないときに 0 で終わらない。
 #      drive.sh は検証する commit を省けず、省く・空・短い・16進数でないと 2 で断り、道を動かさない（検証の途中で次の commit が当たっても、新しい間を読まない）
 #      drive.sh は細かい機能ごとの結果を1行ずつ出し、3つ目の引数で名指した細かい機能（見る道が検証の担当だけのもの）だけで 0 と 3 を決める。FAIL は名指しによらず 1
+#   8. 道が ok を出す細かい機能は、7 に当たる場合（証拠が足りないか中身の違う記録では ok にならない確かめ）を1つ以上持つ。前からの無いものは控えに載せ、控えは減らすだけ
 # 使い方: bash tests/verify-andon.sh [--skill <skill の置き場>]（--skill は 6 の写しを見るときだけ。andon は tests/lib/andon.sh が用意し、写しの回にも渡す）
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -535,18 +536,18 @@ if [ "$self" = true ]; then
   at='"at": "2026-01-01T00:02:00Z"'
   echo "{$at, \"issue\": \"V-0001\", \"kind\": \"review\"}" >"$c/state/andon/dispatcher/v.recorded.jsonl"
   journey dispatcher-news
-  [ "$jrc" = 3 ] || die "dispatcher-news: 記録だけの通知で終了コード $jrc（3 でない）: $jout"
+  [ "$jrc" = 3 ] && ! grep -q '^ok   dn-delivered' <<<"$jout" || die "dispatcher-news: 記録だけの通知で終了コード $jrc（3 でない）か、dn-delivered が ok: $jout"
   echo "{$at, \"project\": \"v\", \"acked\": true, \"news\": [{\"issue\": \"V-0001\", \"kind\": \"review\"}]}" >"$c/state/andon/dispatcher/v.delivered.jsonl"
   journey dispatcher-news
   [ "$jrc" = 0 ] || die "dispatcher-news: 届けた通知があるのに終了コード $jrc: $jout"
   links worker retro; journey boot
   [ "$jrc" = 0 ] || die "boot: 揃った偽のセルで終了コード $jrc: $jout"
   links; journey boot
-  [ "$jrc" = 1 ] && grep -qF 'andon-worker が' <<<"$jout" || die "boot: ~/.agents/skills の andon-* が無いのに落ちない（$jrc）: $jout"
+  [ "$jrc" = 1 ] && grep -q '^FAIL bt-skills: .*andon-worker が' <<<"$jout" || die "boot: ~/.agents/skills の andon-* が無いのに落ちない（$jrc）: $jout"
   links worker; ln -s "$c/ws" "$c/home/.agents/skills/andon-retro"; journey boot
-  [ "$jrc" = 1 ] && grep -qF 'andon-retro が' <<<"$jout" || die "boot: andon-retro がパッケージの外を指すのに落ちない（$jrc）: $jout"
+  [ "$jrc" = 1 ] && grep -q '^FAIL bt-skills: .*andon-retro が' <<<"$jout" || die "boot: andon-retro がパッケージの外を指すのに落ちない（$jrc）: $jout"
   links worker retro; ln -s "$c/ws" "$c/home/.agents/skills/andon-extra"; journey boot
-  [ "$jrc" = 1 ] && grep -qF 'andon-extra がパッケージの外' <<<"$jout" || die "boot: 余分な andon-extra がパッケージの外を指すのに落ちない（$jrc）: $jout"
+  [ "$jrc" = 1 ] && grep -q '^FAIL bt-skills: .*andon-extra がパッケージの外' <<<"$jout" || die "boot: 余分な andon-extra がパッケージの外を指すのに落ちない（$jrc）: $jout"
   ok "verify-andon: 記録を読む道は、記録だけの通知なら未確認の 3 で終わり、skill のリンクが無い・パッケージの外を指すと落ちる"
 
   # 結果の記録の内訳（ot-breakdown。scripts/breakdown.sh）: 偽のセルの課題 1 件で、done と結果の記録と置き場の形ごとに判定を見る
@@ -568,7 +569,7 @@ if [ "$self" = true ]; then
   grep -qF 'note ot-breakdown: 当てたあとに起動した Claude Code の担当の課題が、まだ片付いていない' <<<"$bout" || die "ot-breakdown: 片付いていない課題で、まだ片付いていない note を出さない: $bout"
   if grep -q '^FAIL' <<<"$bout"; then die "ot-breakdown: 片付いていない課題で落ちる: $bout"; fi
   bdone done; bcheck
-  grep -qF 'に done になったのに、結果の記録' <<<"$bout" || die "ot-breakdown: done から時間が経っても結果の記録が無い課題で落ちない: $bout"
+  grep -q '^FAIL ot-breakdown: .*に done になったのに、結果の記録' <<<"$bout" || die "ot-breakdown: done から時間が経っても結果の記録が無い課題で落ちない: $bout"
   bout_of 100 102; bcheck
   grep -qF 'ok   ot-breakdown: 当てたあとに片付いた担当の課題 1 件' <<<"$bout" || die "ot-breakdown: 上下 5% に入る内訳で ok にならない: $bout"
   grep -qF 'note ot-knowledge: 当てたあとに片付いた担当の課題 1 件の内訳に、読んだ wiki のページが無い' <<<"$bout" || die "ot-knowledge: ページを読んでいない内訳で note を出さない: $bout"
@@ -585,14 +586,14 @@ if [ "$self" = true ]; then
   bout_of 0 102 -; bcheck
   if grep -q 'FAIL ot-knowledge' <<<"$bout"; then die "ot-knowledge: モデルの呼び出しの無い内訳でキーを求めて落ちる: $bout"; fi
   bout_of 200 100; bcheck
-  grep -qF 'の上下 5% に入らない' <<<"$bout" || die "ot-breakdown: 上下 5% に入らない内訳で落ちない: $bout"
+  grep -q '^FAIL ot-breakdown: .*の上下 5% に入らない' <<<"$bout" || die "ot-breakdown: 上下 5% に入らない内訳で落ちない: $bout"
   bout_of null 100; bcheck
   grep -qF 'note ot-breakdown: b/B-0001 は置き場に記録が無く' <<<"$bout" || die "ot-breakdown: 置き場に記録の無い null の内訳で note を出さない: $bout"
   if grep -q '^FAIL' <<<"$bout"; then die "ot-breakdown: 置き場に記録の無い null の内訳で落ちる: $bout"; fi
   echo '{"resourceSpans": []}' >"$btr"; bcheck
-  grep -qF '記録があるのに、内訳が null' <<<"$bout" || die "ot-breakdown: 置き場に記録があるのに null の内訳で落ちない: $bout"
+  grep -q '^FAIL ot-breakdown: .*記録があるのに、内訳が null' <<<"$bout" || die "ot-breakdown: 置き場に記録があるのに null の内訳で落ちない: $bout"
   echo '{"at": "2026-01-01T00:10:00Z", "sessions": []}' >"$bl/outcome.json"; bcheck
-  grep -qF 'breakdown のキーが無い' <<<"$bout" || die "ot-breakdown: breakdown のキーの無い結果の記録で落ちない: $bout"
+  grep -q '^FAIL ot-breakdown: .*breakdown のキーが無い' <<<"$bout" || die "ot-breakdown: breakdown のキーの無い結果の記録で落ちない: $bout"
   rm -rf "$c/ws/projects/b" "$c/state/andon/otel/b"   # 後の場面が偽の課題を拾わない
   ok "verify-andon: ot-breakdown は、done から時間の経った課題の結果の記録が無い・置き場に記録があるのに内訳が null・キーが無い・上下 5% に入らないと落ち、片付いていないか記録が無ければ note、入れば ok"
 
@@ -615,7 +616,7 @@ if [ "$self" = true ]; then
   [ "$jrc" = 0 ] && grep -qF '当てたあとの起動の記録 1 件' <<<"$jout" || die "worker-launch: 検証する commit を省くと今当たっているものを読まない（$jrc）: $jout"
   # 今の状態を読む行（dn-live・bt-ran）は、検証する commit でなく最後に当てた時刻と比べる
   VERIFY_COMMIT=c0ffee journey dispatcher-news
-  [ "$jrc" = 1 ] && grep -qF 'dn-live' <<<"$jout" || die "dispatcher-news: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
+  [ "$jrc" = 1 ] && grep -qF 'FAIL dn-live' <<<"$jout" || die "dispatcher-news: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
   links worker retro; VERIFY_COMMIT=c0ffee journey boot
   [ "$jrc" = 1 ] && grep -qF 'FAIL bt-ran' <<<"$jout" || die "boot: dispatcher が最後に当てる前から動いているのに、前の commit の検証で落ちない（$jrc）: $jout"
   sed -i "s/\"created_ms\": [0-9]*/\"created_ms\": $(($(date -u -d 2026-01-01T00:11:00Z +%s) * 1000))/" "$c/dispatcher.json"
@@ -940,4 +941,116 @@ if [ "$self" = true ]; then
     bash "$skill/scripts/drive.sh" otel "$new" ot-listen 2>&1) || drc=$?
   [ "$drc" = 1 ] && grep -qF 'FAIL 道の出力の写し' <<<"$dout" || die "drive.sh: 出力の写しが途中で切れたのに 1 にしない（$drc）: $dout"
   ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
+fi
+
+# 8. 当たる場合の確かめ: 道が ok を出す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことの確かめ（当たる場合）を
+#    1つ以上持つ。ok を出す道を足すか変えた変更は、同じ変更で 7 に当たる場合を書く（確かめを打てない回に ok を出す道や、理由の空な記録を通す道を、
+#    レビューの前に見つける）
+#   - 道が ok を出す細かい機能: 地図の「## 細かい機能」の名前のうち、scripts/ の下に ok "<名前> の行があるもの
+#   - 当たる場合: 7 の注釈でない行の、die の文より前に、その名前の FAIL を求める grep（'FAIL <名前>'）か、drive.sh の未確認の行（「名指したうち未確認: <名前>」
+#     「結果 <名前> 未確認」「結果 <名前> FAIL」）を求める grep か、ok でないことを求める grep（! grep -q '^ok   <名前>'）がある。
+#     否定の grep と if grep の中の FAIL は数えない。note は ok に添うこともあるので数えない
+#   - 前からある当たる場合の無い細かい機能は、控え（hits_allow）に載せる。控えは減らすだけで、base の控えに無い名前を足す・当たる場合を書いた名前を残す・
+#     ok を出さなくなった名前を残すと落ちる。base から HEAD までに scripts/ の下で足した行が控えの名前を含めば（道を変えた）、控えから外して当たる場合を書く
+#   当たる場合が、変えた振る舞いを本当に通るか（記録の形だけを見ていないか）は見ない
+if [ "$self" = true ]; then
+  hits_allow='
+bt-generated bt-managed bt-tray
+cr-create cr-exists-refuse cr-list cr-role-refuse
+dg-build dg-build-refuse dg-check-refuse dg-collect dg-later dg-send dg-tray dg-tray-old dg-tray-remote
+dn-corrections dn-idle dn-signal
+hd-dispatch-discard hd-dispatch-hold hd-dispatch-release hd-gate-wait hd-hold hd-refuse hd-unhold hd-worker
+hk-other-pass hk-pre-deny hk-pre-pass hk-stop-block hk-stop-pass hk-wired
+mg-reread mg-reread-exhausted mg-reread-race
+ms-breakdown ms-flow ms-knowledge ms-question-later ms-readonly ms-table ms-tokens
+ot-applied ot-codex ot-listen ot-records ot-trace
+ow-anywhere ow-ask-later ow-ask-new ow-json ow-later ow-old-name ow-same-title ow-slots ow-stackable ow-tray-deploy ow-waiting
+rr-acceptance rr-ready rr-ready-refuse rr-ready-report rr-record rr-report rr-stacked
+rt-collect rt-later rt-not-cos rt-old-owner rt-patterns
+tr-call tr-collect tr-later tr-not-cos tr-old-shape
+wl-review-brief wl-terminal
+'
+  # allow_of: 検査のシェル（stdin）の控えの名前を1行1つで出す。控えが無ければ何も出さない
+  allow_of() { sed -n "/^  hits_allow='\$/,/^'\$/p" | grep -E '^[a-z0-9 -]+$' | tr ' ' '\n' | grep . || true; }
+  # hit_names <skill> <検査のシェル>: 道が ok を出す細かい機能ごとに、7 に当たる場合があれば「HIT <名前>」、無ければ「MISS <名前>」を1行ずつ出す
+  hit_names() {
+    local sec pos n
+    sec=$(sed -n '/^# 7\. /,/^# 8\. /p' "$2" | { grep -v '^[[:space:]]*#' || true; } | sed 's/die ".*//')
+    [ -n "$sec" ] || die "$2 から 7 の節が読めない（当たる場合の確かめが何も見ない）"
+    pos=$(sed -E "s/(! |if )grep [^']*'[^']*'//g" <<<"$sec") # 否定の grep と if grep の型を外す
+    while read -r n; do
+      grep -rqE "(^|[^a-z0-9_])ok \"$n([^a-z0-9-]|\$)" "$1/scripts" || continue
+      if grep -qE "(FAIL $n|未確認: $n|結果 $n (未確認|FAIL))([^a-z0-9-]|\$)" <<<"$pos" || grep -qE "! grep -qF? '\\^?ok   $n([^a-z0-9-]|\$)" <<<"$sec"; then
+        echo "HIT $n"
+      else
+        echo "MISS $n"
+      fi
+    done < <(for f in "$1"/features/*.md; do [ "${f##*/}" = README.md ] || sed -n '/^## 細かい機能$/,/^## /p' "$f" | sed -n 's/^- `\([^`]*\)`.*/\1/p'; done | sort -u)
+  }
+  # hit_gaps <hit_names の出力> <控え> <base の控え（- は base が無いか、base に控えが無い）> <base から HEAD までに scripts/ の下で足した行>: 足りないものを1行ずつ出す
+  hit_gaps() {
+    local st n
+    while read -r st n; do
+      [ "$st" = MISS ] || continue
+      grep -qxF -- "$n" <<<"$2" || echo "$n: 道が ok を出すのに、7 に当たる場合の確かめが無い"
+    done <<<"$1"
+    while read -r n; do
+      [ -n "$n" ] || continue
+      if grep -qxF -- "HIT $n" <<<"$1"; then
+        echo "$n: 7 に当たる場合の確かめがあるのに、控えに残る（控えから消す）"
+      elif ! grep -qxF -- "MISS $n" <<<"$1"; then
+        echo "$n: 控えにあるが、道が ok を出す細かい機能でない（控えから消す）"
+      fi
+      if [ "$3" != - ] && ! grep -qxF -- "$n" <<<"$3"; then echo "$n: base の控えに無い名前を、控えに足した（控えは減らすだけ。7 に当たる場合を書く）"; fi
+      if grep -qE "(^|[^a-z0-9-])$n([^a-z0-9-]|\$)" <<<"$4"; then echo "$n: 道の行を変えたのに、控えに残る（控えから外し、7 に当たる場合を書く）"; fi
+    done <<<"$2"
+  }
+  hits=$(hit_names "$skill" tests/verify-andon.sh)
+  allow=$(tr ' ' '\n' <<<"$hits_allow" | grep . || true)
+  [ "$(allow_of <tests/verify-andon.sh)" = "$allow" ] || die "控え hits_allow を検査のシェルから読み直せない（base の控えと比べられない）"
+
+  # 自分の確かめ: 7 から当たる場合を消した写し（確かめを打てない回に ok を出す wl-settings・理由の空な記録を通す gt-record）で、名前つきで落ちる
+  sed '/"$drc" = 3 \].*wl-settings/d' tests/verify-andon.sh >"$tmp/hits-a.sh"
+  grep -qxF 'HIT wl-settings' <<<"$hits" && grep -qxF 'MISS wl-settings' <<<"$(hit_names "$skill" "$tmp/hits-a.sh")" \
+    || die "7 から wl-settings の当たる場合を消した写しで、wl-settings を当たる場合の無いものと読まない"
+  gaps=$(hit_gaps "$(hit_names "$skill" "$tmp/hits-a.sh")" "$allow" - '')
+  grep -qxF 'wl-settings: 道が ok を出すのに、7 に当たる場合の確かめが無い' <<<"$gaps" || die "7 から wl-settings の当たる場合を消した写しで落ちない: $gaps"
+  sed "/'FAIL gt-record'/d" tests/verify-andon.sh >"$tmp/hits-b.sh"
+  grep -qxF 'HIT gt-record' <<<"$hits" && grep -qxF 'MISS gt-record' <<<"$(hit_names "$skill" "$tmp/hits-b.sh")" \
+    || die "7 から gt-record の当たる場合を消した写しで、gt-record を当たる場合の無いものと読まない"
+  # 数えない形: 否定の grep の FAIL・die の文の中・if grep の中・注釈・8 の後ろ・別の名前。ok でないことを求める grep は数える
+  printf '%s\n' '# 7. 写し' \
+    "  [ \"\$jrc\" = 0 ] && ! grep -qF 'FAIL wl-settings' <<<\"\$jout\" || die \"FAIL wl-record 名指したうち未確認: wl-record\"" \
+    "  if grep -q 'FAIL gt-record' <<<\"\$jout\"; then die x; fi" \
+    "  # [ \"\$jrc\" = 1 ] && grep -qF 'FAIL gt-route' <<<\"\$jout\" || die x" \
+    "  [ \"\$jrc\" = 3 ] && ! grep -q '^ok   gt-skip' <<<\"\$jout\" || die x" \
+    "  grep -qF 'FAIL gt-answers' <<<\"\$jout\" || die x" \
+    '# 8. 写し' "  grep -qF 'FAIL dn-live' <<<\"\$jout\" || die x" >"$tmp/hits-c.sh"
+  nb=$(hit_names "$skill" "$tmp/hits-c.sh")
+  for n in wl-settings wl-record gt-record gt-route gt-answer dn-live; do
+    grep -qxF "MISS $n" <<<"$nb" || die "数えない形の写しで $n を当たる場合のあるものと読む: $nb"
+  done
+  grep -qxF 'HIT gt-skip' <<<"$nb" || die "ok でないことを求める grep を当たる場合と読まない: $nb"
+  # 控え: 当たる場合を書いた名前・ok を出さない名前・base の控えに無い名前・道の行を変えた名前が残ると落ちる。名前の一部だけの行では変えたと読まない
+  gaps=$(hit_gaps $'HIT gt-record\nMISS wl-terminal\nMISS rr-ready\nMISS hd-hold' $'gt-record\nwl-terminal\nwl-nosuch\nrr-ready' $'gt-record\nwl-nosuch\nrr-ready' \
+    $'  ok "wl-terminal: 端末"\n  ok "rr-readyx: x"')
+  for want in 'hd-hold: 道が ok を出すのに、7 に当たる場合の確かめが無い' 'gt-record: 7 に当たる場合の確かめがあるのに' 'wl-nosuch: 控えにあるが、道が ok を出す細かい機能でない' \
+    'wl-terminal: base の控えに無い名前を、控えに足した' 'wl-terminal: 道の行を変えたのに'; do
+    grep -qF -- "$want" <<<"$gaps" || die "控えの崩れ（$want）を拾わない: $gaps"
+  done
+  if grep -qF 'rr-ready' <<<"$gaps"; then die "控えにある rr-ready を、名前の一部（rr-readyx）だけの行で変えたと読む: $gaps"; fi
+  [ -z "$(hit_gaps $'HIT gt-record\nMISS wl-terminal' 'wl-terminal' - '')" ] || die "base の控えが無いとき、控えにある当たる場合の無い名前で落ちる"
+
+  base_allow=- added=
+  if [ -z "$base" ]; then
+    echo "skip verify-andon: 当たる場合の控えの減り方と、変えた道（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
+  else
+    bt=$(git show "$base:tests/verify-andon.sh" 2>/dev/null || true)
+    if grep -q "^  hits_allow='\$" <<<"$bt"; then base_allow=$(allow_of <<<"$bt"); fi
+    added=$(git diff -U0 --no-renames "$base" HEAD -- "$skill/scripts/" | sed -n '/^+++ /d; s/^+//p')
+  fi
+  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$added")
+  [ -z "$gaps" ] || die "当たる場合の確かめが足りない（道が ok を出す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことを確かめる。SKILL.md の 6）:
+$gaps"
+  ok "verify-andon: 道が ok を出す細かい機能 $(grep -c . <<<"$hits") 件のうち、7 に当たる場合を持つものは $(grep -c '^HIT ' <<<"$hits") 件で、ほかは前からの控え $(grep -c . <<<"$allow") 件"
 fi

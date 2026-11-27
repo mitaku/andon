@@ -86,7 +86,9 @@ andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts
 - 直してよいのは `.claude/skills/verify-andon/` の中だけ。製品のコードが壊れていると見たら直さず、報告の `## Next` に `to: chief-of-staff` で1行書く。
 - 直し方は地図に合わせる。動かない道を弱めて通さない（前提が無いなら、地図の「落とし穴」に書き、終了コード 3 にする）。
 - 機能を足すときは、`features/<機能>.md`（形は `features/README.md` の「機能のファイルの形」）・`features/README.md` の表の行・`scripts/journeys/<機能>.sh` の3つを同じ PR で足す。
-- 直したら `bash tests/verify-andon.sh` を通す。目次とファイルの対応・節の形・手順が名指す command の実在・`features.sh` の振る舞いを見る。
+- 道が ok を出す細かい機能を足すか、その道を変えたら、同じ PR で `tests/verify-andon.sh` の 7 の偽のセルに当たる場合を足す。当たる場合は、確かめを打てない回・証拠が足りない回・中身の違う記録（理由が空・名指す先が無い・判定が違う）を置いて道を動かし、その細かい機能が ok にならないことを確かめる行で、`FAIL <名前>`・`名指したうち未確認: <名前>`・`結果 <名前> 未確認` を求める grep か、`! grep -q '^ok   <名前>'` で書く。記録の形だけを崩した入力にせず、変えた振る舞いが読む中身を崩す。
+- 前から当たる場合の無い細かい機能は、`tests/verify-andon.sh` の 8 の控え（`hits_allow`）に載っている。控えは減らすだけで、名前を足さない。控えにある細かい機能の道を変えたら、控えから外して当たる場合を書く。当たる場合を書いたら、控えから消す。
+- 直したら `bash tests/verify-andon.sh` を通す。目次とファイルの対応・節の形・手順が名指す command の実在・`features.sh` の振る舞い・道が ok を出す細かい機能の当たる場合を見る。
 - PR は worker skill §3 のとおり。`.claude/skills/` は gate の条件表で自動でマージできる側。
 
 ## 7. 報告する
