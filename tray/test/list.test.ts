@@ -3,9 +3,10 @@ import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import list from "../src/list";
 import { LIST_HEADERS } from "../src/lib/http";
-import { OLD_AFTER_MS } from "../src/lib/list-api";
+import { COUNT_DAYS, listAPI, OLD_AFTER_MS } from "../src/lib/list-api";
+import { viewFace } from "../src/lib/view-face";
 import { uploadAPI } from "../src/lib/upload-api";
-import { goodClaims, LIST_ORIGIN, listEnv, nowSeconds, putRequest, type Signer, signer, TEAM, uploadEnv } from "./helpers";
+import { goodClaims, LIST_ORIGIN, listEnv, nowSeconds, putRequest, type Signer, signer, TEAM, uploadEnv, viewEnv } from "./helpers";
 
 let team: Signer;
 let certsFetches = 0;
@@ -35,8 +36,8 @@ async function call(path: string, init: RequestInit & { jwt?: string | null } = 
   return res;
 }
 
-async function upload(name: string, body: string, now = Date.now()) {
-  const res = await uploadAPI(await putRequest({ name, body }), uploadEnv(), "c1", now);
+async function upload(name: string, body: string, now = Date.now(), o: { cell?: string; contentType?: string } = {}) {
+  const res = await uploadAPI(await putRequest({ name, body, contentType: o.contentType }), uploadEnv(), o.cell ?? "c1", now);
   expect(res.status).toBe(200);
   const url = ((await res.json()) as { url: string }).url;
   return url.split("/").pop() as string;
@@ -208,5 +209,84 @@ describe("セルの鍵", () => {
     expect((await call("/api/cells/c9/key", { method: "POST", headers: { Origin: LIST_ORIGIN }, jwt: null })).status).toBe(403);
     expect((await call("/api/cells/c9/key", { method: "POST" })).status).toBe(403);
     expect(await env.DB.prepare("SELECT count(*) AS n FROM keys").first("n")).toBe(0);
+  });
+});
+
+describe("開き方（受け入れ条件 6・決めたこと 22）", () => {
+  const open = (id: string) => call(`/api/reports/${id}/open`, { method: "POST", headers: { Origin: LIST_ORIGIN } });
+  const cases: [string, string][] = [
+    ["text/html; charset=utf-8", "frame"],
+    ["text/markdown; charset=utf-8", "frame"],
+    ["text/plain", "frame"],
+    ["image/png", "frame"],
+    ["image/jpeg", "frame"],
+    ["image/gif", "frame"],
+    ["image/webp", "frame"],
+    ["image/svg+xml", "frame"],
+    ["Text/Markdown", "frame"],
+    ["application/pdf", "tab"],
+    ["application/zip", "download"],
+    ["text/csv", "download"],
+    ["application/octet-stream", "download"],
+    ["text/htmlx", "download"],
+  ];
+
+  it("開く口は形式ごとに枠・新しいタブ・ダウンロードを返し、報告の面はダウンロードの形式だけを attachment で返す", async () => {
+    for (const [i, [type, want]] of cases.entries()) {
+      const id = await upload(`f${i}`, `body ${i}`, Date.now(), { contentType: type });
+      const res = await open(id);
+      expect(res.status, type).toBe(200);
+      const body = (await res.json()) as { url: string; open_as: string; content_type: string };
+      expect(body.open_as, type).toBe(want);
+      expect(body.content_type, type).toBe(type);
+      // 画面が開き方を決める表と、報告の面がヘッダを決める表は同じ
+      const view = await viewFace(new Request(body.url), viewEnv());
+      expect(view.status, type).toBe(200);
+      expect(view.headers.get("Content-Disposition"), type).toBe(want === "download" ? "attachment" : null);
+      expect(view.headers.get("Content-Security-Policy"), type).toContain("sandbox allow-scripts");
+    }
+  });
+});
+
+describe("セルの画面の枚数（決めたこと 26）", () => {
+  const open = (id: string, now: number) =>
+    listAPI(
+      new Request(`${LIST_ORIGIN}/api/reports/${id}/open`, { method: "POST", headers: { Origin: LIST_ORIGIN } }),
+      listEnv(),
+      now,
+    );
+  type CellRow = { cell: string; key: string; revoked: boolean; uploads: number; opens: number; created_at: string | null };
+  const cells = async (now: number) => {
+    const res = await listAPI(new Request(`${LIST_ORIGIN}/api/cells`), listEnv(), now);
+    return (await res.json()) as { days: number; cells: CellRow[] };
+  };
+
+  it("鍵の無いセルも並べ、直近7日に上げた回数と開いた報告の数を数える", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const old = now - COUNT_DAYS * day - 60_000;
+    // c1: 7日より前に1回、7日の内に上げ直しを含めて3回。開いたのは2つの報告で、1つは2回開いた
+    const a = await upload("a", "1", old);
+    await upload("a", "2", now - day);
+    const b = await upload("b", "1", now - day);
+    await upload("b", "2", now);
+    expect((await open(a, old)).status).toBe(200);
+    expect((await open(a, now)).status).toBe(200);
+    expect((await open(a, now)).status).toBe(200);
+    expect((await open(b, now)).status).toBe(200);
+    // c2: 鍵だけを持ち、報告は無い
+    expect((await call("/api/cells/c2/key", { method: "POST", headers: { Origin: LIST_ORIGIN } })).status).toBe(200);
+    // c3: 7日より前に上げただけ
+    await upload("z", "1", old, { cell: "c3" });
+
+    const got = await cells(now);
+    expect(got.days).toBe(COUNT_DAYS);
+    expect(got.cells.map((c) => [c.cell, c.key, c.uploads, c.opens])).toEqual([
+      ["c1", "none", 3, 2],
+      ["c2", "active", 0, 0],
+      ["c3", "none", 0, 0],
+    ]);
+    expect(got.cells[1]?.created_at).not.toBeNull();
+    expect(got.cells[0]?.created_at).toBeNull();
   });
 });

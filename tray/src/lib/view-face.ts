@@ -5,6 +5,7 @@
 
 import { marked } from "marked";
 import type { ViewEnv } from "./env";
+import { baseType, openAs } from "./formats";
 import { escapeHTML } from "./http";
 import { objectKey, REPORT_ID, SHA256, segments } from "./names";
 import { checkSignature } from "./sign";
@@ -33,18 +34,6 @@ export function viewHeaders(listOrigin: string): Record<string, string> {
     "X-Robots-Tag": "noindex",
   };
 }
-
-const INLINE = new Set([
-  "text/html",
-  "text/markdown",
-  "text/plain",
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "image/svg+xml",
-  "application/pdf",
-]);
 
 function page(title: string, body: string): string {
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHTML(title)}</title>
@@ -75,7 +64,7 @@ export async function viewFace(req: Request, env: ViewEnv, nowSeconds?: number):
   const obj = await env.BUCKET.get(key);
   if (!obj) return shortPage(404, "無い", "報告が無い", env.LIST_ORIGIN);
   const contentType = obj.httpMetadata?.contentType ?? "application/octet-stream";
-  const base = (contentType.split(";")[0] ?? "").trim().toLowerCase();
+  const base = baseType(contentType);
   const headers: Record<string, string> = { ...viewHeaders(env.LIST_ORIGIN) };
   if (base === "text/markdown") {
     const html = await marked.parse(await obj.text(), { async: true });
@@ -86,6 +75,6 @@ export async function viewFace(req: Request, env: ViewEnv, nowSeconds?: number):
     return new Response(page("報告", html), { headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } });
   }
   headers["Content-Type"] = contentType;
-  if (!INLINE.has(base)) headers["Content-Disposition"] = "attachment";
+  if (openAs(contentType) === "download") headers["Content-Disposition"] = "attachment";
   return new Response(obj.body, { headers });
 }
