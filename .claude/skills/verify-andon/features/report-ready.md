@@ -15,7 +15,7 @@
 - `rr-acceptance` 課題の予約キー `acceptance` が名指す受け入れ条件の番号のうち、報告に行の無い番号だけを名指して `ready` が断る。番号は数字だけの形（`1`）と A を付けた形（`A1`）を同じ番号と読む。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/contract/runs.go`
 - `rr-stacked` Chief of Staff の端末が `stacked_on`・`stacked_base` を書いた課題（積んだ課題）は、`after` の前の課題が `review` のままでも `kanban start` で `doing` に入り、`after` は残る。担当の端末が自分で書いたキーは信じず、前の課題を待つ相手に数えて断る（ADR-0067 決めたこと 5）。見る道: 検証の担当だけ。
-  - 見るファイル: `cmd/kanban/ledger.go`、`internal/ledger/stacked.go`、`internal/ledger/ledger.go`
+  - 見るファイル: `cmd/kanban/ledger.go`、`internal/ledger/stacked.go`、`internal/ledger/ledger.go`、`schema/issue-keys.schema.json`
 - `rr-ready` 揃った報告の `ready` で課題が `review` に入り、kanban の履歴に担当の端末の行が残る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/issue.go`、`internal/issue/leaves.go`、`internal/issue/transition.go`、`internal/ledger/ledger.go`、`internal/ledger/id.go`、`internal/ledger/config.go`、`internal/ledger/review.go`、`internal/gate/review.go`、`internal/gate/gate.go`、`cmd/andon/main.go`、`internal/cli/cli.go`、`internal/cli/leaves.go`、`cmd/kanban/ledger.go`、`cmd/kanban/lock_unix.go`、`cmd/kanban/main.go`、`cmd/kanban/paths.go`、`cmd/kanban/rename_other.go`、`cmd/kanban/yamldoc.go`
 
@@ -49,6 +49,7 @@
 - `internal/ledger/`
 - `schema/report.schema.json`
 - `schema/run.schema.json`
+- `schema/issue-keys.schema.json`
 - `process/states/issue.yaml`
 - `cmd/kanban/`
 - `cmd/andon/`
