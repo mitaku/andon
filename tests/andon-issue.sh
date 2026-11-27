@@ -1302,4 +1302,54 @@ emit "$tmp/board-out.json" issue-board.json
 ok 'issue history: 片付いた課題を limit 件、more に残りの数'
 emit "$tmp/history-out.json" issue-history.json
 
+# 積んだ課題のレビューの引き継ぎ（ADR-0067 決めたこと 9・受け入れ条件 10）: 前の課題の PR の上に積んでいた間のレビュー（起点は分かれ目。
+# dispatcher がレビュアーの課題に控えた review_base）は、前の課題が main に入ったあとの衝突の無い載せ替えで、新しい head に引き継がれ、
+# review-request が頼み直しを求めない。squash で入ったときと、マージ commit で入ったときの両方で見る。担当の端末が書いた review_base は信じない
+# （載せ替えの口 andon issue restack はまだ無いので、git rebase --onto で載せ替え、担当の端末でキーを消す）
+# 偽の gh は始めの形に戻す（PR の head は $tmp/prhead。hold の場面が作り直している）
+cat > "$tmp/bin/gh" <<EOF
+#!/bin/sh
+case "\$1 \$2 \$4 \$5" in
+  "pr view --json headRefOid") cat "$tmp/prhead" ;;
+  *) echo "unexpected gh \$*" >&2; exit 99 ;;
+esac
+EOF
+restacked() { # restacked <squash|merge> <review_base を書く端末>: 積んで、レビューして、載せ替えた課題の id を返す
+    local how=$1 by=$2 g="$tmp/stk-$1-$2" fork s prv sid rv
+    git init -q -b main "$g"
+    printf 'func A() {\n\tx\n\tx\n\tx\n\tx\n\ty\n}\n' > "$g/a.txt"; echo p > "$g/p.txt"
+    git -C "$g" add -A; git -C "$g" commit -qm base
+    git -C "$g" switch -qc prev; echo P >> "$g/p.txt"; git -C "$g" commit -qam 'prev change'; fork=$(git -C "$g" rev-parse HEAD)
+    git -C "$g" switch -qc stk; sed -i 's/^\ty$/\tY/' "$g/a.txt"; git -C "$g" commit -qam 'stacked change'; s=$(git -C "$g" rev-parse HEAD)
+    prv=$(as t5 kanban add '前の課題' --profile claude)
+    sid=$(as t5 kanban add '積んだ課題' --profile claude --after "$prv")
+    as t5 kanban set "$sid" status=doing review=on must_fix=major reviewer=codex-review review_rounds=2 "worktree=$g" repo=github.com/example/app \
+        stacked_on="$prv" stacked_base="$fork" >/dev/null
+    echo "$s" > "$tmp/prhead"
+    as t7 "$andon" issue report "$sid" --pr "$pr" <<<'## Report' >/dev/null
+    rv=$(as dispatcher kanban add "$sid のレビュー（1 回目）" --parent "$sid" --profile codex-review --round 1)
+    as "$by" kanban set "$rv" review_base="$fork" >/dev/null
+    mkdir -p "kanban/issues/$rv/library"
+    jq -n --arg c "$s" '{commit: $c, findings: []}' > "kanban/issues/$rv/library/findings.json"
+    as dispatcher kanban start "$rv" >/dev/null; as dispatcher kanban review "$rv" >/dev/null
+    git -C "$g" switch -q main
+    if [ "$how" = squash ]; then git -C "$g" merge -q --squash prev >/dev/null; git -C "$g" commit -qm 'prev (squash)'; else git -C "$g" merge -q --no-ff -m 'prev (merge)' prev >/dev/null; fi
+    git -C "$g" update-ref refs/remotes/origin/main main; git -C "$g" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+    git -C "$g" switch -q stk; git -C "$g" rebase -q --onto origin/main "$fork"
+    [ "$(git -C "$g" rev-parse HEAD)" != "$s" ] || die "載せ替えで head が変わっていない（$how）"
+    as t7 kanban set "$sid" stacked_on= stacked_base= >/dev/null
+    git -C "$g" rev-parse HEAD > "$tmp/prhead"
+    as t7 "$andon" issue report "$sid" <<<'## Report' >/dev/null
+    echo "$sid"
+}
+for how in squash merge; do
+    sid=$(restacked "$how" dispatcher)
+    expect_fail 'そのレビューを引き継ぐので頼まない' as t7 "$andon" issue review-request "$sid" <<<'## Report'
+done
+ok 'review-request: 積んでいた間のレビュー（review_base から数えた差分）は、前の課題が squash・マージ commit のどちらで入っても、衝突の無い載せ替えのあとの head に引き継がれ、頼み直しを求めない'
+sid=$(restacked squash t7)
+as t7 "$andon" issue review-request "$sid" <<<'## Report' >/dev/null || { cat "$tmp/err" >&2; die '担当の端末が書いた review_base のレビューを引き継いだ'; }
+jq -e '.review_request.round == 2' "kanban/issues/$sid/library/report.json" >/dev/null || die "担当の端末が書いた review_base で 2 回目を頼まない: $(jq -c .review_request "kanban/issues/$sid/library/report.json")"
+ok 'review-request: 担当の端末が書いた review_base は信じず、既定の branch との merge-base から数えて、載せ替えのあとに頼み直す'
+
 echo "all passed ($pass)"

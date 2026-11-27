@@ -232,3 +232,112 @@ func TestCheckReviewLatestRoundAfterEmptyReturn(t *testing.T) {
 		t.Errorf("起動し直した回の結果をレビューに数えない: %+v", r)
 	}
 }
+
+// stackedRepo は、前の課題の branch（prev）の上に積んだ課題の commit（S）を持つ repo。前の課題の変更は p.txt、積んだ課題の変更は
+// a.txt の関数の中の行。fix が true なら、前の課題に、積んだ課題の変更を囲む関数の宣言の行を変える直しを足してから main に入れる。
+// how は前の課題の入れ方（squash か merge）。積んだ課題を載せ替えた（git rebase --onto origin/main <分かれ目>）head も返す。
+func stackedRepo(t *testing.T, how string, fix bool) (g *gitRepo, fork, reviewed, restacked string) {
+	body := "func A() {\n" + strings.Repeat("\tx\n", 8) + "\ty\n}\n"
+	g = newGitRepo(t)
+	g.commit("base", map[string]string{"a.txt": body, "p.txt": "p\n"})
+	g.run("checkout", "-q", "-b", "prev")
+	fork = g.commit("prev", map[string]string{"p.txt": "p\nP\n"})
+	g.run("checkout", "-q", "-b", "stk")
+	reviewed = g.commit("stacked", map[string]string{"a.txt": strings.Replace(body, "\ty\n", "\tY\n", 1)})
+	g.run("checkout", "-q", "prev")
+	if fix {
+		g.commit("prev fix", map[string]string{"a.txt": strings.Replace(body, "func A() {", "func A(n int) {", 1)})
+	}
+	g.run("checkout", "-q", "main")
+	switch how {
+	case "squash":
+		g.run("merge", "-q", "--squash", "prev")
+		g.run("commit", "-q", "-m", "prev (squash)")
+	default:
+		g.run("merge", "-q", "--no-ff", "-m", "prev (merge)", "prev")
+	}
+	g.run("update-ref", "refs/remotes/origin/main", "main")
+	g.run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	g.run("checkout", "-q", "stk")
+	g.run("rebase", "-q", "--onto", "origin/main", fork)
+	return g, fork, reviewed, g.run("rev-parse", "HEAD")
+}
+
+// 積んでいた間のレビュー（起点は分かれ目。レビュアーの課題の review_base）は、衝突の無い載せ替えのあとの head に引き継がれる
+// （ADR-0067 決めたこと 9・受け入れ条件 10）。前の課題が squash で入っても、マージ commit で入っても同じ。前の課題のあとからの
+// 直しが囲む行を変えたときは引き継がない。担当の端末が書いた review_base は信じず、既定の branch との merge-base から数える。
+func TestCheckReviewAcrossRestack(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		how  string
+		fix  bool
+		by   string
+		want string
+	}{
+		{"squash で入った", "squash", false, DispatcherBy, "current"},
+		{"マージ commit で入った", "merge", false, DispatcherBy, "current"},
+		{"前の課題の直しが囲む行を変えた", "squash", true, DispatcherBy, "stale"},
+		{"担当の端末が書いた review_base", "squash", false, "terminal:t9", "stale"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g, fork, reviewed, head := stackedRepo(t, c.how, c.fix)
+			if reviewed == head {
+				t.Fatal("載せ替えで head が変わっていない")
+			}
+			l := At(t.TempDir())
+			os.MkdirAll(l.Dir, 0o755)
+			os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
+			task := Issue{"id": "D-0002", "status": "doing", "profile": "claude", "worktree": g.dir}
+			rev := Issue{"id": "D-0002-r1", "status": "review", "profile": "codex-review", "parent": "D-0002", "review_base": fork}
+			rows := []Row{{ID: "D-0002-r1", By: DispatcherBy, Change: map[string]any{"add": "x"}},
+				{ID: "D-0002-r1", By: c.by, Change: map[string]any{"review_base": fork}}}
+			lib := l.Library("D-0002-r1")
+			os.MkdirAll(lib, 0o755)
+			os.WriteFile(filepath.Join(lib, "findings.json"), []byte(`{"commit":"`+reviewed+`","findings":[]}`), 0o644)
+			if r := l.CheckReview(rows, []Issue{task, rev}, task, head, "major", nil, nil); r.State != c.want {
+				t.Errorf("state %s（want %s）: %s", r.State, c.want, r.Reason)
+			}
+		})
+	}
+}
+
+// 積んでいる間（信じられる stacked_base が在る間）、今の head の差分は分かれ目から数える。前の課題の branch が書き直されても、
+// 積んだ課題の自分の commit が同じなら、前の回のレビューを引き継ぐ。stacked_base を信じなければ（担当の端末が書いた）引き継がない。
+func TestCheckReviewWhileStacked(t *testing.T) {
+	g := newGitRepo(t)
+	g.commit("base", map[string]string{"a.txt": "a\n", "p.txt": "p\n"})
+	g.run("update-ref", "refs/remotes/origin/main", "main")
+	g.run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	g.run("checkout", "-q", "-b", "prev")
+	fork := g.commit("prev", map[string]string{"p.txt": "p\nP\n"})
+	g.run("checkout", "-q", "-b", "stk")
+	reviewed := g.commit("stacked", map[string]string{"a.txt": "a\nA\n"})
+	// 担当が commit を作り直した（git commit --amend。差分は同じで head だけが変わる）
+	g.run("commit", "-q", "--amend", "-m", "stacked (amended)")
+	head := g.run("rev-parse", "HEAD")
+	for _, c := range []struct {
+		name string
+		by   string
+		want string
+	}{
+		{"Chief of Staff の端末が書いた分かれ目", "terminal:t5", "current"},
+		{"担当の端末が書いた分かれ目", "terminal:t9", "stale"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			l := At(t.TempDir())
+			os.MkdirAll(l.Dir, 0o755)
+			os.WriteFile(filepath.Join(l.Dir, "config.yaml"), []byte("version: 3\nchief_of_staff: t5\n"), 0o644)
+			task := Issue{"id": "D-0002", "status": "doing", "profile": "claude", "worktree": g.dir, "stacked_on": "D-0001", "stacked_base": fork}
+			rev := Issue{"id": "D-0002-r1", "status": "review", "profile": "codex-review", "parent": "D-0002", "review_base": fork}
+			rows := []Row{{ID: "D-0002", By: c.by, Change: map[string]any{"stacked_on": "D-0001", "stacked_base": fork}},
+				{ID: "D-0002-r1", By: DispatcherBy, Change: map[string]any{"add": "x"}},
+				{ID: "D-0002-r1", By: DispatcherBy, Change: map[string]any{"review_base": fork}}}
+			lib := l.Library("D-0002-r1")
+			os.MkdirAll(lib, 0o755)
+			os.WriteFile(filepath.Join(lib, "findings.json"), []byte(`{"commit":"`+reviewed+`","findings":[]}`), 0o644)
+			if r := l.CheckReview(rows, []Issue{task, rev}, task, head, "major", nil, nil); r.State != c.want {
+				t.Errorf("state %s（want %s）: %s", r.State, c.want, r.Reason)
+			}
+		})
+	}
+}
