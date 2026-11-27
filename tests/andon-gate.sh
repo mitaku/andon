@@ -616,4 +616,35 @@ cp "$tmp/view.bak" "$tmp/gh/view.json"
 got=$(gate "$id"); [ "$got" != 1 ] || ! grep -q 'この課題の PR でない' "$tmp/out" || die 'この課題の PR を、この課題の PR でないと読んだ'
 ok 'この課題の PR でない PR（branch の名前が違う・同じ名前の branch の fork）には、gate は記録も印もコメントも書かずに fix を返す'
 
+# 15. 積んだ課題（ADR-0067 決めたこと 9・受け入れ条件 6）: 前の課題の PR の branch を force push で書き直したあとでも、gate が数える
+#     変更したファイルと行数は、分かれ目（stacked_base）から head までの、積んだ課題の自分の commit の分だけになる。
+#     偽の gh の PR の files と diff は、書き直しのあとに GitHub が見せる混ざった差分（前の課題の古い変更を含む）にしておく
+git -C "$tmp/origin" checkout -q -b prev
+fork=$(change Dockerfile 'FROM old')                       # 前の課題の変更（レベル C のパス）
+git -C "$tmp/origin" checkout -q -b stk
+stk=$(change docs/s.md one); stk=$(change docs/s.md two)   # 積んだ課題の自分の commit（docs だけ。2 行）
+git -C "$tmp/origin" checkout -q prev
+echo 'FROM new' > "$tmp/origin/Dockerfile"; git -C "$tmp/origin" add -A; as_agent git -C "$tmp/origin" commit -q --amend -m Dockerfile   # force push で書き直した前の課題
+[ "$(git -C "$tmp/origin" rev-parse prev)" != "$fork" ] || die '前の課題の branch を書き直せていない'
+jq -n --arg h "$stk" '{state:"OPEN",isDraft:true,headRefName:"stk",headRefOid:$h,baseRefName:"prev",
+  mergeStateStatus:"DIRTY",mergeable:"CONFLICTING",author:{login:"plant-bot"},changedFiles:2,isCrossRepository:false}' > "$tmp/gh/view.json"
+jq -n '[[{filename:"Dockerfile",additions:1,deletions:1},{filename:"docs/s.md",additions:2,deletions:0}]]' > "$tmp/gh/files.json"
+printf '+++ b/Dockerfile\n-FROM new\n+FROM old\n+++ b/docs/s.md\n+one\n+two\n' > "$tmp/gh/diff"
+prv=$(HC_TERMINAL_ID=t5 kanban add '前の課題' --profile claude)
+kid=$(HC_TERMINAL_ID=t5 kanban add '積んだ課題' --profile claude --after "$prv")
+HC_TERMINAL_ID=t5 kanban set "$kid" review=on must_fix=major branch=stk "worktree=$tmp/wt" repo=github.com/example/app stacked_on="$prv" stacked_base="$fork" >/dev/null
+HC_TERMINAL_ID=t5 kanban set "$kid" status=doing >/dev/null
+git -C "$tmp/wt" fetch -q origin && git -C "$tmp/wt" checkout -q "$stk"
+HC_TERMINAL_ID=t7 "$andon" issue report "$kid" --pr https://github.com/example/app/pull/7 <<<'## Report' >/dev/null
+HC_TERMINAL_ID=t7 kanban review "$kid" >/dev/null
+got=$(gate "$kid" --dry-run)
+jq -e '.changed_lines == 2 and .tier != "C" and ([.tier_reasons[] | select(contains("Dockerfile"))] | length == 0)' "$tmp/out" >/dev/null ||
+    { cat "$tmp/out" "$tmp/err" >&2; die "積んだ課題の差分に前の課題の変更が混ざった（rc $got）"; }
+grep -q 'changedFiles と合わない' "$tmp/out" && die '積んだ課題のファイルの件数を GitHub の数と比べた'
+# 否定の確かめが当たる場合があることを同じ所で見る: 担当の端末が書き直した分かれ目は信じず、GitHub の混ざった差分で数える
+HC_TERMINAL_ID=t7 kanban set "$kid" stacked_base="$fork" >/dev/null
+got=$(gate "$kid" --dry-run)
+jq -e '.tier == "C" and .changed_lines == 4' "$tmp/out" >/dev/null || { cat "$tmp/out" "$tmp/err" >&2; die "担当の端末が書いた分かれ目を信じた（rc $got）"; }
+ok '積んだ課題の gate は、前の課題の branch を書き直したあとも、分かれ目から数えた自分の変更だけでレベルと行数を決める（担当の端末が書いた分かれ目は信じない）'
+
 echo "all passed ($pass)"

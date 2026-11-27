@@ -7,6 +7,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/delegate"
+	"andon/internal/ledger"
 )
 
 // ReviewRequired は独立レビューが要るか。gate の L3 と、レビューを受ける側（andon issue review-request・ready・
@@ -20,8 +21,10 @@ func ReviewRequired(tier, review string) bool {
 // NeedsReview は課題にレビューが要るかを、gate と同じ条件表・同じ分類で決める。
 // review が on なら PR を読まずに要る。off なら PR の差分のレベル（受け入れ条件の manual と risk.one_way で上げる分を含む。
 // review: on で上げる分は含まない）で決め、決めたレベルと理由を返す。on・off のどちらでもなければ要らない（呼ぶ側が断る）。
-// 差分は今の PR のもので、呼ぶ側が PR の head を確かめてから呼ぶ（gate は回すときに自分で読み直す）。
-func NeedsReview(repo, review string, rep *contract.Report) (bool, Classified, error) {
+// 差分は今の PR のもので、呼ぶ側が PR の head（head）を確かめてから呼ぶ（gate は回すときに自分で読み直す）。
+// 積んだ課題（rows と cos で信じられる stacked_on・stacked_base がある）の差分は、gate と同じく分かれ目から数える（prChanges。ADR-0067 決めたこと 9）。
+func NeedsReview(rows []ledger.Row, cos string, t ledger.Issue, review string, rep *contract.Report, head string) (bool, Classified, error) {
+	repo := t.Str("repo")
 	switch review {
 	case "on":
 		return true, Classified{}, nil
@@ -41,11 +44,7 @@ func NeedsReview(repo, review string, rep *contract.Report) (bool, Classified, e
 		return false, Classified{}, err
 	}
 	slug := owner + "/" + name
-	files, err := PRFiles(slug, number)
-	if err != nil {
-		return false, Classified{}, err
-	}
-	diff, err := gh("pr", "diff", number, "--repo", slug)
+	files, diff, err := prChanges(rows, cos, t, slug, number, head)
 	if err != nil {
 		return false, Classified{}, err
 	}

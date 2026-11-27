@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"andon/internal/contract"
+	"andon/internal/ledger"
 )
 
 func TestReviewRequired(t *testing.T) {
@@ -51,13 +52,13 @@ func TestReviewRequiredForReviewOffDiffs(t *testing.T) {
 }
 
 func TestNeedsReviewWithoutPR(t *testing.T) {
-	if need, _, err := NeedsReview("github.com/example/app", "on", nil); !need || err != nil {
+	if need, _, err := NeedsReview(nil, "", ledger.Issue{"repo": "github.com/example/app"}, "on", nil, ""); !need || err != nil {
 		t.Errorf("on: need %v err %v", need, err)
 	}
-	if need, _, err := NeedsReview("github.com/example/app", "", nil); need || err != nil {
+	if need, _, err := NeedsReview(nil, "", ledger.Issue{"repo": "github.com/example/app"}, "", nil, ""); need || err != nil {
 		t.Errorf("空: need %v err %v", need, err)
 	}
-	if _, _, err := NeedsReview("github.com/example/app", "off", &contract.Report{}); err == nil {
+	if _, _, err := NeedsReview(nil, "", ledger.Issue{"repo": "github.com/example/app"}, "off", &contract.Report{}, ""); err == nil {
 		t.Error("off で pr の無い報告を誤りにしない")
 	}
 }

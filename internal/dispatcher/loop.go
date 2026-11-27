@@ -245,7 +245,7 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		return fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12]), true
 	}
 	if s.Review == "off" {
-		need, cl, err := gate.NeedsReview(r.Repo, s.Review, rep)
+		need, cl, err := gate.NeedsReview(p.rows, p.l.ChiefOfStaff(), t, s.Review, rep, rr.Commit)
 		if err != nil {
 			return "差分のレベルを決められない: " + err.Error(), false
 		}

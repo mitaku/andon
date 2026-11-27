@@ -372,7 +372,7 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	if ph != head {
 		return fail("PR の head（%s）が HEAD（%s）と違う。push してから頼む", ph[:12], head[:12])
 	}
-	need, cl, err := gate.NeedsReview(c.issue.Str("repo"), s.Review, prev)
+	need, cl, err := gate.NeedsReview(c.l.Log(), c.l.ChiefOfStaff(), c.issue, s.Review, prev, head)
 	if err != nil {
 		return fail("差分のレベルを決められない（レビューが要るか分からない）: %v", err)
 	}
@@ -562,7 +562,7 @@ func (c *ctx) ready(stdout io.Writer) error {
 	if s.Review == "" {
 		return fail("issue.yaml の review が on/off でない（%q）。Chief of Staff に書いてもらう", c.issue.Str("review"))
 	}
-	need, cl, err := gate.NeedsReview(c.issue.Str("repo"), s.Review, r)
+	need, cl, err := gate.NeedsReview(c.l.Log(), c.l.ChiefOfStaff(), c.issue, s.Review, r, head)
 	if err != nil {
 		return fail("差分のレベルを決められない（gate がレビューを求めるか分からない）: %v", err)
 	}

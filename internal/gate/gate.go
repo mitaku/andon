@@ -385,15 +385,12 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
 	}
 
-	files, err := PRFiles(slug, number)
+	files, diff, err := prChanges(rows, l.ChiefOfStaff(), t, slug, number, head)
 	if err != nil {
 		return nil, "", err
 	}
-	diff, err := gh("pr", "diff", number, "--repo", slug)
-	if err != nil {
-		return nil, "", err
-	}
-	if len(files) != pv.ChangedFiles {
+	if _, _, stacked := ledger.Stacked(rows, t, l.ChiefOfStaff()); !stacked && len(files) != pv.ChangedFiles {
+		// 積んだ課題のファイルは分かれ目から数えるので、GitHub の数（PR の base との数）とは比べない
 		facts.Blockers = append(facts.Blockers, "files の件数が changedFiles と合わない（一覧の上限・取得中の変更）")
 	}
 	// 衝突は mergeable でも読む: 必須の check が足りない PR は mergeStateStatus が BLOCKED になり、
@@ -590,6 +587,24 @@ func ParseCompare(b []byte) ([]File, int, bool, error) {
 		files = append(files, File{Path: f.Filename, PreviousPath: f.PreviousFilename})
 	}
 	return files, *v.AheadBy, len(*v.Files) >= compareFilesLimit, nil
+}
+
+// prChanges は PR の変更したファイルと差分。ふつうは GitHub の PR の files と `gh pr diff` で取り、積んだ課題
+// （信じられる stacked_on・stacked_base がある。ledger.Stacked）は分かれ目から head までで取る（StackedDiff。ADR-0067 決めたこと 9）。
+// gate とレビューが要るかの判定（NeedsReview）は、この1つで差分を取る。
+func prChanges(rows []ledger.Row, cos string, t ledger.Issue, slug, number, head string) ([]File, []byte, error) {
+	if _, base, ok := ledger.Stacked(rows, t, cos); ok {
+		return StackedDiff(t.Str("repo"), base, head)
+	}
+	files, err := PRFiles(slug, number)
+	if err != nil {
+		return nil, nil, err
+	}
+	diff, err := gh("pr", "diff", number, "--repo", slug)
+	if err != nil {
+		return nil, nil, err
+	}
+	return files, diff, nil
 }
 
 // PRFiles は PR の変更されたファイル（REST を全ページ。GraphQL の files は100件で切れ、rename 元も無い）。
