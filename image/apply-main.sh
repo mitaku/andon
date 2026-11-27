@@ -313,8 +313,9 @@ apply() {
     && CGO_ENABLED=0 "$go" build -trimpath -ldflags "-s -w -X main.version=$(short "$commit")" -o "$build/kanban" ./cmd/kanban \
     && CGO_ENABLED=0 "$go" build -trimpath -ldflags "-s -w" -o "$build/pkg/bin/andon" ./cmd/andon) \
     || die "go build に失敗した（何も入れ替えていない）"
-  # ローカルの tray: image/Dockerfile の段 tray と同じ物を組む（ADR-0064 決めたこと 26）。tray/ の無い commit では組まない
-  if [ -d "$build/src/tray" ]; then
+  # ローカルの tray: image/Dockerfile の段 tray と同じ物を組む（ADR-0064 決めたこと 26）。tray/ の無い commit では組まない。
+  # ANDON_TRAY_OFF が 0 でない値なら組まない（tests/lib/isolate.sh が検査で tray を切る。tray の検査は tray の CI の job が回す）
+  if [ -d "$build/src/tray" ] && { [ -z "${ANDON_TRAY_OFF:-}" ] || [ "$ANDON_TRAY_OFF" = 0 ]; }; then
     local bun
     bun=$(bunbin)
     (cd "$build/src/tray" \

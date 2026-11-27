@@ -10,6 +10,7 @@
 #     一時ディレクトリの中の無い場所へ向ける。要る検査はこのあとで自分の置き場を指す。
 #   - 報告を集めて読む場所へ送るのを切る（ANDON_TRAY_OFF。ADR-0064 決めたこと 15）。andon publish と andon digest send は
 #     送らずに files/ へ写し、andon issue report は kanban にだけ書く。セルで動いている本物の送り先に検査の報告を届けない。
+#     image/apply-main.sh もその場所を組まない（組む道具は検査の環境に無いことがあり、その検査は別の CI の job が回す）。
 # 呼ぶ側は $tmp（後片付けする一時ディレクトリ。mktemp -d）を先に作っておく。
 ceiling=$(cd "$(dirname "$tmp")/.." && pwd -P)
 case ":${GIT_CEILING_DIRECTORIES:-}:" in
