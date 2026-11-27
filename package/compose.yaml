@@ -1,10 +1,10 @@
 # セルの compose（パッケージの持ち物）。セルの bin/bootstrap がイメージから .andon/compose.yaml に取り出して使う。
 # セルの repo では書き換えない。セルに固有のサービスはセルの compose.override.yaml に書く（bootstrap が重ねる）。
-# 番号とタイムゾーンはセルの .env（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。ANDON_IMAGE・ANDON_SLUG・ANDON_ENTRY は bootstrap が渡す。
+# 番号とタイムゾーンはセルの .env（SSH_PORT・PORTLESS_PORT・TRAY_PORT・CELL_TZ）。ANDON_IMAGE・ANDON_SLUG・ANDON_ENTRY は bootstrap が渡す。
 services:
   dev:
     image: ${ANDON_IMAGE:?bin/bootstrap から起動する}
-    # 毎起動、パッケージから配布物を生成し、portless・sshd・dispatcher を起動してから待つ
+    # 毎起動、パッケージから配布物を生成し、portless・ローカルの tray・sshd・dispatcher を起動してから待つ
     command: ["bash", "-c", "andon boot; exec sleep infinity"]
     # コンテナのホスト名をセルの名前にする（プロンプトと portless の名前に出る）
     hostname: ${ANDON_SLUG:?bin/bootstrap から起動する}
@@ -36,6 +36,8 @@ services:
       - signals:/opt/andon-home/.config/andon/signals
       # ダイジェストを送る Slack の bot のトークン（andon digest auth slack。ADR-0044 決めたこと 14）。読み取り専用の signals とは分ける
       - digest:/opt/andon-home/.config/andon/digest
+      # Cloudflare の tray の API キー（andon tray auth。ADR-0064 決めたこと 19）。ローカルの tray のデータは state の下
+      - tray:/opt/andon-home/.config/andon/tray
       - herdr:/opt/andon-home/.config/herdr
       - herdr-core:/opt/andon-home/.config/herdr-core
       - ssh:/opt/andon-home/.ssh
@@ -53,6 +55,7 @@ volumes:
   gh:
   signals:
   digest:
+  tray:
   herdr:
   herdr-core:
   ssh:

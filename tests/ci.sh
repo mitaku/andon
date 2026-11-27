@@ -25,11 +25,15 @@ grep -q 'yomiyasu-words' .dockerignore && die ".yomiyasu-words/ を image に入
 grep -q '^!package/$' .dockerignore || die ".dockerignore の !package/ の行が読めない（上の否定が何も見ていない）"
 grep -q 'COPY .*image/apply-main' image/Dockerfile && die "image/apply-main.sh を image に入れるなら image-scope.sh も直す"
 grep -q 'COPY .*image/' image/Dockerfile || die "Dockerfile の COPY image/ の行が読めない（上の否定が何も見ていない）"
-# tray（ADR-0064）: まだ image に入らないので、tray/ だけの変更で image を焼かない。名前の似た別の置き場は知らないパス
-[ "$(scope tray/src/list.ts tray/bun.lock tray/package.json)" = false ] || die "tray/ だけで true"
-[ "$(scope trayx/a)" = true ] || die "tray/ でない名前の似た置き場で false"
-grep -q 'tray' .dockerignore && die "tray/ を image に入れるなら image-scope.sh も直す"
-grep -q 'tray' image/Dockerfile && die "tray を image に焼くなら image-scope.sh も直す"
+# tray（ADR-0064）: image の段 tray が tray/ をビルドして焼くので、tray/ の変更で image を焼く。検査（tray/test/）だけなら焼かない
+[ "$(scope tray/test/upload.test.ts)" = false ] || die "tray/test/ だけで true"
+[ "$(scope tray/src/list.ts)" = true ] || die "tray/src/ で false"
+[ "$(scope tray/bun.lock)" = true ] || die "tray/bun.lock で false"
+[ "$(scope tray/testx/a)" = true ] || die "tray/test/ でない名前の似た置き場で false"
+grep -q '^COPY --from=tray ' image/Dockerfile || die "Dockerfile が段 tray を焼かない（tray/ の変更で image を焼く理由が無い）"
+# 段 tray が写すものに tray/test/ が入るなら、tray/test/ の変更でも焼く
+copy=$(grep -E 'cp -R dist ' image/Dockerfile) || die "段 tray の cp の行が読めない（下の否定が何も見ていない）"
+grep -qwE 'test|\.' <<<"$copy" && die "段 tray が tray/test/ を写すなら image-scope.sh も直す"
 grep -q 'package' image/Dockerfile || die "Dockerfile が読めない（上の否定が何も見ていない）"
 for p in image/Dockerfile image/build.sh package/skills/x/SKILL.md schema/report.schema.json cmd/andon/main.go \
   internal/issue/issue.go init/x go.mod go.sum embed.go .dockerignore mise.toml .github/workflows/tests.yml \
@@ -80,8 +84,9 @@ done
 [ "$(printf '%s\n' AGENTS.md | bash tests/lib/docs-scope.sh)" = true ] || die "AGENTS.md だけが文書だけにならない"
 has "$(pick AGENTS.md)" tests/agents-md.sh || die "AGENTS.md だけで agents-md.sh が無い: $(pick AGENTS.md)"
 [ "$(pick AGENTS.md)" = "$always" ] || die "AGENTS.md だけ: $(pick AGENTS.md)"
-# tray/ は tests/*.sh が読まず、job tray が回す（ADR-0064）。いつもの分だけ
-[ "$(pick tray/src/list.ts tray/bun.lock)" = "$always" ] || die "tray/ だけ: $(pick tray/src/list.ts tray/bun.lock)"
+# tray/ は tests/*.sh が読まず、job tray が回す（ADR-0064）。いつもの分と、image に焼くので image.sh。検査（tray/test/）だけならいつもの分だけ
+[ "$(pick tray/src/list.ts tray/bun.lock)" = "${always/tests\/ci.sh /tests/ci.sh tests/image.sh }" ] || die "tray/ だけ: $(pick tray/src/list.ts tray/bun.lock)"
+[ "$(pick tray/test/upload.test.ts)" = "$always" ] || die "tray/test/ だけ: $(pick tray/test/upload.test.ts)"
 # contract.md は schema.sh・package.sh。schema.sh を選んだら、読ませる emitters も並べる（schema.sh が1本ずつ回し直さない）
 got=$(pick docs/contract.md)
 for t in tests/package.sh tests/schema.sh $emitters; do has "$got" "$t" || die "contract.md で $t が無い: $got"; done

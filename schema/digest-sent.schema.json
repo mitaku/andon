@@ -26,7 +26,7 @@
       "$ref": "#/$defs/time"
     },
     "destinations": {
-      "description": "One entry per destination. files: the cell's files/ (always). slack: the channel in project.json's digest. Every destination is written as not done before anything is sent, so an interrupted run is not taken as done.",
+      "description": "One entry per destination. files: placed in the cell (always): the local tray, or the cell's files/ when the local tray was not reached (ADR-0064 decisions 8 and 11). tray: the Cloudflare tray, only when the project chose it. slack: the channel in project.json's digest. Every destination is written as not done before anything is sent, so an interrupted run is not taken as done.",
       "type": "array",
       "minItems": 1,
       "items": {
@@ -44,7 +44,7 @@
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
     },
     "destination": {
-      "description": "The result of one destination: when, whether it was done, and where it is (done: files' URL, slack's file id) or the reason (not done).",
+      "description": "The result of one destination: when, whether it was done, and where it is (done: files' URL or path, tray's URL, slack's file id) or the reason (not done).",
       "type": "object",
       "required": [
         "kind",
@@ -57,6 +57,7 @@
           "description": "The destination.",
           "enum": [
             "files",
+            "tray",
             "slack"
           ]
         },
@@ -69,9 +70,14 @@
           "type": "boolean"
         },
         "url": {
-          "description": "Where the owner opens it (files: the files server's URL).",
+          "description": "Where the owner opens it (files: the local tray's URL; tray: the Cloudflare tray's URL).",
           "type": "string",
           "pattern": "^https?://[!-~]+$"
+        },
+        "path": {
+          "description": "files, done, when the local tray was not reached: the page's path in the cell's repo (files/<name>.html).",
+          "type": "string",
+          "pattern": "^files/[^/\\n\\r]+$"
         },
         "channel": {
           "description": "slack: the channel it was sent to, or was to be sent to.",
@@ -110,17 +116,71 @@
                   "required": [
                     "file"
                   ]
+                },
+                {
+                  "required": [
+                    "url",
+                    "path"
+                  ]
                 }
               ]
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "tray"
+              }
+            }
           },
-          "else": {
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "channel"
+                  ]
+                },
+                {
+                  "required": [
+                    "file"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "slack"
+              }
+            }
+          },
+          "then": {
             "required": [
               "channel"
             ],
             "not": {
-              "required": [
-                "url"
+              "anyOf": [
+                {
+                  "required": [
+                    "url"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                }
               ]
             }
           }
@@ -138,6 +198,11 @@
               {
                 "required": [
                   "url"
+                ]
+              },
+              {
+                "required": [
+                  "path"
                 ]
               },
               {
@@ -161,6 +226,11 @@
                 {
                   "required": [
                     "url"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
                   ]
                 },
                 {

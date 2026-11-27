@@ -13,7 +13,7 @@ import (
 
 // HomeVolumes は package/compose.yaml が HOME（/opt/andon-home）の下に重ねる volume の置き場（HOME からの相対）。
 var HomeVolumes = []string{
-	".claude", ".local/share/claude", ".codex", ".agents", ".config/gh", ".config/andon/signals", ".config/andon/digest", ".config/herdr",
+	".claude", ".local/share/claude", ".codex", ".agents", ".config/gh", ".config/andon/signals", ".config/andon/digest", ".config/andon/tray", ".config/herdr",
 	".config/herdr-core", ".ssh", ".portless", ".local/state",
 	".local/share/mise",
 }

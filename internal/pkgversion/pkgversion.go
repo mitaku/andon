@@ -112,7 +112,10 @@ func Stamp(root, revision string) error {
 	return os.Rename(tmp, filepath.Join(root, stampFile))
 }
 
-// Digest は root の中身の digest（"sha256:<hex>"）。
+// TrayDeps は Digest が数えない、ローカルの tray の依存の置き場（root からの相対。ADR-0064 決めたこと 26）。
+const TrayDeps = "tray/node_modules"
+
+// Digest は root の中身の digest（"sha256:<hex>"。TrayDeps の下は数えない）。
 func Digest(root string) (string, error) {
 	var lines []string
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -125,7 +128,8 @@ func Digest(root string) (string, error) {
 		}
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
-			if d.Name() == "__pycache__" {
+			// tray の依存（約 190 MB）は数えない。andon version と役の起動の記録が毎回読む。依存は同じ置き場の bun.lock で決まる
+			if d.Name() == "__pycache__" || rel == TrayDeps {
 				return filepath.SkipDir
 			}
 			return nil

@@ -58,7 +58,8 @@ func projectLeaves() []leaf {
 }
 
 // A11: プロジェクトが決まらないとき、プロジェクトを読む葉はどれも終了コード 2 を返し、セルのプロジェクトの一覧と
-// --project を付ける1行を出す。葉は打たない。フックが打つ葉は 2 を返さずに葉に渡し、省くと全部を回る dispatcher は決めない。
+// --project を付ける1行を出す。葉は打たない。フックが打つ葉とプロジェクトが無くてよい葉（publish・tray status。ADR-0064 決めたこと 8）は
+// 2 を返さずに葉に渡し、省くと全部を回る dispatcher は決めない。
 func TestProjectUndecided(t *testing.T) {
 	cell(t, "a", "b")
 	calls := spyLeaves(t)
@@ -69,9 +70,9 @@ func TestProjectUndecided(t *testing.T) {
 		*calls = nil
 		rc, out, errs := run(l.words()...)
 		switch {
-		case l.hook || l.every:
+		case l.hook || l.every || l.optional:
 			if rc != 0 || len(*calls) != 1 {
-				t.Errorf("%s: フックか全部を回る葉なのに止めた: rc=%d calls=%v err=%q", l.name, rc, *calls, errs)
+				t.Errorf("%s: フックか全部を回る葉かプロジェクトが無くてよい葉なのに止めた: rc=%d calls=%v err=%q", l.name, rc, *calls, errs)
 			}
 		case rc != 2 || out != "" || len(*calls) != 0:
 			t.Errorf("%s: rc=%d out=%q calls=%v（2 で葉を打たずに断る）", l.name, rc, out, *calls)

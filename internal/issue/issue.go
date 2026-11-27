@@ -22,9 +22,11 @@ import (
 	"time"
 
 	"andon/internal/contract"
+	"andon/internal/delegate"
 	"andon/internal/gate"
 	"andon/internal/ledger"
 	"andon/internal/spawn"
+	"andon/internal/tray"
 )
 
 const (
@@ -229,7 +231,7 @@ func checkReportHeading(md string) error {
 	return fail("人が読む報告（Markdown）に見出し「## Report」の行が無い（コードフェンスの中は数えない）。本文が消えていないか確かめ、報告の全体を stdin で渡す（worker skill §7 の書式）")
 }
 
-func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
+func (c *ctx) write(r *contract.Report, md string, stdout, stderr io.Writer) error {
 	if err := r.Check(); err != nil {
 		return fail("report.json の形が違う: %v", err)
 	}
@@ -245,10 +247,33 @@ func (c *ctx) write(r *contract.Report, md string, stdout io.Writer) error {
 	}
 	fmt.Fprintln(stdout, out)
 	fmt.Fprintf(stdout, "%s/library/report.json written\n", c.id)
+	c.sendTray(md, stderr)
 	return nil
 }
 
-func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
+// sendTray は人が読む報告を tray に送る（ADR-0064 決めたこと 12）。名前は課題ごとに1つで日付を付けず、出し直すと新しいバージョンになる。
+// 送れなくても報告は成り立つ。理由は stderr に出し、files/ には写さない。
+func (c *ctx) sendTray(md string, stderr io.Writer) {
+	remote, err := tray.RemoteFor(delegate.Workspace(), c.l.Slug)
+	if err != nil {
+		fmt.Fprintf(stderr, "andon issue: Cloudflare の tray を選んだかを読めないので、ローカルの tray にだけ送る: %v\n", err)
+		remote = nil
+	}
+	title := c.id
+	if c.issue.Str("title") != "" {
+		title += " " + c.issue.Str("title")
+	}
+	d := tray.Send(tray.Report{Project: c.l.Slug, Name: c.id, Title: title, Kind: tray.KindReport,
+		ContentType: "text/markdown; charset=utf-8", Body: []byte(md)}, remote)
+	if tray.Off() {
+		return // 検査が切っている（知らせると、報告の出力を確かめる検査がずれる）
+	}
+	for _, w := range d.Warnings() {
+		fmt.Fprintf(stderr, "andon issue: %s（報告は kanban に書いた）\n", w)
+	}
+}
+
+func (c *ctx) report(stdin io.Reader, stdout, stderr io.Writer, pr, data string) error {
 	md, err := readMarkdown(stdin)
 	if err != nil {
 		return err
@@ -312,7 +337,7 @@ func (c *ctx) report(stdin io.Reader, stdout io.Writer, pr, data string) error {
 			return fail("PR の branch（%s）が課題の branch（%s）と違う。この課題の PR でないので pr に書かない（PR を出さない課題なら --pr を付けない）: %s", got, branch, r.PR)
 		}
 	}
-	return c.write(r, md, stdout)
+	return c.write(r, md, stdout, stderr)
 }
 
 func carriedReviewRequest(prev *contract.Report, head string) *contract.ReviewRequest {
@@ -342,7 +367,7 @@ func (c *ctx) samePRRepo(pr string) error {
 	return nil
 }
 
-func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
+func (c *ctx) reviewRequest(stdin io.Reader, stdout, stderr io.Writer) error {
 	md, err := c.reviewMarkdown(stdin)
 	if err != nil {
 		return err
@@ -398,7 +423,7 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout io.Writer) error {
 	if previous != nil {
 		line += fmt.Sprintf("。前回 %s（差分だけ）", *previous)
 	}
-	return c.write(&r, reviewHeader+line+"\n\n"+md, stdout)
+	return c.write(&r, reviewHeader+line+"\n\n"+md, stdout, stderr)
 }
 
 const reviewHeader = "## レビュー依頼\n"

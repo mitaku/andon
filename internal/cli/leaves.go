@@ -24,6 +24,7 @@ import (
 	"andon/internal/signal"
 	"andon/internal/tools"
 	"andon/internal/trace"
+	"andon/internal/tray"
 	"andon/internal/triage"
 	"andon/internal/waiting"
 )
@@ -68,6 +69,7 @@ type leaf struct {
 	project  bool     // プロジェクトを読むか（--project を受ける。決め方は project.go）
 	ownFlag  bool     // --project を葉が自分で読む（振り分けは確かめるだけで、外さない）
 	hook     bool     // フックが打つ（決まらなくても 2 を返さず葉に渡す。決めたこと 15）
+	optional bool     // プロジェクトが決まらなくても 2 を返さず葉に渡す（葉はプロジェクトの無い報告として扱う。ADR-0064 決めたこと 8）
 	every    bool     // --project を省くと全部のプロジェクトを回る（dispatcher）
 	json     jsonForm // JSON を出せるか、どう出すか（決めたこと 13）
 	slugArg  bool     // 引数にプロジェクトの slug を取るか（補完が slug を補う）
@@ -84,7 +86,7 @@ var leaves = []leaf{
 		exits: []exit{{3, "起動したが最初のメッセージが届いていない"}}, writes: true, slugArg: true, run: open.Main},
 	{name: "version", who: []who{machine}, about: "パッケージの置き場の commit と、中身がその commit と食い違うかを JSON で出す",
 		usage: pkgversion.Usage, examples: []string{"version"}, json: jsonAlways, run: pkgversion.Main},
-	{name: "boot", who: []who{machine, owner}, about: "パッケージからセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する（毎起動）",
+	{name: "boot", who: []who{machine, owner}, about: "パッケージからセルへ配布物を生成し、portless・ローカルの tray・sshd・dispatcher を起動する（毎起動）",
 		usage: boot.Usage, examples: []string{"boot"}, writes: true, run: boot.Main},
 
 	// オーナーが打つ
@@ -113,6 +115,10 @@ var leaves = []leaf{
 		usage: signal.AuthUsage, examples: []string{"signal auth sentry"}, writes: true, run: signal.AuthMain},
 	{name: "digest auth", who: []who{owner}, about: "ダイジェストを送る Slack の bot のトークンをセルの中で聞いて置く",
 		usage: digest.AuthUsage, examples: []string{"digest auth slack"}, writes: true, run: digest.AuthMain},
+	{name: "tray auth", who: []who{owner}, about: "Cloudflare の tray の API キーをセルの中で聞いて置く",
+		usage: tray.AuthUsage, examples: []string{"tray auth"}, writes: true, run: tray.AuthMain},
+	{name: "tray status", who: []who{owner, role}, about: "ローカルの tray と Cloudflare の tray の URL・到達・バージョン・直近 7 日の枚数を出す",
+		usage: tray.StatusUsage, examples: []string{"tray status"}, project: true, optional: true, run: tray.StatusMain},
 	{name: "cell init", who: []who{owner}, about: "セルの repo の雛形（<slug>-cell）を作る",
 		usage: plantinit.Usage, examples: []string{"cell init sample"}, writes: true, run: plantinit.Main},
 
@@ -157,8 +163,8 @@ var leaves = []leaf{
 		usage: issue.ReadyUsage, examples: []string{"issue ready S-0012"}, writes: true, project: true, run: issue.Ready},
 	{name: "news ack", who: []who{role}, about: "届いた <news> にオーナーへ言うことが無いと示す",
 		usage: dispatcher.NewsUsage, examples: []string{"news ack"}, writes: true, run: dispatcher.NewsAck},
-	{name: "publish", who: []who{role}, about: "生成したファイルを files/ へ公開し、URL を返す",
-		usage: publish.Usage, examples: []string{"publish report.html sample-site"}, writes: true, run: publish.Main},
+	{name: "publish", who: []who{role}, about: "生成したファイルを tray へ出し、オーナーに渡す URL を1行返す",
+		usage: publish.Usage, examples: []string{"publish report.html weekly", "publish notes.md --title 週の報告"}, writes: true, project: true, optional: true, run: publish.Main},
 	{name: "triage collect", who: []who{role}, about: "kanban の溜まったものと repo ごとの最新の main を JSON に集める",
 		usage: triage.CollectUsage, examples: []string{"triage collect --limit 50"},
 		exits: []exit{{4, "項目が上限を超えた"}}, project: true, json: jsonAlways, run: triage.Collect},
@@ -176,7 +182,7 @@ var leaves = []leaf{
 		usage: digest.CollectUsage, examples: []string{"digest collect S-0050"}, writes: true, project: true, run: digest.CollectMain},
 	{name: "digest build", who: []who{role}, about: "担当が書いた JSON を照らし、1 枚の HTML とメッセージを書く",
 		usage: digest.BuildUsage, examples: []string{"digest build S-0050 -"}, writes: true, project: true, run: digest.BuildMain},
-	{name: "digest send", who: []who{role}, about: "ダイジェストを files/ と送り先へ出す",
+	{name: "digest send", who: []who{role}, about: "ダイジェストを tray と送り先へ出す",
 		usage: digest.SendUsage, examples: []string{"digest send S-0050"}, writes: true, project: true, run: digest.SendMain},
 	{name: "digest check", who: []who{role, owner}, about: "送り先へ確かめの小さなファイルを送る",
 		usage: digest.CheckUsage, examples: []string{"digest check"}, writes: true, project: true, run: digest.CheckMain},
@@ -206,8 +212,8 @@ var leaves = []leaf{
 		usage: signal.CollectUsage, examples: []string{"signal collect --due"}, writes: true, project: true, ownFlag: true, run: signal.CollectMain},
 	{name: "signal delivered", who: []who{machine}, about: "通知 signal で届けた出来事を記録に書く",
 		usage: signal.DeliveredUsage, examples: []string{"signal delivered <fingerprint> <episode>"}, writes: true, project: true, ownFlag: true, run: signal.DeliveredMain},
-	{name: "boot serve-files", who: []who{machine}, about: "files サーバ（boot が自分で起動する）",
-		usage: boot.ServeFilesUsage, examples: []string{"boot serve-files /workspace/files 8080"}, run: boot.ServeFilesMain},
+	{name: "tray serve", who: []who{machine}, about: "ローカルの tray を動かす常駐（boot が起動する）",
+		usage: tray.ServeUsage, examples: []string{"tray serve"}, writes: true, run: tray.ServeMain},
 	{name: "otel serve", who: []who{machine}, about: "ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く",
 		usage: otel.ServeUsage, examples: []string{"otel serve"}, writes: true, run: otel.ServeMain},
 	{name: "otel env", who: []who{machine}, about: "役の起動の行に、Claude Code か Codex が受け口へトレースとログを送る設定を出す（template が読む）",
@@ -236,7 +242,6 @@ var renames = map[string]string{
 	"publish":          "file publish",
 	"dispatcher":       "dispatcher run",
 	"signal delivered": "signal mark-delivered",
-	"boot serve-files": "cell serve-files",
 	"version stamp":    "package stamp",
 }
 

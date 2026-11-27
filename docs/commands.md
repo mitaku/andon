@@ -21,6 +21,8 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon metrics show` | オーナー・役 | kanban と記録からラインの流れ・効率・対抗の指標を数える |
 | `andon signal auth` | オーナー | 外の信号の出所のトークンをセルの中で聞いて置く |
 | `andon digest auth` | オーナー | ダイジェストを送る Slack の bot のトークンをセルの中で聞いて置く |
+| `andon tray auth` | オーナー | Cloudflare の tray の API キーをセルの中で聞いて置く |
+| `andon tray status` | オーナー・役 | ローカルの tray と Cloudflare の tray の URL・到達・バージョン・直近 7 日の枚数を出す |
 | `andon cell init` | オーナー | セルの repo の雛形（&lt;slug&gt;-cell）を作る |
 | `andon issue trace` | オーナー・役 | 課題 1 件の流れ（段・起動・プロンプト・モデルの呼び出しとツール）を 1 本の木にして出す（読むだけ） |
 
@@ -44,7 +46,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon issue record` | 役 | worktree で command を走らせ、出力と終了コードを証拠として残す |
 | `andon issue ready` | 役 | HEAD・report.json・PR・レビューが揃っていれば kanban を review にする |
 | `andon news ack` | 役 | 届いた &lt;news&gt; にオーナーへ言うことが無いと示す |
-| `andon publish` | 役 | 生成したファイルを files/ へ公開し、URL を返す |
+| `andon publish` | 役 | 生成したファイルを tray へ出し、オーナーに渡す URL を1行返す |
 | `andon triage collect` | 役 | kanban の溜まったものと repo ごとの最新の main を JSON に集める |
 | `andon triage apply` | 役 | 仕分けの決定（decisions.json）を kanban に当てる |
 | `andon triage verdict` | 役 | 判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く |
@@ -53,7 +55,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon retro apply` | 役 | パターンの一覧の fix を直す課題に切る |
 | `andon digest collect` | 役 | 期間の記録を library/digest/input.json に集める |
 | `andon digest build` | 役 | 担当が書いた JSON を照らし、1 枚の HTML とメッセージを書く |
-| `andon digest send` | 役 | ダイジェストを files/ と送り先へ出す |
+| `andon digest send` | 役 | ダイジェストを tray と送り先へ出す |
 | `andon digest check` | 役・オーナー | 送り先へ確かめの小さなファイルを送る |
 
 ## 機械が打つ
@@ -61,7 +63,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | コマンド | 打つ者 | 説明 |
 |---|---|---|
 | `andon version` | 機械 | パッケージの置き場の commit と、中身がその commit と食い違うかを JSON で出す |
-| `andon boot` | 機械・オーナー | パッケージからセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する（毎起動） |
+| `andon boot` | 機械・オーナー | パッケージからセルへ配布物を生成し、portless・ローカルの tray・sshd・dispatcher を起動する（毎起動） |
 | `andon issue merge` | 機械 | review の課題に gate を回し、委譲の範囲内ならマージして片付ける |
 | `andon issue settle` | 機械・役 | オーナーがマージした PR の課題の、gate の問いを閉じて片付ける |
 | `andon issue board` | 機械・オーナー | ボードが読む課題だけ（開いている課題・片付いたばかりの課題とその相手）を出す（読むだけ） |
@@ -74,7 +76,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon dispatcher rewake` | 機械 | 待ち役のフック: 合図で Chief of Staff を起動し直す |
 | `andon signal collect` | 機械 | project.json の signals の出所を読み、信号の記録を書く |
 | `andon signal delivered` | 機械 | 通知 signal で届けた出来事を記録に書く |
-| `andon boot serve-files` | 機械 | files サーバ（boot が自分で起動する） |
+| `andon tray serve` | 機械 | ローカルの tray を動かす常駐（boot が起動する） |
 | `andon otel serve` | 機械 | ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く |
 | `andon otel env` | 機械 | 役の起動の行に、Claude Code か Codex が受け口へトレースとログを送る設定を出す（template が読む） |
 | `andon tools env` | 機械 | 役の起動の行に、端末の課題の worktree の mise.toml をいちばん弱い既定として渡す設定を出す（template が読む） |

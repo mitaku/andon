@@ -3,6 +3,7 @@ package digest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -19,6 +20,8 @@ import (
 
 	"andon/internal/flock"
 	"andon/internal/waiting"
+
+	"andon/internal/tray/traytest"
 )
 
 // Slack は検査の中に立てた偽の HTTP のサーバに向ける（ADR-0044 受け入れ条件 2・8〜11）。本物へは届かない:
@@ -336,25 +339,22 @@ func TestSendSlack(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		u := filesURL(f.env, in)
+		// 前のバージョンは files の行に files サーバの URL を書いた。Slack を送る回はローカルの tray に置き直し、短い文はその URL を指す
+		u := "http://files.cell.localhost:1355/x.html"
 		f.lib("S-0100", "digest/sent.json", `{"issue": "S-0100", "since": "`+in.Since+`", "until": "`+in.Until+`", "destinations": [{"kind": "files", "at": "`+in.Until+`", "ok": true, "url": "`+u+`"}]}`)
-		if got, err := Send(f.env, "S-0100"); err != nil || got != u || len(s.calls()) != 3 {
+		got, err := Send(f.env, "S-0100")
+		if err != nil || !strings.HasPrefix(got, f.tray.URL) || len(s.calls()) != 3 {
 			t.Errorf("files だけ済んだ記録から Slack へ送らない: %v %s", err, got)
+		}
+		if r := f.sent().Destinations[0]; r.URL != got {
+			t.Errorf("files の行が古い URL のまま: %+v", r)
 		}
 	})
 }
 
 func (f *fake) published() []byte {
 	f.t.Helper()
-	names, err := filepath.Glob(filepath.Join(f.ws, "files", "*-S-0100.html"))
-	if err != nil || len(names) != 1 {
-		f.t.Fatalf("files/ の HTML: %v %v", names, err)
-	}
-	b, err := os.ReadFile(names[0])
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	return b
+	return f.tray.Last(f.t).Body
 }
 
 type writerFunc func(p []byte) (int, error)
@@ -433,7 +433,7 @@ func TestSendFails(t *testing.T) {
 			s.set(func(s *fakeSlack) { s.completeError = code })
 			var out, errb bytes.Buffer
 			rc := run([]string{"send", "S-0100"}, nil, &out, &errb, func() (Env, error) { return f.env, nil })
-			if rc != 1 || strings.Count(errb.String(), "\n") != 1 || !strings.Contains(errb.String(), "bot をチャンネル "+channel+" に招いて") || !strings.Contains(out.String(), "http://files.cell.localhost:") {
+			if rc != 1 || strings.Count(errb.String(), "\n") != 1 || !strings.Contains(errb.String(), "bot をチャンネル "+channel+" に招いて") || !strings.HasPrefix(out.String(), f.tray.URL) {
 				t.Fatalf("rc=%d out=%q err=%q", rc, out.String(), errb.String())
 			}
 			if r := slackRow(f.sent()); r == nil || r.OK || !strings.Contains(r.Error, code) {
@@ -661,6 +661,9 @@ func TestCheck(t *testing.T) {
 			files := 0
 			for _, root := range []string{f.root, filepath.Join(f.ws, "files")} {
 				err := filepath.WalkDir(root, func(p string, e fs.DirEntry, err error) error {
+					if errors.Is(err, fs.ErrNotExist) && p == root {
+						return nil // tray に届いたので files/ は無い
+					}
 					if err != nil || e.IsDir() {
 						return err
 					}
@@ -699,5 +702,38 @@ func TestMessageKeepsURLAndNoMention(t *testing.T) {
 	msg = Message(&Text{Headline: []string{"<https://example.com|確認>", "二。"}}, in, newLoc(""), u)
 	if strings.ContainsAny(msg, "<>") || !strings.Contains(msg, "＜!channel＞") {
 		t.Errorf("Slack が解釈する形が残った: %s", msg)
+	}
+}
+
+// ローカルの tray に届かず files/ に倒れたダイジェストは、Slack の短い文にセルの repo からの相対パスを書かない
+// （どの端末でも開けない）。1 枚は Slack に添付してあるので、そう書く。tray が戻った次の send は、files の行を tray に置き直す。
+func TestSendSlackWithoutLocalTray(t *testing.T) {
+	f, s := ready(t)
+	traytest.Local(t, nil)
+	if _, err := Send(f.env, "S-0100"); err != nil {
+		t.Fatal(err)
+	}
+	got := s.calls()
+	if len(got) != 3 {
+		t.Fatalf("呼び出しが %d 回", len(got))
+	}
+	msg := got[2].form["initial_comment"]
+	if strings.Contains(msg, "全文: files/") || !strings.Contains(msg, "全文: "+attachedLink) {
+		t.Errorf("短い文の全文の行: %s", msg)
+	}
+	if r := f.sent().Destinations[0]; !r.OK || r.Path == "" || r.URL != "" {
+		t.Fatalf("files の行: %+v", r)
+	}
+	// tray が戻ったあとの send は、files の行を tray の URL に置き直す。済んだ Slack へは送らない
+	traytest.Local(t, f.tray)
+	u, err := Send(f.env, "S-0100")
+	if err != nil || !strings.HasPrefix(u, f.tray.URL) {
+		t.Fatalf("戻ったあとの send: %q %v", u, err)
+	}
+	if r := f.sent().Destinations[0]; !r.OK || r.URL != u || r.Path != "" {
+		t.Errorf("置き直した files の行: %+v", r)
+	}
+	if len(s.calls()) != 3 {
+		t.Errorf("済んだ Slack へもう一度送った（%d 回）", len(s.calls()))
 	}
 }

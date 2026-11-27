@@ -144,12 +144,17 @@ out=$(cd "$one" && "$kanban" list 2>&1)
 # 表の欄で選ぶ: プロジェクトを読む葉は --help に「プロジェクト: --project <slug>」の行を持つ（go test ./internal/cli が欄と突き合わせる）。
 # dispatcher の葉は打たない（省くと全部を回る常駐と、フック。フックは決まらなくても 2 を返さないことを go test ./internal/cli が見る）
 : >"$tmp/project-leaves"
+: >"$tmp/optional-leaves"
 while IFS= read -r l; do
   # shellcheck disable=SC2086 # 葉の名前は空白で区切った語
   h=$("$andon" $l --help)
   [[ "$h" == *$'\nプロジェクト: --project <slug>'* ]] && echo "$l" >>"$tmp/project-leaves"
+  [[ "$h" == *$'\nプロジェクト: --project <slug>'*'決まらなければプロジェクトに依らずに動く'* ]] && echo "$l" >>"$tmp/optional-leaves"
 done <"$tmp/leaves"
 np=$(wc -l <"$tmp/project-leaves")
+# 当たる場合があること: 省いてよい葉が1つ以上あり（publish）、プロジェクトを読む葉の中にある
+grep -qx publish "$tmp/optional-leaves" && [ -z "$(comm -23 <(sort "$tmp/optional-leaves") <(sort "$tmp/project-leaves"))" ] \
+  && pass "省いてよい葉 $(wc -l <"$tmp/optional-leaves") を --help の行から選ぶ" || fail "省いてよい葉が選べない: $(tr '\n' ' ' <"$tmp/optional-leaves")"
 grep -qx 'issue show' "$tmp/project-leaves" && grep -qx 'waiting list' "$tmp/project-leaves" && ! grep -qx 'schema check' "$tmp/project-leaves" && [ "$np" -ge 30 ] \
   && pass "プロジェクトを読む葉 $np を --help の行から選ぶ" || fail "プロジェクトを読む葉が選べない（$np）"
 bad=
@@ -163,8 +168,13 @@ while IFS= read -r l; do
     [ "$rc" = 0 ] && [ "$rc2" = 0 ] || bad+="$l: フックなのに $rc・$rc2"$'\n'
     continue
   fi
-  [ "$rc" = 2 ] && [[ "$err" == *"プロジェクトが決まらない"* && "$err" == *"セルのプロジェクト: a・b"* && "$err" == *"andon $l --project <slug>"* ]] \
-    || bad+="$l: 2つのセルの根で省いて $rc: ${err%%$'\n'*}"$'\n'
+  # 省いてよい葉（help が「決まらなければプロジェクトに依らずに動く」と言う）は、決まらなくても断らない。指して無いプロジェクトは断る
+  if grep -qx "$l" "$tmp/optional-leaves"; then
+    [[ "$err" != *"プロジェクトが決まらない"* ]] || bad+="$l: 省いてよい葉なのに、2つのセルの根で省いて断った"$'\n'
+  else
+    [ "$rc" = 2 ] && [[ "$err" == *"プロジェクトが決まらない"* && "$err" == *"セルのプロジェクト: a・b"* && "$err" == *"andon $l --project <slug>"* ]] \
+      || bad+="$l: 2つのセルの根で省いて $rc: ${err%%$'\n'*}"$'\n'
+  fi
   [ "$rc2" = 2 ] && [[ "$err2" == *"プロジェクト nosuch は無い"* ]] || bad+="$l --project nosuch: $rc2: ${err2%%$'\n'*}"$'\n'
 done <"$tmp/project-leaves"
 [ -z "$bad" ] && pass "プロジェクトを読む葉は全部 --project を受け、2つのセルの根で省くと終了コード 2 と2つの slug を出す" \

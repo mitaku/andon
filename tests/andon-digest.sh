@@ -69,12 +69,13 @@ grep -q '振り返りで 1 件を直すと決め、0 件を捨てた' "$d/digest
 emit "$d/digest.json" digest.json
 "$andon" digest send S-0100 >"$tmp/url1"
 url1=$(cat "$tmp/url1")
-f1=$ANDON_WORKSPACE/files/${url1##*/}
-[[ "$url1" == http://files.*.localhost:*/*-digest-sample-site-S-0100.html ]]
+# 検査では送るのを切ってある（tests/lib/isolate.sh の ANDON_TRAY_OFF）ので、ページは files/ に写り、そのパスを出す
+f1=$ANDON_WORKSPACE/$url1
+[[ "$url1" == files/*-digest-sample-site-S-0100.html ]]
 cmp -s "$f1" "$d/digest.html"
 grep -q '<svg' "$f1" && ! grep -qi '<script' "$f1" || die "図が無いか script がある"
 grep -qF "$url1" "$d/message.txt"
-jq -e --arg u "$url1" '.destinations == [.destinations[0]] and .destinations[0].ok and .destinations[0].url == $u' "$d/sent.json" >/dev/null
+jq -e --arg u "$url1" '.destinations == [.destinations[0]] and .destinations[0].ok and .destinations[0].path == $u' "$d/sent.json" >/dev/null
 emit "$d/sent.json" digest-sent.json
 echo "ok collect・build・send で files/ に HTML ができ、URL を出して sent.json に書く"
 
@@ -91,7 +92,7 @@ set -e
 [[ "$(ls "$d2")" == "input.json" ]]
 printf '%s\n' '{"headline": ["動きは無かった。", "待っているものも無い。"], "themes": [], "concerns": []}' | "$andon" digest build S-0101 - >/dev/null
 url2=$("$andon" digest send S-0101)
-[[ "$url2" != "$url1" ]] && [ -f "$ANDON_WORKSPACE/files/${url2##*/}" ] && cmp -s "$f1" "$d/digest.html" || die "前の 1 枚が残らない"
+[[ "$url2" != "$url1" ]] && [ -f "$ANDON_WORKSPACE/$url2" ] && cmp -s "$f1" "$d/digest.html" || die "前の 1 枚が残らない"
 echo "ok 同じ日に別の課題で作っても前の 1 枚が残り、期間は前に送ったものの終わりから"
 
 # 済んだ送り先には打ち直しても送らない

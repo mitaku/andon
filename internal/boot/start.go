@@ -18,12 +18,10 @@ import (
 	"andon/internal/dispatcher"
 	"andon/internal/otel"
 	"andon/internal/spawn"
+	"andon/internal/tray"
 )
 
-const (
-	DefaultPortlessPort = "1355"
-	DefaultFilesPort    = "8907"
-)
+const DefaultPortlessPort = "1355"
 
 // Start は起動の手を順に打つ。道具が無ければ飛ばし、失敗は警告にして続ける。
 func Start(e Env) {
@@ -35,7 +33,7 @@ func Start(e Env) {
 		{"Claude Code の記録", fixClaudeInstall},
 		{"git の資格情報", setupGitCredentials},
 		{"portless", startPortless},
-		{"files サーバ", startFiles},
+		{"ローカルの tray", startTray},
 		{"ハーネスの受け口", startOtel},
 		{"sshd", startSSHD},
 		{"前のバージョンの係の端末", dropStaleRoles},
@@ -85,6 +83,38 @@ func detach(logPath, name string, args ...string) error {
 		return err
 	}
 	return cmd.Process.Release()
+}
+
+// detachWatched は detach と同じく新しいセッションで手放して起動し、子が終わったら閉じる channel を返す（起動の途中で落ちたことを
+// 待ちの長さを使い切らずに知る。boot が先に終われば、子はそのまま動き続ける）。
+func detachWatched(logPath, name string, args ...string) (<-chan struct{}, error) {
+	out, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	defer out.Close() //nolint:errcheck // 子の process は自分の写しで書くので、親の写しを閉じる失敗は出力に効かない
+	cmd := exec.Command(name, args...)
+	cmd.Stdout, cmd.Stderr = out, out
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	return done, nil
+}
+
+// logTail はログの最後の空でない行（読めなければ空）。
+func logTail(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 func waitListening(port string, d time.Duration) bool {
@@ -163,33 +193,53 @@ func startPortless(e Env) error {
 	return nil
 }
 
-func startFiles(e Env) error {
-	portless, ok := e.has("portless")
-	if !ok || e.Self == "" {
+// trayWait は andon tray serve が控えを書くまで待つ長さ（miniflare の起動と D1 の移行）。
+var trayWait = 60 * time.Second
+
+// startTray はローカルの tray（andon tray serve）を起動し、portless の名前 tray（一覧の面）と tray-view（報告の面）を付ける
+// （ADR-0064 決めたこと 6・26。files サーバの代わり）。動いていれば起動しない。Node かビルドした tray が無い・自分が andon の
+// バイナリでない（go test の偽の boot）ときは、理由を1行残して起動しない。
+func startTray(e Env) error {
+	if !otel.IsAndon(e.Self) {
 		return nil
 	}
-	dir := filepath.Join(e.Workspace, "files")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+	if _, err := tray.Ready(e.LookPath); err != nil {
+		e.logf("ローカルの tray は起動しない（%v）。報告は files/ に写る", err)
+		return nil
 	}
-	port := e.dotenv("FILES_PORT", DefaultFilesPort)
-	if !listening(port) {
-		logPath := filepath.Join(os.TempDir(), "files-server.log")
-		if err := detach(logPath, e.Self, "boot", "serve-files", dir, port); err != nil {
+	c, running := tray.Running()
+	if !running {
+		exited, err := detachWatched(tray.LogPath(), e.Self, "tray", "serve")
+		if err != nil {
 			return err
 		}
-		if !waitListening(port, 3*time.Second) {
-			return fmt.Errorf("待ち受けが上がらない（%s）", logPath)
+		for end := time.Now().Add(trayWait); ; time.Sleep(200 * time.Millisecond) {
+			if c, running = tray.Running(); running {
+				break
+			}
+			select {
+			case <-exited:
+				return fmt.Errorf("andon tray serve が止まった: %s（%s）", logTail(tray.LogPath()), tray.LogPath())
+			default:
+			}
+			if time.Now().After(end) {
+				return fmt.Errorf("andon tray serve が動き始めない（%s）", tray.LogPath())
+			}
 		}
 	}
-	if out, err := exec.Command(portless, "alias", "files", port).CombinedOutput(); err != nil {
-		return fmt.Errorf("portless alias files %s: %v: %s", port, err, strings.TrimSpace(string(out)))
+	port := c.List[strings.LastIndex(c.List, ":")+1:]
+	if portless, ok := e.has("portless"); ok {
+		for _, name := range []string{"tray", "tray-view"} {
+			if out, err := exec.Command(portless, "alias", name, port).CombinedOutput(); err != nil {
+				return fmt.Errorf("portless alias %s %s: %v: %s", name, port, err, strings.TrimSpace(string(out)))
+			}
+		}
 	}
-	e.logf("files: http://files.%s.localhost:%s/ （files/ を読み取り公開）", e.Hostname, e.dotenv("PORTLESS_PORT", DefaultPortlessPort))
+	e.logf("ローカルの tray: %s/ （報告の一覧。データは %s）", c.ListOrigin, tray.StateDir())
 	return nil
 }
 
-// startOtel はハーネスのトレースとログの受け口（andon otel serve）を、files サーバと同じ形で起動する（ADR-0060 決めたこと 4）。
+// startOtel はハーネスのトレースとログの受け口（andon otel serve）を、ほかの常駐と同じく手放して起動する（ADR-0060 決めたこと 4）。
 // andon の受け口がもう listen していれば何もしない。役は hc の端末からしか起動しないので、hc が無ければ起動しない
 // （送り手が無い。偽の PATH で boot を打つ検査が本物のポートに受け口を残さない）。起動し直す所は役の起動の口（andon otel env）にもある。
 func startOtel(e Env) error {

@@ -1380,11 +1380,11 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 
 ## 28. ダイジェストを送った結果（`library/digest/sent.json`）
 
-`andon digest send <id>` が、送り先ごとの結果を書く（決めたこと 15・16）。送り先は、いつも出す `files` と、`project.json` の `digest` に書かれた `slack`（§11）。`digest.html` を `files/<日付>-digest-<project>-<id>.html` に出し（`andon publish` と同じ置き場と URL。日付は期間の終わりの日）、URL を標準出力に出す。そのあと Slack へ、短い文（`files/` の URL を含む。3,000 字まで）を添えたファイル `digest-<project>-<日付>.html` を 1 回の投稿で送る（決めたこと 13）。
+`andon digest send <id>` が、送り先ごとの結果を書く（決めたこと 15・16。tray は [ADR-0064](adr/0064-tray.md) 決めたこと 11）。送り先は、いつも出す `files`、プロジェクトが Cloudflare の tray を選んでいれば `tray`、`project.json` の `digest` に書かれた `slack`（§11）。`files` の行は、`digest.html` を名前 `<日付>-digest-<project>-<id>`（日付は期間の終わりの日）、kind `digest` でローカルの tray に上げ、その URL を書く。ローカルの tray に届かなければ（止まっている・検査で切ってある）、`files/<名前>.html` に写して `path` に書く。`path` の行は、次に打った send でもう一度ローカルの tray へ上げ、届けば `url` に書き直す。tray に届いた物は `files/` に写さない。`tray` の行は、同じ 1 枚の文の部分とタイトル（一覧に残る `X-Tray-Title`）の秘密の形を伏せて Cloudflare の tray に上げ、その URL を書く。標準出力には、オーナーに渡す URL（`tray` の行があればその URL、無ければ `files` の行の URL かパス）を出す。そのあと Slack へ、短い文（その URL を含む。`files` の行が `path` だけで `tray` の行も無ければ、パスはどの端末でも開けないので、URL の代わりに添付した HTML だと書く。3,000 字まで）を添えたファイル `digest-<project>-<日付>.html` を 1 回の投稿で送る（決めたこと 13）。
 
 ```json
 {"issue": "S-0100", "since": "2026-11-20T10:00:00Z", "until": "2026-11-21T10:00:00Z",
- "destinations": [{"kind": "files", "at": "2026-11-21T10:01:00Z", "ok": true, "url": "http://files.cell.localhost:1355/2026-11-21-digest-sample-site-S-0100.html"},
+ "destinations": [{"kind": "files", "at": "2026-11-21T10:01:00Z", "ok": true, "url": "http://tray.cell.localhost:1355/r/0123456789abcdef0123456789abcdef"},
   {"kind": "slack", "at": "2026-11-21T10:01:00Z", "ok": true, "channel": "C0123456789", "file": "F0123456789"}]}
 ```
 
@@ -1392,15 +1392,16 @@ command が断ること（`andon retro patterns` と `andon retro apply` の両�
 |---|---|
 | `issue`・`since`・`until` | 送ったダイジェストの課題と期間（§26 の写し） |
 | `destinations[]` | 送り先ごとの結果。送り先 1 つに 1 行 |
-| `destinations[].kind` | `files` か `slack`。kind ごとに1行 |
+| `destinations[].kind` | `files`・`tray`・`slack` のどれか。kind ごとに1行。並びは `files`・`tray`・ほかの順 |
 | `destinations[].at` | その回の send を打った時刻 |
-| `destinations[].ok` | 送れたか。`true` なら `files` は `url`、`slack` は `file`（Slack のファイルの id）、`false` なら `error`（1行の理由）を持つ |
+| `destinations[].ok` | 送れたか。`true` なら `files` は `url`（ローカルの tray の URL）か `path`（`files/` に写したときのセルの repo からのパス）のどちらか、`tray` は `url`（Cloudflare の tray の URL）、`slack` は `file`（Slack のファイルの id）、`false` なら `error`（1行の理由）を持つ |
 | `destinations[].channel` | `slack` の行だけ。送った、または送ろうとしたチャンネル |
 
-- 済んだ送り先（`ok: true`）には、打ち直しても送らない（まだの Slack へ送る回だけは、`files/` の同じ名前に同じ 1 枚を置き直す。組み立て直していても、短い文の URL と Slack のファイルが同じ中身になる）。送ったあとに設定のチャンネルが変わっても、その 1 枚は送り直さない。送りそこねた送り先は打ち直しで送り直す。そのときの送り先は打ち直した時点の設定で、設定から消えていれば行を落とす。
+- 済んだ送り先（`ok: true`）には、打ち直しても送らない（まだの Slack へ送る回だけは、ローカルの tray の同じ名前に同じ 1 枚を置き直す。組み立て直していても、短い文の URL と Slack のファイルが同じ中身になる）。Cloudflare の tray への送りが落ちた回は、打ち直すと `tray` の行だけを送り直す。送ったあとに設定のチャンネルが変わっても、その 1 枚は送り直さない。送りそこねた送り先は打ち直しで送り直す。そのときの送り先は打ち直した時点の設定で、設定から消えていれば行を落とす。
 - 送る前に、まだの送り先を `ok: false` で書き、1つ送るごとに書き直す。途中で落ちても済んだことにならない。Slack に届いたあと、書く前に落ちたときは、打ち直しで同じものがもう一度届く（届くのは 1 度か 2 度で、落ちることは無い）。同時に打った send は1つずつ走り（`sent.json.lock`）、入力と HTML は鍵を取ってから読む。
 - `project.json` か `digest` が無い・空なら `files` だけに出す。信じられない・形が違う・git が HEAD を読めない（無いと言い切れない）ときも `files` だけに出して理由を標準エラーに1行出す。ただし前に送りそこねた Slack の行があれば残して終了コード 1 にする（届いていない期間を送ったことにしない）。
-- `files` に出せなければ Slack へ送らない。Slack へ送れなければ、`files` の URL を出したうえで終了コード 1。
+- `files` に出せなければ（ローカルの tray にも `files/` にも置けない）Slack へ送らない。`tray` と Slack へ送れなければ、出せた URL を出したうえで終了コード 1。
+- 前のバージョンの `files` の行（files サーバの URL）は済んだ行として読む。Slack へ送る回だけは、ローカルの tray に置き直してその URL に書き換える。
 - 送る中身は組み立てたダイジェストだけ。send は `input.json` と `digest.json` から組み立て直し、`digest.html` と同じでなければ送らない。短い文も同じ JSON から作り、`message.txt` は読まない（`message.txt` は控え）。
 - `andon digest check` は、`digest` の送り先へ確かめの小さなテキストのファイルを send と同じ 3 回の呼び出しで送る。`sent.json` は書かない。設定が無い・読めなければ送らずに終了コード 1。
 - 集め直して期間が変わったときは、前の結果を捨てて送り直す。

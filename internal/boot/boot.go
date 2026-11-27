@@ -13,7 +13,7 @@
 //	<ws>/andon.toml の owner                   → ~/.gitconfig の includeIf と ~/.config/andon/git/*.gitconfig（git の既定の作者。gitauthor.go）
 //
 // そのあと、Claude Code の起動リンクと .claude.json の救出、セルの repo と kanban に載った repo の根を Claude Code・Codex で
-// 信頼済みにする（trust.go。足りない所だけ足す。Claude Code にはプロファイルが --add-dir で渡すフォルダも）、外の skill（gh skill。extskills.go）、portless・files サーバ・sshd・dispatcher の起動。
+// 信頼済みにする（trust.go。足りない所だけ足す。Claude Code にはプロファイルが --add-dir で渡すフォルダも）、外の skill（gh skill。extskills.go）、portless・ローカルの tray・sshd・dispatcher の起動。
 // 起動は道具が無ければ飛ばし、失敗しても続ける（セルは立ち上がりきることを優先する）。
 // 生成は何度走らせても同じ結果になる（中身が同じなら書かない）。
 package boot
@@ -40,7 +40,7 @@ import (
 )
 
 const Usage = "usage: andon boot\n" +
-	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・files・sshd・dispatcher を起動する。\n" +
+	"パッケージ（ANDON_HOME。既定 /opt/andon）からセルへ配布物を生成し、portless・ローカルの tray・sshd・dispatcher を起動する。\n" +
 	"毎起動、compose の command から打つ（andon boot; exec sleep infinity）。何度打っても同じ結果。\n" +
 	"生成: managed settings・プロファイル（~/.config/herdr-core/templates）・CLAUDE.md の3行（environment.md・writing.md・AGENTS.local.md）・Codex の AGENTS.md（同じ3本の連結）・Codex の rules と承認・sandbox の既定・skill の symlink（~/.agents/skills。同梱の skill は <claude>/skills にも）・git の既定の作者（~/.gitconfig の includeIf。セルの repo は owner でない作者、案件の repo は andon.toml の owner）。\n" +
 	"外の skill: <pkg>/gh-skills.txt と <ws>/local/gh-skills.txt の一覧を、gh がログイン済みなら gh skill install で入れ、出所が一覧の repo と同じものを置き場ごとに gh skill update --all --dir で上げる（一覧の外の skill と、別の出所の同じ名前の skill は上げない。一覧が空なら打たない）。\n" +
@@ -91,21 +91,6 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
-}
-
-const ServeFilesUsage = "usage: andon boot serve-files <dir> <port>\n" +
-	"files サーバ（boot が自分で起動する。<dir> の中の実体だけを 127.0.0.1 で返す）。\n"
-
-func ServeFilesMain(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	if len(args) != 2 {
-		fmt.Fprint(stderr, ServeFilesUsage)
-		return 2
-	}
-	if err := serveFiles(args[0], args[1]); err != nil {
-		fmt.Fprintf(stderr, "andon boot serve-files: %v\n", err)
-		return 1
-	}
-	return 0
 }
 
 func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {

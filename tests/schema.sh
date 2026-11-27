@@ -1139,6 +1139,10 @@ pass|digest-sent|.destinations[0] = {kind: "files", at: "2026-11-21T10:01:00Z", 
 fail|digest-sent|.destinations = []|送り先が無い
 fail|digest-sent|.destinations[1].kind = "email"|送り先の種類を知らない（ほかは slack の行の形のまま。kind の enum だけが落とす）
 pass|digest-sent|.destinations = [.destinations[0]]|送り先が files だけ（前のバージョンの形）
+pass|digest-sent|.destinations[0] = {kind: "files", at: "2026-11-21T10:01:00Z", ok: true, path: "files/2026-11-21-digest-sample-site-S-0100.html"}|送る先に届かず files/ に写した
+fail|digest-sent|.destinations[0].path = "files/2026-11-21-digest-sample-site-S-0100.html"|files の行に url と path の両方
+fail|digest-sent|.destinations[0] = {kind: "files", at: "2026-11-21T10:01:00Z", ok: true, path: "/workspace/files/a.html"}|path が files/ の下の相対でない
+fail|digest-sent|.destinations[1].path = "files/a.html"|slack の行に path
 pass|digest-sent|.destinations[1] = {kind: "slack", at: "2026-11-21T10:01:00Z", ok: false, channel: "C0123456789", error: "not_in_channel"}|Slack へ送りそこねた
 fail|digest-sent|del(.destinations[1].file)|Slack へ送れたのに file が無い
 fail|digest-sent|del(.destinations[1].channel)|slack の行に channel が無い

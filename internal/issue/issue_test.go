@@ -15,6 +15,7 @@ import (
 	"andon/internal/contract"
 	"andon/internal/gate"
 	"andon/internal/ledger/ledgertest"
+	"andon/internal/tray/traytest"
 )
 
 const fakeDeck = `#!/bin/sh
@@ -858,5 +859,60 @@ func TestWaitPRHead(t *testing.T) {
 				t.Fatalf("gh を %d 回呼んだ、want %d", got, c.calls)
 			}
 		})
+	}
+}
+
+// ADR-0064 受け入れ条件 5: report と review-request は、kanban に書いたあと人が読む報告を tray に送る。名前は課題ごとに1つで、
+// 出し直すと新しいバージョン。タイトルは課題番号とタイトル。届かなくても報告は成り立ち、理由は stderr に出す。files/ には写さない。
+func TestReportSendsToTray(t *testing.T) {
+	f := newFixture(t)
+	f.task["title"] = "返事の下書きボタン"
+	f.task["repo"] = "github.com/example/app"
+	f.write("show-T-0001.json", js(map[string]any{"issue": f.task}))
+	f.write("list.json", js([]any{f.task}))
+	f.write("kanban/log.jsonl", "")
+	f.write("kanban/issues/T-0001/library/report.json", f.report)
+	f.write("prhead", f.prHead+"\n")
+	loc, cf := traytest.New(t), traytest.New(t)
+	traytest.Local(t, loc)
+	traytest.Remote(t, cf, "proj", "tray_key000000000000")
+	run := func(args ...string) (int, string) {
+		var out, errb bytes.Buffer
+		rc := Main(args, strings.NewReader("## Report\n直した。\n"), &out, &errb)
+		return rc, errb.String()
+	}
+	if rc, e := run("report", "T-0001"); rc != 0 || e != "" {
+		t.Fatalf("report: rc=%d err=%q", rc, e)
+	}
+	if rc, e := run("review-request", "T-0001"); rc != 0 || e != "" {
+		t.Fatalf("review-request: rc=%d err=%q", rc, e)
+	}
+	got := loc.Received()
+	if len(got) != 2 {
+		t.Fatalf("ローカルの tray に %d 件（2 件のはず）", len(got))
+	}
+	for _, g := range got {
+		if g.Project != "proj" || g.Name != "T-0001" || g.Title != "T-0001 返事の下書きボタン" || g.Kind != "report" || g.Type != "text/markdown; charset=utf-8" {
+			t.Errorf("送った物: %+v", g)
+		}
+	}
+	if string(got[0].Body) != "## Report\n直した。\n" || !strings.HasPrefix(string(got[1].Body), "## レビュー依頼") {
+		t.Errorf("本文: %q / %q", got[0].Body, got[1].Body)
+	}
+	if md, _ := os.ReadFile(filepath.Join(f.root, "reported-T-0001")); string(md) != string(got[1].Body) {
+		t.Errorf("kanban に書いた報告と tray に送った本文が違う: %q", md)
+	}
+	if len(cf.Received()) != 2 || !strings.Contains(cf.Last(t).Auth, "tray_key") {
+		t.Errorf("Cloudflare の tray: %+v", cf.Received())
+	}
+	// 届かなくても報告は成り立つ（終了コード 0、理由は stderr、files/ に写さない）
+	traytest.Local(t, nil)
+	cf.Fail(503)
+	rc, e := run("report", "T-0001")
+	if rc != 0 || !strings.Contains(e, "ローカルの tray に送れない") || !strings.Contains(e, "Cloudflare の tray に送れない") {
+		t.Fatalf("届かないとき: rc=%d err=%q", rc, e)
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("ANDON_WORKSPACE"), "files")); err == nil {
+		t.Error("files/ に写した")
 	}
 }

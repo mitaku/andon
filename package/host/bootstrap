@@ -17,7 +17,7 @@
 # これは本体（image の /opt/andon/host/bootstrap）。セルの repo の bin/bootstrap（薄い入口）が、打つたびに image から
 # .andon/bootstrap に取り出して走らせるので、Andon のバージョンを上げると一緒に新しくなる。
 # compose.yaml はセルの repo に置かない。イメージの /opt/andon/compose.yaml を .andon/ に取り出して使う。
-# 番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・FILES_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。
+# 番号とタイムゾーンは .env に書く（SSH_PORT・PORTLESS_PORT・TRAY_PORT・CELL_TZ）。セルに固有のサービスは compose.override.yaml に。
 set -euo pipefail
 
 # 薄い入口との約束（ADR-0048 決めたこと 3）: 作業フォルダはセルの repo の根、引数はそのまま、ANDON_ENTRY に入口の形の番号。

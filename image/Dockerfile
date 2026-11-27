@@ -18,6 +18,18 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${ANDON_VERSION}" -o /out/kanban ./cmd/kanban \
  && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/andon ./cmd/andon
 
+# ローカルの tray（tray/。ADR-0064 決めたこと 26）をこの段でビルドする。bun のバージョンは mise.toml と揃える。
+# 持っていくのは、Worker の束（dist/）・画面のファイル（public/）・D1 の移行（migrations/）・起動の台本（scripts/）と、動かすのに要る
+# 依存（miniflare と workerd。bun.lock から入れ、install のスクリプトは走らせない）。動かすのは aqua の Node（andon tray serve）
+FROM oven/bun:1.4.5-debian@sha256:3dddea58e1f8f2240eca906b023fedb944f9a8352515a35309fd0c879fe00aaa AS tray
+WORKDIR /src/tray
+COPY tray/package.json tray/bun.lock ./
+RUN bun install --frozen-lockfile --ignore-scripts --production
+COPY tray/ ./
+RUN bun run build \
+ && mkdir -p /out/tray \
+ && cp -R dist public migrations scripts node_modules package.json bun.lock /out/tray/
+
 # andon は uid・gid 1000（ubuntu の既定の利用者を外して空ける）。セルの repo を /workspace に bind mount するので、
 # ホストのオーナー（WSL・cloud-init の既定の利用者は 1000）と揃える。揃わないセルは bin/bootstrap が起動する前に止める
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
@@ -154,12 +166,14 @@ RUN case "$(dpkg --print-architecture)" in \
 # セルの compose（package/compose.yaml）が volume を重ねる置き場。先に andon の持ち物で作っておく
 # （無い場所に volume を重ねると root の持ち物になり、andon が書けない）
 RUN mkdir -p "${HOME}/.claude" "${HOME}/.codex" "${HOME}/.agents" "${HOME}/.config/gh" "${HOME}/.config/herdr" \
-      "${HOME}/.config/herdr-core" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
+      "${HOME}/.config/herdr-core" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest" "${HOME}/.config/andon/tray" "${HOME}/.ssh" "${HOME}/.portless" "${HOME}/.local/state" \
       "${HOME}/.local/share/mise" \
- && chmod 700 "${HOME}/.ssh" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest"
+ && chmod 700 "${HOME}/.ssh" "${HOME}/.config/andon/signals" "${HOME}/.config/andon/digest" "${HOME}/.config/andon/tray"
 COPY package/ /opt/andon/
 # skill が形の正として指す schema（andon は同じものを埋め込んで照らす。置き場で照らすなら andon schema check /opt/andon/schema/<名前>.schema.json）
 COPY schema/ /opt/andon/schema/
+# ローカルの tray（上の段 tray がビルドしたもの。andon tray serve が node で起動する）
+COPY --from=tray /out/tray/ /opt/andon/tray/
 # kanban の CLI（cmd/kanban）。上の段 bin が同じ checkout から焼く。
 COPY --from=bin --chmod=755 /out/kanban /usr/local/bin/kanban
 # andon の CLI（cmd/andon）。kanban と同じく段 bin が焼く。

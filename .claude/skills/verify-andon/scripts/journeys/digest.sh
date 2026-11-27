@@ -67,21 +67,58 @@ else
   fail "dg-later: 節 2 が分かれないか、置いた判断が呼んでいるものに入ったか、数が違う"
 fi
 
-# dg-send: 送り先の無い project.json では files/ だけに出し、URL と sent.json を残す
+# dg-send: 送り先の無い project.json では files/ だけに出し、置いたパスと sent.json を残す。
+# 切り離した道はローカルの tray へ送らない（tests/lib/isolate.sh）ので、files の行は files/ に倒れた path の行になる
 step "dg-send: 送る" "$andon" digest send "$id"
-url=$(grep -m1 '^http' "$tmp/step.out")
+url=$(grep -m1 '^files/' "$tmp/step.out")
 f=$(find "$ANDON_WORKSPACE/files" -name '*.html' 2>/dev/null | sed -n 1p)
 echo "  | files/: ${f:-無い}"
 jq -c . "$d/sent.json" 2>/dev/null | sed 's/^/  sent.json: /'
-[ -n "$url" ] && [ -n "$f" ] && cmp -s "$f" "$d/digest.html" && jq -e '(.destinations | length) > 0 and all(.destinations[]; .kind == "files" and .ok)' "$d/sent.json" >/dev/null \
-  && ok "dg-send: digest.html が files/ にそのまま出て URL が返り、sent.json の送り先が files だけ" \
-  || fail "dg-send: files/ に出ないか、URL か sent.json が無いか、files のほかの送り先がある"
+[ -n "$url" ] && [ -n "$f" ] && cmp -s "$f" "$d/digest.html" && jq -e --arg p "$url" '(.destinations | length) > 0 and all(.destinations[]; .kind == "files" and .ok and .path == $p)' "$d/sent.json" >/dev/null \
+  && ok "dg-send: digest.html が files/ にそのまま出て置いたパスが返り、sent.json の送り先が files だけ" \
+  || fail "dg-send: files/ に出ないか、パスか sent.json が無いか、files のほかの送り先がある"
 
 # dg-check-refuse: 送り先が無ければ、確かめのファイルもどこへも送らない
 step "dg-check-refuse: 送り先の無いまま確かめを打つ" "$andon" digest check \
   && fail "dg-check-refuse: 送り先が無いのに check が通った" \
   || { grep -qF '送り先の設定が無いので何も送らない' "$tmp/step.out" \
     && ok "dg-check-refuse: 送り先が無ければ何も送らずに断る" || fail "dg-check-refuse: 断りの理由が違う"; }
+
+# dg-tray: 切り離した置き場で当てたパッケージのローカルの tray を起動し、送りを入れて（ANDON_TRAY_OFF=0）打ち直す。
+# files/ に倒れた files の行は tray の URL に置き直され、andon publish は tray の URL を返し、andon tray status が枚数を出す。
+# 一覧の面は 0 番（空いている番号）で起動する（セルの本物の tray が既定の番号を持っている）。データは切り離した HOME の下
+pkg=${VERIFY_PACKAGE:-/opt/andon}
+if [ ! -f "$pkg/tray/scripts/serve.mjs" ]; then
+  echo "note dg-tray: $pkg/tray が無い（tray を入れていないパッケージ）。tray へ送る道は確かめていない"
+else
+  printf 'TRAY_PORT=0\nPORTLESS_PORT=1355\n' >>"$ANDON_WORKSPACE/.env"
+  ctl=$HOME/.local/state/andon/tray/serve.json
+  ANDON_TRAY_OFF=0 "$andon" tray serve >"$tmp/serve.log" 2>&1 &
+  spid=$!
+  for _ in $(seq 120); do [ -s "$ctl" ] && break; kill -0 "$spid" 2>/dev/null || break; sleep 0.5; done
+  echo "  | 控え: $(cat "$ctl" 2>/dev/null || echo 無い)"
+  if [ ! -s "$ctl" ]; then
+    sed 's/^/  | serve: /' "$tmp/serve.log"
+    fail "dg-tray: 切り離したローカルの tray が起動しない"
+  else
+    step "dg-tray: tray が動いたあとに送り直す" env ANDON_TRAY_OFF=0 "$andon" digest send "$id"
+    turl=$(grep -m1 '^http' "$tmp/step.out")
+    jq -c . "$d/sent.json" 2>/dev/null | sed 's/^/  sent.json: /'
+    echo "dg-tray の確かめ" >"$tmp/tray-check.md"
+    step "dg-tray: publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+    purl=$(grep -m1 '^http' "$tmp/step.out")
+    step "dg-tray: status" env ANDON_TRAY_OFF=0 "$andon" tray status
+    if [ -n "$turl" ] && jq -e --arg u "$turl" '.destinations[0] | .kind == "files" and .ok and .url == $u and (has("path") | not)' "$d/sent.json" >/dev/null \
+      && [[ "$purl" == http*"/r/"* ]] && ! [ -e "$ANDON_WORKSPACE/files/tray-check.md" ] && grep -qF '上がった 2 枚' "$tmp/step.out"; then
+      ok "dg-tray: files/ に倒れた files の行が tray の URL に置き直り、publish が tray の URL を返して files/ に写さず、status が 2 枚と数える"
+    else
+      fail "dg-tray: files の行が置き直らないか、publish が tray の URL を返さないか files/ に写したか、status の枚数が違う"
+    fi
+  fi
+  kill -TERM "$spid" 2>/dev/null
+  wait "$spid" 2>/dev/null
+  [ ! -e "$ctl" ] || fail "dg-tray: 止めた serve の控えが残った"
+fi
 
 touch "$tmp/hc.calls" "$tmp/gh.calls"
 echo "偽の hc への呼び出し: $(wc -l <"$tmp/hc.calls") 件。偽の gh への呼び出し: $(wc -l <"$tmp/gh.calls") 件"
