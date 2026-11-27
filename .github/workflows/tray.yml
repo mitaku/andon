@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 jobs:
-  # tray（tray/。ADR-0064）の検査を回す: 型・Workers の検査（workerd の上）・ビルド・端から端の検査・ブラウザの検査。
+  # tray（tray/。ADR-0064）の検査を回す: 型・Workers の検査（workerd の上）・ビルド・デプロイの設定の確かめ・端から端の検査・ブラウザの検査。
   # 依存は外から取る npm のコードなので、この job だけで回し、秘密を渡さず、token は読むだけにする。依存は tray/bun.lock から入れ、
   # install のスクリプトは走らせない。Bun・Node・Go のバージョンは mise.toml から読む。端から端の検査の後半（セルの側）は、
   # この checkout から焼いた andon を偽のセルで打つ。tests・release の job では回さない
@@ -54,6 +54,8 @@ jobs:
         run: bun run test
       - name: Build
         run: bun run build
+      - name: Deploy dry run (wrangler checks the three Workers' settings without Cloudflare)
+        run: bun run deploy-check
       - name: Build andon (cell side of the end-to-end tests)
         run: go build -trimpath -o "$RUNNER_TEMP/andon" ../cmd/andon
       - name: End-to-end

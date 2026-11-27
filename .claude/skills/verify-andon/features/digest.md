@@ -16,6 +16,10 @@
   - 見るファイル: `internal/digest/send.go`、`internal/publish/publish.go`、`internal/tray/tray.go`、`internal/tray/html.go`、`schema/digest-sent.schema.json`
 - `dg-tray` 切り離した置き場で当てたパッケージのローカルの tray（`andon tray serve`）を起動し、送りを入れて打ち直すと、files/ に倒れた files の行がローカルの tray の URL に置き直る。`andon publish` は tray の URL を返して files/ に写さず、`andon tray status` が上がった 2 枚を数える。パッケージに tray が無ければ note で未確認。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/send.go`、`internal/publish/publish.go`、`internal/tray/tray.go`、`internal/tray/html.go`
+- `dg-tray-old` `dg-tray` のあと、同じ slug で中身を変えて `andon publish` を打ち直すと、報告は新しいバージョンになり、一覧の面で開くと今の中身が出る。前に開いた署名付き URL では、置いてから1日に満たない前の中身がまだ読める。続けて、切り離した tray の R2（miniflare の sqlite）で前の中身の置いた時刻を 25 時間前と 23 時間前に、ほかの報告の中身を 25 時間前に書き換えて出し直すと、同じ報告の 25 時間前の中身だけが消える。パッケージに tray が無ければ note で未確認。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/publish/publish.go`、`tray/src/lib/upload-api.ts`
+- `dg-tray-remote` `dg-tray` のあと、owner の commit で `project.json` に `tray`（`https://tray-up.invalid`）を書くと、`andon tray status` がそのプロジェクトは Cloudflare の tray へ送ると出し、API キーが無いと出す。`andon publish` は鍵が無いので Cloudflare へは何も出さず、ローカルの tray の URL を返して理由を出す。owner でない commit で `project.json` を変えると、`andon tray status` は設定を読めないと出す。パッケージに tray が無ければ note で未確認。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/tray/tray.go`、`internal/delegate/project.go`、`schema/project.schema.json`、`internal/publish/publish.go`
 - `dg-check-refuse` 送り先が無ければ、`andon digest check` は何も送らずに断る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/digest/send.go`
 - `dg-slack` 送り先の Slack のチャンネルに、`digest.html` と `message.txt` の文が届く。見る道: オーナーが見る。
@@ -39,6 +43,8 @@
 - **分けて描く。** 集める前に、Chief of Staff の端末が呼ぶ判断（`andon issue ask --new --now`）と置いておく判断（`--later`）を 1 件ずつ足してある。`dg-later` の行に節 2 の 2 つの見出しと置いた理由、`message.txt` の 2 つの数の行が出る。`ok   dg-later` が見えれば動いた。
 - **送る。** `dg-send` の行に files/ に置いたパスと `sent.json` が出る。`sent.json` の `destinations` が `path` を持つ `files` の1件だけで、`ok   dg-send` が見えれば動いた。
 - **tray へ送る。** `dg-tray` の行に切り離した tray の控え、打ち直した send の URL と `sent.json`、`andon publish` の URL、`andon tray status` の出力が出る。`ok   dg-tray` が見えれば、当てたパッケージで tray へ送る道が動いた。`note dg-tray` なら、パッケージに tray が無い。
+- **出し直す。** `dg-tray-old` の行に、出し直した `andon publish` の出力と、前の URL と今の URL で読んだ中身が出る。続く `dg-tray-old` の行に、置いた時刻を書き換える前と、出し直したあとの R2 のキーが出る。`ok   dg-tray-old` が2行見えれば、当てたパッケージの掃除が 1 日を過ぎた同じ報告の中身だけを消し、ほかを消していない。
+- **Cloudflare の tray を選ぶ。** `dg-tray-remote` の行に、`tray` を書いたあとの `andon tray status` と `andon publish` の出力、owner でない commit のあとの `andon tray status` の出力が出る。`ok   dg-tray-remote` が見えれば、当てたパッケージが `project.json` の `tray` を owner の commit のときだけ読む。Cloudflare へは送らない（鍵を置かず、ホスト名は引けない `.invalid`）。
 - **確かめを断る。** `dg-check-refuse` の行に「送り先の設定が無いので何も送らない」が出る。`ok   dg-check-refuse` が見えれば動いた。
 - **Slack を見る（`dg-slack`）。** オーナーが送り先を書いたプロジェクトで、次のダイジェストのあとにチャンネルを見る。報告の `acceptance[]` に `manual` と書き、見る場所（チャンネルとダイジェストの課題）を `evidence` に書く。
 - **片付く。** 最後に `ok   片付けた` が出る。
@@ -56,6 +62,9 @@
 - `schema/digest-input.schema.json`
 - `schema/digest.schema.json`
 - `schema/digest-sent.schema.json`
+- `internal/delegate/project.go`
+- `schema/project.schema.json`
+- `tray/src/lib/upload-api.ts`
 
 ## 既に見ている検査
 

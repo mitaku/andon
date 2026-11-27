@@ -12,6 +12,8 @@
 #   bin/bootstrap rebuild --from <andon の checkout>
 #                                その checkout から base image（andon:local-<短い SHA>）を焼き、FROM をそれにして入れ替える
 #   bin/bootstrap host-install   ホストの道具（andon-up・ssh config・herdr の設定・App mod・Stream Deck の plugin）を置く
+#   bin/bootstrap tray-deploy    Cloudflare の tray を出す（セルの repo の tray-deploy.json を読む。Cloudflare のトークンは
+#                                この1回だけ CLOUDFLARE_API_TOKEN に渡す。セルには置かない。docs/operate.md の Cloudflare の tray の手順）
 #   bin/bootstrap --dry-run …    docker を打たずに、打つものを出す
 #
 # これは本体（image の /opt/andon/host/bootstrap）。セルの repo の bin/bootstrap（薄い入口）が、打つたびに image から
@@ -451,6 +453,18 @@ case "${1:-}" in
       ensure_image
     fi
     host_install
+    ;;
+  # Cloudflare の tray のデプロイ（ADR-0064 決めたこと 27）。セルのコンテナではなく、使い捨てのコンテナで andon tray deploy を打つ。
+  # トークンはホストの環境変数から -e で名前だけ渡す（打つものに値を出さない）。設定のファイルは読むだけで載せる
+  tray-deploy)
+    [ -f tray-deploy.json ] || die "tray-deploy.json が無い（セルの repo の根に置く。形は docs/operate.md の Cloudflare の tray の手順）"
+    if [ "$dry" = 0 ] && [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+      die "CLOUDFLARE_API_TOKEN が無い（この1回の実行にだけ渡す: CLOUDFLARE_API_TOKEN=<トークン> bin/bootstrap tray-deploy）"
+    fi
+    require_docker
+    ensure_image
+    run docker run --rm -e CLOUDFLARE_API_TOKEN -v "$root/tray-deploy.json:/tmp/tray-deploy.json:ro" "$image" \
+      andon tray deploy --config /tmp/tray-deploy.json
     ;;
   -h | --help | help) usage ;;
   *)

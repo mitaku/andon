@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -128,4 +131,75 @@ func Remote(t testing.TB, f *Fake, project, key string) {
 		return &tray.Remote{Upload: f.URL, Key: key}, nil
 	}
 	t.Cleanup(func() { tray.RemoteFor = prev })
+}
+
+// Route は検査の間だけ、https://<host> への送りを f へ回す（project.json の tray.upload は https のホスト名だけを受けるので、
+// 本物の RemoteFor を通して偽の Cloudflare の tray へ届けるときに使う）。127.0.0.1 の http（偽のローカルの tray）はそのまま通し、
+// ほかの宛先へは出さずに断る。
+func Route(t testing.TB, host string, f *Fake) {
+	t.Helper()
+	target, err := url.Parse(f.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := tray.Client
+	tray.Client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Scheme == "http" && r.URL.Hostname() == "127.0.0.1" {
+			return http.DefaultTransport.RoundTrip(r)
+		}
+		if r.URL.Scheme != "https" || r.URL.Host != host {
+			return nil, fmt.Errorf("検査の外の宛先 %s へは送らない", r.URL.Redacted())
+		}
+		r2 := r.Clone(r.Context())
+		r2.URL.Scheme, r2.URL.Host, r2.Host = target.Scheme, target.Host, target.Host
+		return http.DefaultTransport.RoundTrip(r2)
+	})}
+	t.Cleanup(func() { tray.Client = prev })
+}
+
+type roundTrip func(*http.Request) (*http.Response, error)
+
+func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// Owner は CellRepo が andon.toml に書くオーナー。
+const Owner = "owner@example.com"
+
+// CellRepo は一時のセルの repo を作り、andon.toml（オーナーは Owner）と projects/<slug>/project.json（projects の値）を
+// author の名前で1つの commit にする。返すのはセルの repo の置き場（ANDON_WORKSPACE に入れて使う）。git が無ければ検査を飛ばす。
+func CellRepo(t testing.TB, author string, projects map[string]string) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git が無い")
+	}
+	ws := t.TempDir()
+	write := func(p, body string) {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(ws, "andon.toml"), "owner = \""+Owner+"\"\n")
+	for slug, body := range projects {
+		write(filepath.Join(ws, "projects", slug, "project.json"), body)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "projects"}} {
+		cmd := exec.Command("git", append([]string{"-C", ws, "-c", "commit.gpgsign=false"}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL="+author, "GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL="+author,
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	return ws
+}
+
+// ProjectJSON は project.json の中身。tray が空でなければ "tray": {"upload": tray} を足す。
+func ProjectJSON(tray string) string {
+	extra := ""
+	if tray != "" {
+		extra = `, "tray": {"upload": "` + tray + `"}`
+	}
+	return `{"version": 1, "project": {"title": "Sample", "prefix": "S"}, "repos": []` + extra + `}`
 }

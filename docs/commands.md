@@ -23,6 +23,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon digest auth` | オーナー | ダイジェストを送る Slack の bot のトークンをセルの中で聞いて置く |
 | `andon tray auth` | オーナー | Cloudflare の tray の API キーをセルの中で聞いて置く |
 | `andon tray status` | オーナー・役 | ローカルの tray と Cloudflare の tray の URL・到達・バージョン・直近 7 日の枚数を出す |
+| `andon tray deploy` | オーナー | Cloudflare の tray をオーナーのアカウントへ出す（セルの外で bin/bootstrap tray-deploy から打つ） |
 | `andon cell init` | オーナー | セルの repo の雛形（&lt;slug&gt;-cell）を作る |
 | `andon issue trace` | オーナー・役 | 課題 1 件の流れ（段・起動・プロンプト・モデルの呼び出しとツール）を 1 本の木にして出す（読むだけ） |
 

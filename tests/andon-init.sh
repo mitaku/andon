@@ -90,6 +90,21 @@ sandbox bash bin/bootstrap no-such-sub >"$tmp/out2" 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && help_ok "$tmp/err" && pass "知らない sub-command は注記を stderr に出して rc 2" || fail "知らない sub-command: rc=$r $(cat "$tmp/out2" "$tmp/err")"
 sandbox bash bin/bootstrap --dry-run up >"$tmp/out2" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -q ' up -d$' "$tmp/out2" && ! grep -q ' exec \|開く:' "$tmp/out2" && pass "up は起動だけで案内も出さない" || fail "up: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+# tray-deploy（ADR-0064 決めたこと 27）: 設定のファイルが無ければ打たない。トークンは名前だけを渡し、打つものに値を出さない
+tok="sample""-token-""for-dry-run"   # 偽のトークン（組み立てて作る。public の検査に当てない）
+sandbox CLOUDFLARE_API_TOKEN="$tok" bash bin/bootstrap --dry-run tray-deploy >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'tray-deploy.json が無い' "$tmp/err" && ! grep -q 'docker run' "$tmp/out2" && pass "tray-deploy は tray-deploy.json が無ければ打たない" || fail "tray-deploy（設定なし）: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+echo '{}' >tray-deploy.json
+sandbox bash bin/bootstrap tray-deploy >"$tmp/out2" 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'CLOUDFLARE_API_TOKEN が無い' "$tmp/err" && pass "tray-deploy はトークンが無ければ打たない" || fail "tray-deploy（トークンなし）: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+sandbox CLOUDFLARE_API_TOKEN="$tok" bash bin/bootstrap --dry-run tray-deploy >"$tmp/out2" 2>"$tmp/err"; r=$?
+if [ "$r" = 0 ] && grep -q "^+ docker run --rm -e CLOUDFLARE_API_TOKEN -v $PWD/tray-deploy.json:/tmp/tray-deploy.json:ro andon-x:local andon tray deploy --config /tmp/tray-deploy.json$" "$tmp/out2" \
+  && ! grep -qF "$tok" "$tmp/out2" "$tmp/err"; then
+  pass "tray-deploy は使い捨てのコンテナで andon tray deploy を打ち、トークンの値を出さない"
+else
+  fail "tray-deploy: rc=$r $(cat "$tmp/out2" "$tmp/err")"
+fi
+rm tray-deploy.json
 
 sandbox bash bin/bootstrap --dry-run host-install >"$tmp/out" 2>"$tmp/err"; r=$?
 [ "$r" = 0 ] && grep -q "install -m 755 $home/.local/bin/andon-up" "$tmp/out" && [ ! -e "$home/.local" ] && [ ! -e "$home/.config" ] && pass "host-install --dry-run は HOME に書かない" || fail "host-install --dry-run: rc=$r $(cat "$tmp/out" "$tmp/err")"

@@ -119,6 +119,8 @@ var leaves = []leaf{
 		usage: tray.AuthUsage, examples: []string{"tray auth"}, writes: true, run: tray.AuthMain},
 	{name: "tray status", who: []who{owner, role}, about: "ローカルの tray と Cloudflare の tray の URL・到達・バージョン・直近 7 日の枚数を出す",
 		usage: tray.StatusUsage, examples: []string{"tray status"}, project: true, optional: true, run: tray.StatusMain},
+	{name: "tray deploy", who: []who{owner}, about: "Cloudflare の tray をオーナーのアカウントへ出す（セルの外で bin/bootstrap tray-deploy から打つ）",
+		usage: tray.DeployUsage, examples: []string{"tray deploy --config /tmp/tray-deploy.json"}, run: tray.DeployMain},
 	{name: "cell init", who: []who{owner}, about: "セルの repo の雛形（<slug>-cell）を作る",
 		usage: plantinit.Usage, examples: []string{"cell init sample"}, writes: true, run: plantinit.Main},
 

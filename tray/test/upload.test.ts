@@ -5,6 +5,7 @@ import contract from "../contract/upload-v1.json";
 import { sha256Hex } from "../src/lib/http";
 import { listAPI } from "../src/lib/list-api";
 import { viewFace } from "../src/lib/view-face";
+import { OLD_CONTENT_MS, uploadAPI } from "../src/lib/upload-api";
 import upload from "../src/upload";
 import { LIST_ORIGIN, listEnv, putKey, putRequest, UPLOAD_ORIGIN, uploadEnv, viewEnv } from "./helpers";
 
@@ -175,6 +176,114 @@ describe("バージョン", () => {
     // 同じ中身の出し直しは、読めている中身のまま上げない
     const again = await send(await putRequest({ name: "race", title: "A", body: "# A", key }));
     expect(again.body.bumped).toBe(false);
+  });
+});
+
+describe("前の中身の掃除", () => {
+  const keys = async (id: string) => (await env.BUCKET.list({ prefix: `${id}/` })).objects.map((o) => o.key).sort();
+  const at = async (name: string, body: string, now: number, project = "andon") => {
+    const res = await uploadAPI(await putRequest({ project, name, body }), uploadEnv(), "c1", now);
+    return String(((await res.json()) as { url: string }).url).split("/").pop() as string;
+  };
+
+  it("上げ直すと、同じ報告の前の中身のうち R2 に置いてから1日を過ぎたものだけを消す", async () => {
+    const t = Date.now();
+    const id = await at("clean", "1", t);
+    const other = await at("clean", "x", t, "other");
+    await at("clean", "2", t);
+    const [s1, s2, s3, s4] = await Promise.all(["1", "2", "3", "4"].map((b) => sha256Hex(b)));
+    expect(await keys(id), "置いたばかりの前の中身は残す").toEqual([`${id}/${s1}`, `${id}/${s2}`].sort());
+    await at("clean", "3", t + OLD_CONTENT_MS - 60_000);
+    expect(await keys(id), "1日に満たない前の中身は残す").toEqual([`${id}/${s1}`, `${id}/${s2}`, `${id}/${s3}`].sort());
+    await at("clean", "4", t + OLD_CONTENT_MS + 60_000);
+    expect(await keys(id), "1日を過ぎた前の中身を消し、今の中身は残す").toEqual([`${id}/${s4}`]);
+    expect(await keys(other), "ほかの報告の中身には触れない").toHaveLength(1);
+    // 同じ中身の出し直しはバージョンを上げず、何も消さない
+    await at("clean", "4", t + 3 * OLD_CONTENT_MS);
+    expect(await keys(id)).toEqual([`${id}/${s4}`]);
+  });
+
+  // 同じ報告への上げ直し A（中身 Z）と B（1日より前の中身 X へ戻すか、新しい中身 W）が重なる。B が割り込む所:
+  //   list: A の掃除が一覧を読んだ直後。delete-before: A が R2 から消す直前（D1 を読んだあと）。delete-after: A が消した直後。
+  //   b-put: B が R2 に置いた直後で、D1 を切り替える前（そこで A が全部を済ませる）
+  // どの順でも、終わったとき D1 が指す中身が R2 に在る
+  const points = ["list", "delete-before", "delete-after", "b-put"] as const;
+  for (const back of ["X", "W"]) {
+    for (const point of points) {
+      it(`上げ直し（${back}）が掃除の ${point} に重なっても、D1 が指す中身は R2 に在る`, async () => {
+        const t = Date.now();
+        const name = `race-${back}-${point}`;
+        const id = await at(name, "X", t);
+        await at(name, "Y", t + 60_000);
+        const late = t + 2 * OLD_CONTENT_MS;
+        let raced = false;
+        const hook = (run: () => Promise<unknown>) => async () => {
+          if (raced) return;
+          raced = true;
+          await run();
+        };
+        const runB = hook(async () => uploadAPI(await putRequest({ name, body: back }), uploadEnv(), "c1", late));
+        const runA = hook(async () => uploadAPI(await putRequest({ name, body: "Z" }), uploadEnv(), "c1", late));
+        const proxied = (around: Record<string, (target: R2Bucket, args: unknown[]) => Promise<unknown>>) =>
+          new Proxy(env.BUCKET, {
+            get(target, prop) {
+              const f = around[String(prop)];
+              if (f) return (...args: unknown[]) => f(target, args);
+              return Reflect.get(target, prop).bind(target);
+            },
+          });
+        if (point === "b-put") {
+          const bucket = proxied({
+            put: async (target, args) => {
+              const r = await (target.put as (...a: unknown[]) => Promise<unknown>)(...args);
+              await runA();
+              return r;
+            },
+          });
+          await uploadAPI(await putRequest({ name, body: back }), { ...uploadEnv(), BUCKET: bucket }, "c1", late);
+        } else {
+          const bucket = proxied({
+            list: async (target, args) => {
+              const listed = await target.list(args[0] as R2ListOptions);
+              if (point === "list") await runB();
+              return listed;
+            },
+            delete: async (target, args) => {
+              if (point === "delete-before") await runB();
+              const r = await target.delete(args[0] as string | string[]);
+              if (point === "delete-after") await runB();
+              return r;
+            },
+          });
+          await uploadAPI(await putRequest({ name, body: "Z" }), { ...uploadEnv(), BUCKET: bucket }, "c1", late);
+        }
+        expect(raced, "割り込みが起きた").toBe(true);
+        const row = await env.DB.prepare("SELECT sha256 FROM reports WHERE id = ?1").bind(id).first<{ sha256: string }>();
+        expect(await env.BUCKET.head(`${id}/${row?.sha256}`), "D1 が指す中身が R2 に在る").not.toBeNull();
+      });
+    }
+  }
+
+  it("D1 が指す中身が R2 に無ければ、同じ中身の上げ直しが置き直す（バージョンは上げない）", async () => {
+    const id = await at("heal", "1", Date.now());
+    const s1 = await sha256Hex("1");
+    await env.BUCKET.delete(`${id}/${s1}`);
+    const res = await uploadAPI(await putRequest({ name: "heal", body: "1" }), uploadEnv(), "c1");
+    expect(await res.json()).toMatchObject({ version: 1, bumped: false });
+    expect(await env.BUCKET.head(`${id}/${s1}`)).not.toBeNull();
+  });
+
+  it("前の中身を消せなくても、上げは成り立つ", async () => {
+    const broken = new Proxy(env.BUCKET, {
+      get(target, prop) {
+        if (prop === "list") return async () => Promise.reject(new Error("list が落ちた"));
+        return Reflect.get(target, prop).bind(target);
+      },
+    });
+    await uploadAPI(await putRequest({ name: "keep", body: "1" }), uploadEnv(), "c1");
+    const res = await uploadAPI(await putRequest({ name: "keep", body: "2" }), { ...uploadEnv(), BUCKET: broken }, "c1", Date.now() + 2 * OLD_CONTENT_MS);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { version: number }).version).toBe(2);
   });
 });
 

@@ -1,0 +1,3 @@
+{"account_id": "0123456789abcdef0123456789abcdef",
+ "hosts": {"list": "tray.example.com", "view": "tray-view.example.com", "upload": "tray-up.example.com"},
+ "access": {"team_domain": "https://example.cloudflareaccess.com", "aud": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}

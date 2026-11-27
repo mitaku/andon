@@ -59,11 +59,15 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ id: string; sha256: string; version: number }>();
   if (!cur) return error(500, "internal", "報告の行を作れない");
   const url = `${env.LIST_ORIGIN}/r/${cur.id}`;
-  // 中身が同じ出し直しはバージョンを上げない（読み終えた物を未読に戻さない）
-  if (cur.version > 0 && cur.sha256 === want) return json({ url, version: cur.version, bumped: false });
+  // 中身が同じ出し直しはバージョンを上げない（読み終えた物を未読に戻さない）。D1 が指す中身が R2 に無ければ（重なった
+  // 上げ直しの掃除が消したあと）置き直す
+  if (cur.version > 0 && cur.sha256 === want) {
+    if (!(await env.BUCKET.head(objectKey(cur.id, want)))) await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
+    return json({ url, version: cur.version, bumped: false });
+  }
 
   // R2 は中身ごとのキー（<id>/<sha256>）に先に書き、あとで D1 の sha256 とバージョンを1つの文で切り替える。同じ名前への上げが
-  // 重なっても、D1 が指す sha256 の中身は R2 に必ず在り、タイトルや形式と食い違わない。前の中身は消さない（決めたこと 21）
+  // 重なっても、D1 が指す sha256 の中身は R2 に必ず在り、タイトルや形式と食い違わない。前の中身は、切り替えたあとに dropOld が消す
   await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
   const up = await env.DB.prepare(
     `UPDATE reports SET version = version + 1, sha256 = ?2, title = ?3, kind = ?4, content_type = ?5, size = ?6, updated_at = ?7
@@ -73,7 +77,38 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ version: number }>();
   if (!up) return error(500, "internal", "バージョンを上げられない");
   await env.DB.prepare("INSERT INTO uploads (report_id, version, at) VALUES (?1, ?2, ?3)").bind(cur.id, up.version, now).run();
+  // 切り替えたあとに、指す中身が R2 に在るかを確かめる。重なった上げ直しの掃除が、置いてから切り替えるまでの間に消していれば置き直す
+  if (!(await env.BUCKET.head(objectKey(cur.id, want)))) await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
+  await dropOld(env, cur.id, want, now);
   return json({ url, version: up.version, bumped: true });
+}
+
+// OLD_CONTENT_MS: 上げ直しで指されなくなった前の中身を、R2 に置いてから何ミリ秒で消すか（1日）。
+// 署名付き URL（5分）で開きかけた前の中身と、同じ名前へ重なって上がった中身（D1 が指す前に R2 に在る）を消さない幅
+export const OLD_CONTENT_MS = 24 * 60 * 60 * 1000;
+
+// dropOld: 同じ報告の前の中身のうち、R2 に置いてから OLD_CONTENT_MS を過ぎたものを消す。上げ直しのたびに、その報告の分だけを見る
+// （定期の処理を持たない）。消せなくても上げは成り立つ（次の上げ直しでまた消す）。
+// R2 の delete は条件を付けられないので、同じ報告へ前の中身に戻す上げ直しが重なると、消す中身が D1 の指す物になりうる。
+// 中身を読んでから消し、消したあとで D1 を読み直して、指す物を消していたら置き直す。上げ直しの側も、D1 を切り替えたあとに
+// 中身が在るかを確かめて置き直す。どちらが後に動いても、後の側が消えたのを見る
+async function dropOld(env: UploadEnv, id: string, keep: string, now: number) {
+  try {
+    const listed = await env.BUCKET.list({ prefix: `${id}/` });
+    const old = listed.objects
+      .filter((o) => o.key !== objectKey(id, keep) && now - o.uploaded.getTime() > OLD_CONTENT_MS)
+      .map((o) => o.key);
+    for (const key of old) {
+      const obj = await env.BUCKET.get(key);
+      if (!obj) continue;
+      const body = await obj.arrayBuffer();
+      await env.BUCKET.delete(key);
+      const cur = await env.DB.prepare("SELECT sha256 FROM reports WHERE id = ?1").bind(id).first<{ sha256: string }>();
+      if (cur && objectKey(id, cur.sha256) === key) await env.BUCKET.put(key, body, { httpMetadata: obj.httpMetadata });
+    }
+  } catch {
+    // 掃除の失敗で上げを落とさない
+  }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

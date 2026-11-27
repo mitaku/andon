@@ -30,6 +30,14 @@ D1 の表は `migrations/`、アップロードの約束と見本は `contract/u
 
 ローカルの tray は `src/local.ts`（一覧の面と報告の面を Host で振り分ける。Access は通さない）と `src/local-upload.ts`（127.0.0.1 だけで開くアップロードの口）を、`scripts/serve.mjs` が miniflare で起動する。
 
+## Cloudflare へのデプロイ
+
+`scripts/deploy.mjs` が wrangler で、D1 と R2（どちらも `andon-tray`）を無ければ作り、D1 の移行を当て、3つの面を別々の Worker（`andon-tray-list`・`andon-tray-view`・`andon-tray-upload`）にして出す。束縛は面ごとに要るものだけを持たせ、workers.dev の名前は切って、ホスト名（custom domain）だけで開く。署名の鍵は打つたびに作り直して secret で渡す。アカウントの ID・3つのホスト名・Access のチームと aud は、セルの repo の `tray-deploy.json` から読み、この repo には書かない（形の見本は `deploy.example.json`）。
+
+オーナーはセルの外で `CLOUDFLARE_API_TOKEN=<トークン> bin/bootstrap tray-deploy` と打つ。andon のイメージから使い捨てのコンテナを起動し、`andon tray deploy` がこのスクリプトを Node で動かす。手順の全体（有料プラン・R2・Access・鍵・`project.json` の `tray`）は [operate.md](../docs/operate.md) §8。`bun run deploy-check` は Cloudflare に触れず、見本の設定で組んだ3つの Worker の設定を `wrangler deploy --dry-run` に通す。
+
+上げ直しで古くなった中身は、R2 に置いてから1日を過ぎたものを、同じ報告の次の上げ直しで消す（`src/lib/upload-api.ts` の `dropOld`。[決定の記録](../docs/decisions/2026-11-27-tray-old-content-one-day.md)）。
+
 ## 検査
 
 Bun と Node のバージョンは repo の `mise.toml`。
@@ -39,6 +47,7 @@ bun install --frozen-lockfile --ignore-scripts
 bun run typecheck
 bun run test      # Workers の検査（workerd の上）
 bun run build     # Workers を dist/workers に、画面を dist/public に作る
+bun run deploy-check   # デプロイの設定を wrangler に確かめさせる（Cloudflare には触れない）
 bun run e2e       # ローカルの tray を一時の置き場に起動して、アップロードから既読までを通す
 bunx playwright install chromium && bun run browser   # 画面・開く形式・報告の面の sandbox をブラウザで確かめる
 ```

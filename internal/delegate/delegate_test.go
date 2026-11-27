@@ -272,6 +272,53 @@ func TestParseProjectOtel(t *testing.T) {
 	}
 }
 
+// ADR-0064 決めたこと 5: tray はアップロードの口のオリジン（https とホスト名）だけを受け、書き直してもそのまま残る。
+// 形の違うものは command も schema も断る（古い andon と同じく project.json ごと読めなくなる）。
+func TestParseProjectTray(t *testing.T) {
+	with := func(o string) []byte {
+		return []byte(`{"version": 1, "project": {"title": "Sample site", "prefix": "S"}, "repos": [], "tray": ` + o + `}`)
+	}
+	for _, o := range []string{`{"upload":"https://tray-up.example.com"}`, `{"upload":"https://tray-up.example.com/"}`, `{"upload":"https://up.tray.example.co.jp"}`} {
+		p, err := ParseProject(with(o), "sample-site")
+		if err != nil || p.Tray == nil {
+			t.Fatalf("%s: %+v %v", o, p, err)
+		}
+		if err := contract.SchemaProject.Check(with(o)); err != nil {
+			t.Errorf("%s: schema が断る: %v", o, err)
+		}
+		out, err := contract.Encode(contract.SchemaProject, p)
+		if err != nil {
+			t.Fatalf("%s: %v", o, err)
+		}
+		var back, want map[string]any
+		_ = json.Unmarshal(out, &back)
+		_ = json.Unmarshal(with(o), &want)
+		if !reflect.DeepEqual(back["tray"], want["tray"]) {
+			t.Errorf("書き直すと tray が変わる: %s", out)
+		}
+	}
+	for name, o := range map[string]string{
+		"http":           `{"upload":"http://tray-up.example.com"}`,
+		"パスがある":          `{"upload":"https://tray-up.example.com/v1"}`,
+		"番号がある":          `{"upload":"https://tray-up.example.com:8443"}`,
+		"利用者がある":         `{"upload":"https://a@tray-up.example.com"}`,
+		"大文字":            `{"upload":"https://Tray-Up.example.com"}`,
+		"ホスト名に点が無い":      `{"upload":"https://localhost"}`,
+		"空":              `{"upload":""}`,
+		"upload が無い":     `{}`,
+		"tray が null":    `null`,
+		"知らないキー":         `{"upload":"https://tray-up.example.com","key":"x"}`,
+		"upload が文字列でない": `{"upload":1}`,
+	} {
+		if _, err := ParseProject(with(o), "sample-site"); err == nil {
+			t.Errorf("%s: 通ってしまう", name)
+		}
+		if contract.SchemaProject.Check(with(o)) == nil {
+			t.Errorf("%s: schema を通ってしまう", name)
+		}
+	}
+}
+
 func TestParseProject(t *testing.T) {
 	full := `{"version": 1, "project": {"title": "Sample site", "prefix": "S"},
  "repos": ["github.com/example/sample-site"], "references": ["github.com/example/design-notes", "https://example.com/spec"],
