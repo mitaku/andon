@@ -518,7 +518,11 @@ if [ "$self" = true ]; then
 fi
 
 # 7. 記録を読む道: 偽のセルで、証拠が足りないときに 0 で終わらない（本物の /opt/andon・HOME・hc には触らない）
+# 8 が当たる場合に数えるのは、7 で本当に走った判定だけ。走った grep -q をそのままの字面で $hits_ran に控える（関数の中と if false の中は控えない）
+hits_ran=$tmp/hits-ran
+hits_trap='case $BASH_COMMAND in grep\ -q*) printf "%s\n" "$BASH_COMMAND" >>"$hits_ran" ;; esac'
 if [ "$self" = true ]; then
+  trap "$hits_trap" DEBUG
   c=$tmp/cell; mkdir -p "$c/pkg/bin" "$c/pkg/hooks" "$c/pkg/skills/worker" "$c/pkg/skills/retro" "$c/bin" "$c/home/.agents/skills" "$c/state/andon/dispatcher" "$c/ws"
   echo '{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}' >"$c/pkg/applied.json"
   touch "$c/pkg/skills/worker/SKILL.md" "$c/pkg/skills/retro/SKILL.md"
@@ -941,6 +945,7 @@ if [ "$self" = true ]; then
     bash "$skill/scripts/drive.sh" otel "$new" ot-listen 2>&1) || drc=$?
   [ "$drc" = 1 ] && grep -qF 'FAIL 道の出力の写し' <<<"$dout" || die "drive.sh: 出力の写しが途中で切れたのに 1 にしない（$drc）: $dout"
   ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
+  trap - DEBUG
 fi
 
 # 8. 当たる場合の確かめ: 道が名指す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことの確かめ（当たる場合）を
@@ -980,15 +985,21 @@ wl_review_brief wl_terminal
   # hit_names <skill> <検査のシェル>: 道が名指す細かい機能（scripts/ の下に名前が語として出るもの。drive.sh は道の出力の ok の行から名前を読むので、
   #   ok の出し方〈一重引用符・変数・包む関数・echo〉によらず数える）ごとに、7 に当たる場合があれば「HIT <名前>」、無ければ「MISS <名前>」を1行ずつ出す。
   #   当たる場合に数えるのは、7 の注釈でない文（行末の \ の続きをつなぐ）のうち、if・while でなく || die で受ける文の、die より前を && で割った項で、
-  #   一重引用符のパターンを <<<"$<変数>" に当てる grep -q（旗は F・x だけ）の項だけ。! の無い項は FAIL・未確認のパターン、! の付いた項は ok のパターンを数える
+  #   一重引用符のパターンを <<<"$<変数>" に当てる grep -q（旗は F・x だけ）の項だけ。! の無い項は FAIL・未確認のパターン、! の付いた項は ok のパターンを数える。
+  #   そのうえで、<走った grep の控え>（7 の DEBUG の trap が書く）に同じパターンの grep があるものだけを数える（if false の中のような走らない判定を数えない）
+  #   使い方: hit_names <skill> <検査のシェル> <走った grep の控え>
   hit_names() {
-    local sec terms pos neg n
+    local sec terms pos neg n ran
+    ran=$(sed -nE "s/^grep -q[Fx]* '([^']*)' <<< \"\\\$[a-z_]+\"\$/\1/p" "$3" 2>/dev/null || true)
+    [ -n "$ran" ] || die "$3 に 7 で走った grep の控えが無い（当たる場合の確かめが何も見ない）"
     sec=$(sed -n '/^# 7\. /,/^# 8\. /p' "$2" | { grep -v '^[[:space:]]*#' || true; } | sed -e ':a' -e '/\\$/{N;s/\\\n//;ba}' \
       | { grep -E '\|\| die( |$)' || true; } | { grep -vE '^[[:space:]]*(if|elif|while|until) ' || true; } | sed -E 's/\|\| die( .*|$)//')
     [ -n "$sec" ] || die "$2 から 7 の節の判定の文が読めない（当たる場合の確かめが何も見ない）"
     terms=$(sed 's/ && /\n/g' <<<"$sec" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
     pos=$(sed -nE "s/^grep -q[Fx]* '([^']*)' <<<\"\\\$[a-z_]+\"\$/\1/p" <<<"$terms")
     neg=$(sed -nE "s/^! grep -q[Fx]* '([^']*)' <<<\"\\\$[a-z_]+\"\$/\1/p" <<<"$terms")
+    pos=$(grep -xF -f <(echo "$ran") <<<"$pos" || true)
+    neg=$(grep -xF -f <(echo "$ran") <<<"$neg" || true)
     while read -r n; do
       grep -rqE "(^|[^a-z0-9-])$n([^a-z0-9-]|\$)" "$1/scripts" || continue
       if grep -qE "(FAIL $n|未確認: $n|結果 $n (未確認|FAIL))([^a-z0-9-]|\$)" <<<"$pos" || grep -qE "^\\^?ok   $n([^a-z0-9-]|\$)" <<<"$neg"; then
@@ -1043,7 +1054,7 @@ wl_review_brief wl_terminal
       if grep -qxF -- "$n" <<<"$4"; then echo "$n: 道の行を変えたのに、控えに残る（控えから外し、7 に当たる場合を書く）"; fi
     done <<<"$2"
   }
-  hits=$(hit_names "$skill" tests/verify-andon.sh)
+  hits=$(hit_names "$skill" tests/verify-andon.sh "$hits_ran")
   allow=$(tr ' _' '\n-' <<<"$hits_allow" | grep . || true)
   [ "$(allow_of <tests/verify-andon.sh)" = "$allow" ] || die "控え hits_allow を検査のシェルから読み直せない（base の控えと比べられない）"
   base_allow=- touched=
@@ -1062,15 +1073,16 @@ $gaps"
 
   # 自分の確かめ: 7 から当たる場合を消した写し（確かめを打てない回に ok を出す wl-settings・理由の空な記録を通す gt-record）で、名前つきで落ちる
   sed '/"$drc" = 3 \].*wl-settings/d' tests/verify-andon.sh >"$tmp/hits-a.sh"
-  grep -qxF 'HIT wl-settings' <<<"$hits" && grep -qxF 'MISS wl-settings' <<<"$(hit_names "$skill" "$tmp/hits-a.sh")" \
+  grep -qxF 'HIT wl-settings' <<<"$hits" && grep -qxF 'MISS wl-settings' <<<"$(hit_names "$skill" "$tmp/hits-a.sh" "$hits_ran")" \
     || die "7 から wl-settings の当たる場合を消した写しで、wl-settings を当たる場合の無いものと読まない"
-  gaps=$(hit_gaps "$(hit_names "$skill" "$tmp/hits-a.sh")" "$allow" - '')
+  gaps=$(hit_gaps "$(hit_names "$skill" "$tmp/hits-a.sh" "$hits_ran")" "$allow" - '')
   grep -qxF 'wl-settings: 道が名指すのに、7 に当たる場合の確かめが無い' <<<"$gaps" || die "7 から wl-settings の当たる場合を消した写しで落ちない: $gaps"
   sed "/'FAIL gt-record'/d" tests/verify-andon.sh >"$tmp/hits-b.sh"
-  grep -qxF 'HIT gt-record' <<<"$hits" && grep -qxF 'MISS gt-record' <<<"$(hit_names "$skill" "$tmp/hits-b.sh")" \
+  grep -qxF 'HIT gt-record' <<<"$hits" && grep -qxF 'MISS gt-record' <<<"$(hit_names "$skill" "$tmp/hits-b.sh" "$hits_ran")" \
     || die "7 から gt-record の当たる場合を消した写しで、gt-record を当たる場合の無いものと読まない"
   # 数えない形（hd-hold）: 否定の grep の FAIL・二重引用符のパターン・if の文・行末の注釈・grep -c・[[ ]]・-e・|| true・受けの無い ! grep・-v・echo・
-  # die の文の中・行頭の注釈・別の名前・8 の後ろ。数える形: ok でないことを求める grep・行末の \ でつないだ文・FAIL を求める grep。
+  # die の文の中・行頭の注釈・別の名前・8 の後ろ。走らない分岐の中の判定（if false・呼ばれない関数・while false・選ばれない case の dn-*）も数えない。
+  # 数える形: ok でないことを求める grep・行末の \ でつないだ文・FAIL を求める grep。
   # 写しの 7 と 8 の見出しは行頭の | を外して作る（この検査のシェルの 7 の読み方に、写しの行を混ぜない）
   sed 's/^|//' >"$tmp/hits-c.sh" <<'EOS'
 |# 7. 写し
@@ -1094,18 +1106,39 @@ $gaps"
   [ "$drc" = 1 ] && grep -qx '結果 wl-terminal FAIL（補い）' <<<"$dout" \
     || die x
   grep -qF 'FAIL gt-record' <<<"$jout" || die x
+  if false; then
+    grep -qF 'FAIL dn-delivered' <<<"$jout" || die x
+  fi
+  never() {
+    grep -qF 'FAIL dn-idle' <<<"$jout" || die x
+  }
+  while false; do
+    grep -qF 'FAIL dn-signal' <<<"$jout" || die x
+  done
+  case $jrc in
+    9) grep -qF 'FAIL dn-corrections' <<<"$jout" || die x ;;
+  esac
 |# 8. 写し
   grep -qF 'FAIL hd-hold' <<<"$jout" || die x
 EOS
-  nb=$(hit_names "$skill" "$tmp/hits-c.sh")
+  # 写しを 7 と同じ trap の下で走らせて、走った grep の控えを作る（if false の中の判定は走らない）
+  bash -c 'die() { :; }; jrc=3 drc=1 jout=x dout=x c=$1 hits_ran=$2; trap "$3" DEBUG; eval "$(cat "$4")"' _ "$tmp" "$tmp/ran-c" "$hits_trap" "$tmp/hits-c.sh" \
+    || die "写し hits-c を trap の下で走らせられない"
+  grep -qxF "grep -qF 'FAIL gt-record' <<< \"\$jout\"" "$tmp/ran-c" || die "trap が走った grep を控えない: $(cat "$tmp/ran-c")"
+  if grep -qF 'FAIL dn-delivered' "$tmp/ran-c"; then die "trap が if false の中の grep を走ったと控える"; fi
+  nb=$(hit_names "$skill" "$tmp/hits-c.sh" "$tmp/ran-c")
   grep -qxF 'MISS hd-hold' <<<"$nb" || die "数えない形の写しで hd-hold を当たる場合のあるものと読む: $nb"
+  for n in dn-delivered dn-idle dn-signal dn-corrections; do
+    grep -qxF "MISS $n" <<<"$nb" || die "走らない分岐（if false・呼ばれない関数・while false・選ばれない case）の中の判定で $n を当たる場合と読む: $nb"
+  done
+  grep -qxF "grep -qF 'FAIL gt-record' <<< \"\$jout\"" "$hits_ran" || die "7 で走った grep の控えに、走ったはずの gt-record の判定が無い"
   for n in gt-skip wl-terminal gt-record; do
     grep -qxF "HIT $n" <<<"$nb" || die "数える形の写しで $n を当たる場合と読まない: $nb"
   done
   # 道が名指す細かい機能は、ok の出し方（変数で組んだ名前など）によらず照らす
   cp -r "$skill" "$tmp/hits-d" && sed -i '/^## 細かい機能$/a - `hd-zz` 試し。見る道: 検証の担当だけ。' "$tmp/hits-d/features/hold.md" \
     && echo 'for s in hd-zz; do ok "$s: 試し"; done' >>"$tmp/hits-d/scripts/journeys/hold.sh" || die "写し hits-d が作れない"
-  gaps=$(hit_gaps "$(hit_names "$tmp/hits-d" tests/verify-andon.sh)" "$allow" - '')
+  gaps=$(hit_gaps "$(hit_names "$tmp/hits-d" tests/verify-andon.sh "$hits_ran")" "$allow" - '')
   grep -qxF 'hd-zz: 道が名指すのに、7 に当たる場合の確かめが無い' <<<"$gaps" || die "変数で組んだ名前で ok を出す細かい機能を照らさない: $gaps"
   # 控え: 当たる場合を書いた名前・道が名指さない名前・base の控えに無い名前・道を変えた名前が残ると落ちる
   gaps=$(hit_gaps $'HIT gt-record\nMISS wl-terminal\nMISS rr-ready\nMISS hd-hold' $'gt-record\nwl-terminal\nwl-nosuch\nrr-ready' $'gt-record\nwl-nosuch\nrr-ready' 'wl-terminal')
@@ -1132,5 +1165,5 @@ EOS
   ! grep -qF 'cat "$f"' "$tr/s/scripts/journeys/x.sh" || die "場面の xx-a の条件を消せない（自分の確かめが何も見ない）"
   t=$(touched_names "$tr" s "$tb")
   [ "$t" = $'xx-a\nxx-b' ] || die "名前の出ない行を変えた道（xx-a・xx-b）だけを数えない: $t"
-  ok "verify-andon: 当たる場合の照らしは、7 から wl-settings・gt-record の当たる場合を消した写しで名前つきで落ち、判定でない形と二重引用符・if の文の FAIL を数えず、ok の出し方によらず照らし、名前の出ない行の変更も上の行の細かい機能に数え、控えの崩れと読めない base の控えを拾う"
+  ok "verify-andon: 当たる場合の照らしは、7 から wl-settings・gt-record の当たる場合を消した写しで名前つきで落ち、判定でない形と二重引用符・if の文の FAIL と走らない分岐の中の判定を数えず、ok の出し方によらず照らし、名前の出ない行の変更も上の行の細かい機能に数え、控えの崩れと読めない base の控えを拾う"
 fi
