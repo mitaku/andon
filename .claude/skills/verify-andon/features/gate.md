@@ -1,13 +1,13 @@
 # gate
 
-課題が `review` に入ると、dispatcher が `andon gate <id>` を回し、PR の head・checks・レビュー・委譲・条件表（`/opt/andon/gate.json`）を照合して、判定（`approve`・`fix`・`needs_human`）とレベル（A・B・C）を記録に書く。`merge: auto` で委譲の範囲の中の `approve` は dispatcher がマージし、`fix` は担当へ、`needs_human` はオーナーへの問いになる。
+課題が `review` に入ると、dispatcher が `andon gate <id>` を回し、PR の head・checks・レビュー・委譲・条件表（`/opt/andon/gate.json`）を照合して、判定（`approve`・`fix`・`needs_human`・積んだ課題の前の PR 待ちの `behind`）とレベル（A・B・C）を記録に書く。`merge: auto` で委譲の範囲の中の `approve` は dispatcher がマージし、`fix` は担当へ、`needs_human` はオーナーへの問いになる。
 
 ## 細かい機能
 
-- `gt-record` 当てたあとの gate の記録（`library/gate/<head>.json`）が、判定・レベル・head・理由の形を持つ。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/gate/gate.go`、`internal/gate/decide.go`、`internal/gate/comment.go`、`internal/gate/mark.go`、`internal/gate/review.go`、`internal/gate/stacked.go`、`package/gate.json`
-- `gt-route` 判定ごとに課題が動いた（`approve` はマージかオーナーへ、`fix` は `doing`、`needs_human` は問い）。見る道: 検証の担当だけ。
-  - 見るファイル: `internal/issue/merge.go`、`internal/issue/finish.go`、`internal/issue/writeback.go`、`internal/dispatcher/route.go`、`internal/contract/merge.go`、`internal/delegate/delegate.go`、`process/states/gate.yaml`
+- `gt-record` 当てたあとの gate の記録（`library/gate/<head>.json`）が、判定・レベル・head・理由の形を持つ。積んだ課題の前の PR 待ち（判定 `behind`・終了コード 6）の記録も同じ形で、理由の 1 行目が前の課題を名指す。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/gate/gate.go`、`internal/gate/decide.go`、`internal/gate/comment.go`、`internal/gate/mark.go`、`internal/gate/review.go`、`internal/gate/stacked.go`、`internal/cli/leaves.go`、`package/gate.json`
+- `gt-route` 判定ごとに課題が動いた（`approve` はマージかオーナーへ、`fix` は `doing`、`needs_human` は問い、`behind` はマージも問いもせず `review` のまま通知 `gate` を Chief of Staff へ届ける）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/merge.go`、`internal/issue/finish.go`、`internal/issue/writeback.go`、`internal/dispatcher/route.go`、`internal/contract/merge.go`、`internal/delegate/delegate.go`、`process/states/gate.yaml`、`schema/notification.schema.json`
 - `gt-answer` dispatcher が閉じた問いは gate の問い（`from: gate`）だけで、dispatcher が書いた答えは印が `machine`、「決め直した」の答えが名指す gate の記録が在る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/issue/settle.go`、`internal/contract/settle.go`、`internal/dispatcher/humanmerge.go`、`process/states/human-merge.yaml`
 - `gt-tools` セルの条件表（`gate.local.json`）に検査の command がある repo で、PR の head に `mise.toml` があるとき、当てたあとの gate が検査の command の前に一時の worktree で `mise install` を打ち、検査が道具の無いことで落ちない（gate の記録の `checks` が `command not found` の失敗を持たない）。入れられなければ判定せず、dispatcher の端末のログ（`hc read dispatcher`）に理由が出る（ADR-0063 決めたこと 8）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
@@ -29,10 +29,10 @@
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh gate <検証する commit>` を打つ。セルの本物の `projects/*/kanban/issues/*/library/gate/*.json` を読むだけ。
 - **記録を読む。** `gt-record` の行に、当てたあとの gate が1行ずつ（課題・PR・レベル・判定・理由の数・checks・レビュー）出る。`ok   gt-record` が見えれば動いた。
-- **行き先を読む。** `gt-route` の行に、課題ごとの判定と今の `status` が出る。`approve` で `merged` が true なら課題は `done` か片付けの途中、`fix` なら `doing`、`needs_human` なら `review` のままオーナーの問いがある。食い違えば、`kanban show <id>` と `log.jsonl` を読んで報告に書く。
+- **行き先を読む。** `gt-route` の行に、課題ごとの判定と今の `status` が出る。`approve` で `merged` が true なら課題は `done` か片付けの途中、`fix` なら `doing`、`needs_human` なら `review` のままオーナーの問いがある。`behind` なら `review` のままで、問いは無い。食い違えば、`kanban show <id>` と `log.jsonl` を読んで報告に書く。
 - **閉じた問いを読む。** `gt-answer` の行に、検証する間に dispatcher が閉じた問い（kanban の `log.jsonl` で `by` が `terminal:dispatcher` の `received`）が1件ずつ（問いの `from`・答えた端末・印・答え）出る。`ok   gt-answer` が見えれば動いた。閉じた問いが無ければ `note gt-answer` が出て、gt-answer は未確認になる（終了コードは変えない）。gate の記録が無い回は、`ok   gt-answer` が見えても終了コードは 3 のままなので、報告には gt-answer だけを動いたと書き、gt-record・gt-route は未確認と書く。
 - **PR 無しの課題を読む。** `gt-skip` の行に、当てたあとに PR 無しで `review` に入った、報告の課題か自分の commit の無い課題が1件ずつ（報告の課題か報告の commit・`review` にした端末・次の status の行・merge の記録の `decision`）出る。`ok   gt-skip` が見えれば動いた。該当する課題が無ければ `note gt-skip` が出て、gt-skip は未確認になる（終了コードは変えない）。検証の課題そのものが PR 無しで返るので、自分の課題が `review` に入ったあとに打ち直せば読める。
-- **印を読む。** `drive.sh` は GitHub の印を読まない。`internal/gate/mark.go` を変えた差分では、記録の head ごとに `gh api repos/<owner>/<repo>/commits/<head>/statuses --jq '.[] | select(.context == "andon/gate") | [.created_at, .state, .description] | @tsv'` で印を読む。`approve` と `needs_human` は `success`（緑）、`fix` は `failure`（赤）で、説明文の見出しが判定に合えば動いた。
+- **印を読む。** `drive.sh` は GitHub の印を読まない。`internal/gate/mark.go` を変えた差分では、記録の head ごとに `gh api repos/<owner>/<repo>/commits/<head>/statuses --jq '.[] | select(.context == "andon/gate") | [.created_at, .state, .description] | @tsv'` で印を読む。`approve` と `needs_human` は `success`（緑）、`fix` は `failure`（赤）、`behind` は `pending`（黄）で、説明文の見出しが判定に合えば動いた。
 
 ## 変えたら動かすパス
 
@@ -50,6 +50,8 @@
 - `internal/contract/settle.go`
 - `internal/dispatcher/humanmerge.go`
 - `process/states/human-merge.yaml`
+- `internal/cli/leaves.go`
+- `schema/notification.schema.json`
 
 ## 既に見ている検査
 

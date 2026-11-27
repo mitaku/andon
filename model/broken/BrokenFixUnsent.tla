@@ -4,6 +4,7 @@
 EXTENDS IssueRules
 
 BrokenGateSaysFix ==
+    /\ UNCHANGED stackVars
     /\ status = "review"
     /\ ((gate = "none" /\ pr \in {"open", "closed"}) \/ Regate)
     /\ gate' = "fix" /\ fixSent' = (worker = "live")
@@ -23,8 +24,12 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ ChiefOfStaffCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark
+    \/ GateSaysBehind \/ WorkerRestacks \/ PrevMerges \/ PrevEnds \/ ChiefOfStaffContinuesWithoutPrev \/ GateTellsPrevGone \/ Done
 
-BrokenSpec == Init /\ [][BrokenNext]_vars
+\* 前の課題の無い課題だけを見る（積んだ課題の動きは、この見本が壊したものに関わらない。状態の図を積む前の大きさに保つ。ADR-0067 決めたこと 16）
+BrokenInit == Init /\ prev = "none"
+
+BrokenSpec == BrokenInit /\ [][BrokenNext]_vars
 
 ====

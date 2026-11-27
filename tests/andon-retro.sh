@@ -56,6 +56,12 @@ l=$(lib S-0001)
 launch "$(ago '3 days')" '"a1a1a1a1-0000-4000-8000-000000000001"' "$sha" >"$l/launches.jsonl"
 printf '{"pr": "%s/1", "remember": ["学び"]}\n' "$pr" >"$l/report.json"
 printf '{"at": "x", "corrections": [{"kind": "pr", "comments": [{"author": "o", "at": "x", "body": "token = %s"}], "human_commits": []}]}\n' "$key" >"$l/corrections.json"
+# 積んだ課題だった（ADR-0067 決めたこと 8）: 前の PR 待ち（behind）の記録と、載せ替えを頼む直し（restack）の記録
+mkdir -p "$l/gate"
+printf '{"head": "%s", "at": "%s", "tier": "B", "decision": "behind", "reasons": ["前の課題 S-0009 の PR がまだ main に入っていない"], "merged": false}\n' \
+  "$(printf 'b%.0s' $(seq 40))" "$(ago '3 days')" >"$l/gate/$(printf 'b%.0s' $(seq 40)).json"
+printf '{"head": "%s", "at": "%s", "tier": "B", "decision": "fix", "reasons": ["前の課題 S-0009 が main に入った。載せ替える"], "merged": false, "restack": true}\n' \
+  "$(printf 'c%.0s' $(seq 40))" "$(ago '3 days')" >"$l/gate/$(printf 'c%.0s' $(seq 40)).json"
 yaml S-0001-r1 'status: done\nprofile: codex-review\nparent: S-0001\n'
 printf '{"commit": "%s", "findings": [{"severity": "major", "file": "a.go", "line": 3}]}\n' "$sha" >"$(lib S-0001-r1)/findings.json"
 printf '# S-0001 のレビュー（1 回目）\n対象: worktree `/w`（detached）。commit %s。\n' "$sha" >"$k/issues/S-0001-r1/brief.md"
@@ -108,6 +114,8 @@ jq -e '[.issues[].id] == ["S-0007", "S-0001", "S-0003"]' "$tmp/out.json" >/dev/n
 jq -e '.issues[] | select(.id == "S-0001") | .reviews == [{id: "S-0001-r1", profile: "codex-review", reason: "first",
   findings: {commit: "1111111111111111111111111111111111111111", findings: [{severity: "major", file: "a.go", line: 3}]}, outcome: null}]
   and .remember == ["学び"] and (.launches[0] | has("memory_index") | not)' "$tmp/out.json" >/dev/null || die "S-0001 の束: $(jq -c '.issues[1]' "$tmp/out.json")"
+jq -e '.issues[] | select(.id == "S-0001") | [.gates[].decision] | sort == ["behind", "fix"]' "$tmp/out.json" >/dev/null ||
+  die "前の PR 待ちと載せ替えの直しの記録が S-0001 の束に入らない: $(jq -c '.issues[] | select(.id == "S-0001") | .gates' "$tmp/out.json")"
 jq -e '.previous_retro.issue == "S-0006"' "$tmp/out.json" >/dev/null || die "前の振り返り"
 echo 'ok 8: 期間の内の担当の課題だけ。レビュアーの子の指摘は親の1件に入る'
 

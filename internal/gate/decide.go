@@ -574,6 +574,17 @@ type Facts struct {
 	BaseUnread      bool     // 分かれ目より後の既定ブランチの変更が多く、検査の置き場が変わったか読み切れない
 	OwnChecks       []string // PR 自身が変えた検査の置き場のファイル（CheckPlaces）
 	BaseAhead       int      // PR の分かれ目より後に既定ブランチにだけある commit の数
+	// 積んだ課題（ADR-0067 決めたこと 8）。StackedOn は信じられる stacked_on（前の課題の id。ledger.Stacked）で、空なら積んでいない。
+	// 積んだ課題では PROpen は PR が open か（draft でもよい）で、draft かは StackedDraft、向き先が前の課題の branch か
+	// 既定の branch かは StackedBaseOK に置く
+	StackedOn     string
+	StackedDraft  bool
+	StackedBaseOK bool
+}
+
+// BehindReason は前の PR 待ち（behind）の記録の 1 行目（ADR-0067 決めたこと 8）。
+func BehindReason(prev string) string {
+	return "前の課題 " + prev + " の PR がまだ main に入っていない"
 }
 
 const staleBaseShown = 3
@@ -604,25 +615,63 @@ func StaleBaseReason(files []string, unread bool) string {
 // 委譲の範囲の外（オーナーがマージする変更）かは、検査・CI・レビュー・受け入れ条件・画面の証拠・CI の待ちのあと、通す直前に見る
 // （ADR-0056 決めたこと 4）。オーナー待ちになるのは、委譲の中なら通していた PR だけ。PR の事情・予約キー・条件表の理由は
 // gate が判定できない形なので、先に見てオーナー待ちにする。
+//
+// 積んだ課題（StackedOn が空でない。ADR-0067 決めたこと 8）の決まりは 1 つ: 今なら approve か needs_human になる判定は、どちらも
+// behind（前の PR 待ち）に置き換える。オーナーへ回す理由は判定を止めずに写して先を見るので、担当へ返す理由（fix）と待ち（wait）は
+// 今と同じ順で見る。behind の reasons は BehindReason を 1 行目に、写したオーナーへ回す理由を続ける。
+// 積んだ PR では、draft であること・向き先が既定の branch でないこと・衝突・ファイルの件数（gate.go が Blockers に足さない）と、
+// 古い base の 2 つの向きを見ない。代わりに、向き先が前の課題の branch でも既定の branch でもない PR と、draft でない PR を担当へ返す。
 func Decide(f Facts) (string, []string) {
-	switch {
-	case len(f.LedgerReasons) > 0:
-		return "fix", f.LedgerReasons
-	case !f.PROpen:
-		return "fix", []string{"PR が open でない・draft"}
-	case len(f.Blockers) > 0:
-		return "needs_human", f.Blockers
-	case f.SettingsReason != "":
-		return "needs_human", []string{f.SettingsReason}
-	case !f.RepoKnown:
-		return "needs_human", []string{"条件表の repos にこの repo が無い（検査を回せない）"}
+	if f.StackedOn == "" {
+		return decide(f, nil)
 	}
-	// 古い base の checks は今の検査を通っていない。検査・CI・レビューの結果より先に戻す（マージすると既定ブランチの検査が落ちる）
-	if len(f.StaleBase) > 0 || f.BaseUnread {
+	held := []string{}
+	d, r := decide(f, &held)
+	if d == "approve" || d == "needs_human" {
+		return "behind", append(append([]string{BehindReason(f.StackedOn)}, held...), r...)
+	}
+	return d, r
+}
+
+// decide は決定式の本体。held が nil でなければ積んだ課題で、オーナーへ回す理由を held に写して先を見る（Decide）。
+func decide(f Facts, held *[]string) (string, []string) {
+	stacked := held != nil
+	// human は、オーナーへ回す理由 r で判定を決めるか（積んだ課題では決めずに写し、false）
+	human := func(r ...string) bool {
+		if !stacked {
+			return true
+		}
+		*held = append(*held, r...)
+		return false
+	}
+	if len(f.LedgerReasons) > 0 {
+		return "fix", f.LedgerReasons
+	}
+	if !f.PROpen {
+		return "fix", []string{"PR が open でない・draft"}
+	}
+	if stacked && !f.StackedBaseOK {
+		return "fix", []string{"積んだ PR の向き先が、前の課題 " + f.StackedOn + " の branch でも既定ブランチでもない"}
+	}
+	if stacked && !f.StackedDraft {
+		return "fix", []string{"積んだ PR が draft でない（前の課題 " + f.StackedOn + " が main に入るまで draft で置く）"}
+	}
+	if len(f.Blockers) > 0 && human(f.Blockers...) {
+		return "needs_human", f.Blockers
+	}
+	if f.SettingsReason != "" && human(f.SettingsReason) {
+		return "needs_human", []string{f.SettingsReason}
+	}
+	if r := "条件表の repos にこの repo が無い（検査を回せない）"; !f.RepoKnown && human(r) {
+		return "needs_human", []string{r}
+	}
+	// 古い base の checks は今の検査を通っていない。検査・CI・レビューの結果より先に戻す（マージすると既定ブランチの検査が落ちる）。
+	// 積んだ PR では見ない（担当は積んでいる間 rebase しない。載せ替えたあとの gate が見る。ADR-0067 決めたこと 8・11）
+	if !stacked && (len(f.StaleBase) > 0 || f.BaseUnread) {
 		return "fix", []string{StaleBaseReason(f.StaleBase, f.BaseUnread)}
 	}
 	// 逆の向き: PR 自身が検査の置き場を変えたなら、その CI は分かれ目より後に既定ブランチへ入った変更を見ていない
-	if len(f.OwnChecks) > 0 && f.BaseAhead > 0 {
+	if !stacked && len(f.OwnChecks) > 0 && f.BaseAhead > 0 {
 		return "fix", []string{OwnChecksBehindReason(f.OwnChecks, f.BaseAhead)}
 	}
 	for _, c := range f.Checks {
@@ -640,11 +689,15 @@ func Decide(f Facts) (string, []string) {
 		case r.State == "stale":
 			return "fix", []string{"review stale: " + r.Reason}
 		case r.MustFixOpen > 0 && f.PreviousMustFix:
-			return "needs_human", []string{fmt.Sprintf("Must fix 以上が %d 件、同じ head で2度目（担当は直さないと判断した）", r.MustFixOpen)}
+			if why := fmt.Sprintf("Must fix 以上が %d 件、同じ head で2度目（担当は直さないと判断した）", r.MustFixOpen); human(why) {
+				return "needs_human", []string{why}
+			}
 		case r.MustFixOpen > 0:
 			return "fix", []string{fmt.Sprintf("Must fix 以上が %d 件", r.MustFixOpen)}
 		case r.WaivedHeavy > 0:
-			return "needs_human", []string{fmt.Sprintf("Must fix 以上を %d 件見送った（担当がレビュアーを覆した）", r.WaivedHeavy)}
+			if why := fmt.Sprintf("Must fix 以上を %d 件見送った（担当がレビュアーを覆した）", r.WaivedHeavy); human(why) {
+				return "needs_human", []string{why}
+			}
 		}
 	}
 	if f.AcceptanceFail > 0 {
@@ -664,16 +717,20 @@ func Decide(f Facts) (string, []string) {
 	// （オーナー待ちの印は緑なので、差し戻す理由を先に担当へ返す。ADR-0056 決めたこと 4）
 	switch g := f.GitHubChecks; {
 	case g.State != "success" && g.State != "pending" && g.State != "none": // unknown・読めていない（空）
-		return "needs_human", []string{"GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", ")}
+		if why := "GitHub の checks に通すか決められない状態がある: " + strings.Join(g.Names, ", "); human(why) {
+			return "needs_human", []string{why}
+		}
 	case g.State == "pending":
 		return "wait", []string{"GitHub の checks がまだ走っている: " + strings.Join(g.Names, ", ")}
 	case g.State == "none" && !f.ChecksOptional && f.ChecksOverdue:
-		return "needs_human", []string{fmt.Sprintf("GitHub の checks が1つも無いまま %d 分過ぎた（条件表の github_checks: optional でない）", f.ChecksWait)}
+		if why := fmt.Sprintf("GitHub の checks が1つも無いまま %d 分過ぎた（条件表の github_checks: optional でない）", f.ChecksWait); human(why) {
+			return "needs_human", []string{why}
+		}
 	case g.State == "none" && !f.ChecksOptional:
 		return "wait", []string{"GitHub の checks がまだ1つも無い"}
 	}
-	if !Within(f.Tier, f.MergeLevel) {
-		return "needs_human", []string{fmt.Sprintf("delegation: merge=%s < tier %s", f.MergeLevel, f.Tier)}
+	if why := fmt.Sprintf("delegation: merge=%s < tier %s", f.MergeLevel, f.Tier); !Within(f.Tier, f.MergeLevel) && human(why) {
+		return "needs_human", []string{why}
 	}
 	return "approve", []string{}
 }

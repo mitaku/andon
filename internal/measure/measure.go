@@ -30,6 +30,7 @@ import (
 
 	"andon/internal/contract"
 	"andon/internal/dispatcher"
+	"andon/internal/gate"
 	"andon/internal/ghpr"
 	"andon/internal/ledger"
 	"andon/internal/otel"
@@ -282,6 +283,7 @@ type gateRec struct {
 	tier     string
 	decision string
 	merged   bool
+	restack  bool // 載せ替えを頼む直しの印（ADR-0067 決めたこと 8。差し戻しの率に数えない。gate.Counted）
 }
 
 type ghPR struct {
@@ -500,7 +502,7 @@ func Measure(o Options) (*Result, error) {
 	e.AutoMerge.Rate = ratio(e.AutoMerge.Count, e.MergedPRs)
 	for _, id := range ids {
 		for _, g := range byID[id].gates {
-			if !in(g.at) {
+			if !in(g.at) || !gate.Counted(g.decision, g.restack) {
 				continue
 			}
 			e.Gate.Records++
@@ -1037,6 +1039,7 @@ func (r *reader) gates(lib string) []gateRec {
 			Tier     string `json:"tier"`
 			Decision string `json:"decision"`
 			Merged   bool   `json:"merged"`
+			Restack  bool   `json:"restack"`
 		}
 		if json.Unmarshal(b, &v) != nil {
 			r.skip(r.rel(path), 0, "gate の記録が JSON の object でない")
@@ -1052,7 +1055,7 @@ func (r *reader) gates(lib string) []gateRec {
 		default:
 			v.Tier = "none"
 		}
-		out = append(out, gateRec{at: at, pr: v.PR, tier: v.Tier, decision: v.Decision, merged: v.Merged})
+		out = append(out, gateRec{at: at, pr: v.PR, tier: v.Tier, decision: v.Decision, merged: v.Merged, restack: v.Restack})
 	}
 	return out
 }

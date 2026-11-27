@@ -136,7 +136,7 @@ var leaves = []leaf{
 		exits: []exit{{4, "PR がまだ MERGED でない"}}, project: true, json: jsonAlways, run: issue.Impact},
 	{name: "gate", who: []who{role}, about: "課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
 		usage: gate.Usage, examples: []string{"gate S-0012 --dry-run"},
-		exits:  []exit{{1, "fix（担当へ戻す）"}, {3, "道具か kanban の誤り"}, {4, "needs_human（オーナーが見る）"}, {5, "wait（記録しない）"}},
+		exits:  []exit{{1, "fix（担当へ戻す）"}, {3, "道具か kanban の誤り"}, {4, "needs_human（オーナーが見る）"}, {5, "wait（記録しない）"}, {6, "behind（積んだ課題の前の PR 待ち）"}},
 		writes: true, project: true, json: jsonAlways, run: gate.Main},
 	{name: "issue show", who: []who{role}, about: "予約キー・report.json・レビューの照合を JSON で出す",
 		usage: issue.ShowUsage, examples: []string{"issue show S-0012"}, project: true, json: jsonAlways, run: issue.Show},

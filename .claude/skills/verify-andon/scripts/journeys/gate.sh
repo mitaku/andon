@@ -15,11 +15,11 @@ if [ "$n" = 0 ]; then
   echo "note 当てたあとに gate が回っていない。gt-record・gt-route は未確認。次の課題が review に入ったあとで打ち直す"
 else
   jq -c '{at, id, pr, head: .head[0:12], tier, decision, merged, reasons: (.reasons | length), checks: .github_checks.state, review: .review.state}' <<<"$recs" | sed 's/^/  | /'
-  bad=$(jq -c 'select((.decision | IN("approve", "fix", "needs_human") | not) or (.tier | IN("A", "B", "C") | not) or (.head | test("^[0-9a-f]{40}$") | not) or (.reasons | type) != "array")' <<<"$recs")
+  bad=$(jq -c 'select((.decision | IN("approve", "fix", "needs_human", "behind") | not) or (.tier | IN("A", "B", "C") | not) or (.head | test("^[0-9a-f]{40}$") | not) or (.reasons | type) != "array")' <<<"$recs")
   [ -z "$bad" ] && ok "gt-record: 当てたあとの gate $n 回は、全部が判定・レベル・head・理由の形を持つ" \
     || { fail "gt-record: 形の違う gate の記録がある"; sed 's/^/  | /' <<<"$bad"; }
 
-  # gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージかオーナーへ）。課題の今の status を並べる。
+  # gt-route: 判定が kanban に届いた（fix は担当へ、needs_human は問い、approve はマージかオーナーへ、behind は review のまま）。課題の今の status を並べる。
   # $ws を cwd にしても kanban は見つからない（projects/*/kanban が複数あり得る）ので、記録のパスから kanban の親を KANBAN_ROOT に渡す
   unread=0
   while IFS=$'\t' read -r id decision merged file; do

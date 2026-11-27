@@ -15,8 +15,15 @@ rule R11_NoRelayWithoutAnswer
 rule R12_NoMergeBeforeGate
 rule R13_GreenOnlyWhenReleased
 rule R14_NoAutoMergeWhileHeld
+rule R15_NoMergeWhileStacked
+rule R16_BehindIsNotReleased
+rule R17_ApproveOnlyOnMain
+rule R18_RestackWithoutOwner
+rule R19_NoGreenWhileStacked
+rule R20_ContinueAfterPrevEnds
+rule R21_ToldOnlyWhenGone
 # states <本物のモデル（IssueRules.cfg）の状態の数（distinct states）>
-states 28004
+states 168644
 # broken <壊した見本のモジュール（broken/ の下）> <落ちるはずの規則>
 broken BrokenFinish R3_CleanupIsWhole
 broken BrokenFixUnsent R2_FixReachesSomeone
@@ -28,3 +35,6 @@ broken BrokenAnswerUnnoticed R7_MergeWithoutCancel
 broken BrokenPaneAnswersTwice R10_OneAnswerPerQuestion
 broken BrokenHoldNoMark R13_GreenOnlyWhenReleased
 broken BrokenMergeIgnoresHold R14_NoAutoMergeWhileHeld
+broken BrokenNoRegateAfterPrev R18_RestackWithoutOwner
+broken BrokenOwnerMergesStacked R15_NoMergeWhileStacked
+broken BrokenPrevGoneUntold R20_ContinueAfterPrevEnds

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"andon/internal/gate"
 	"andon/internal/ledger"
 	"andon/internal/trace"
 )
@@ -192,6 +193,9 @@ func (n *nums) numbers(ids []string) *Numbers {
 		}
 		rounds = append(rounds, float64(x.rounds))
 		for _, g := range x.gates {
+			if !gate.Counted(g.Decision, g.restack) {
+				continue
+			}
 			out.Gate.Records++
 			switch g.Decision {
 			case "fix":

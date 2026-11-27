@@ -7,9 +7,10 @@ TypeOK ==
     /\ worker \in {"none", "live", "gone"}
     /\ wt \in {"none", "here", "removed"}
     /\ pr \in {"none", "open", "closed", "merged"}
-    /\ gate \in {"none", "approve", "fix", "human"}
+    /\ gate \in {"none", "approve", "fix", "human", "behind"}
     /\ reviewing \subseteq {"head", "old"}
     /\ ci \in {"none", "running", "failed", "passed"}
+    /\ prevTold \in BOOLEAN
     /\ result \in {"none", "old", "clean", "mustfix"}
     /\ headSeen \in BOOLEAN /\ dirty \in BOOLEAN
     /\ fixSent \in BOOLEAN /\ told \in BOOLEAN
@@ -19,6 +20,7 @@ TypeOK ==
     /\ sent \in BOOLEAN /\ twice \in BOOLEAN
     /\ mark \in {"none", "ok", "red", "held"} /\ hold \in BOOLEAN /\ required \in BOOLEAN
     /\ rel \in BOOLEAN /\ badMerge \in BOOLEAN
+    /\ base \in {"main", "prev"} /\ prev \in {"none", "waiting", "merged", "gone"}
 
 \* R1 やめると決めた課題で、担当がまた動き出すことはない
 R1_NoWorkerAfterCancel == cancel => worker # "live"
@@ -67,5 +69,28 @@ R13_GreenOnlyWhenReleased == (pr = "open" /\ mark = "ok") => (rel /\ ~hold)
 
 \* R14 dispatcher は、止めている PR を自分でマージしない（ruleset が印を必須にしていなくても）
 R14_NoAutoMergeWhileHeld == autoMerged => ~badMerge
+
+\* ---- 前の課題の PR の branch の上で起動する課題の規則（ADR-0067 決めたこと 16） ----
+\* R15 前の課題の branch に載ったままの PR は、マージされない（オーナーのマージも dispatcher のマージも）
+R15_NoMergeWhileStacked == pr = "merged" => base = "main"
+
+\* R16 前の PR 待ちと判定した PR には、緑の印が付かず、マージを渡したことにもならず、オーナーにマージを頼まない
+R16_BehindIsNotReleased == gate = "behind" => (mark # "ok" /\ ~rel /\ ~told)
+
+\* R17 gate が approve と判定するのは、既定の branch に載った PR だけ
+R17_ApproveOnlyOnMain == gate = "approve" => base = "main"
+
+\* R19 前の課題の branch に載ったままの head には、緑の印が付かない（積んでいる間、gate は approve もオーナー待ちも決めない）
+R19_NoGreenWhileStacked == base = "prev" => mark # "ok"
+
+\* R18 前の課題がマージされずに終わる場合を除き、届くどの状態からも、オーナーの判断も、だれかの PR への push も、Chief of Staff の止めも
+\*     借りずに、既定の branch に載った形まで行ける（前の PR が main に入れば、gate が判定をやり直して担当に載せ替えを頼む）。
+\*     IssueRules.cfg の REACH の行。除くのは、やめる・先回りのマージ・前の課題が終わる・オーナーの答えで担当へ返す 2 つ・判定のあとの push・止める
+\* R20 前の課題がマージされずに終わっても、やめる口も、だれかの PR への push も、Chief of Staff の止めも借りずに、既定の branch に
+\*     載った形まで行ける（gate が Chief of Staff に知らせ、オーナーの答えで Chief of Staff が担当へ返し、担当が載せ替える）。
+\*     IssueRules.cfg の REACH の行。除くのは、やめる・先回りのマージ・gate の問いへの答えで担当へ返す・判定のあとの push・止める
+
+\* R21 知らせるのは、前の課題がマージされずに終わったあとだけ
+R21_ToldOnlyWhenGone == prevTold => prev = "gone"
 
 ====

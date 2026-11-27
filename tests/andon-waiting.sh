@@ -45,7 +45,7 @@ before=$(cd "$p" && find . -type f -exec sha1sum {} + | sort)
 
 "$andon" waiting list --json --project sample-site >"$tmp/out.json"
 jq -e '.version == 1 and .project == "sample-site"
-  and .slots == {limit: 3, working: 0, waiting: 2, free: 3}
+  and .slots == {limit: 3, working: 0, waiting: 2, behind: 0, free: 3}
   and ([.items[] | [.kind, .id, (.question // "")]] == [["merge", "S-0001", "S-0001#1"], ["decision", "S-0003", "S-0003#1"], ["task", "S-0004", ""], ["decision", "S-0005", ""]])
   and .items[0].holds == ["S-0002"] and .items[0].pr == $pr
   and .items[1].ask.question == "CSV だけにするか" and .items[1].answerable == true
@@ -105,7 +105,7 @@ echo 'ok kanban に何も書かず、gh も git も kanban の CLI も呼ばな�
 mkdir -p "$tmp/empty/kanban"
 printf 'version: 3\n' >"$tmp/empty/kanban/config.yaml"
 KANBAN_ROOT=$tmp/empty "$andon" waiting list --json >"$tmp/empty.json"
-jq -e '.items == [] and .slots == {limit: 2, working: 0, waiting: 0, free: 2}' "$tmp/empty.json" >/dev/null
+jq -e '.items == [] and .slots == {limit: 2, working: 0, waiting: 0, behind: 0, free: 2}' "$tmp/empty.json" >/dev/null
 emit "$tmp/empty.json" waiting-empty.json
 KANBAN_ROOT=$tmp/empty "$andon" waiting list | grep -q '^オーナー待ちは無い$'
 echo 'ok 空の kanban: 上限 2・空の並び・終了コード 0'
@@ -122,8 +122,8 @@ done
 printf 'id: S-0003\ntitle: 動いている\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' | put "$fk/issues/S-0003/issue.yaml"
 : | put "$fk/log.jsonl"
 KANBAN_ROOT=$fp "$andon" waiting list --json >"$tmp/full.json"
-jq -e '.slots == {limit: 2, working: 1, waiting: 2, free: 1}' "$tmp/full.json" >/dev/null \
-  || die "待ちが上限以上の slots が違う（キーは limit・working・waiting・free の 4 つ）: $(jq -c .slots "$tmp/full.json")"
+jq -e '.slots == {limit: 2, working: 1, waiting: 2, behind: 0, free: 1}' "$tmp/full.json" >/dev/null \
+  || die "待ちが上限以上の slots が違う（キーは limit・working・waiting・behind・free の 5 つ）: $(jq -c .slots "$tmp/full.json")"
 KANBAN_ROOT=$fp "$andon" waiting list >"$tmp/full.text"
 grep -q '^full の枠: 上限 2、動いている 1、オーナー待ち 2、空き 1$' "$tmp/full.text" \
   || die "待ちが上限以上の枠の行が違う: $(cat "$tmp/full.text")"
@@ -132,6 +132,31 @@ if grep -q '起動しない' "$tmp/full.text"; then die "人が読む出力に�
 grep -q '起動しない' <<<'full の枠: 上限 2、動いている 1、オーナー待ち 2、空き 0。オーナー待ちが上限に達したので新しい課題を起動しない' \
   || die "起動しないの文を見る grep が直す前の文に当たらない"
 echo 'ok 待ちが上限以上: 空きは上限から動いている数を引いた数で、waiting_full も起動しないの文も無い'
+
+# 前の PR 待ち（ADR-0067 決めたこと 10・受け入れ条件 7）: review にいて、今の head に今の review の回の gate の記録があり、判定が behind の
+# 課題は、working にも waiting にも数えず behind に数え、items に行を足さない。前の回の behind の記録しか無い課題は working に数える
+bp=$tmp/behind
+bk=$bp/kanban
+printf 'version: 3\nprefix: S\nchief_of_staff: t1\n' | put "$bk/config.yaml"
+printf '{"version": 1, "project": {"title": "Sample", "prefix": "S"}, "repos": [], "chief_of_staff": {"parallel": 2}}\n' | put "$bp/project.json"
+for id in S-0001 S-0002; do
+  printf 'id: %s\ntitle: 積んだ課題\nstatus: review\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' "$id" | put "$bk/issues/$id/issue.yaml"
+  printf '{"commit": "%s", "pr": "%s"}\n' "$head" "$pr" | put "$bk/issues/$id/library/report.json"
+  printf '{"head": "%s", "at": "2026-11-21T05:00:00Z", "decision": "behind", "reasons": ["前の課題 S-0009 の PR がまだ main に入っていない"]}\n' "$head" \
+    | put "$bk/issues/$id/library/gate/$head.json"
+done
+printf 'id: S-0003\ntitle: 動いている\nstatus: doing\nprofile: claude\ncreated: "2026-11-21T01:00:00Z"\n' | put "$bk/issues/S-0003/issue.yaml"
+# S-0001 は記録の前に review に入った（今の回）。S-0002 は記録のあとに review に入り直した（記録は前の回）
+printf '%s\n' '{"at":"2026-11-21T04:00:00Z","by":"terminal:t2","id":"S-0001","change":{"status":"review"}}' \
+  '{"at":"2026-11-21T06:00:00Z","by":"terminal:t3","id":"S-0002","change":{"status":"review"}}' | put "$bk/log.jsonl"
+KANBAN_ROOT=$bp "$andon" waiting list --json >"$tmp/behind.json"
+jq -e '.items == [] and .slots == {limit: 2, working: 2, waiting: 0, behind: 1, free: 0}' "$tmp/behind.json" >/dev/null \
+  || die "前の PR 待ちの課題の数え方が違う: $(jq -c '{slots, items}' "$tmp/behind.json")"
+emit "$tmp/behind.json" waiting-behind.json
+KANBAN_ROOT=$bp "$andon" waiting list >"$tmp/behind.text"
+grep -q '^behind の枠: 上限 2、動いている 2、オーナー待ち 0、前の PR 待ち 1、空き 0$' "$tmp/behind.text" \
+  || die "前の PR 待ちの枠の行が違う: $(cat "$tmp/behind.text")"
+echo 'ok 前の PR 待ち: 今の回の behind の記録を持つ review の課題は behind に数え、working にも waiting にも items にも入れない'
 
 set +e
 "$andon" waiting list --project nothing >/dev/null 2>"$tmp/err"; rc=$?

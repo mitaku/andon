@@ -40,6 +40,12 @@ action MergeSettingChanges -
 action ChiefOfStaffHolds -
 action ChiefOfStaffUnholds -
 action DispatcherAlignsMark -
+action GateSaysBehind -
+action WorkerRestacks -
+action PrevMerges -
+action PrevEnds -
+action ChiefOfStaffContinuesWithoutPrev -
+action GateTellsPrevGone -
 action Done -
 
 # outside <from> <to> <コマンド> — <理由>

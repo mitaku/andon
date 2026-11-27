@@ -265,7 +265,7 @@ while IFS= read -r l; do
   codes=$(sed 's/・/\n/g' <<<"$line" | sed -n 's/^\([3-9]\|[1-9][0-9][0-9]*\) ..*/\1/p' | tr '\n' ',')
   if [ -n "$codes" ]; then got+="$l:$codes|"; fi
 done <"$tmp/leaves"
-want='open:3,|design start:3,|issue start:3,|issue impact:4,|gate:3,4,5,|triage collect:4,|'
+want='open:3,|design start:3,|issue start:3,|issue impact:4,|gate:3,4,5,6,|triage collect:4,|'
 [ "$got" = "$want" ] && pass "3 以上の終了コードを使う葉（open・design start・issue start・issue impact・gate・triage collect）は --help にその数と意味を出す" \
   || fail "--help の 3 以上の終了コード: got=[$got] want=[$want]"
 h=$("$andon" schema check --help)

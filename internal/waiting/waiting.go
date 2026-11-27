@@ -43,11 +43,13 @@ type Result struct {
 	Items   []Item `json:"items"`
 }
 
-// Slots は並行の枠（決めたこと 9・10。free の式は ADR-0065 決めたこと 4）。
+// Slots は並行の枠（決めたこと 9・10。free の式は ADR-0065 決めたこと 4）。Behind は前の PR 待ちの課題の数で、
+// working にも waiting にも数えない（ADR-0067 決めたこと 10）。
 type Slots struct {
 	Limit   int `json:"limit"`
 	Working int `json:"working"`
 	Waiting int `json:"waiting"`
+	Behind  int `json:"behind"`
 	Free    int `json:"free"`
 }
 
@@ -306,9 +308,12 @@ func count(l *ledger.Ledger, cfg ledger.Config, issues []*issue, rows []ledger.R
 		if (t.status != "doing" && t.status != "review") || !t.worker() {
 			continue
 		}
-		if waiting[t.id] {
+		switch {
+		case waiting[t.id]:
 			s.Waiting++
-		} else {
+		case behind(t, reviewAt[t.id], l.Library(t.id)):
+			s.Behind++
+		default:
 			s.Working++
 		}
 	}
@@ -634,6 +639,21 @@ func holders(issues []*issue, heldOn map[string][]string, done string) func(stri
 		sort.Slice(out, func(i, j int) bool { return ledger.IDLess(out[i], out[j]) })
 		return out
 	}
+}
+
+// behind は前の PR 待ちの課題か（ADR-0067 決めたこと 10）: review にいて、今の head（報告の commit で代える）に、今の review の回
+// （課題が最後に review に入った時刻 since から）の gate の記録があり、判定が behind。担当は何もしていないので並行の枠に数えず、
+// オーナーを待っているのは前の課題なのでオーナー待ちにも数えない。
+func behind(t *issue, since, lib string) bool {
+	if t.status != "review" || since == "" {
+		return false
+	}
+	rep, _ := contract.ReadReport(filepath.Join(lib, "report.json"))
+	if rep == nil {
+		return false
+	}
+	rec := gateRecord(lib, rep.Commit)
+	return rec != nil && rec.At >= since && rec.Decision == "behind"
 }
 
 // gateRecord は今の head の gate の記録（library/gate/<head>.json）。無い・読めなければ nil。

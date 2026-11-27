@@ -713,12 +713,12 @@ if [ "$self" = true ]; then
   # 偽のセルに本物の kanban の CLI で kanban を作り、dispatcher の端末として問いを出して答えて受け取る（今の時刻なので、上の beef02 の間に入る）
   . tests/lib/kanban.sh
   g=$c/ws/projects/g head=$(printf 'a%.0s' {1..40})
-  gsetup() { # gsetup <問いの from> <答え>: kanban を作り直し、gate の記録 1 つと、dispatcher が閉じた問い 1 つを置く（from が空なら問いを置かない）
+  gsetup() { # gsetup <問いの from> <答え> [<記録の判定>]: kanban を作り直し、gate の記録 1 つと、dispatcher が閉じた問い 1 つを置く（from が空なら問いを置かない）
     rm -rf "$g" && mkdir -p "$g" && (cd "$g" && "$kanban" init --prefix G >/dev/null) || die "gt-answer の場面の kanban が作れない"
     local id lib
     id=$(KANBAN_ROOT=$g HC_TERMINAL_ID=tc "$kanban" add "gate の問い")
     lib=$g/kanban/issues/$id/library && mkdir -p "$lib/gate" "$lib/questions"
-    echo "{\"at\": \"2026-01-01T00:12:00Z\", \"id\": \"$id\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"C\", \"decision\": \"needs_human\", \"merged\": false, \"reasons\": []}" >"$lib/gate/$head.json"
+    echo "{\"at\": \"2026-01-01T00:12:00Z\", \"id\": \"$id\", \"pr\": \"https://github.com/example/sample-site/pull/7\", \"head\": \"$head\", \"tier\": \"C\", \"decision\": \"${3:-needs_human}\", \"merged\": false, \"reasons\": []}" >"$lib/gate/$head.json"
     [ -n "$1" ] || return 0
     KANBAN_ROOT=$g HC_TERMINAL_ID=dispatcher "$kanban" ask "$id" - --kind line <<<"マージするか" >/dev/null
     echo "{\"from\": \"$1\"}" >"$lib/questions/1.json"
@@ -738,6 +738,14 @@ if [ "$self" = true ]; then
   journey gate
   [ "$jrc" = 0 ] && grep -qF 'note gt-answer' <<<"$jout" || die "gate: dispatcher が閉じた問いが無いのに note gt-answer が出ない（$jrc）: $jout"
   ok "verify-andon: gate の gt-answer は、gate の外の問いを閉じたか、答えが名指す gate の記録が無いと落ち、閉じた問いが無ければ note を出す"
+  # gt-record は、積んだ課題の前の PR 待ち（behind。ADR-0067 決めたこと 8）の記録を形の違う記録と読まない。知らない判定では落ちる（当たる場合）
+  gsetup "" "" behind
+  journey gate
+  [ "$jrc" = 0 ] && grep -qF 'ok   gt-record' <<<"$jout" || die "gate: behind の記録を gt-record が形の違う記録と読んだ（$jrc）: $jout"
+  gsetup "" "" bogus
+  journey gate
+  [ "$jrc" = 1 ] && grep -qF 'FAIL gt-record' <<<"$jout" || die "gate: 知らない判定の記録で gt-record が落ちない（$jrc）: $jout"
+  ok "verify-andon: gate の gt-record は、behind の記録を形どおりと読み、知らない判定の記録で落ちる"
 
   # gate の gt-skip: 自分の commit の無い課題（報告の commit が既定の branch に入っている）が PR 無しで review に入ったら、
   # 担当がそのあと doing に戻していない（gate の fix を受けていない）。偽のセルに repo の clone（.ghq）を置き、本物の kanban の CLI で返す

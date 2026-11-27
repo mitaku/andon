@@ -742,7 +742,8 @@
             "approve",
             "fix",
             "needs_human",
-            "wait"
+            "wait",
+            "behind"
           ]
         },
         "reasons": {
@@ -1511,7 +1512,7 @@
             "records": {
               "type": "integer",
               "minimum": 0,
-              "description": "Gate records."
+              "description": "Gate records. Records deciding behind (waiting on the previous PR) and fix records marked restack are not counted."
             },
             "fix": {
               "type": "integer",

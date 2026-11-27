@@ -4,6 +4,7 @@
 EXTENDS IssueRules
 
 BrokenFinishStep ==
+    /\ UNCHANGED stackVars
     /\ worker' = IF worker = "none" THEN "none" ELSE "gone"
     /\ wt' = IF wt = "none" THEN "none" ELSE "removed"
     /\ status' = IF q THEN status ELSE "done"
@@ -11,6 +12,7 @@ BrokenFinishStep ==
     /\ UNCHANGED <<ci, result, headSeen, dirty>>
 
 BrokenCancels ==
+    /\ UNCHANGED stackVars
     /\ status \in {"doing", "review"} /\ pr # "merged" /\ ~cancel
     /\ cancel' = TRUE
     /\ BrokenFinishStep
@@ -27,8 +29,12 @@ BrokenNext ==
     \/ HumanMergesDecided \/ HumanMergesEarly
     \/ SettleFinishes \/ BrokenCancels
     \/ HeadMovesAfterGate \/ PRClosesOrReopens \/ MergeSettingChanges
-    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark \/ Done
+    \/ ChiefOfStaffHolds \/ ChiefOfStaffUnholds \/ DispatcherAlignsMark
+    \/ GateSaysBehind \/ WorkerRestacks \/ PrevMerges \/ PrevEnds \/ ChiefOfStaffContinuesWithoutPrev \/ GateTellsPrevGone \/ Done
 
-BrokenSpec == Init /\ [][BrokenNext]_vars
+\* 前の課題の無い課題だけを見る（積んだ課題の動きは、この見本が壊したものに関わらない。状態の図を積む前の大きさに保つ。ADR-0067 決めたこと 16）
+BrokenInit == Init /\ prev = "none"
+
+BrokenSpec == BrokenInit /\ [][BrokenNext]_vars
 
 ====

@@ -1345,12 +1345,15 @@ gate-record-stale.json|gate|andon gate の記録（stale）
 gate-record-stale-runs.json|gate|andon gate の記録（受け入れ条件の行が指す記録が head と違う commit）
 gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
 gate-record-named.json|gate|andon gate の出力（名指しの grant がレベルを通した）
+gate-record-behind.json|gate|andon gate の記録（behind。積んだ課題の前の PR 待ち）
 project.json|project|andon delegation grant の project.json
 project-named.json|project|andon delegation grant --issues の project.json（名指しの grant）
 gate-record-merged.json|gate|andon dispatcher がマージしたあとの gate の記録（merged）
 question-gate.json|question|andon dispatcher が needs_human で出した問い（from: gate）
 notification-review-requested.json|notification|andon dispatcher の通知 review-requested
 notification-gate.json|notification|andon dispatcher の通知 gate
+notification-gate-behind.json|notification|andon dispatcher の通知 gate（behind。積んだ課題の前の PR 待ち）
+notification-gate-behind-unread.json|notification|andon dispatcher の通知 gate（behind。gate が判定できなかった積んだ課題。記録が無い）
 notification-merged.json|notification|andon dispatcher の通知 merged
 notification-merged-person.json|notification|andon dispatcher の通知 merged（オーナーがマージした）
 notification-merged-held.json|notification|andon dispatcher の通知 merged（オーナーがマージしたが片付けていない）
@@ -1391,6 +1394,7 @@ ledger-ready.json|ledger-ready|kanban ready --json の出力（オーナーの�
 waiting.json|waiting|andon waiting list --json の出力（問いの番号の無い判断の行を含む）
 waiting-empty.json|waiting|andon waiting list --json の出力（オーナー待ちが無い kanban）
 waiting-later.json|waiting|andon waiting list --json の出力（置いてある判断の行を含む）
+waiting-behind.json|waiting|andon waiting list --json の出力（前の PR 待ちの課題を数えた枠）
 digest-input.json|digest-input|andon digest collect の input.json
 digest-input-previous.json|digest-input|andon digest collect の input.json（前に送ったダイジェストのあと）
 digest.json|digest|andon digest build の digest.json
