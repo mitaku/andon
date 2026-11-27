@@ -204,6 +204,6 @@ LABEL org.opencontainers.image.revision=${ANDON_REVISION}
 # 同じ commit を /opt/andon/version.json に焼く（andon version が読む。ADR-0028 P0-1）。中身の digest も数えるので、
 # /opt/andon に書く段はこれより前に置く。commit の形でない revision は unknown として焼く（andon version は食い違いと出す）
 USER root
-RUN ANDON_HOME=/opt/andon /opt/andon/bin/andon version stamp "${ANDON_REVISION}" \
- || { echo "revision ${ANDON_REVISION} は commit の形でない。unknown として焼く" >&2; ANDON_HOME=/opt/andon /opt/andon/bin/andon version stamp unknown; }
+RUN ANDON_HOME=/opt/andon /opt/andon/bin/andon package stamp "${ANDON_REVISION}" \
+ || { echo "revision ${ANDON_REVISION} は commit の形でない。unknown として焼く" >&2; ANDON_HOME=/opt/andon /opt/andon/bin/andon package stamp unknown; }
 USER andon

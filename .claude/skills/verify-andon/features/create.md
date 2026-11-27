@@ -28,7 +28,7 @@
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh create <検証する commit>` を打つ。一時のセルの repo（`ANDON_WORKSPACE`）と一時の clone の根（`GHQ_ROOT`。repo の clone を先に置く）で、端末でなく（標準入力を `/dev/null` にして）打つ。`hc` は偽物で、偽の `hc get dispatcher` は終わった端末を返す。
 - **役の端末で断られる。** `cr-role-refuse` の行に `andon project create` の終了コード 1 と「この端末（role=chief-of-staff）では打てない」が出る。`ok   cr-role-refuse` が見えれば動いた。
-- **立てる。** `cr-create` の行に作ったファイルの一覧と `project.json` が出る。そのあとに `kanban add` が返した `VC-0001` と、偽の `hc` に届いた `hc run --bg … --name dispatcher … dispatcher` が出る。`ok   cr-create` が3行見えれば動いた。
+- **立てる。** `cr-create` の行に作ったファイルの一覧と `project.json` が出る。そのあとに `kanban add` が返した `VC-0001` と、偽の `hc` に届いた `hc run --bg … --name dispatcher … dispatcher run` が出る。`ok   cr-create` が3行見えれば動いた。
 - **一覧を読む。** `cr-list` の行に、立てたプロジェクトの slug の1行が出る。`ok   cr-list` が見えれば動いた。
 - **在る slug で断られる。** `cr-exists-refuse` の行に「projects/<slug> が既にある」が出る。`ok   cr-exists-refuse` が見えれば動いた。
 - **聞かれる（`cr-ask`）。** オーナーが次にプロジェクトを立てるとき、端末で引数を省いて打ち、聞かれる順と既定値を見る。報告の `acceptance[]` に `manual` と書き、見る場所（オーナーの端末）を `evidence` に書く。

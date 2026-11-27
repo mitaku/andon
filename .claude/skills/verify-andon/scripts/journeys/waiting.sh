@@ -49,10 +49,14 @@ rc=0; step "ow-old-name: 古い名前 andon waiting --json を打つ" "$andon" w
 [ "$rc" = 2 ] && [ "$(wc -l <"$tmp/step.out")" = 1 ] && grep -qF 'andon waiting list に名前が変わった' "$tmp/step.out" \
   && ok "ow-old-name: andon waiting --json は andon waiting list を1行で言って終了コード 2 で終わり、オーナー待ちを出さない" \
   || fail "ow-old-name: 古い名前が終了コード 2 と新しい名前の1行で断られない（終了コード $rc）"
-# 2語の古い名前・消えた名詞だけ・子の無い1語の古い名前も、同じく断る（振り分けの分かれ道ごとに1つ）
-for pair in 'delegate show --json|andon delegation show' 'delegate|andon delegation' 'measure --json|andon metrics show'; do
+# 2語の古い名前・消えた名詞だけ・子の無い1語の古い名前・名詞が生きている名詞だけの古い名前のフラグだけの形・
+# 1語目が1語の葉のまま残る2語の古い名前も、同じく断る（振り分けの分かれ道ごとに1つ。機械が打つ葉は ADR-0053 切る案 5）。
+# 断れずに実行しても本物を書かないよう、置き場は一時の空の所に向ける
+mkdir -p "$tmp/old-name/ws" "$tmp/old-name/pkg"
+for pair in 'delegate show --json|andon delegation show' 'delegate|andon delegation' 'measure --json|andon metrics show' \
+  'dispatcher --once|andon dispatcher run' 'signal delivered fp 1|andon signal mark-delivered' 'version stamp unknown|andon package stamp'; do
   old=${pair%%|*} neu=${pair#*|}
-  rc=0; step "ow-old-name: 古い名前 andon $old を打つ" "$andon" $old || rc=$?
+  rc=0; step "ow-old-name: 古い名前 andon $old を打つ" env ANDON_WORKSPACE="$tmp/old-name/ws" ANDON_HOME="$tmp/old-name/pkg" "$andon" $old || rc=$?
   [ "$rc" = 2 ] && [ "$(wc -l <"$tmp/step.out")" = 1 ] && grep -qF "$neu に名前が変わった" "$tmp/step.out" \
     && ok "ow-old-name: andon $old は $neu を1行で言って終了コード 2 で終わる" \
     || fail "ow-old-name: andon $old が終了コード 2 と $neu の1行で断られない（終了コード $rc）"
@@ -226,11 +230,11 @@ step "ow-anywhere: 2つのセルの根で andon delegation show --project x を�
   && grep -q '^z: ' "$tmp/step.out" \
   && ok "ow-anywhere: delegation show も、--project・セルに1つだけ・kanban の無い projects/<slug>/ の下でプロジェクトが決まる" \
   || fail "ow-anywhere: delegation show のプロジェクトの決まり方が違う"
-# --project は動詞のあとならどこでも受ける。後ろに置いた signal delivered は usage にならず、記録に無い信号として断る（記録は一時の HOME）
-rc=0; step "ow-anywhere: andon signal delivered fp 3 --project x を打つ" at "$c2" "$c2" env HC_TERMINAL_ID=dispatcher "$andon" signal delivered fp 3 --project x || rc=$?
+# --project は動詞のあとならどこでも受ける。後ろに置いた signal mark-delivered は usage にならず、記録に無い信号として断る（記録は一時の HOME）
+rc=0; step "ow-anywhere: andon signal mark-delivered fp 3 --project x を打つ" at "$c2" "$c2" env HC_TERMINAL_ID=dispatcher "$andon" signal mark-delivered fp 3 --project x || rc=$?
 [ "$rc" = 1 ] && grep -qF '記録に無い信号: fp' "$tmp/step.out" \
-  && ok "ow-anywhere: 後ろに置いた --project を signal delivered が受け、x の記録を見る" \
-  || fail "ow-anywhere: 後ろに置いた --project を signal delivered が受けない（終了コード $rc）"
+  && ok "ow-anywhere: 後ろに置いた --project を signal mark-delivered が受け、x の記録を見る" \
+  || fail "ow-anywhere: 後ろに置いた --project を signal mark-delivered が受けない（終了コード $rc）"
 # 使い方の文はどこで打つかを言わず、振り分けが足す --project の行を持つ
 bad=
 for l in "retro collect" "signal collect" "design start"; do

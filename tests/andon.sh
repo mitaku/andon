@@ -83,8 +83,8 @@ done)
 mkdir -p "$tmp/k/kanban" && echo 'version: 3' >"$tmp/k/kanban/config.yaml"
 KANBAN_ROOT=$tmp/k "$andon" triage verdict >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon triage verdict' "$tmp/err" && pass "andon triage verdict（引数なし）は中身の usage で rc 2" || fail "andon triage verdict: rc=$r $(cat "$tmp/err")"
-"$andon" dispatcher --bogus >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '^usage: andon dispatcher' "$tmp/err" && pass "andon dispatcher（知らない引数）は usage で rc 2" || fail "andon dispatcher: rc=$r $(cat "$tmp/err")"
+"$andon" dispatcher run --bogus >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon dispatcher run' "$tmp/err" && pass "andon dispatcher run（知らない引数）は usage で rc 2" || fail "andon dispatcher run: rc=$r $(cat "$tmp/err")"
 "$andon" open sample-site extra >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon open' "$tmp/err" && pass "andon open（余分な引数）は usage で rc 2" || fail "andon open: rc=$r $(cat "$tmp/err")"
 KANBAN_ROOT=$tmp/k "$andon" issue start X-1 extra >/dev/null 2>"$tmp/err"; r=$?

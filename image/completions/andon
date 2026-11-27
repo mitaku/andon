@@ -3,18 +3,17 @@
 _andon() {
   local cur=${COMP_WORDS[COMP_CWORD]}
   if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=($(compgen -W "help open version boot design project waiting delegation metrics signal digest tray cell issue gate news publish triage retro dispatcher otel tools schema process" -- "$cur"))
+    COMPREPLY=($(compgen -W "help open version boot design project waiting delegation metrics signal digest tray cell issue gate news publish triage retro dispatcher otel tools package schema process" -- "$cur"))
     return 0
   fi
   [ "$COMP_CWORD" -eq 2 ] || return 0
   case ${COMP_WORDS[1]} in
-    version) COMPREPLY=($(compgen -W "stamp" -- "$cur")) ;;
     design) COMPREPLY=($(compgen -W "start" -- "$cur")) ;;
     project) COMPREPLY=($(compgen -W "create list" -- "$cur")) ;;
     waiting) COMPREPLY=($(compgen -W "list answer" -- "$cur")) ;;
     delegation) COMPREPLY=($(compgen -W "show grant narrow revoke" -- "$cur")) ;;
     metrics) COMPREPLY=($(compgen -W "show" -- "$cur")) ;;
-    signal) COMPREPLY=($(compgen -W "auth collect delivered" -- "$cur")) ;;
+    signal) COMPREPLY=($(compgen -W "auth collect mark-delivered" -- "$cur")) ;;
     digest) COMPREPLY=($(compgen -W "auth collect build send check" -- "$cur")) ;;
     tray) COMPREPLY=($(compgen -W "auth status deploy serve" -- "$cur")) ;;
     cell) COMPREPLY=($(compgen -W "init" -- "$cur")) ;;
@@ -22,9 +21,10 @@ _andon() {
     news) COMPREPLY=($(compgen -W "ack" -- "$cur")) ;;
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
     retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;
-    dispatcher) COMPREPLY=($(compgen -W "drain wait rewake" -- "$cur")) ;;
+    dispatcher) COMPREPLY=($(compgen -W "run drain wait rewake" -- "$cur")) ;;
     otel) COMPREPLY=($(compgen -W "serve env" -- "$cur")) ;;
     tools) COMPREPLY=($(compgen -W "env" -- "$cur")) ;;
+    package) COMPREPLY=($(compgen -W "stamp" -- "$cur")) ;;
     schema) COMPREPLY=($(compgen -W "check batch" -- "$cur")) ;;
     process) COMPREPLY=($(compgen -W "render json" -- "$cur")) ;;
     open)

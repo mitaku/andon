@@ -27,7 +27,7 @@ stateDiagram-v2
 
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
-| （始まり・終わり） | `unknown` | dispatcher が kanban を回り始めた | 機械 | `andon dispatcher` |  |
+| （始まり・終わり） | `unknown` | dispatcher が kanban を回り始めた | 機械 | `andon dispatcher run` |  |
 | `unknown` | `looked` | 見る時刻が来た。枠を数えて控えるだけ（撃たない・積まない） | 機械 |  |  |
 | `looked` | `looked` | 見る時刻が来た。前の回も今の回も枠が空いていて、間が 2 倍を超えていなければ、ルーチンを撃ち、起動されないまま残った課題・撃ったルーチン・新しい lint の problem のどれかがあれば idle を Chief of Staff に届ける（§7.2 #28） | 機械 |  |  |
 | `looked` | `unknown` | Chief of Staff の留守・枠を数えられない・idle_minutes が 0（知らせた id と lint の印は残す） | 機械 |  |  |

@@ -32,7 +32,7 @@ const (
 		"（XDG_STATE_HOME があればその下。docs/contract.md §15）。signals が無ければ何も読まず、何も書かない。\n" +
 		"--due は、出所と repo の組ごとに前に読みに行った時刻（記録の read_at）から every 分（既定 10）たったものだけを読む（dispatcher の巡）。\n" +
 		"GitHub（github-ci・github-issues）は gh の資格情報を使う。読めなかった出所はその出所の記録を変えずに飛ばし、終了コード 1。\n"
-	DeliveredUsage = "usage: andon signal delivered [--project <slug>] <fingerprint> <episode>\n" +
+	DeliveredUsage = "usage: andon signal mark-delivered [--project <slug>] <fingerprint> <episode>\n" +
 		"通知 signal で届けた出来事を記録に書く（dispatcher だけ。HC_TERMINAL_ID=dispatcher）。\n"
 	AuthUsage = "usage: andon signal auth <source>\n" +
 		"出所のトークンをセルの中で聞いて置く（sentry・linear・cloudflare）。\n" +

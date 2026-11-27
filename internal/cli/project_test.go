@@ -99,7 +99,7 @@ func TestProjectFlag(t *testing.T) {
 		t.Setenv("KANBAN_ROOT", "")
 		pos := []string{"S-0001"}
 		if len(l.words()) == 1 {
-			pos = nil // 1語の葉（dispatcher）は2語目を動詞に読む
+			pos = nil // 1語の葉は2語目を動詞に読む
 		}
 		rc, _, errs := run(slices.Concat(l.words(), pos, []string{"--project", "a"})...)
 		want := strings.Join(slices.Concat([]string{l.name}, pos, []string{"@" + rootA}), " ")
@@ -204,9 +204,9 @@ func TestProjectOmitted(t *testing.T) {
 func TestProjectColumns(t *testing.T) {
 	want := map[string][]string{
 		"hook":  {"dispatcher drain", "dispatcher rewake", "dispatcher wait", "issue stop-check"},
-		"every": {"dispatcher"},
-		"ownFlag": {"delegation grant", "delegation narrow", "delegation revoke", "delegation show", "dispatcher", "dispatcher drain",
-			"dispatcher rewake", "dispatcher wait", "issue board", "issue history", "signal collect", "signal delivered",
+		"every": {"dispatcher run"},
+		"ownFlag": {"delegation grant", "delegation narrow", "delegation revoke", "delegation show", "dispatcher drain",
+			"dispatcher rewake", "dispatcher run", "dispatcher wait", "issue board", "issue history", "signal collect", "signal mark-delivered",
 			"waiting answer", "waiting list"},
 	}
 	got := map[string][]string{}

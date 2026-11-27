@@ -30,7 +30,7 @@ func TestDeliveredProjectAnywhere(t *testing.T) {
 			t.Errorf("%v: rc=%d err=%q（前に置いたとき rc=%d err=%q）", args, rc, errs, front, ferr)
 		}
 	}
-	if !strings.Contains(ferr, "andon signal delivered:") {
+	if !strings.Contains(ferr, "andon signal mark-delivered:") {
 		t.Errorf("前に置いたとき、記録に無い信号の誤りでない: %q", ferr)
 	}
 	// 2つ目の --project・値の無い --project は使い方の誤り

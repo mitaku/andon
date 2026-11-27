@@ -39,7 +39,7 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 - **gate が待つ。** `hd-gate-wait` の行に `andon gate` の終了コード 5 と、理由の課題を名指す `{"decision":"wait",…}` が出る。`ok   hd-gate-wait` が見えれば、GitHub を読まず記録も書いていない。
 - **担当が消しても止まる。** `hd-worker` の行の前に、担当 `tw` が `kanban set <id> hold=` を打った終了コードと今の `hold` が出る。道は、担当が消せた（`hold` が空で、最後に変えた行が `terminal:tw`）ことを確かめてから `andon gate` を打つ。gate がまた wait を返し、`ok   hd-worker` が見えれば動いた。
 - **外す。** `hd-unhold` の行に `andon issue unhold` の出力（「止めを外した（理由の課題 …）」）と、もう一度外したときの「止めていない」が出る。`ok   hd-unhold` が2行見え、最後の `log.jsonl` の行で `hold` を最後に変えたのが `terminal:tc` なら動いた。
-- **dispatcher の巡で確かめる。** 続けて、偽のセルの repo（オーナーが条件表と委譲 preset work を commit したもの）のプロジェクト `hd` で、本物の `andon dispatcher --once --project hd` を回す。課題は担当が文書1行の PR で `andon issue ready` まで進めたもの（レベル A）。偽の `gh` の `gh pr merge` は記録だけしてマージ済みにする。
+- **dispatcher の巡で確かめる。** 続けて、偽のセルの repo（オーナーが条件表と委譲 preset work を commit したもの）のプロジェクト `hd` で、本物の `andon dispatcher run --once --project hd` を回す。課題は担当が文書1行の PR で `andon issue ready` まで進めたもの（レベル A）。偽の `gh` の `gh pr merge` は記録だけしてマージ済みにする。
   - `hd-dispatch-hold`: `merge: auto` の課題を止めてから回す。巡の出力と偽の `gh` への呼び出しが出る。gate の記録が無く、`gh pr merge` が呼ばれず、課題が review のままで、`ok   hd-dispatch-hold` が見えれば動いた。
   - `hd-dispatch-release`: 止めを外してまた回す。dispatcher の「PR … をマージした」の行・`gh pr merge … --match-head-commit <sha>`・gate の記録（`approve`・レベル A）が出て、`ok   hd-dispatch-release` が見えれば、止めがマージを止めていた。
   - `hd-dispatch-discard`: `merge: person` の課題で gate に approve を決めさせてから止め、`merge: auto` に書き換えて回す。dispatcher の「… は gate の判定（approve）のあとに止められた。判定を捨てて gate の問いを閉じる」の行が出て、`gh pr merge` が呼ばれず、`ok   hd-dispatch-discard` が見えれば動いた。
@@ -73,5 +73,5 @@ Chief of Staff は、別の問い（理由の課題）の答えが出るまで�
 - dispatcher は、Chief of Staff の端末の形（`hc get <address> --json` の address と state）を読めなければ、その kanban を回さずに 0 で終わる。回さなかった巡では gate もマージも起きないので、`hd-dispatch-hold` は「この巡はこの kanban を回さない」の行が無いことも確かめる。`hd-dispatch-release` が落ちたら、まずこの行を探す。
 - dispatcher がマージするのは、gate を回したその巡の中だけ。approve のまま残った判定は、`merge` を後から `auto` に書き換えても、head が動かなければマージに使われない。`hd-dispatch-discard` が見るのは、止めたあとに判定を捨てることと、マージしないこと。
 - 担当の worktree の branch は、PR の branch（偽の `view.json` の `headRefName`）と同じ名前にする。違うと gate は fix を返し、`hd-dispatch-release` が落ちる。
-- `andon dispatcher --once` を打つのは、`ANDON_WORKSPACE`・HOME・状態の置き場を一時へ向けた切り離しの中だけ。セルの本物で打たない（本物の dispatcher の見回りと鍵に割り込む）。
+- `andon dispatcher run --once` を打つのは、`ANDON_WORKSPACE`・HOME・状態の置き場を一時へ向けた切り離しの中だけ。セルの本物で打たない（本物の dispatcher の見回りと鍵に割り込む）。
 - 止めている PR がオーナー待ちの一覧でマージの依頼に出ないこと、理由の課題が済んだときの通知 `hold` は、この道では見ない。前者は `go test ./internal/waiting/`、後者は `tests/andon-dispatcher.sh` が見ている。本物の通知は、`features/dispatcher-news.md` の `dn-delivered` の行に `<id> hold` が出るかで読む。

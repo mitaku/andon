@@ -71,8 +71,10 @@ func putTermAt(t *testing.T, path, fg, space, tab string) {
 }
 
 const (
-	fgDispatcher = `{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}`
-	fgShell      = `{"name":"sh","argv":["/bin/sh"]}`
+	fgDispatcher = `{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher","run"]}`
+	// 名前を変える前のバージョンが起動した dispatcher（ADR-0053 受け入れ条件 A13）
+	fgOldDispatcher = `{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}`
+	fgShell         = `{"name":"sh","argv":["/bin/sh"]}`
 )
 
 func TestEnsureDispatcher(t *testing.T) {
@@ -80,18 +82,27 @@ func TestEnsureDispatcher(t *testing.T) {
 	term := filepath.Join(d, "term")
 
 	did, calls, err := round()
-	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher" {
+	if err != nil || did == "" || len(calls) != 1 || calls[0] != "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher run" {
 		t.Fatalf("端末が無いとき: %q %q %v", did, calls, err)
 	}
 
-	putTerm(t, term, fgDispatcher)
-	if did, calls, err := round(); err != nil || did != "" || calls != nil {
-		t.Fatalf("動いているとき: %q %q %v", did, calls, err)
+	for _, fg := range []string{fgDispatcher, fgOldDispatcher} {
+		putTerm(t, term, fg)
+		if did, calls, err := round(); err != nil || did != "" || calls != nil {
+			t.Fatalf("動いているとき（%s）: %q %q %v", fg, did, calls, err)
+		}
+	}
+	// 常駐でない形と、別の葉は dispatcher と読まず、シェルでもないので触らない
+	for _, fg := range []string{`{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher","run","--once"]}`, `{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher","drain"]}`} {
+		putTerm(t, term, fg)
+		if did, calls, err := round(); err == nil || did != "" || calls != nil {
+			t.Fatalf("dispatcher でないものが出ているとき（%s）: %q %q %v", fg, did, calls, err)
+		}
 	}
 
 	putTerm(t, term, fgShell)
 	did, calls, err = round()
-	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher"}
+	want := []string{"keep t1 --off", "kill t1", "rm t1", "run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-testplant-plant --label herdr.tab=andon-testplant-dispatcher --cwd /srv/plant -- /opt/andon/bin/andon dispatcher run"}
 	if err != nil || !strings.Contains(did, "起動し直した") || strings.Join(calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("中身がシェルのとき: %q %q %v", did, calls, err)
 	}
@@ -154,12 +165,19 @@ func TestEnsureLocked(t *testing.T) {
 
 func TestIsDispatcher(t *testing.T) {
 	for argv, want := range map[string]bool{
-		"/opt/andon/bin/andon dispatcher": true,
-		"andon dispatcher":                true,
-		"andon dispatcher --once":         false,
-		"andon dispatcher drain":          false,
-		"/bin/sh":                         false,
-		"andon gate":                      false,
+		"/opt/andon/bin/andon dispatcher run": true,
+		"andon dispatcher run":                true,
+		"/opt/andon/bin/andon dispatcher":     true, // 名前を変える前の形（ADR-0053 決めたこと 9）
+		"andon dispatcher":                    true,
+		"andon dispatcher run --once":         false,
+		"andon dispatcher --once":             false,
+		"andon dispatcher run x":              false,
+		"andon dispatcher drain":              false,
+		"andon dispatcher runx":               false,
+		"andon run":                           false,
+		"/bin/andonx dispatcher run":          false,
+		"/bin/sh":                             false,
+		"andon gate":                          false,
 	} {
 		if got := IsDispatcher(strings.Fields(argv)); got != want {
 			t.Errorf("%s: %v", argv, got)
@@ -251,7 +269,7 @@ func TestEnsureMovesToPlace(t *testing.T) {
 	unpass()
 
 	did, calls, err := round()
-	want := "keep t1 --off\nkill t1\nrm t1\nrun --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-dispatcher --cwd " + ws + " -- /opt/andon/bin/andon dispatcher"
+	want := "keep t1 --off\nkill t1\nrm t1\nrun --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-sample-site --label herdr.tab=andon-sample-site-dispatcher --cwd " + ws + " -- /opt/andon/bin/andon dispatcher run"
 	if err != nil || !strings.Contains(did, "andon-sample-site") || calls != want {
 		t.Fatalf("置き場が違うとき: %q\n%s\n%v", did, calls, err)
 	}

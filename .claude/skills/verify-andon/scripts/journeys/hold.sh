@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PR を止める（features/hold.md）。切り離した kanban で、担当が報告した PR を Chief of Staff が止め（andon issue hold）、
 # 止めている間 gate が待つこと、担当が hold を消しても止まったままのこと、Chief of Staff が外す（andon issue unhold）ことを通す。
-# 後半は本物の andon dispatcher --once を偽のセルの repo で回し、止めている間はマージしないこと（外すとマージする対照つき）と、
+# 後半は本物の andon dispatcher run --once を偽のセルの repo で回し、止めている間はマージしないこと（外すとマージする対照つき）と、
 # approve のあとに止めた判定を捨てることを通す。
 # 偽の gh は止める口が打つ2つの呼び出しだけを知るものに替える（sandbox.sh の偽の gh はこの2つを知らない）:
 #   pr view <n> --repo <owner>/<repo> --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName は $tmp/gh/view、
@@ -105,7 +105,7 @@ step "hd-unhold: もう一度外す" "$andon" issue unhold "$id" \
   && ok "hd-unhold: 外したあとは止めていないと返す" || fail "hd-unhold: 外したあとも止めていると読む"
 jq -c --arg id "$id" 'select(.id == $id and (.change | has("hold"))) | {by, change}' "$tmp/project/kanban/log.jsonl" | sed 's/^/  log.jsonl: /'
 
-# ---- dispatcher の巡（hd-dispatch-*）: 本物の andon dispatcher --once を、偽のセルの repo（オーナーが条件表と委譲を commit）の
+# ---- dispatcher の巡（hd-dispatch-*）: 本物の andon dispatcher run --once を、偽のセルの repo（オーナーが条件表と委譲を commit）の
 # プロジェクトで回す。偽の gh を、gate とマージと読み直しの呼び出しを知るものに替える（事実は $tmp/dg/ のファイル）:
 #   PR の事実 view.json・checks（graphql）・ファイル files.json・差分 diff。印の書き込みは marks に、マージは merges に足して merged を置く
 d=$tmp/dg; mkdir -p "$d"
@@ -151,7 +151,7 @@ HC_TERMINAL_ID=tc "$kanban" config set chief_of_staff=tc >/dev/null
 # dispatcher は Chief of Staff の端末の形（address・state）を読む。読めなければその kanban を回さない
 echo '{"address":"tc","state":"live","status":{"state":"working"},"labels":{"role":"chief-of-staff","project":"hd"}}' >"$tmp/hc/tc.json"
 dlog=$tmp/dispatcher.log
-dispatch() { : >"$tmp/gh.calls"; : >"$dlog"; "$andon" dispatcher --once --project hd >/dev/null 2>"$dlog"; }
+dispatch() { : >"$tmp/gh.calls"; : >"$dlog"; "$andon" dispatcher run --once --project hd >/dev/null 2>"$dlog"; }
 # patrolled: 巡がこの kanban を回した（回さなかったときの行が無い）。回していなければ、gate もマージも起きないのは当たり前で証拠にならない
 patrolled() { ! grep -qF "この巡はこの kanban を回さない" "$dlog"; }
 gated() { compgen -G "$KANBAN_ROOT/kanban/issues/$1/library/gate/*.json" >/dev/null; }
@@ -179,7 +179,7 @@ dwhy=$(HC_TERMINAL_ID=tc "$kanban" add "$run の答えを待つ問い")
 a=$(mkpr "自動でマージする PR" auto) || fail "前提: merge: auto の課題を ready まで進められない"
 HC_TERMINAL_ID=tc "$andon" issue hold "$a" "$dwhy" >/dev/null || fail "前提: $a を止められない"
 dispatch; drc=$?
-echo "-- hd-dispatch-hold: 止めた $a（merge: auto）で andon dispatcher --once（終了コード $drc）"
+echo "-- hd-dispatch-hold: 止めた $a（merge: auto）で andon dispatcher run --once（終了コード $drc）"
 sed 's/^/  | /' "$dlog"; sed 's/^/  gh.calls: /' "$tmp/gh.calls"
 [ "$drc" = 0 ] && patrolled && [ ! -s "$d/merges" ] && ! gated "$a" && [ "$("$kanban" show "$a" --json | jq -r .issue.status)" = review ] \
   && ok "hd-dispatch-hold: 止めている $a に dispatcher は gate を回さず、マージ（gh pr merge）もせず、課題は review のまま" \
@@ -188,7 +188,7 @@ sed 's/^/  | /' "$dlog"; sed 's/^/  gh.calls: /' "$tmp/gh.calls"
 # hd-dispatch-release: 外すと、次の巡で gate が回り、approve で dispatcher がマージする（上の確かめが何も見ていないことの対照）
 HC_TERMINAL_ID=tc "$andon" issue unhold "$a" >/dev/null || fail "前提: $a の止めを外せない"
 dispatch; drc=$?
-echo "-- hd-dispatch-release: 外した $a で andon dispatcher --once（終了コード $drc）"
+echo "-- hd-dispatch-release: 外した $a で andon dispatcher run --once（終了コード $drc）"
 sed 's/^/  | /' "$dlog"; sed 's/^/  merges: /' "$d/merges" 2>/dev/null
 gated "$a" && jq -c '{decision, tier}' "$KANBAN_ROOT"/kanban/issues/"$a"/library/gate/*.json | sed 's/^/  gate: /'
 gated "$a" && [ -s "$d/merges" ] \
@@ -204,7 +204,7 @@ gated "$p" && jq -e '.decision == "approve"' "$KANBAN_ROOT"/kanban/issues/"$p"/l
 HC_TERMINAL_ID=tc "$andon" issue hold "$p" "$dwhy" >/dev/null || fail "前提: $p を止められない"
 HC_TERMINAL_ID=tc "$kanban" set "$p" merge=auto >/dev/null
 dispatch; drc=$?
-echo "-- hd-dispatch-discard: approve のあとに止めて merge: auto にした $p で andon dispatcher --once（終了コード $drc）"
+echo "-- hd-dispatch-discard: approve のあとに止めて merge: auto にした $p で andon dispatcher run --once（終了コード $drc）"
 sed 's/^/  | /' "$dlog"
 [ "$drc" = 0 ] && patrolled && grep -qF "$p は gate の判定（approve）のあとに止められた" "$dlog" && [ ! -s "$d/merges" ] \
   && ok "hd-dispatch-discard: approve のあとに止めた $p の判定を dispatcher が捨て、merge: auto にしてもマージしない" \

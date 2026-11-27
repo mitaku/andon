@@ -675,12 +675,12 @@ EOF
 chmod +x "$tmp/bin/hc"
 field() { kanban show "$1" --json | jq -r --arg k "$2" '.issue[$k] // ""'; }
 # 起動の記録（contract.md §18。ADR-0028 受け入れ条件 1〜4）の土台: ハーネスはバージョンを返し、パッケージの置き場は
-# この repo の package/ を HEAD から写して、その commit で焼いた印（andon version stamp）を付ける。auto memory の目録はセルの repo の memory/（git の外）
+# この repo の package/ を HEAD から写して、その commit で焼いた印（andon package stamp）を付ける。auto memory の目録はセルの repo の memory/（git の外）
 printf '#!/bin/sh\necho "9.9.9 (Claude Code)"\n' > "$tmp/bin/claude"; printf '#!/bin/sh\necho "codex-cli 9.9.9"\n' > "$tmp/bin/codex"; chmod +x "$tmp/bin/claude" "$tmp/bin/codex"
 pkgc=$(git -C "$src" rev-parse HEAD)
 mkdir -p "$tmp/pkg" && git -C "$src" archive HEAD package | tar -x -C "$tmp/pkg" --strip-components=1
 export ANDON_HOME=$tmp/pkg
-"$andon" version stamp "$pkgc" >/dev/null
+"$andon" package stamp "$pkgc" >/dev/null
 echo 'memory/' >> "$tmp/plant/.git/info/exclude"; mkdir -p "$tmp/plant/memory"; echo '- [a](a.md) — 目録の1行' > "$tmp/plant/memory/MEMORY.md"
 launches() { echo "kanban/issues/$1/library/launches.jsonl"; }
 nlaunch() { if [ -e "$(launches "$1")" ]; then wc -l < "$(launches "$1")"; else echo 0; fi; }

@@ -188,15 +188,22 @@ func TestStartDispatcherUnsure(t *testing.T) {
 	}
 }
 
+// boot は、前に出ているものが andon dispatcher run でも、名前を変える前の andon dispatcher でも、dispatcher が動いていると読む
+// （ADR-0053 受け入れ条件 A13）。どちらでも端末を片付けず、起動もしない。
 func TestStartDispatcherRunning(t *testing.T) {
-	f, e, d := dispatcherFixture(t)
-	space, tab := dispatcher.Place(e.Workspace)
-	put(t, filepath.Join(d, "term"), `{"address":"t1","state":"live","labels":{"herdr.space":"`+space+`","herdr.tab":"`+tab+`"},"foreground":{"name":"andon","argv":["/opt/andon/bin/andon","dispatcher"]}}`)
-	if err := startDispatcher(e); err != nil {
-		t.Fatal(err)
-	}
-	if got := f.log.String(); !strings.Contains(got, "dispatcher はすでに動いている") {
-		t.Errorf("log=%q", got)
+	for _, argv := range []string{`"/opt/andon/bin/andon","dispatcher","run"`, `"/opt/andon/bin/andon","dispatcher"`} {
+		f, e, d := dispatcherFixture(t)
+		space, tab := dispatcher.Place(e.Workspace)
+		put(t, filepath.Join(d, "term"), `{"address":"t1","state":"live","labels":{"herdr.space":"`+space+`","herdr.tab":"`+tab+`"},"foreground":{"name":"andon","argv":[`+argv+`]}}`)
+		if err := startDispatcher(e); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.log.String(); !strings.Contains(got, "dispatcher はすでに動いている") {
+			t.Errorf("[%s] log=%q", argv, got)
+		}
+		if _, err := os.Stat(filepath.Join(d, "log")); err == nil {
+			t.Errorf("[%s] 動いている dispatcher に hc を打った", argv)
+		}
 	}
 }
 

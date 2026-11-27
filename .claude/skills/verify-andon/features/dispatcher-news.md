@@ -4,7 +4,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 
 ## 細かい機能
 
-- `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
+- `dn-live` dispatcher が当てた andon（`/opt/andon/bin/andon dispatcher run`）で、当てたあとに起動して live。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/dispatcher.go`、`internal/dispatcher/state.go`、`internal/dispatcher/terminal.go`、`internal/flock/flock.go`、`internal/dispatcher/otel.go`、`internal/otel/prune.go`、`internal/otel/otel.go`
 - `dn-delivered` 当てたあとに Chief of Staff へ通知を届けた記録がある。見る道: 検証の担当だけ。
   - 見るファイル: `internal/dispatcher/pickup.go`、`internal/dispatcher/deliver.go`、`internal/dispatcher/delivered.go`、`internal/dispatcher/route.go`、`internal/dispatcher/abandoned.go`、`internal/dispatcher/estimate.go`、`internal/dispatcher/impact.go`、`internal/dispatcher/memory.go`、`internal/issue/impact.go`、`internal/contract/impact.go`、`schema/notification.schema.json`、`schema/delivered.schema.json`、`process/states/delivery.yaml`、`process/states/estimate.yaml`、`process/states/memory.yaml`
@@ -36,7 +36,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 - 当てた時刻より後に、Chief of Staff へ届けた通知が1件以上ある。無ければ `dn-live` だけを確かめて終了コード 3（`dn-delivered` は未確認）。記録だけの通知は届けた証拠にしない。
 
 - **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh dispatcher-news <検証する commit>` を打つ。`hc get dispatcher --json` と控えの置き場を読むだけ。
-- **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`ok   dn-live` が見えれば動いた。
+- **常駐を読む。** `dn-live` の行に dispatcher の `state`・`argv`・`created_ms` が出る。`argv` が当てた andon の `dispatcher run` で、`ok   dn-live` が見えれば動いた。`argv` が名前を変える前の `dispatcher` なら、当てる前のバージョンが起動した dispatcher が残っている。
 - **届けたものを読む。** `dn-delivered` の行に、当てたあとに届けた通知（課題と種類）と記録だけの通知が出る。`ok   dn-delivered` が見えれば動いた。
 - **枠の空きを見たかを読む。** `dn-idle` の行に、控えの `idle`（見た時刻・枠が空いていたか・起動できる課題の数・知らせた id）と、当てたあとに届けた通知 `idle` の `detail` が出る。`ok   dn-idle` が見えれば、当てたあとに枠の空きを見た。撃ったルーチンは `kanban routine list` の `last` でも読める。控えが無ければ `note dn-idle` が出て、dn-idle は未確認になる（終了コードは変えない）。続く行に、空きで撃てるルーチン（トリアージ・振り返りと `idle_hours` を持つもの）ごとに `idle_hours`・`paused`・片付いていない課題・検証する間に足した課題が出る。足した課題のほかは今の状態で、前の commit を検証するときも今を読む。`idle_hours`（1 以上の整数）を持つルーチンが無いか、撃てるルーチンがどれも `paused` か片付いていない課題を持てば、`note dn-idle` が出て、空きで撃つところは未確認になる（終了コードは変えない）。
 - **手直しの記録を読む。** `dn-corrections` の行に、当てたあとに書いた `corrections.json` ごとの課題・時刻・種類ごとの数・`human_commits` の数が出る。`ok   dn-corrections` が見えれば、当てた dispatcher が手直しの記録を書いた。当てたあとに片付いた課題が無ければ `note dn-corrections` が出て、dn-corrections は未確認になる（終了コードは変えない）。拾う規則（merge commit を外すなど）が効いたかは、記録の `human_commits` と PR の commit を見比べて読む。

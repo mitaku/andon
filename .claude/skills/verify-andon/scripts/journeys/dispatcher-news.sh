@@ -4,15 +4,16 @@ set -uo pipefail
 . "$(dirname "$0")/../cell.sh"
 state=${XDG_STATE_HOME:-$HOME/.local/state}/andon/dispatcher
 
-# dn-live: dispatcher が当てた andon で、最後に当てたあとに起動して動いている（今の状態なので、検証する commit でなく最後に当てた時刻と比べる）
+# dn-live: dispatcher が当てた andon の andon dispatcher run で、最後に当てたあとに起動して動いている（今の状態なので、検証する commit でなく
+# 最後に当てた時刻と比べる）。名前を変える前の形 andon dispatcher なら、当てる前のバージョンが起動したまま
 d=$(hc get dispatcher --json 2>/dev/null) || d=
 echo "-- dn-live: hc get dispatcher --json"
 [ -n "$d" ] && jq -c '{state, argv, created_ms, labels: (.labels | {role})}' <<<"$d" | sed 's/^/  | /'
 if [ -n "$d" ] && [ "$(jq -r .state <<<"$d")" = live ] && [ "$(jq -r '.argv[0]' <<<"$d")" = "$pkg/bin/andon" ] \
-  && [ "$(jq -r '.created_ms // 0' <<<"$d")" -ge "$now_ms" ]; then
-  ok "dn-live: dispatcher は $pkg/bin/andon で、当てたあとに起動して live"
+  && [ "$(jq -c '.argv[1:]' <<<"$d")" = '["dispatcher","run"]' ] && [ "$(jq -r '.created_ms // 0' <<<"$d")" -ge "$now_ms" ]; then
+  ok "dn-live: dispatcher は $pkg/bin/andon dispatcher run で、当てたあとに起動して live"
 else
-  fail "dn-live: dispatcher が無いか、live でないか、当てる前から動いている"
+  fail "dn-live: dispatcher が無いか、live でないか、andon dispatcher run でないか、当てる前から動いている"
 fi
 
 # dn-delivered: 当てたあとに Chief of Staff へ届けた通知（<slug>.delivered.jsonl）と、記録だけの通知（<slug>.recorded.jsonl）

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dispatcher のマージ（features/merge.md）。本物の andon dispatcher --once を、偽のセルの repo（オーナーが条件表と委譲を commit）の
+# dispatcher のマージ（features/merge.md）。本物の andon dispatcher run --once を、偽のセルの repo（オーナーが条件表と委譲を commit）の
 # プロジェクトで回し、merge: auto の approve を dispatcher がマージしたあと、PR の読み直し（gh pr view）が一時に落ちたときの道を通す。
 # 偽の gh は gate とマージと読み直しの呼び出しを知る（事実は $tmp/dg/ のファイル）:
 #   PR の事実 view.json・checks（graphql）・ファイル files.json・差分 diff。印の書き込みは marks に、マージは merges に足して merged を置く。
@@ -56,7 +56,7 @@ HC_TERMINAL_ID=tc "$kanban" config set chief_of_staff=tc >/dev/null
 # dispatcher は Chief of Staff の端末の形（address・state）を読む。読めなければその kanban を回さない
 echo '{"address":"tc","state":"live","status":{"state":"working"},"labels":{"role":"chief-of-staff","project":"mg"}}' >"$tmp/hc/tc.json"
 dlog=$tmp/dispatcher.log
-dispatch() { : >"$tmp/gh.calls"; : >"$dlog"; "$andon" dispatcher --once --project mg >/dev/null 2>"$dlog"; }
+dispatch() { : >"$tmp/gh.calls"; : >"$dlog"; "$andon" dispatcher run --once --project mg >/dev/null 2>"$dlog"; }
 # reads <json の欄>: この巡で偽の gh に打った gh pr view 7 --json <欄> の数
 reads() { grep -cxF "gh pr view 7 --repo example/sample-site --json $1" "$tmp/gh.calls" || true; }
 gate_merged() { jq -r '.merged // false' "$KANBAN_ROOT"/kanban/issues/"$1"/library/gate/*.json 2>/dev/null; }
@@ -66,7 +66,7 @@ gate_merged() { jq -r '.merged // false' "$KANBAN_ROOT"/kanban/issues/"$1"/libra
 cannot='dispatcher がマージできなかった'
 asked() { cat "$KANBAN_ROOT"/kanban/issues/"$1"/library/questions/*.json 2>/dev/null | jq -r '.question'; }
 show() { # show <名前> <id>: 巡の出力と、偽の gh への読み直しと、課題の今を証拠に出す
-  echo "-- $1: $2 で andon dispatcher --once（終了コード $drc）"
+  echo "-- $1: $2 で andon dispatcher run --once（終了コード $drc）"
   sed 's/^/  | /' "$dlog"; grep -F 'gh pr ' "$tmp/gh.calls" | sed 's/^/  gh.calls: /'
   echo "  status: $("$kanban" show "$2" --json | jq -r .issue.status)・gate の記録の merged: $(gate_merged "$2")"
   asked "$2" | sed 's/^/  問い: /'

@@ -353,8 +353,8 @@ apply() {
     "$commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${previous:-[]}" >"$build/pkg/applied.json"
   # 焼いたときの印（andon version が commit と食い違いを読む。ADR-0028 P0-1）。中身はこれより後に足さない。
   # andon version の無い古い commit では書けない（andon version は commit だけ読み、食い違いは null と出す）
-  ANDON_HOME=$build/pkg "$build/pkg/bin/andon" version stamp "$commit" >/dev/null 2>&1 \
-    || say "警告: $(short "$commit") の andon に version stamp が無いので、焼いたときの印を書かなかった"
+  ANDON_HOME=$build/pkg "$build/pkg/bin/andon" package stamp "$commit" >/dev/null 2>&1 \
+    || say "警告: $(short "$commit") の andon に package stamp が無いので、焼いたときの印を書かなかった"
 
   # 入れ替える: kanban は隣に置いてから rename（動いている kanban を書き換えない。text file busy にならない）
   $as_root cp "$build/kanban" "$kanban.new.$$"

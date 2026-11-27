@@ -527,7 +527,7 @@ if [ "$self" = true ]; then
   echo '{"commit": "c0ffee", "applied_at": "2026-01-01T00:00:00Z"}' >"$c/pkg/applied.json"
   touch "$c/pkg/skills/worker/SKILL.md" "$c/pkg/skills/retro/SKILL.md"
   ms=$(($(date -u -d 2026-01-01T00:01:00Z +%s) * 1000))
-  echo "{\"state\": \"live\", \"argv\": [\"$c/pkg/bin/andon\"], \"created_ms\": $ms, \"labels\": {}}" >"$c/dispatcher.json"
+  echo "{\"state\": \"live\", \"argv\": [\"$c/pkg/bin/andon\", \"dispatcher\", \"run\"], \"created_ms\": $ms, \"labels\": {}}" >"$c/dispatcher.json"
   # 偽の hc: get dispatcher は dispatcher.json、read は $c/screen（無ければ空）を出す。ほかは 1
   printf '#!/bin/sh\ncase "$1 $2" in\n"get dispatcher") cat "%s/dispatcher.json" ;;\n"read "*) cat "%s/screen" 2>/dev/null; exit 0 ;;\n*) exit 1 ;;\nesac\n' "$c" "$c" >"$c/bin/hc"; chmod +x "$c/bin/hc"
   echo x >"$c/gen"; echo "{\"$c/gen\": \"$(sha256sum "$c/gen" | cut -d' ' -f1)\"}" >"$c/state/andon/boot.json"
@@ -544,6 +544,11 @@ if [ "$self" = true ]; then
   echo "{$at, \"project\": \"v\", \"acked\": true, \"news\": [{\"issue\": \"V-0001\", \"kind\": \"review\"}]}" >"$c/state/andon/dispatcher/v.delivered.jsonl"
   journey dispatcher-news
   [ "$jrc" = 0 ] || die "dispatcher-news: 届けた通知があるのに終了コード $jrc: $jout"
+  # 名前を変える前の形（andon dispatcher）で動く dispatcher は、当てる前のバージョンが起動したまま。dn-live は落ちる
+  echo "{\"state\": \"live\", \"argv\": [\"$c/pkg/bin/andon\", \"dispatcher\"], \"created_ms\": $ms, \"labels\": {}}" >"$c/dispatcher.json"
+  journey dispatcher-news
+  [ "$jrc" = 1 ] && grep -qF 'FAIL dn-live' <<<"$jout" || die "dispatcher-news: 古い形 andon dispatcher の dispatcher で dn-live が落ちない（$jrc）: $jout"
+  echo "{\"state\": \"live\", \"argv\": [\"$c/pkg/bin/andon\", \"dispatcher\", \"run\"], \"created_ms\": $ms, \"labels\": {}}" >"$c/dispatcher.json"
   links worker retro; journey boot
   [ "$jrc" = 0 ] || die "boot: 揃った偽のセルで終了コード $jrc: $jout"
   links; journey boot
@@ -945,6 +950,37 @@ if [ "$self" = true ]; then
     bash "$skill/scripts/drive.sh" otel "$new" ot-listen 2>&1) || drc=$?
   [ "$drc" = 1 ] && grep -qF 'FAIL 道の出力の写し' <<<"$dout" || die "drive.sh: 出力の写しが途中で切れたのに 1 にしない（$drc）: $dout"
   ok "verify-andon: drive.sh は細かい機能ごとの結果を1行ずつ出し、名指した細かい機能だけで 0 と 3 を決め、名指さない未確認は補いとして出し、FAIL は名指しによらず 1。地図に無い名前は 2 で断る"
+
+  # 機械が打つ葉の名前を変える前の andon（ADR-0053 切る案 5）を真似た偽の andon で、切り離した道を回す。dispatcher run と
+  # signal mark-delivered を知らず、古い名前（dispatcher --once・signal delivered・version stamp）で動き、dispatcher を andon dispatcher で起動する
+  # （起動の行の run を落とす）。止めを外す issue unhold は何もせず 0 で返す（hd-unhold の当たる場合）
+  mkdir -p "$c/old"
+  cat >"$c/old/andon" <<EOF
+#!/bin/bash
+case "\$1 \$2" in
+  "dispatcher run" | "signal mark-delivered") echo "andon: 知らないコマンド: \$1 \$2" >&2; exit 2 ;;
+  "dispatcher --once") shift; exec "$andon" dispatcher run "\$@" ;;
+  "signal delivered") shift 2; exec "$andon" signal mark-delivered "\$@" ;;
+  "version stamp") shift 2; exec "$andon" package stamp "\$@" ;;
+  "issue unhold") exit 0 ;;
+  "project create") rc=0; "$andon" "\$@" || rc=\$?; sed -i 's/ dispatcher run\$/ dispatcher/' "\$VERIFY_TMP/hc.calls"; exit \$rc ;;
+esac
+exec "$andon" "\$@"
+EOF
+  chmod +x "$c/old/andon"
+  sj() { # sj <道>: 偽の andon を PATH の先頭に置き、切り離した道を回す → 終了コードを $jrc に、出力を $jout に
+    jrc=0; jout=$(env PATH="$c/old:$(dirname "$kanban"):$PATH" VERIFY_REPO="$root" VERIFY_TMP="$(mktemp -d "$c/sj.XXXXXX")" VERIFY_RUN=verify-selftest \
+      bash "$skill/scripts/journeys/$1.sh" 2>&1) || jrc=$?
+  }
+  sj waiting
+  [ "$jrc" = 1 ] && grep -qF 'FAIL ow-old-name' <<<"$jout" && grep -qF 'FAIL ow-anywhere' <<<"$jout" \
+    || die "waiting: 古い名前で動き signal mark-delivered を知らない andon で、ow-old-name か ow-anywhere が落ちない（$jrc）: $jout"
+  sj hold
+  [ "$jrc" = 1 ] && grep -qF 'FAIL hd-unhold' <<<"$jout" && grep -qF 'FAIL hd-dispatch-hold' <<<"$jout" && grep -qF 'FAIL hd-dispatch-release' <<<"$jout" \
+    && grep -qF 'FAIL hd-dispatch-discard' <<<"$jout" || die "hold: dispatcher run を知らず止めを外さない andon で、hd-unhold か hd-dispatch-* が落ちない（$jrc）: $jout"
+  sj create
+  [ "$jrc" = 1 ] && grep -qF 'FAIL cr-create' <<<"$jout" || die "create: dispatcher を andon dispatcher で起動する andon で、cr-create が落ちない（$jrc）: $jout"
+  ok "verify-andon: 名前を変える前の andon を真似ると、ow-old-name・ow-anywhere・hd-unhold・hd-dispatch-*・cr-create は ok にならない"
   trap - DEBUG
 fi
 
@@ -962,15 +998,15 @@ if [ "$self" = true ]; then
   # 控えの名前の - は _ で書き、読むときに - に戻す（tests/ の下に書いてはいけない語を含む名前がある。workflow_test.go の TestWorkflowTrayOnlyInTrayJob）
   hits_allow='
 bt_generated bt_managed bt_tray
-cr_create cr_exists_refuse cr_list cr_role_refuse
+cr_exists_refuse cr_list cr_role_refuse
 dg_build dg_build_refuse dg_check_refuse dg_collect dg_later dg_send dg_tray dg_tray_old dg_tray_remote
 dn_corrections dn_idle dn_signal
-hd_dispatch_discard hd_dispatch_hold hd_dispatch_release hd_gate_wait hd_hold hd_refuse hd_unhold hd_worker
+hd_gate_wait hd_hold hd_refuse hd_worker
 hk_other_pass hk_pre_deny hk_pre_pass hk_stop_block hk_stop_pass hk_wired
 mg_reread mg_reread_exhausted mg_reread_race
 ms_breakdown ms_flow ms_knowledge ms_question_later ms_readonly ms_table ms_tokens
 ot_applied ot_codex ot_listen ot_records ot_restart ot_trace
-ow_anywhere ow_ask_later ow_ask_new ow_json ow_later ow_old_name ow_same_title ow_slots ow_stackable ow_tray_deploy ow_waiting
+ow_ask_later ow_ask_new ow_json ow_later ow_same_title ow_slots ow_stackable ow_tray_deploy ow_waiting
 rr_acceptance rr_ready rr_ready_refuse rr_ready_report rr_record rr_report rr_stacked
 rt_collect rt_later rt_not_cos rt_old_owner rt_patterns
 tr_call tr_collect tr_later tr_not_cos tr_old_shape

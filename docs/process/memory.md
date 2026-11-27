@@ -26,6 +26,6 @@ stateDiagram-v2
 
 | から | へ | 何が起きたら | 誰が | コマンド | 2 回起きてはいけない |
 |---|---|---|---|---|---|
-| （始まり・終わり） | `under` | dispatcher が kanban を回り始めた | 機械 | `andon dispatcher` |  |
+| （始まり・終わり） | `under` | dispatcher が kanban を回り始めた | 機械 | `andon dispatcher run` |  |
 | `under` | `over` | 件数が線を超えた。memory を Chief of Staff に届ける（§7.2 #24） | 機械 |  | はい |
 | `over` | `under` | 件数が線以下に戻った（トリアージの apply が仕分けの済んだ memory を消した） | 機械 |  |  |

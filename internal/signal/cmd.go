@@ -93,7 +93,7 @@ func run(cmd string, args []string, stdin io.Reader, stdout, stderr io.Writer) i
 		// 書くのは dispatcher だけ（dispatcher は HC_TERMINAL_ID=dispatcher で打つ。kanban の by と同じ見分け）。
 		// 担当やほかの端末が打てば、届けていない now の信号が届かなくなるので断る（同じユーザーなので守りではなく、取り違えの止め）
 		if "terminal:"+os.Getenv("HC_TERMINAL_ID") != ledger.DispatcherBy {
-			fmt.Fprintln(stderr, "andon signal delivered: 打つのは dispatcher だけ（HC_TERMINAL_ID=dispatcher）。記録は変えない")
+			fmt.Fprintln(stderr, "andon signal mark-delivered: 打つのは dispatcher だけ（HC_TERMINAL_ID=dispatcher）。記録は変えない")
 			return 2
 		}
 		episode, err := strconv.Atoi(rest[1])
@@ -102,11 +102,11 @@ func run(cmd string, args []string, stdin io.Reader, stdout, stderr io.Writer) i
 		}
 		slug, err := delegate.ProjectSlug(delegate.Workspace(), given)
 		if err != nil {
-			fmt.Fprintf(stderr, "andon signal delivered: %v\n", err)
+			fmt.Fprintf(stderr, "andon signal mark-delivered: %v\n", err)
 			return 2
 		}
 		if _, err := Delivered(Path(slug), rest[0], episode); err != nil {
-			fmt.Fprintf(stderr, "andon signal delivered: %v\n", err)
+			fmt.Fprintf(stderr, "andon signal mark-delivered: %v\n", err)
 			return 1
 		}
 		return 0

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon dispatcher`（インナーループ。docs/dispatcher.md §5 の P6a）。本物の kanban の CLI と git・一時のセルの repo・偽の hc・偽の gh で回す。
+# `andon dispatcher run`（インナーループ。docs/dispatcher.md §5 の P6a）。本物の kanban の CLI と git・一時のセルの repo・偽の hc・偽の gh で回す。
 # Chief of Staff（t5）は kanban を用意したあと1つも打たず、review-request → レビュアーを起動する → レビュー → ready → gate →
 # マージ → finish が通ることを見る。fix は担当へ hc send、needs_human は問い（from: gate）。GitHub と本物の hc には出ない。
 # ANDON_EMIT_DIR があれば、通知・問い・gate の記録を写す（tests/schema.sh が schema に通す）。kanban の CLI は tests/lib/kanban.sh が焼く。
@@ -213,9 +213,14 @@ chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 echo "t5 chief-of-staff" > "$tmp/hc/live"
 echo '{"address":"t5","state":"live","status":{"state":"working"},"labels":{"role":"chief-of-staff","project":"demo"}}' > "$tmp/hc/term-t5.json"   # Chief of Staff の端末（無ければ cos() が書き直す）
-# dispatcher の端末（Chief of Staff のフックの drain が中身を確かめる。terminal.go）。中身は andon dispatcher
+# dispatcher の端末（Chief of Staff のフックの drain が中身を確かめる。terminal.go）。中身は andon dispatcher run
+# （fg_dispatcher old は、名前を変える前のバージョンが起動した andon dispatcher。ADR-0053 受け入れ条件 A13）
 echo "dispatcher role" >> "$tmp/hc/live"
-fg_dispatcher() { echo '{"address":"dispatcher","state":"live","labels":{"herdr.space":"andon-demo","herdr.tab":"andon-demo-dispatcher"},"foreground":{"name":"andon","argv":["'"$andon"'","dispatcher"]}}' > "$tmp/hc/term-dispatcher.json"; }
+fg_dispatcher() {
+  local argv='"'"$andon"'","dispatcher","run"'
+  [ "${1:-}" != old ] || argv='"'"$andon"'","dispatcher"'
+  echo '{"address":"dispatcher","state":"live","labels":{"herdr.space":"andon-demo","herdr.tab":"andon-demo-dispatcher"},"foreground":{"name":"andon","argv":['"$argv"']}}' > "$tmp/hc/term-dispatcher.json"
+}
 fg_dispatcher
 
 # セルの repo（オーナーのもの）: 条件表（squash・検査）と委譲（merge B）を owner が commit する
@@ -230,7 +235,7 @@ kanban init --prefix D --repo github.com/example/app >/dev/null
 export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 L=$PWD/kanban
-dispatcher() { freeze; "$andon" dispatcher --once --project demo 2>>"$tmp/dispatcher.log"; }
+dispatcher() { freeze; "$andon" dispatcher run --once --project demo 2>>"$tmp/dispatcher.log"; }
 state=$tmp/state/andon/dispatcher/demo.json
 mergerec=$tmp/state/andon/dispatcher/demo.merge.json   # andon issue merge の記録（書き手は merge だけ）
 settled=${state%.json}.settle.json   # andon issue settle の記録（書き手は settle だけ。ADR-0017 決めたこと 5）
@@ -255,7 +260,7 @@ recorded() { if [ -f "$recorded_log" ]; then jq -cs --arg t "$1" --arg k "$2" '[
 
 # ほかの andon dispatcher が .dispatcher.lock を持っていれば、巡を回さずに 0 で終わる（dispatcher.md §7.2 #1）
 mkdir -p "$tmp/state/andon/dispatcher"
-r=0; flock "$tmp/state/andon/dispatcher/.dispatcher.lock" "$andon" dispatcher --once --project demo 2>"$tmp/g1" || r=$?
+r=0; flock "$tmp/state/andon/dispatcher/.dispatcher.lock" "$andon" dispatcher run --once --project demo 2>"$tmp/g1" || r=$?
 [ "$r" = 0 ] && grep -q 'ほかの andon dispatcher が動いている' "$tmp/g1" && [ ! -e "$state" ] || die "lock を持たれていても巡を回した: rc=$r $(cat "$tmp/g1")"
 ok 'andon dispatcher は .dispatcher.lock をほかが持っていれば巡を回さずに終わる'
 
@@ -2112,13 +2117,19 @@ got=$(tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -v '^get \|^ls ')
 want="keep t3 --off
 kill t3
 rm t3
-run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-demo --label herdr.tab=andon-demo-dispatcher --cwd $tmp/plant -- $andon dispatcher"
+run --bg --no-parent --no-notify --keep --name dispatcher --label role=dispatcher --label herdr.space=andon-demo --label herdr.tab=andon-demo-dispatcher --cwd $tmp/plant -- $andon dispatcher run"
 [ "$got" = "$want" ] || die "シェルに替わった dispatcher を片付けて起動し直さない: $got"
 ! grep -q '^dispatcher	' "$tmp/hc/sent" || die 'dispatcher のシェルに打ち込んだ'
+# フックは標準エラーを捨てるので、フックが打つ drain を直に打って、確かめの言葉（動いていないと読めば「確かめられない」）も見る
+for form in run old; do
+  fg_dispatcher "$form"
+  logs=$(wc -l < "$tmp/hc/log")
+  HC_TERMINAL_ID=t5 "$andon" dispatcher drain <<<'{"last_assistant_message":"x"}' >/dev/null 2>"$tmp/ensure.err"
+  got=$(tail -n +"$((logs + 1))" "$tmp/hc/log")
+  ! grep -q '^run \|^kill \|^rm ' <<<"$got" || die "中身が andon dispatcher（$form）の dispatcher を起動し直した"
+  ! grep -q 'dispatcher の端末を確かめられない' "$tmp/ensure.err" || die "中身が andon dispatcher（$form）の dispatcher を動いていると読まない: $(cat "$tmp/ensure.err")"
+done
 fg_dispatcher
-logs=$(wc -l < "$tmp/hc/log")
-HC_TERMINAL_ID=t5 sh "$hooks/stop" <<<'{"last_assistant_message":"x"}' >/dev/null
-! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '^run \|^kill \|^rm ' || die '中身が andon dispatcher の dispatcher を起動し直した'
 # 担当の Stop フック（stop-check）も同じ確かめを打つ（Chief of Staff の留守にも戻す。ADR-0017 決めたこと 8 の (e)）
 sed -i '/^t5 /d' "$tmp/hc/live"
 echo '{"address":"t3","state":"live","argv":["/bin/sh"],"foreground":{"name":"sh","argv":["/bin/sh"]}}' > "$tmp/hc/term-dispatcher.json"
@@ -2308,7 +2319,7 @@ kanban config set chief_of_staff=t6 >/dev/null
 echo "t6 chief-of-staff" >> "$tmp/hc/live"
 echo '{"address":"t6","state":"live","status":{"state":"working"},"labels":{}}' > "$tmp/hc/term-t6.json"
 P=$PWD/kanban
-pk() { "$andon" dispatcher --once --project pick 2>>"$tmp/dispatcher.log"; }
+pk() { "$andon" dispatcher run --once --project pick 2>>"$tmp/dispatcher.log"; }
 pst=$tmp/state/andon/dispatcher/pick.json
 pp() { jq -c --arg t "$1" --arg k "$2" '[.pending[] | select(.issue == $t and .kind == $k)]' "$pst"; }  # その issue と kind の待ち（配列）
 clear_pending() { jq '.pending = []' "$pst" > "$pst.tmp" && mv "$pst.tmp" "$pst"; }
@@ -2487,7 +2498,7 @@ as_owner git -C "$tmp/plant" add projects/rt/project.json; as_owner git -C "$tmp
 mkdir -p "$R/routines"
 routine() { printf 'title: 振り返り\nbrief: 振り返り\nprofile: claude\nschedule: "0 0 1 1 *"\n%s' "${1:-}" > "$R/routines/retro.yaml"; }
 routine
-rk() { "$andon" dispatcher --once --project rt 2>>"$tmp/dispatcher.log"; }
+rk() { "$andon" dispatcher run --once --project rt 2>>"$tmp/dispatcher.log"; }
 retros() { kanban list --all --json | jq -r '[.[] | select(.routine == "retro")] | length'; }   # ルーチン retro が足した課題の数
 open_retro() { kanban list --all --json | jq -r '[.[] | select(.routine == "retro" and .status != "done")][0].id // empty'; }
 routine_rows() { grep -c '"by":"routine:retro"' "$R/log.jsonl" || true; }   # ルーチンが撃った・撃ち損ねた行
@@ -2540,7 +2551,7 @@ echo "t4 chief-of-staff" >> "$tmp/hc/live"
 echo '{"address":"t4","state":"live","status":{"state":"working"},"labels":{}}' > "$tmp/hc/term-t4.json"
 I=$PWD/kanban
 ist=$tmp/state/andon/dispatcher/ie.json
-ik() { "$andon" dispatcher --once --project ie 2>>"$tmp/dispatcher.log"; }
+ik() { "$andon" dispatcher run --once --project ie 2>>"$tmp/dispatcher.log"; }
 later() { jq '.idle.at = (now - 16 * 60 | strftime("%Y-%m-%dT%H:%M:%SZ"))' "$ist" > "$ist.tmp" && mv "$ist.tmp" "$ist"; }   # 前に見てから 16 分たった
 pidle() { jq -c '[.pending[] | select(.kind == "idle")]' "$ist"; }
 w1=$(HC_TERMINAL_ID=t4 kanban add "起動できる担当の課題" --profile claude)

@@ -47,19 +47,25 @@ type dispatcherTerm struct {
 	} `json:"foreground"`
 }
 
+// IsDispatcher は前に出ているものが常駐の dispatcher か。今の形 andon dispatcher run と、名前を変える前の形 andon dispatcher の
+// 両方を dispatcher と読む（ADR-0053 決めたこと 9）。名前を変える前のバージョンが起動した dispatcher は、当てたあとも
+// 起動し直すまで古い形のまま動くので、それを「動いていない」と読んで重ねて起動しない。--once は常駐でないので読まない。
 func IsDispatcher(argv []string) bool {
-	return len(argv) == 2 && filepath.Base(argv[0]) == "andon" && argv[1] == "dispatcher"
+	if len(argv) < 2 || filepath.Base(argv[0]) != "andon" || argv[1] != "dispatcher" {
+		return false
+	}
+	return len(argv) == 2 || (len(argv) == 3 && argv[2] == "run")
 }
 
 // Ensure は dispatcher の端末を確かめ、無ければ起動し、中身がシェルに替わっていれば端末を片付けて起動し直す。
-// andon dispatcher が動いていても、置き場のラベル（herdr.space・herdr.tab）が今の Place と違えば（kanban の数が変わった）、
+// andon dispatcher run が動いていても、置き場のラベル（herdr.space・herdr.tab）が今の Place と違えば（kanban の数が変わった）、
 // 見回りの合間（PassLock が取れたとき）だけ同じ手で片付けて起動し直す。見回りの途中なら触らず、次に打たれたときに任せる。
 // 何かしたらその1行を返す（動いていて何もしなければ空）。andon はパッケージの andon、cwd はセルの repo。
 // 前に何も出ていない（作り直しで戻った直後・替わる途中）あいだは wait まで読み直す。取れないままなら ErrUnsure、
 // ほかが確かめていれば ErrBusy を返す（どちらも「動いている」ではない）。
 // シェルには打ち込まない（入力欄にオーナーの打ちかけがあれば、それに足して実行してしまう）。dispatcher 専用の端末なので、
 // keep を外して kill・rm し、同じ名前・ラベルで hc run し直す。
-// シェルでも andon dispatcher でもないもの（オーナーが何か動かしている）が出ているときは触らない。
+// シェルでも andon dispatcher run でもないもの（オーナーが何か動かしている）が出ているときは触らない。
 func Ensure(andon, cwd string, wait time.Duration) (string, error) {
 	return ensureTerm(andon, cwd, wait, nil)
 }
@@ -120,7 +126,7 @@ func ensureTerm(andon, cwd string, wait time.Duration, waiting func()) (string, 
 		}
 		return fmt.Sprintf("dispatcher の端末（%s）の置き場が今の kanban の数に合っていなかったので、%s・%s に起動し直した", t.Address, space, tab), nil
 	case !shells[t.Foreground.Name]:
-		return "", fmt.Errorf("dispatcher の端末の前に %s が出ている（andon dispatcher でもシェルでもない。触らない）", t.Foreground.Name)
+		return "", fmt.Errorf("dispatcher の端末の前に %s が出ている（andon dispatcher run でもシェルでもない。触らない）", t.Foreground.Name)
 	case t.Address == "":
 		return "", fmt.Errorf("hc get %s に address が無い", Name)
 	}
@@ -167,7 +173,7 @@ func runDispatcher(andon, cwd string) error {
 	space, tab := Place(cwd)
 	out, err := hcRun("run", "--bg", "--no-parent", "--no-notify", "--keep",
 		"--name", Name, "--label", "role="+Name, "--label", "herdr.space="+space, "--label", "herdr.tab="+tab,
-		"--cwd", cwd, "--", andon, "dispatcher")
+		"--cwd", cwd, "--", andon, "dispatcher", "run")
 	if err != nil {
 		return fmt.Errorf("hc run: %v: %s", err, strings.TrimSpace(out))
 	}

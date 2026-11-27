@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # dispatcher の巡の外の信号の段（docs/dispatcher.md §2.1.1 の 4e。ADR-0011 受け入れ条件 3・9・10）。本物の kanban の CLI・一時のセルの repo・
-# 偽の hc・偽の gh で `andon dispatcher --once` を回し、控えの待ち（pending）と信号の記録を見る。<news> の行の囲いは
+# 偽の hc・偽の gh で `andon dispatcher run --once` を回し、控えの待ち（pending）と信号の記録を見る。<news> の行の囲いは
 # internal/dispatcher/signals_test.go、collect の当て方と every の数え方は internal/signal/signal_test.go。
 # ANDON_EMIT_DIR があれば、積んだ通知 signal と信号の記録を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -72,7 +72,7 @@ kanban init --prefix D --repo github.com/example/app >/dev/null
 export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 
-dispatcher() { "$andon" dispatcher --once --project demo 2>>"$tmp/dispatcher.log" || die "dispatcher が落ちた: $(tail -3 "$tmp/dispatcher.log")"; }
+dispatcher() { "$andon" dispatcher run --once --project demo 2>>"$tmp/dispatcher.log" || die "dispatcher が落ちた: $(tail -3 "$tmp/dispatcher.log")"; }
 state=$tmp/state/andon/dispatcher/demo.json
 rec=$tmp/state/andon/dispatcher/demo.signals.json
 signals() { jq -c '[.pending[] | select(.kind == "signal") | .detail.key]' "$state"; }
@@ -134,18 +134,18 @@ later; dispatcher
 emit "$rec" signals-delivered.json
 ok '控えを失った巡でも、届けていない now の信号だけを積む（届けた信号は積み直さない）'
 
-# andon signal delivered を打つのは dispatcher だけ（HC_TERMINAL_ID=dispatcher）。担当の端末・未設定なら断り、記録を変えない
+# andon signal mark-delivered を打つのは dispatcher だけ（HC_TERMINAL_ID=dispatcher）。担当の端末・未設定なら断り、記録を変えない
 web=github.com/example/web/lint.yml@main
 jq --arg k "$web" '(.signals[] | select(.key == $k) | .delivered_episode) = 0' "$rec" >"$tmp/r" && mv "$tmp/r" "$rec"
 fp=$(jq -r --arg k "$web" '.signals[] | select(.key == $k) | .fingerprint' "$rec")
 cp "$rec" "$tmp/before"
 for who in t7 ''; do
-  r=0; HC_TERMINAL_ID=$who "$andon" signal delivered --project demo "$fp" 1 2>"$tmp/err" || r=$?
+  r=0; HC_TERMINAL_ID=$who "$andon" signal mark-delivered --project demo "$fp" 1 2>"$tmp/err" || r=$?
   [ "$r" = 2 ] && grep -q '打つのは dispatcher だけ' "$tmp/err" && cmp -s "$rec" "$tmp/before" || die "dispatcher でない（$who）のに通った: rc=$r $(cat "$tmp/err")"
 done
-HC_TERMINAL_ID=dispatcher "$andon" signal delivered --project demo "$fp" 1 || die 'dispatcher が打てない'
+HC_TERMINAL_ID=dispatcher "$andon" signal mark-delivered --project demo "$fp" 1 || die 'dispatcher が打てない'
 [ "$(ep "$web")" = '[true,1,1,1]' ] || die "dispatcher が打っても書かない: $(ep "$web")"
-ok 'andon signal delivered は dispatcher（HC_TERMINAL_ID=dispatcher）以外から打つと断り、記録を変えない'
+ok 'andon signal mark-delivered は dispatcher（HC_TERMINAL_ID=dispatcher）以外から打つと断り、記録を変えない'
 
 # gh の上限で gate を止めている間（控えの gh_reset）は collect を打たない
 drained

@@ -33,7 +33,7 @@ steps:
     by: machine
     input: [issue.estimate, log.status, log.question, hc.state, hc.status_ms]
     output: [notification.estimate, notification.stalled, notification.error, notification.finished, hc send（「続けて」）]
-    command: andon dispatcher
+    command: andon dispatcher run
     record: dispatcher/<slug>.json
     next: [{ id: resume, when: 端末が Gone }, { id: read, when: 通知を積んだ }]
   - id: resume

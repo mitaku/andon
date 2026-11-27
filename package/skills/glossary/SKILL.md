@@ -304,7 +304,7 @@ _避ける_: 端末の土台（作った語）
 | `yard <sub>`（CLI） | `andon <sub>` |
 | コーディネーター（coordinator） | Chief of Staff（`chief-of-staff`） |
 | 担当エージェント（task agent） | 担当（`worker`） |
-| yard news（通知の係） | dispatcher（`andon dispatcher`） |
+| yard news（通知の係） | dispatcher（`andon dispatcher run`） |
 | 知らせ | 通知 |
 | 段 A／B／C | レベル A／B／C |
 | 来歴・道しるべ・推し | 履歴・指針・推奨案 |
