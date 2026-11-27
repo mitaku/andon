@@ -15,11 +15,12 @@ export ANDON_HOME="$andon_root/package" ANDON_WORKSPACE="$tmp/plant" GHQ_ROOT="$
 unset KANBAN_ROOT HC_TERMINAL_ID
 mkdir -p "$HOME" "$tmp/bin" "$tmp/gh" "$tmp/hc"
 pass=0
-ok() { echo "ok   $1"; pass=$((pass + 1)); }
+ok() { gh_settled "$1"; echo "ok   $1"; pass=$((pass + 1)); }
 die() { # 落ちたら、dispatcher のログの末尾・控えのレビュアー・kanban の一覧も stderr に出す。一時領域は終わると消えるので、
     # CI でまれにしか落ちない揺れは、ここで出したものしか手がかりが残らない（dispatcher が起動を見送った理由はログにだけ書かれる）
     echo "FAIL $1" >&2
     local st=$tmp/state/andon/dispatcher/demo.json
+    [ -z "${gh_open:-}" ] || echo "--- 偽の gh の答えは、場面「$gh_open」が書き換えたまま（gh_reset の前）" >&2
     if [ -s "$tmp/dispatcher.log" ]; then echo "--- dispatcher.log の末尾 40 行" >&2; tail -n 40 "$tmp/dispatcher.log" >&2; fi
     if [ -f "$st" ]; then echo "--- 控えの reviewers" >&2; jq -c '.reviewers' "$st" >&2 || true; fi
     if [ -n "${KANBAN_ROOT:-}" ]; then
@@ -120,6 +121,48 @@ EOF
 # GitHub の checks（statusCheckRollup）は $tmp/gh/rollup.json。既定は通っている
 checks() { jq -n --arg s "$1" --arg c "${2:-}" '[{__typename: "CheckRun", name: "test", status: $s, conclusion: $c}]' > "$tmp/gh/rollup.json"; }
 mkdir -p "$tmp/gh"; checks COMPLETED SUCCESS
+# 場面は偽の gh の答え（$tmp/gh/ の下）を共有する。場面が答えを書き換えたまま終わると、後ろに足した場面が前の場面の残りを踏んで、
+# 原因の分からない落ち方をする。そこで ok（場面の終わり）のたびに、答えが初めの形に戻っているかを照らし、戻っていなければ場面の名前で落とす。
+# 初めの形: view.json は work が書く形（head と branch は場面ごと）、rollup.json は checks の既定（通っている）、ほかの答えのファイルは無い。
+# 照らさないのは、打ったものの記録（calls など）・work が場面ごとに書く PR の事実（files.json・diff）・andon が head ごとに書いた印（marks）。
+# 答えを書き換えたまま次の ok（場面）へ渡す並びは、gh_scene <名前> で始め、gh_reset で終える。その間の ok は照らさない
+gh_view0='{"state":"OPEN","isDraft":false,"baseRefName":"main","mergeStateStatus":"CLEAN","author":{"login":"plant-bot"},"changedFiles":1,"isCrossRepository":false}'
+gh_rollup0='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"}]'
+gh_kept=" calls states merges posted pages files.json diff marks view.json rollup.json "   # gh_reset が消さないもの（view.json と rollup.json は書き直す）
+gh_open=   # 答えを渡している場面の名前（gh_scene が書き、gh_reset が消す）
+gh_scene() { [ -z "$gh_open" ] || die "場面「$gh_open」が gh_reset で終わる前に、場面「$1」を始めた"; gh_open=$1; }
+gh_left() { # 初めの形と違う答えのファイルを、1つずつ「名前: 中身」の行で出す
+    local f n
+    for f in "$tmp/gh"/*; do
+        [ -e "$f" ] || continue
+        n=${f##*/}
+        case " calls states merges posted pages files.json diff marks " in *" $n "*) continue ;; esac
+        case $n in
+            view.json) jq -e --argjson v "$gh_view0" 'del(.headRefName, .headRefOid) == $v' "$f" >/dev/null || echo "$n: $(jq -c 'del(.headRefName, .headRefOid)' "$f")" ;;
+            rollup.json) jq -e --argjson r "$gh_rollup0" '. == $r' "$f" >/dev/null || echo "$n: $(jq -c . "$f")" ;;
+            *) if [ -d "$f" ]; then echo "$n/: $(ls "$f" | tr '\n' ' ')"; else echo "$n: $(head -c 200 "$f" | tr '\n' ' ')"; fi ;;
+        esac
+    done
+}
+gh_reset() { # 答えを初めの形に戻す（PR の head と branch は今のまま）。場面の終わり（ok の前）に呼ぶ
+    local f
+    if [ -f "$tmp/gh/view.json" ]; then
+        jq --argjson v "$gh_view0" '{headRefName, headRefOid} + $v' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+    fi
+    checks COMPLETED SUCCESS
+    for f in "$tmp/gh"/*; do
+        [ -e "$f" ] || continue
+        case $gh_kept in *" ${f##*/} "*) continue ;; esac
+        rm -rf "$f"
+    done
+    gh_open=
+}
+gh_settled() { # gh_settled <場面の名前>: 答えが初めの形でなければ、場面の名前と残ったものを出して落とす
+    local left
+    [ -z "$gh_open" ] || return 0
+    left=$(gh_left)
+    [ -z "$left" ] || die "場面「$1」が共有の偽の gh の答えを初めの形に戻さずに終えた（後ろの場面が残りを踏む。ok の前に gh_reset で戻すか、次の場面へ渡すなら gh_scene で始めて gh_reset で終える）: $left"
+}
 # 偽の hc: 生きている端末は $tmp/hc/live（address issue の行）。run は t9, t10 … を返し、打ったものを $tmp/hc/log に。
 # run の first_message は $tmp/hc/first の中身（無ければ届いた: sent・started が true）
 # get --json は $tmp/hc/term-<addr>.json、read は screen-<addr>。attach は無い（打てば 99 で落ちる。dispatcher は入力欄を読まない）
@@ -378,8 +421,8 @@ pending "$id" gate | jq -e --arg r "$rec" '.detail.decision == "behind" and .det
 emit <(pending "$id" gate) notification-gate-behind.json
 jq --arg t "$id" '.pending |= map(select(.issue != $t or .kind != "gate"))' "$state" > "$state.new" && mv "$state.new" "$state"   # Chief of Staff に届いたことにする
 HC_TERMINAL_ID=dispatcher kanban done "$rev" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$id" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$prv" --force >/dev/null
-# PR の向き先を既定の branch に戻す（あとの場面のオーナーのマージは既定の branch へ。向き先が違うと片付けない。ADR-0067 決めたこと 15）
-jq '.baseRefName = "main"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
+# PR の向き先を既定の branch に戻し、draft も外す（あとの場面のオーナーのマージは既定の branch へ。向き先が違うと片付けない。ADR-0067 決めたこと 15）
+gh_reset
 dispatcher
 jq -e '[.gates[] | select(.decision == "behind")] | length == 1' "$L/issues/$id/library/outcome.json" >/dev/null ||
     die "behind の記録が残った課題の結果の記録が無い・behind が入らない: $(cat "$L/issues/$id/library/outcome.json" 2>/dev/null; tail -3 "$tmp/dispatcher.log")"
@@ -456,6 +499,7 @@ recorded "$id-r1" report | jq -e . >/dev/null && [ "$(pending "$id-r1" report)" 
 emit <(recorded "$id" gate) notification-gate.json
 emit <(recorded "$id" merged) notification-merged.json
 emit "$rec" gate-record-merged.json
+gh_scene '一周のマージ'   # 1 の 2 つ目の ok・1b・1c は、このマージ（PR 7 が MERGED）を見る。1c の終わりの gh_reset で戻す
 ok 'review に入ったら gate を回し、approve ＋ merge: auto ＋ 委譲 B でマージ（squash・head を固定）して finish（レビュアーと worktree も）'
 emit "$L/log.jsonl" ledger-log.jsonl   # 本物の kanban の CLI が書いた行（tests/schema.sh が1行ずつ schema/ledger/log.v3 に通す）
 tail -n +"$((mark + 1))" "$L/log.jsonl" | jq -e -s 'all(.by != "terminal:t5")' >/dev/null || die 'Chief of Staff が kanban に書いた'
@@ -493,7 +537,7 @@ pending "$merged_id" impact | jq -e '.detail.pr == "https://github.com/example/a
     die "諦めたのに Chief of Staff に知らせない: $(pending "$merged_id" impact)"
 jq -e '(.impact // {}) | length == 0' "$state" >/dev/null || die '諦めたあとも控えに残った'
 emit <(pending "$merged_id" impact) notification-impact-error.json
-rm "$tmp/gh/impactfail"
+gh_reset
 ok '影響を集められなければ次の見回りで打ち直し、3 回で諦めて Chief of Staff に error の impact を積む（ログだけにしない）'
 
 # corrections.json の置き場と Chief of Staff の片付け（1d-1 からあとの節が使う）
@@ -554,6 +598,7 @@ cos_done "$id"; dispatcher
 jq -e '.corrections == [{kind: "override", finding: {severity: "major", file: "docs/a.md", line: 1}, reason: "オーナーがこのままでよいと言った"}]' "$(cj "$id")" >/dev/null ||
     die "オーナーが waive した指摘が override の1件になっていない: $(cat "$(cj "$id")" 2>/dev/null)"
 emit "$(cj "$id")" corrections-override.json
+gh_reset
 ok 'must_fix 以上の waived がマージされたら override を1件書く'
 # 1d-4. gh が落ちたら書かず、次の見回りで1回だけ打ち直す。それも落ちたら書かずに通知 corrections を積む
 id=$(newtask '表を足す' person)
@@ -778,6 +823,7 @@ emit <(recorded "$hm" merged) notification-merged-person.json
 dispatcher
 jq -e --arg t "$hm" '((.impact // {}) | has($t) | not) and ((.corrections // {}) | has($t) | not)' "$state" >/dev/null || die "オーナーのマージのあと impact・corrections を拾っていない: $(jq -c '{impact, corrections}' "$state")"
 [ -e "$(cj "$hm")" ] || die 'オーナーのマージのあと corrections.json を書いていない'
+gh_reset
 ok 'オーナーが GitHub でマージしたら（Chief of Staff の留守でも）、次の見回りで gate の問い（重なったものも）を閉じて finish し、通知 merged（by: person）・impact・corrections を同じ道で回す。PR は1分に1回だけ見る'
 
 # 4c. オーナーがマージしたが、gate の外の問い（担当の ask）が開いている → 片付けずに知らせる（1回）。問いが閉じたら次の巡で片付ける
@@ -802,6 +848,7 @@ HC_TERMINAL_ID=t5 kanban answer "$hm#1" A >/dev/null; HC_TERMINAL_ID=t7 kanban r
 dispatcher
 kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "問いが閉じたのに片付けない: $(tail -3 "$tmp/dispatcher.log")"
 recorded "$hm" merged | jq -e '.detail.by == "person" and (.detail | has("held") | not)' >/dev/null || die "片付けた通知を記録していない: $(recorded "$hm" merged)"
+gh_reset
 ok 'オーナーがマージしても gate の外の問いが開いていれば片付けずに1回だけ知らせ、問いが閉じたら次の巡で片付ける（GitHub には聞き直さない）'
 
 # 4d. PR がマージされずに閉じた → 片付けず、通知 closed を閉じるたびに1回。閉じた PR も1分に1回聞き直し、
@@ -858,6 +905,7 @@ jq -e --arg t "$hm" '[.pending[] | select(.issue == $t and (.kind == "asked" or 
     die "問い・merged を待ちに積んだ・approve の待ちを残した: $(jq -c .pending "$state") $(cat "$mergerec")"
 jq -e --arg t "$hm" 'has($t) | not' "$settled" >/dev/null || die "片付けたあとも settle の記録に残った: $(cat "$settled")"
 [ "$(wc -l < "$tmp/gh/states")" = $((n + 2)) ] || die "読み直しと settle のほかに同じ PR を聞いた: $(( $(wc -l < "$tmp/gh/states") - n )) 回"
+gh_reset
 ok 'merge: auto でもオーナーが先に同じ head でマージしていれば、gh pr merge の失敗を問いにせず §2.7 の道で片付ける（gate の記録の merged は書かない）'
 
 # 4d-3. merge: auto の gh pr merge は通ったが、そのあとの読み直し（gh pr view --json state,mergeCommit）が一時に落ちた →
@@ -877,6 +925,7 @@ dispatcher
 kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "読み直しが一時に落ちたあと片付けない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
 jq -e '.decision == "approve" and .merged == true' "$L/issues/$hm/library/gate/$head.json" >/dev/null || die "gate の記録に merged を書いていない: $(cat "$L/issues/$hm/library/gate/$head.json")"
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h}' >/dev/null || die "通知 merged（dispatcher のマージ）を記録していない: $(recorded "$hm" merged)"
+gh_reset
 ok 'merge: auto のマージのあと読み直しが一時に落ちても問いにせず、読み直して MERGED を確かめてから片付ける'
 
 # 4d-4. 4d-2 と同じにオーナーが先にマージしていて、gh pr merge の失敗のあとの読み直しが一時に落ちた → 読み直して MERGED・同じ head を
@@ -895,6 +944,7 @@ dispatcher
     die "gh pr merge の失敗のあとの読み直しが一時に落ちただけで問いを出した: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
 kanban show "$hm" --json | jq -e '.issue.status == "done"' >/dev/null || die "読み直しが一時に落ちたあと片付けない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
 recorded "$hm" merged | jq -e --arg h "$head" '.detail == {pr: "https://github.com/example/app/pull/7", sha: $h, by: "person"}' >/dev/null || die "通知 merged（by: person）を記録していない: $(recorded "$hm" merged)"
+gh_reset
 ok 'gh pr merge の失敗のあとの読み直しが一時に落ちても、読み直して MERGED・同じ head を確かめ、問いにせず §2.7 の道で片付ける'
 
 # merge: auto でマージしたあと、受け取られていない担当の問いで finish が断られても、片付けかけ（review のまま worktree・端末が消える）を残さない
@@ -927,6 +977,7 @@ for q in $(kanban questions --json | jq -r --arg t "$qa" '.[] | select(.id == $t
 done
 HC_TERMINAL_ID=t5 "$andon" issue finish "$qa" >/dev/null || die '問いを受け取ったあとの finish が通らない'
 [ ! -e "$qwt" ] && kanban show "$qa" --json | jq -e '.issue.status == "done"' >/dev/null || die '受け取ったあとに片付かない'
+gh_reset
 ok 'merge: auto のマージのあと担当の問いで finish が断られても、review のまま worktree・branch・端末・レビュアーを消さずに止まり、片付けの失敗を問いにする'
 
 # 4e. report.json の pr が issue.yaml の repo と違う repo の PR なら、それがマージされていても見ない・片付けない
@@ -1238,7 +1289,7 @@ dispatcher
 [ ! -e "$L/issues/$sk/library/questions" ] || die '載せ替えでオーナーへの問いを出した'
 # 否定の確かめが当たる場合があることを同じ所で見る: 送った直しの文は数える形に当たる
 grep -q 'andon issue restack' <<<"$(grep -F "$sk（" "$tmp/hc/sent")" || die '載せ替えの直しの数え方が送った文に当たらない'
-unstack
+unstack; gh_reset   # 前の課題の PR（prev8.json・prev8fail）と積んだ PR の draft・向き先を戻す
 ok '積んだ課題の前の課題が done になり既定の branch にマージされていれば、次の巡で担当に載せ替えの直しが 1 回だけ届く（done でない間は届かない）'
 
 # 受け入れ条件 11: 前の課題がマージされずに done になると、gate の記録の理由の 1 行目が替わり、通知 gate が Chief of Staff に 1 回届く。
@@ -1261,7 +1312,7 @@ emit <(pending "$sk" gate) notification-gate-behind-gone.json
 dispatcher
 [ "$(gates)" = 1 ] && [ "$(regates)" = 1 ] || die "前の課題がやめになったことを同じ head で 2 回知らせた・回し直した: 通知 $(gates)・回し直し $(regates)"
 kanban show "$sk" --json | jq -e '.issue.status == "review"' >/dev/null || die '前の課題がやめになった積んだ課題が review でない'
-unstack
+unstack; gh_reset
 ok '前の課題がマージされずに done になると、積んだ課題の gate の記録の理由が替わり、通知 gate が 1 回届く（問いも載せ替えの直しも出さない）'
 
 # 積んだ PR をオーナーが前の課題の branch へマージしたあとで前の課題が done になっても、gate を回し直さず、担当に直しを送らない
@@ -1295,7 +1346,7 @@ dispatcher; dispatcher
 grep -q "$sk の前の課題 $pk が done になったが、PR が open でないので" "$tmp/dispatcher.log" || die "閉じた PR を回し直さない理由を出さない: $(tail -5 "$tmp/dispatcher.log")"
 rm -f "$tmp/gh/closed"
 jq '.baseRefName = "main" | .state = "OPEN"' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
-unstack
+unstack; gh_reset
 ok '積んだ PR が前の課題の branch へマージされたか閉じられたあとに前の課題が done になっても、gate を回し直さず担当に直しを送らない'
 
 # 受け入れ条件 12: 既定の branch でない base にマージされた PR の課題は片付かず、通知 merged（held）が Chief of Staff に 1 回届く
@@ -1625,6 +1676,7 @@ dispatcher
 checks COMPLETED SUCCESS
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'checks が通ったのにマージしない'
+gh_reset
 ok 'GitHub の checks が走っている間は gate が wait。merge の記録に決めたことを書かず問いも出さず、同じ head の checks が走っている間は gate を回さず（REST 0 回）、通ればマージする'
 
 # 9c. checks が1つも無い（none）間も、review から github_checks_wait_minutes を過ぎるまでは gate を回さない（REST 0 回）。過ぎたら gate の needs_human
@@ -1676,6 +1728,7 @@ cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/stat
 dispatcher
 [ "$(wc -l < "$tmp/gh/merges")" = "$((merges + 1))" ] && kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null || die 'reset を過ぎても gate を回し直さない'
 jq -e '(.gh_wait // 0) == 0' "$state" >/dev/null || die "上限で落ちずに gate が返ったのに gh_wait が残る: $(jq -c .gh_wait "$state")"
+gh_reset
 ok 'gate が gh の上限で落ちたら、問いにも merge の記録の決めたことにもせず、gh api rate_limit の reset まで回さない。過ぎたら回し直してマージする'
 
 # 9d2. secondary rate limit（rate_limit の残りがある。Retry-After は gh の出力に出ない）は1分から待ち、続けて落ちるたびに倍にする
@@ -1701,6 +1754,7 @@ rm "$tmp/gh/ghfail"
 cp "$state" "$tmp/state.bak"; jq '.gh_reset = "2020-01-01T00:00:00Z"' "$tmp/state.bak" > "$state"
 dispatcher
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && jq -e '(.gh_wait // 0) == 0' "$state" >/dev/null || die 'secondary rate limit が明けてもマージしない・gh_wait が残る'
+gh_reset
 ok 'secondary rate limit（Retry-After は読めない）は1分から待ち、続けて上限で落ちるたびに2分・4分と延ばし、明ければ回し直して待ちを戻す'
 
 # 9e. rate limit 以外で gate が落ちた（終了コード 3）なら、今どおり needs_human の問い
@@ -1746,6 +1800,7 @@ dispatcher
 [ "$(tried)" = 2 ] || die "同じ head で打ち直していない: $(tried)"
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die "打ち直したのに片付かない・問いにした: $(tail -3 "$tmp/dispatcher.log")"
 jq -e '.merged == true' "$L/issues/$id/library/gate/$head.json" >/dev/null || die '打ち直したマージを gate の記録に書いていない'
+gh_reset
 ok 'base が動いて gh pr merge が失敗したら問いにせず、次の巡で gate から照合し直し、同じ head でマージを打ち直して片付ける'
 
 # 打ち直しを待つ間に merge の記録が消えた → gate の記録の approve を決め終えたと引き継がず、gate から回し直して打ち直す
@@ -1754,6 +1809,7 @@ rm "$tmp/gh/mergefail"
 lost_merge_record "$id"
 [ "$(tried)" = 2 ] || die "記録が消えたら approve を引き継いで止まり、打ち直さない: $(tried) $(cat "$tmp/merge.out")"
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die "記録が消えたあと打ち直して片付けない・問いにした: $(cat "$tmp/merge.out")"
+gh_reset
 ok '打ち直しを待つ間に merge の記録が消えても、gate の approve を決め終えたと読まず、gate から回し直して打ち直す'
 
 # ADR-0056 A7（決めたこと 12）: 印を書いた直後で必須の check がまだ揃わず「the base branch policy prohibits the merge」で断られた → 同じく打ち直す
@@ -1765,6 +1821,7 @@ no_question && jq -e --arg t "$id" '.[$t].retries == 1' "$mergerec" >/dev/null &
 rm "$tmp/gh/mergefail"
 dispatcher
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question && [ "$(tried)" = 2 ] || die "必須の check が揃ったあと打ち直して片付けない: $(tail -3 "$tmp/dispatcher.log")"
+gh_reset
 ok '必須の check で断られた gh pr merge（the base branch policy prohibits the merge）も問いにせず、次の巡で gate から照合し直して打ち直す（ADR-0056 A7）'
 
 base_moved '打ち直す前に push される'
@@ -1807,6 +1864,7 @@ dispatcher
 ! grep -q "^t7	\[gate\] $id（" "$tmp/hc/sent" || die "オーナーがマージした課題の担当へ fix を送った: $(grep "\[gate\] $id（" "$tmp/hc/sent")"
 jq -e '.decision == "approve" and (.merged // false) == false' "$L/issues/$id/library/gate/$head.json" >/dev/null || die 'オーナーのマージで gate の記録を書き換えた'
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die '待つ間のオーナーのマージを片付けない・問いにした'
+gh_reset
 ok '打ち直しを待つ間にオーナーが同じ head でマージしたら、fix も問いも出さずオーナーのマージとして片付ける'
 
 # 同じく待つ間にオーナーがマージし、settle が片付ける前に merge の記録が消えた → 引き継がない approve でも gate を回さず（fix を送らず）、settle が片付ける
@@ -1820,6 +1878,7 @@ lost_merge_record "$id"
 watch_due "$id"
 dispatcher
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && no_question || die '記録が消えたあと、待つ間のオーナーのマージを片付けない・問いにした'
+gh_reset
 ok '打ち直しを待つ間にオーナーがマージし、merge の記録が消えても、gate を回さずオーナーのマージとして片付ける'
 
 base_moved '待つ間に gate が落ちる'
@@ -1851,6 +1910,7 @@ dispatcher
 jq -e --arg t "$id" '.[$t] | .decision == "approve" and (.retries // 0) == 0 and (.approved // "") == ""' "$mergerec" >/dev/null || die "決めたあとに待ちを残した: $(cat "$mergerec")"
 lost_merge_record "$id"   # 問いを出したあとに記録が消えても、gate の記録を引き継いで打ち直さず、問いを出し直さない
 [ "$(tried)" = 4 ] && [ ! -e "$L/issues/$id/library/questions/2.json" ] || die "問いを出した approve の記録が消えたら、打ち直した・問いを出し直した: $(tried) $(cat "$tmp/merge.out")"
+gh_reset
 ok 'base が動き続けたら打ち直しは 3 回までで、checks を待っても回数を忘れず、超えたら今までどおりオーナーへの問いにする'
 # Chief of Staff が原因を直し、担当が同じ head で ready し直した回でまた base が動き、待つ間に記録が消えた → 前の review 入りの問いで決め終えたと読まない
 HC_TERMINAL_ID=t5 kanban answer "$id#1" 'Chief of Staff が原因を直した。ready し直す' >/dev/null
@@ -1869,6 +1929,7 @@ lost_merge_record "$id"
 [ "$(tried)" = 6 ] || die "ready し直した回の記録が消えたら、前の回の問いで approve を引き継いで止まった: $(tried) $(cat "$tmp/merge.out")"
 kanban show "$id" --json | jq -e '.issue.status == "done"' >/dev/null && [ ! -e "$L/issues/$id/library/questions/2.json" ] ||
     die "ready し直した回の記録が消えたあと打ち直して片付けない・問いにした: $(cat "$tmp/merge.out")"
+gh_reset
 ok '同じ head で ready し直した回の打ち直しを待つ間に merge の記録が消えても、前の review 入りの問いで決め終えたと読まず、打ち直して片付ける'
 
 # 似た文の失敗は今までどおり1回で問いにする
@@ -2458,4 +2519,5 @@ later; ik
 [ "$(pidle)" = '[]' ] || die "同じ problem のままの次の回に idle を積んだ: $(pidle)"
 ok 'kanban lint が problem を出す回に idle の lint へ件数を入れ、同じ problem のままの次の回には積まない'
 
+[ -z "$gh_open" ] || die "場面「$gh_open」が gh_reset で終わらないまま検査が終わった（偽の gh の答えを初めの形に戻していない）"
 echo "all passed ($pass)"

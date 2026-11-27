@@ -44,12 +44,35 @@ chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 prfiles() { jq -n --arg p "$1" '[[{filename: $p, additions: 3, deletions: 0}]]' > "$tmp/prfiles"; }   # PR が変えたファイル
 prfiles docs/a.md
+# 場面は偽の gh（$tmp/bin/gh）とその答え（$tmp/prfiles・$tmp/prstate）を共有する。場面が gh を作り直すか答えを書き換えたまま終わると、
+# 後ろに足した場面が前の場面の残りを踏んで、原因の分からない落ち方をする。そこで ok（場面の終わり）のたびに、初めの形（上の gh・
+# prfiles が docs/a.md・prstate が無い）に戻っているかを照らし、戻っていなければ場面の名前で落とす。PR の head（$tmp/prhead）は場面ごとに書くので照らさない。
+# gh を作り直すか答えを書き換えたまま次の ok へ渡す場面は、gh_scene <名前> で始め、gh_restore で終える。その間の ok は照らさない
+cp "$tmp/bin/gh" "$tmp/gh0"; cp "$tmp/prfiles" "$tmp/prfiles0"
+gh_open=   # 偽の gh を替えている場面の名前（gh_scene が書き、gh_restore が消す）
+gh_scene() { [ -z "$gh_open" ] || die "場面「$gh_open」が gh_restore で終わる前に、場面「$1」を始めた"; gh_open=$1; }
+gh_restore() { cp "$tmp/gh0" "$tmp/bin/gh"; cp "$tmp/prfiles0" "$tmp/prfiles"; rm -f "$tmp/prstate"; gh_open=; }
+gh_left() { # 初めの形と違うものを 1 つずつ 1 行で出す
+    cmp -s "$tmp/gh0" "$tmp/bin/gh" || echo "偽の gh（$tmp/bin/gh）が作り直されたまま"
+    cmp -s "$tmp/prfiles0" "$tmp/prfiles" || echo "prfiles: $(jq -c . "$tmp/prfiles" 2>/dev/null || cat "$tmp/prfiles")"
+    if [ -e "$tmp/prstate" ]; then echo "prstate: $(cat "$tmp/prstate")"; fi
+}
+gh_settled() { # gh_settled <場面の名前>
+    local left
+    [ -z "$gh_open" ] || return 0
+    left=$(gh_left)
+    [ -z "$left" ] || die "場面「$1」が共有の偽の gh を初めの形に戻さずに終えた（後ろの場面が残りを踏む。ok の前に戻すか、次の場面へ渡すなら gh_scene で始めて gh_restore で終える）: $left"
+}
 # review: off の課題のレベルは repo の package/gate.json で決める（gate と同じ条件表。start の場面はあとで写しの置き場に向け直す）
 export ANDON_HOME="$src/package"
 
 pass=0
-ok() { echo "ok   $1"; pass=$((pass + 1)); }
-die() { echo "FAIL $1" >&2; exit 1; }
+ok() { gh_settled "$1"; echo "ok   $1"; pass=$((pass + 1)); }
+die() {
+    echo "FAIL $1" >&2
+    [ -z "${gh_open:-}" ] || echo "--- 偽の gh は、場面「$gh_open」が作り直したまま（gh_restore の前）" >&2
+    exit 1
+}
 # expect_fail <理由に含む語> <command…>: 終了コード 1 で、stderr に語がある
 expect_fail() {
     local want=$1; shift
@@ -950,6 +973,7 @@ rm -f "$tmp/gh-issue" "$tmp/gh-body"
 setsignals '[{"source": "github-issues", "weight": "later", "write_back": true}]'
 iss=https://github.com/example/app/issues/3
 w1=$(wbissue 'Write back' "$iss" "$iss" https://github.com/example/other/issues/4 https://example.com/x)
+gh_scene 'finish の書き戻し（PR の状態は $tmp/prstate）'
 echo MERGED > "$tmp/prstate"
 "$andon" issue finish "$w1" > "$tmp/out" || die "write_back の課題を finish できない"
 [ "$(field "$w1" status)" = done ] && [ "$(cat "$tmp/gh-issue")" = "comment $iss" ] || die "1コメントでない・repos に無い repo にも書いた・状態に触れた: $(cat "$tmp/gh-issue")"
@@ -996,7 +1020,7 @@ echo OPEN > "$tmp/prstate"
 [ "$(field "$w5" status)" = done ] && [ ! -s "$tmp/gh-issue" ] && grep -q "トラッカーへ書けなかった（PR が MERGED でも CLOSED でもない" "$tmp/out" || die "OPEN の PR で書いた・言わない: $(cat "$tmp/out")"
 ok 'finish: PR が OPEN（MERGED でも CLOSED でもない）なら「閉じ」と書かずに1行出す（レビュー A-0030-r1）'
 w4=$(wbissue 'PR unreadable' "$iss")
-rm "$tmp/prstate"
+gh_restore   # 初めの形は prstate が無い（PR の状態を読めない）
 "$andon" issue finish "$w4" > "$tmp/out" 2>/dev/null || die 'PR が読めないと finish が落ちた'
 [ "$(field "$w4" status)" = done ] && [ ! -s "$tmp/gh-issue" ] && grep -q "トラッカーへ書けなかった（PR を読めない" "$tmp/out" || die "PR が読めないのに書いた・言わない: $(cat "$tmp/out")"
 ok 'finish: PR の状態が読めなければ書かずに1行出す（結果を書き違えない。片付けは戻さない）'
@@ -1211,6 +1235,7 @@ ok 'andon design start: Chief Engineer の課題に起動の記録が1件（役 
 # 止める口（ADR-0056 決めたこと 7・8。受け入れ条件 A5）: andon issue hold・unhold。偽の gh を止めの場面のものに替える:
 # pr view 7 --repo … --json state,mergeCommit,headRefOid,statusCheckRollup,headRefName,isCrossRepository,baseRefName は $tmp/hold-view を返し、
 # api -X POST …/statuses/<sha> は引数を $tmp/hold-gh に1行で足す（$tmp/hold-fail があれば落ちる）
+gh_scene '止める口（hold・unhold）'
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 case "\$1 \$2" in
@@ -1273,6 +1298,7 @@ flock "kanban/issues/$held/library/.gate.lock" sleep 2 & lp=$!
 sleep 0.3; t0=$(date +%s%N)
 as t5 "$andon" issue unhold "$held" >/dev/null || die 'gate の lock のあと unhold が落ちた'
 wait "$lp"; [ $(( ($(date +%s%N) - t0) / 1000000 )) -ge 1200 ] || die 'unhold が gate の鍵を待たなかった'
+gh_restore
 ok 'hold・unhold: 別のプロセスがマージの鍵か gate の鍵を持っている間は、放されるまで待つ'
 
 # andon issue board・history（ADR-0059 受け入れ条件 5）: 切り離した kanban に本物の kanban でいろいろなキーを持つ課題を作り、
@@ -1306,14 +1332,7 @@ emit "$tmp/history-out.json" issue-history.json
 # dispatcher がレビュアーの課題に控えた review_base）は、前の課題が main に入ったあとの衝突の無い載せ替えで、新しい head に引き継がれ、
 # review-request が頼み直しを求めない。squash で入ったときと、マージ commit で入ったときの両方で見る。担当の端末が書いた review_base は信じない
 # （載せ替えの口 andon issue restack はまだ無いので、git rebase --onto で載せ替え、担当の端末でキーを消す）
-# 偽の gh は始めの形に戻す（PR の head は $tmp/prhead。hold の場面が作り直している）
-cat > "$tmp/bin/gh" <<EOF
-#!/bin/sh
-case "\$1 \$2 \$4 \$5" in
-  "pr view --json headRefOid") cat "$tmp/prhead" ;;
-  *) echo "unexpected gh \$*" >&2; exit 99 ;;
-esac
-EOF
+# 偽の gh は初めの形のまま（PR の head は $tmp/prhead）
 restacked() { # restacked <squash|merge> <review_base を書く端末>: 積んで、レビューして、載せ替えた課題の id を返す
     local how=$1 by=$2 g="$tmp/stk-$1-$2" fork s prv sid rv
     git init -q -b main "$g"
@@ -1355,6 +1374,7 @@ ok 'review-request: 担当の端末が書いた review_base は信じず、既�
 # 載せ替えの口 andon issue restack（ADR-0067 決めたこと 13・受け入れ条件 9）。bare な origin と担当の clone で、前の課題の branch の上に
 # 積んだ branch を作り、前の課題を main に入れてから打つ。偽の gh は呼び出しを $tmp/rs-log に 1 行ずつ足し（pr view は $tmp/rs-view を返す。
 # pr edit --base と pr ready は $tmp/rs-view を書き換える）、origin の pre-receive は push を同じ記録に足す（$tmp/rs-pushfail があれば 1 回落ちる）
+gh_scene '載せ替えの口（restack）'
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 echo "gh \$*" >> "$tmp/rs-log"
@@ -1478,12 +1498,14 @@ if git -C "$rg" rebase -q --onto "$(git -C "$rg" rev-parse origin/main)" "$rf" >
     die '対照: 済んだ rebase を同じ分かれ目から打ち直しても衝突しない（この origin が事実 17 の形でない）'
 fi
 git -C "$rg" rebase --abort
+gh_restore
 ok 'restack: rebase のあとの push を 1 回失敗させてから打ち直すと、rebase をやり直さずに続きから済む（main に同じ行を 2 回変えた commit の並びがあっても）'
 
 # 積んで起動する（ADR-0067 決めたこと 4・5・受け入れ条件 1・2）: 前の課題が review にいて、その PR の今の head に今の review の回の
 # gate の記録（approve）があるとき、after でそれを待つ queued の課題に andon issue start を打つと、前の課題の PR の head から branch を切り、
 # stacked_on・stacked_base を Chief of Staff の端末で書いて doing にする。条件を 1 つずつ欠くと、理由を 1 行出して断り、何も残さない。
 # 偽の gh は前の課題の PR を $tmp/st-view で返す。案件の repo は start の場面の bare な origin とその clone（$appdir）
+gh_scene '積んで起動する（start）'
 cat > "$tmp/bin/gh" <<EOF
 #!/bin/sh
 case "\$1 \$2 \$4 \$5" in
@@ -1591,6 +1613,8 @@ git -C "$appdir" switch -q stack-prev; echo more >> "$appdir/prev.txt"; git -C "
 git -C "$appdir" switch -q --detach origin/main; git -C "$appdir" update-ref refs/remotes/origin/stack-prev "$sp"
 expect_fail "前の課題の branch origin/stack-prev の先（" "$andon" issue start "$sn7"
 nothing_left "$sn7" stack-gh
+gh_restore
 ok 'start: 前の課題の PR が open でない・PR の今の head が gate の通した commit と違う・origin の branch の先が違う（取り直して見る）ときも断り、何も残さない'
 
+[ -z "$gh_open" ] || die "場面「$gh_open」が gh_restore で終わらないまま検査が終わった（偽の gh を初めの形に戻していない）"
 echo "all passed ($pass)"
