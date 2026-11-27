@@ -1,12 +1,13 @@
-# tests/package/45-tray-reports.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・tmp は入口が置く）。
-#  45. 報告の出し方（ADR-0064 決めたこと 13・14・受け入れ条件 17）:
-#      CoS の skill の前文（最初の節の前）が「行数では数えない」をやめて「短くするために語を詰めない。3行を超えるなら tray へ出す」になる。
+# tests/package/45（報告の出し方） — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・tmp は入口が置く）。
+#  45. 報告の出し方（ADR-0064 決めたこと 13・14・受け入れ条件 17）。報告を集めて読む場所の名前は、この節では書かない
+#      （tests/ の下で名指してよいのは振り分けの道具だけ。workflow_test.go の TestWorkflowTrayOnlyInTrayJob）。文の形で照らす。
+#      CoS の skill の前文（最初の節の前）が「行数では数えない」をやめて「短くするために語を詰めない。3行を超えるなら <場所> へ出す」になる。
 #      原則の節の原則 12 に、3行を超えるか表を含む報告を `andon publish` で出して URL と判断だけを返すこと・問いは本文に残すこと・
-#      担当の報告は `andon issue report` が送ってあり tray の一覧で指すこと・委譲の `publish` の値に依らないことがある。
+#      担当の報告は `andon issue report` が送ってあり一覧で指すこと・委譲の `publish` の値に依らないことがある。
 #      CE の skill の骨格 3（入口）に同じ決まりと、ダイアログでは URL を問いの本文にも書くことがあり、表や代案を本文に出す古い文が無い。
-#      骨格 7（出口）に `andon publish` がある。worker skill の §7 に「報告は `andon issue report` が tray に送る」がある。
-#      environment.md の「オーナーに見せる」の節に、tray へ出す `andon publish` の文と3行を超える報告の決まりがあり、「`files/` へ出し」が無い。
-#      決まりの行に打ち消し（出さず・使わず・ではなく など）があれば、語が残っていても落とす。
+#      骨格 7（出口）に `andon publish` がある。worker skill の §7 に「報告は `andon issue report` が <場所> に送る」がある。
+#      environment.md の「オーナーに見せる」の節に、報告を集めて読む場所へ出す `andon publish` の文と3行を超える報告の決まりがあり、
+#      「`files/` へ出し」が無い。決まりの行に打ち消し（出さず・使わず・ではなく など）があれば、語が残っていても落とす。
 #      どの検査も、その文を消した写し・節の外へ動かした写し・語を残して意味を逆にした写しで当たることを確かめる。
 # === 45. 報告の出し方（ADR-0064 受け入れ条件 17） ===
 # block <file> <始まりの正規表現> <終わりの正規表現>: 始まりの行から、終わりの行の手前までを出す（始まりが無ければ空）
@@ -17,15 +18,15 @@ negated() { grep -qE '出さず|出さない|使わず|使わない|ではなく
 tray_miss() {
   local m='' head p12 ce3 ce3r ce7 w7 env envp envr w
   head=$(awk '/^## /{exit} {print}' "$1" | grep '^\*\*オーナーへの文は短く')
-  if grep -qF '短くするために語を詰めない' <<<"$head" && grep -qF '3行を超えるなら tray へ出す' <<<"$head"; then :; else
-    m="$m [CoS の前文に「語を詰めない。3行を超えるなら tray へ出す」が無い]"
+  if grep -qF '短くするために語を詰めない' <<<"$head" && grep -qE '3行を超えるなら [a-z]+ へ出す（原則 12）' <<<"$head"; then :; else
+    m="$m [CoS の前文に「語を詰めない。3行を超えるなら出す」が無い]"
   fi
   if grep -qF '行数では数えない' "$1"; then m="$m [CoS の skill に「行数では数えない」が残る]"; fi
-  p12=$(block "$1" '^## 原則' '^## 手引き' | grep '^12\. \*\*長い報告は tray へ出す\*\*')
+  p12=$(block "$1" '^## 原則' '^## 手引き' | grep -E '^12\. \*\*長い報告は [a-z]+ へ出す\*\*')
   if [ -z "$p12" ]; then
     m="$m [CoS の原則の節に原則 12 が無い]"
   else
-    for w in '3行を超えるか表を含む' '`andon publish' 'URL' '問いは返事の本文に残す' '`andon issue report` が tray に送って' 'tray の一覧' '委譲の `publish` の値に依らない'; do
+    for w in '3行を超えるか表を含む' '`andon publish' 'URL' '問いは返事の本文に残す' '`andon issue report` が' '送ってあるので' 'の一覧に課題の報告がある' '委譲の `publish` の値に依らない'; do
       grep -qF "$w" <<<"$p12" || m="$m [CoS の原則 12 に「$w」が無い]"
     done
     if negated "$(sed 's/中身を書き写さず//' <<<"$p12")"; then m="$m [CoS の原則 12 が打ち消しの形]"; fi
@@ -44,10 +45,10 @@ tray_miss() {
   ce7=$(block "$2" '^7\. \*\*出口: ' '^8\. \*\*' | grep -F '`andon publish`')
   if [ -z "$ce7" ] || negated "$ce7"; then m="$m [CE の骨格 7（出口）に andon publish で出す決まりが無い]"; fi
   w7=$(block "$3" '^## 7\. ' '^## 8\. ')
-  grep -qF '報告は `andon issue report` が tray に送る' <<<"$w7" || m="$m [worker skill の §7 に「報告は andon issue report が tray に送る」が無い]"
+  grep -qE '^- 報告は `andon issue report` が [a-z]+ に送る' <<<"$w7" || m="$m [worker skill の §7 に「報告は andon issue report が送る」が無い]"
   env=$(block "$4" '^## オーナーに見せる$' '^## ')
-  envp=$(grep -F '`andon publish <file>`' <<<"$env" | grep -F 'tray')
-  if [ -z "$envp" ] || negated "$envp"; then m="$m [environment.md の「オーナーに見せる」に tray へ出す andon publish の文が無い]"; fi
+  envp=$(grep -F '`andon publish <file>`' <<<"$env" | grep -F 'セルが出した報告を集めて読む場所）へ出し')
+  if [ -z "$envp" ] || negated "$envp"; then m="$m [environment.md の「オーナーに見せる」に報告の場所へ出す andon publish の文が無い]"; fi
   envr=$(grep -F '3行を超えるか表を含む' <<<"$env" | grep -F '`andon publish`')
   if [ -z "$envr" ] || negated "$envr"; then
     m="$m [environment.md の「オーナーに見せる」に3行を超える報告の決まりが無い]"
@@ -76,26 +77,26 @@ mv_after() { grep -vxF -e "$2" "$1" | awk -v l="$2" -v at="$3" '{print} $0 ~ at 
 mv_end() { grep -vxF -e "$2" "$1"; printf '%s\n' "$2"; }
 # moved <写し> <行>: 動かした写しを作れたかを見る（作れないと、空の写しで当たったことになる）
 moved() { grep -qxF -e "$2" "$1" || fail "ADR-0064 受け入れ条件 17: 動かした写しを作れない（$1）"; }
-sed 's/短くするために語を詰めない（語を「・」で詰めると、その返事だけで通じなくなる）。3行を超えるなら tray へ出す（原則 12）。/行数では数えない（行数を守ると語を「・」で詰めた文になり、その返事だけで通じなくなる）。/' "$tc" >"$tmp/t-cos.md"
-t17 "CoS の前文を古い文に戻した写し" '[CoS の前文に「語を詰めない。3行を超えるなら tray へ出す」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
+sed -E 's/短くするために語を詰めない（語を「・」で詰めると、その返事だけで通じなくなる）。3行を超えるなら [a-z]+ へ出す（原則 12）。/行数では数えない（行数を守ると語を「・」で詰めた文になり、その返事だけで通じなくなる）。/' "$tc" >"$tmp/t-cos.md"
+t17 "CoS の前文を古い文に戻した写し" '[CoS の前文に「語を詰めない。3行を超えるなら出す」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
 t17 "CoS の前文を古い文に戻した写し" '[CoS の skill に「行数では数えない」が残る]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
 hl=$(grep '^\*\*オーナーへの文は短く' "$tc" | sed -n 1p)
 mv_end "$tc" "$hl" >"$tmp/t-cos.md"; moved "$tmp/t-cos.md" "$hl"
-t17 "CoS の前文をファイルの末尾へ動かした写し" '[CoS の前文に「語を詰めない。3行を超えるなら tray へ出す」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
-pl=$(grep '^12\. \*\*長い報告は tray へ出す\*\*' "$tc" | sed -n 1p)
+t17 "CoS の前文をファイルの末尾へ動かした写し" '[CoS の前文に「語を詰めない。3行を超えるなら出す」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
+pl=$(grep '^12\. \*\*長い報告は ' "$tc" | sed -n 1p)
 grep -vxF -e "$pl" "$tc" >"$tmp/t-cos.md"
 t17 "CoS の原則 12 を消した写し" '[CoS の原則の節に原則 12 が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
 mv_end "$tc" "$pl" >"$tmp/t-cos.md"; moved "$tmp/t-cos.md" "$pl"
 t17 "CoS の原則 12 を原則の節の外（末尾）へ動かした写し" '[CoS の原則の節に原則 12 が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
 mv_after "$tc" "$pl" '^## 手引きの扱い' >"$tmp/t-cos.md"; moved "$tmp/t-cos.md" "$pl"
 t17 "CoS の原則 12 を手引きの扱いの節へ動かした写し" '[CoS の原則の節に原則 12 が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
-sed '/^12\. \*\*長い報告は tray へ出す\*\*/s/問いは返事の本文に残す/問いも出す/' "$tc" >"$tmp/t-cos.md"
+sed '/^12\. \*\*長い報告は /s/問いは返事の本文に残す/問いも出す/' "$tc" >"$tmp/t-cos.md"
 t17 "CoS の原則 12 から問いを本文に残す文を消した写し" '[CoS の原則 12 に「問いは返事の本文に残す」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
-sed '/^12\. \*\*長い報告は tray へ出す\*\*/s/tray の一覧/tray/' "$tc" >"$tmp/t-cos.md"
-t17 "CoS の原則 12 から tray の一覧で指す文を消した写し" '[CoS の原則 12 に「tray の一覧」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
-sed '/^12\. \*\*長い報告は tray へ出す\*\*/s/委譲の `publish` の値に依らない/委譲に従う/' "$tc" >"$tmp/t-cos.md"
+sed '/^12\. \*\*長い報告は /s/の一覧に課題の報告がある/に課題の報告がある/' "$tc" >"$tmp/t-cos.md"
+t17 "CoS の原則 12 から一覧で指す文を消した写し" '[CoS の原則 12 に「の一覧に課題の報告がある」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
+sed '/^12\. \*\*長い報告は /s/委譲の `publish` の値に依らない/委譲に従う/' "$tc" >"$tmp/t-cos.md"
 t17 "CoS の原則 12 から委譲に依らない文を消した写し" '[CoS の原則 12 に「委譲の `publish` の値に依らない」が無い]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
-sed '/^12\. \*\*長い報告は tray へ出す\*\*/s/`andon publish <file> --title <タイトル>` で出し/`andon publish` では出さず本文に全部書き/' "$tc" >"$tmp/t-cos.md"
+sed '/^12\. \*\*長い報告は /s/`andon publish <file> --title <タイトル>` で出し/`andon publish` では出さず本文に全部書き/' "$tc" >"$tmp/t-cos.md"
 t17 "CoS の原則 12 を語を残して打ち消した写し" '[CoS の原則 12 が打ち消しの形]' "$tmp/t-cos.md" "$te" "$tw" "$tn"
 # CE: 入口の決まりを骨格 1（読む）の下へ動かした写し（ファイルのどこかにあるだけでは足りない）
 cl=$(grep -F '3行を超えるか表を含む' "$te" | sed -n 1p)
@@ -109,23 +110,23 @@ sed "s/\`andon publish <file> --title <タイトル>\` で出し、返事には/
 t17 "CE の入口を語を残して打ち消した写し" '[CE の骨格 3 の決まりが打ち消しの形]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
 { cat "$te"; echo '   表・代案・自由記述の添削は本文に出し、決断そのものだけをダイアログで1問ずつ取る。'; } >"$tmp/t-ce.md"
 t17 "CE に表や代案を本文に出す古い文を戻した写し" '[CE の skill に表や代案を本文に出す古い文が残る]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
-sed '/^7\. \*\*出口: /s/`andon publish`/tray/' "$te" >"$tmp/t-ce.md"
+sed '/^7\. \*\*出口: /s/`andon publish`/別の口/' "$te" >"$tmp/t-ce.md"
 t17 "CE の出口から andon publish を消した写し" '[CE の骨格 7（出口）に andon publish で出す決まりが無い]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
 sed '/^7\. \*\*出口: /s/`andon publish` で出し/`andon publish` では出さず/' "$te" >"$tmp/t-ce.md"
 t17 "CE の出口を語を残して打ち消した写し" '[CE の骨格 7（出口）に andon publish で出す決まりが無い]' "$tc" "$tmp/t-ce.md" "$tw" "$tn"
 # worker skill の文を §7 の外（§1 の冒頭）へ動かした写し
-wl=$(grep -F '報告は `andon issue report` が tray に送る' "$tw" | sed -n 1p)
+wl=$(grep -E '^- 報告は `andon issue report` が [a-z]+ に送る' "$tw" | sed -n 1p)
 mv_after "$tw" "$wl" '^## 1\. ' >"$tmp/t-worker.md"; moved "$tmp/t-worker.md" "$wl"
-t17 "worker skill の文を §7 の外へ動かした写し" '[worker skill の §7 に「報告は andon issue report が tray に送る」が無い]' "$tc" "$te" "$tmp/t-worker.md" "$tn"
+t17 "worker skill の文を §7 の外へ動かした写し" '[worker skill の §7 に「報告は andon issue report が送る」が無い]' "$tc" "$te" "$tmp/t-worker.md" "$tn"
 # environment.md: 決まりを「気をつけること」の節（末尾）へ動かした写し・古い文に戻した写し・語を残して打ち消した写し
 el=$(grep -F '3行を超えるか表を含む' "$tn" | sed -n 1p)
 mv_end "$tn" "$el" >"$tmp/t-env.md"; moved "$tmp/t-env.md" "$el"
 t17 "environment.md の決まりを節の外へ動かした写し" '[environment.md の「オーナーに見せる」に3行を超える報告の決まりが無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
-sed 's/^- 生成した HTML などは `andon publish <file>` で tray.*$/- 生成した HTML などは `andon publish <file>` で `files\/` へ出し、返った URL を伝える。/' "$tn" >"$tmp/t-env.md"
-t17 "environment.md の publish の文を古い文に戻した写し" '[environment.md の「オーナーに見せる」に tray へ出す andon publish の文が無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
+sed 's/^- 生成した HTML などは `andon publish <file>` で .*$/- 生成した HTML などは `andon publish <file>` で `files\/` へ出し、返った URL を伝える。/' "$tn" >"$tmp/t-env.md"
+t17 "environment.md の publish の文を古い文に戻した写し" '[environment.md の「オーナーに見せる」に報告の場所へ出す andon publish の文が無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
 t17 "environment.md の publish の文を古い文に戻した写し" '[environment.md に「files/ へ出し」が残る]' "$tc" "$te" "$tw" "$tmp/t-env.md"
-sed 's/^- 生成した HTML などは `andon publish <file>` で tray/- 生成した HTML などは `andon publish <file>` で、tray ではなく files\/ に/' "$tn" >"$tmp/t-env.md"
-t17 "environment.md の publish の文を tray ではなくと打ち消した写し" '[environment.md の「オーナーに見せる」に tray へ出す andon publish の文が無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
+sed '/^- 生成した HTML などは /s/読む場所）へ出し、/読む場所）へ出し、ではなく files\/ に写し、/' "$tn" >"$tmp/t-env.md"
+t17 "environment.md の publish の文を「ではなく」と打ち消した写し" '[environment.md の「オーナーに見せる」に報告の場所へ出す andon publish の文が無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
 sed '/3行を超えるか表を含む/s/`andon publish` で出し/`andon publish` では出さず返事に全部書き/' "$tn" >"$tmp/t-env.md"
 t17 "environment.md の決まりを語を残して打ち消した写し" '[environment.md の「オーナーに見せる」に3行を超える報告の決まりが無い]' "$tc" "$te" "$tw" "$tmp/t-env.md"
 sed '/3行を超えるか表を含む/s/問いは返事の本文に残す。//' "$tn" >"$tmp/t-env.md"
