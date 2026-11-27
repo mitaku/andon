@@ -203,6 +203,23 @@ hold_passlock() {
   done
   fail "鍵を持つ側が 30 秒で見回りの鍵を取らない"
 }
+# 当てる道具が見回りの鍵を待ち始める（鍵のファイルを fd 9 に開いた flock が /proc に現れる）まで待つ（上限 $1 秒）。
+# 鍵を持つ側がこれを待ってから放すと、道具が鍵を見る前に鍵が外れる道が無くなる（負荷の下でも、鍵を待たない道具を見逃さない）
+cat >"$tmp/lock-waiter" <<'EOF'
+#!/usr/bin/env bash
+lock=$(readlink -f "$PASSLOCK")
+for _ in $(seq $(($1 * 10))); do
+  for p in /proc/[0-9]*; do
+    [ "$(readlink "$p/fd/9" 2>/dev/null)" = "$lock" ] || continue
+    mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
+    [ "${argv[0]##*/}" = flock ] && exit 0
+  done
+  sleep 0.1
+done
+exit 1
+EOF
+chmod 755 "$tmp/lock-waiter"
+export PASSLOCK=$passlock
 alive() { local s; s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }
 start_rcv "$tmp/other/bin/andon"
 other_rcv=$!
@@ -480,8 +497,9 @@ else
   fail "6 2回目を当てる: $(cat "$tmp/out")"
 fi
 : >"$CALLS"
-# 見回りの途中（鍵を持っている）なら、外れるまで dispatcher を止めない
-hold_passlock sh -c 'sleep 2; echo released >>"$CALLS"'
+# 見回りの途中（鍵を持っている）なら、外れるまで dispatcher を止めない。鍵を持つ側は、戻す道具が鍵を待ち始めてから放す
+# （上限 60 秒。待ち始めなければ、その印を残して放す）
+hold_passlock sh -c '"$1" 60 || echo "lock-waiter-missing" >>"$CALLS"; echo released >>"$CALLS"' _ "$tmp/lock-waiter"
 start_rcv "$img/andon/bin/andon"
 rcv=$!
 echo "$rcv" >"$OTEL_PID"
@@ -491,7 +509,9 @@ else
   fail "6 戻す: $(cat "$tmp/out")"
 fi
 wait "$holder"
-if [ "$(grep -n '^released' "$CALLS" | cut -d: -f1)" -lt "$(grep -n '^hc kill' "$CALLS" | cut -d: -f1)" ]; then
+if grep -q '^lock-waiter-missing' "$CALLS"; then
+  fail "7 戻す道具が見回りの鍵を待たなかった（鍵を fd 9 に開いた flock が 60 秒現れない）: $(cat "$CALLS")"
+elif [ "$(grep -n '^released' "$CALLS" | cut -d: -f1)" -lt "$(grep -n '^hc kill' "$CALLS" | cut -d: -f1)" ]; then
   pass "7 見回りの鍵が外れてから dispatcher を止める"
 else
   fail "7 見回りの途中で止めた: $(cat "$CALLS")"
