@@ -8,12 +8,13 @@
 # 手元では --changed、全部は CI に任せる。go test ./... は別に打つ。
 # 同時に走るのは1本だけ（mise の置き場と CPU を取り合う）。鍵のファイル（ANDON_TEST_LOCK。既定は /tmp/andon-tests-run.lock。
 # worktree をまたいで同じもの）を flock で取り、ほかの回が持っていれば理由を1行出して、その回が終わるまで待つ。
+# 鍵に書く控え（pid <pid> <PWD>）は、走っている間の同じ worktree への書き込みを断るフック（.claude/hooks/tests-run-edit）も読む。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 case "${1:-}" in
   '' | --changed) ;;
-  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
 # 鍵はこの shell が取り、exec で run-tests.sh に引き継ぐ（検査を待つプロセスが鍵を持つ。親だけが落ちて鍵が外れ、

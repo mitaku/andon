@@ -145,6 +145,8 @@ while IFS= read -r p; do
     .claude/skills/* | .agents/skills/*) ;;
     # 検査のシェルを Bash で書き換える呼び出しを断る、この repo の Claude Code のフック。image にも andon にも入らない。.claude/settings.json は知らないパスのまま
     .claude/hooks/test-shell-edit) run[tests/shell-edit-hook.sh]=1 ;;
+    # 裏の tests/run が走っている間、同じ worktree への書き込みを断る、この repo の Claude Code のフック。image にも andon にも入らない
+    .claude/hooks/tests-run-edit) run[tests/tests-run-edit-hook.sh]=1 ;;
     # yomiyasu の許可の一覧。image にも andon にも入らない。正との突き合わせは package.sh の節（tests/package/23-yomiyasu-words.sh）、語は words.sh（いつもの分）
     .yomiyasu-words/*) run[tests/package.sh]=1 ;;
     # tray（ADR-0064）。tests/*.sh は読まず、job tray が回す。いつもの分だけ
