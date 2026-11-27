@@ -316,6 +316,27 @@ jq -e --arg k "$id@$head" '.reviewers[$k].started == true' "$state" >/dev/null |
 HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null   # あとの場面が数える動いている課題に残さない
 ok 'review: off でも差分がレベル B なら、担当がレビューを頼め、dispatcher が gate と同じ条件で決めてレビュアーを起動する（review は off のまま）'
 
+# 0f. 積んだ課題（ADR-0067 決めたこと 9・受け入れ条件 10）: Chief of Staff の端末が stacked_on・stacked_base を書いた課題のレビュアーを起動するとき、
+#     dispatcher は分かれ目をレビュアーの課題の review_base に書き（照合はこの書き手だけを信じる）、依頼書に分かれ目から読むよう書く
+prv=$(HC_TERMINAL_ID=t5 kanban add '前の課題' --profile claude --repo github.com/example/app)
+id=$(newtask '積んだ課題' person)
+fork=$(git -C "$ANDON_WORKSPACE/.worktrees/app/demo-$id" rev-parse HEAD)
+HC_TERMINAL_ID=t5 kanban set "$id" stacked_on="$prv" stacked_base="$fork" >/dev/null
+work "$id" docs/s.md
+as_worker "$id" report --pr https://github.com/example/app/pull/7
+as_worker "$id" review-request
+dispatcher
+rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
+[ -n "$rev" ] || die '積んだ課題のレビュアーの課題が無い'
+[ "$(kanban show "$rev" --json | jq -r .issue.review_base)" = "$fork" ] || die "レビュアーの課題に review_base（分かれ目）が無い: $(kanban show "$rev" --json | jq -c .issue)"
+jq -e --arg r "$rev" --arg b "$fork" 'select(.id == $r and .change.review_base == $b) | .by == "terminal:dispatcher"' "$L/log.jsonl" >/dev/null || die 'review_base を書いたのが dispatcher でない'
+grep -qF "git diff $fork..$head" "$L/issues/$rev/brief.md" || die "積んだ課題のレビュアーの依頼書が分かれ目から読ませない: $(grep -n 差分 "$L/issues/$rev/brief.md")"
+if grep -qF "gh pr diff https://github.com/example/app/pull/7" "$L/issues/$rev/brief.md"; then die '積んだ課題のレビュアーの依頼書が gh pr diff を読ませた'; fi
+# 否定の確かめが当たる場合があることを同じ所で見る: 積んでいない課題（0e まで）の依頼書は gh pr diff を読ませる
+grep -lF "gh pr diff https://github.com/example/app/pull/7" "$L"/issues/*-r1/brief.md | grep -qv "/$rev/" || die '積んでいない課題の依頼書にも gh pr diff が無い（否定の確かめが何も見ていない）'
+HC_TERMINAL_ID=dispatcher kanban done "$rev" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null; HC_TERMINAL_ID=t5 kanban done "$prv" --force >/dev/null
+ok '積んだ課題のレビュアーを起動するとき、dispatcher が分かれ目を review_base に書き、依頼書に git diff <分かれ目>..<commit> で読むよう書く'
+
 # 1. 一周: review-request → レビュアーを起動する → レビュー → ready → gate → マージ → finish。Chief of Staff は留守（端末が無い）でも回る（ADR-0017 決めたこと 8）
 id=$(newtask 'docs を直す' auto)
 sed -i '/^t5 /d' "$tmp/hc/live"
