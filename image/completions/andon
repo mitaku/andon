@@ -18,7 +18,7 @@ _andon() {
     signal) COMPREPLY=($(compgen -W "auth collect delivered" -- "$cur")) ;;
     digest) COMPREPLY=($(compgen -W "auth collect build send check" -- "$cur")) ;;
     cell) COMPREPLY=($(compgen -W "init" -- "$cur")) ;;
-    issue) COMPREPLY=($(compgen -W "start resume finish hold unhold impact show trace report review-request candidates ask record ready merge settle board history session stop-check" -- "$cur")) ;;
+    issue) COMPREPLY=($(compgen -W "create start resume finish hold unhold impact show trace report review-request candidates ask record ready merge settle board history session stop-check" -- "$cur")) ;;
     news) COMPREPLY=($(compgen -W "ack" -- "$cur")) ;;
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
     retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;

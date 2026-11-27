@@ -271,13 +271,17 @@ func TestRewriteSettings(t *testing.T) {
 	}{
 		{"あとから書き直した予約キー",
 			"# タイトル\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail,
-			"# タイトル\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail,
+			"# タイトル\n\n## Settings\n- Review: on ★\n- Must fix: major\n- Merge: auto ★\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail,
 			Issue{"review": "on", "must_fix": "major", "reviewer": "codex-review", "review_rounds": "2", "merge": "auto", "estimate": "medium"}},
 		{"合っていれば変えない",
-			"## Settings\n- Review: on\n- Merge: person\n- Estimate: 小\n" + tail, "",
+			"## Settings\n- Review: on ★\n- Merge: person\n- Estimate: 小\n" + tail, "",
 			Issue{"review": "on", "merge": "person", "estimate": "small"}},
+		{"既定から変えたのに印の無い行には印を付ける",
+			"## Settings\n- Review: on\n- Merge: auto\n- Estimate: 小\n", "## Settings\n- Review: on ★\n- Merge: auto ★\n- Estimate: 小\n",
+			Issue{"review": "on", "merge": "auto", "estimate": "small"}},
+		{"空の依頼書には欄だけを書かない", " \n", "", Issue{"review": "on"}},
 		{"値の頭が同じ行は注釈ごと残す",
-			"## Settings\n- Deliverable: candidates ★調べる\n- Review: on", "",
+			"## Settings\n- Deliverable: candidates ★調べる\n- Review: on ★前からの注釈", "",
 			Issue{"deliverable": "candidates", "review": "on"}},
 		{"知らない行は残し、正に値の無い行と重なった行は消す",
 			"## Settings\n- Review: on\n- 横展開: 指された箇所だけ\n- Acceptance: 4\n- review: off\n",
@@ -288,32 +292,38 @@ func TestRewriteSettings(t *testing.T) {
 			"## Settings\n- Reviewer: claude-review\n- Merge: person\n",
 			Issue{"profile": "codex"}},
 		{"最後の行に改行が無くても行がつながらない",
-			"## Settings\n- Review: off", "## Settings\n- Review: on\n- Merge: auto\n",
+			"## Settings\n- Review: off", "## Settings\n- Review: on ★\n- Merge: auto ★\n",
 			Issue{"review": "on", "merge": "auto"}},
-		{"見出しで終わる依頼書", "## Settings", "## Settings\n- Review: on\n", Issue{"review": "on"}},
-		{"CRLF", "## Settings\r\n- Review: off\r\n", "## Settings\r\n- Review: on\r\n", Issue{"review": "on"}},
-		{"写しが無ければ書き足さない", "# タイトル\n完了条件: 押せる\n", "", Issue{"review": "on"}},
+		{"見出しで終わる依頼書", "## Settings", "## Settings\n- Review: on ★\n", Issue{"review": "on"}},
+		{"CRLF", "## Settings\r\n- Review: off\r\n", "## Settings\r\n- Review: on ★\r\n", Issue{"review": "on"}},
+		{"写しが無ければ末尾に空行を挟んで足す（ADR-0053 決めたこと 19）", "# タイトル\n完了条件: 押せる\n",
+			"# タイトル\n完了条件: 押せる\n\n## Settings\n- Review: on ★\n- Merge: person\n- Estimate: 中\n", Issue{"review": "on", "merge": "person", "estimate": "medium"}},
+		{"改行で終わらない依頼書にも空行を挟んで足す", "# タイトル", "# タイトル\n\n## Settings\n- Review: off\n", Issue{"review": "off"}},
+		{"空行で終わる依頼書には空行を足さない", "# タイトル\n\n", "# タイトル\n\n## Settings\n- Review: off\n", Issue{"review": "off"}},
+		{"CRLF の依頼書には CRLF で足す", "# タイトル\r\n", "# タイトル\r\n\r\n## Settings\r\n- Review: off\r\n", Issue{"review": "off"}},
+		{"予約キーが無ければ写しを足さない", "# タイトル\n", "", Issue{"profile": "claude"}},
+		{"コード例の中にしか見出しが無ければ足す", "```\n## Settings\n```\n", "```\n## Settings\n```\n\n## Settings\n- Review: off\n", Issue{"review": "off"}},
 		{"見出しが2つあれば両方",
 			"## Settings\n- Review: off\n\n## 追記\n## Settings\n- Review: off\n- Merge: person\n",
-			"## Settings\n- Review: on\n- Merge: auto\n\n## 追記\n## Settings\n- Review: on\n- Merge: auto\n",
+			"## Settings\n- Review: on ★\n- Merge: auto ★\n\n## 追記\n## Settings\n- Review: on ★\n- Merge: auto ★\n",
 			Issue{"review": "on", "merge": "auto"}},
 		{"コード例の中の見出しは触らない",
 			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: off\n",
-			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: on\n",
+			"例:\n```\n## Settings\n- Review: off\n```\n\n## Settings\n- Review: on ★\n",
 			Issue{"review": "on"}},
 		{"4つのバッククォートの囲みの中の3つの囲みと見出しは触らない",
 			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: off\n",
-			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: on\n",
+			"````\n```\n## Settings\n- Review: off\n```\n## Settings\n- Review: off\n````\n\n## Settings\n- Review: on ★\n",
 			Issue{"review": "on"}},
 		{"成果が報告の課題は Deliverable: report と写す（ADR-0066 受け入れ条件 2）",
 			"## Settings\n- Review: off\n- Deliverable: pr\n",
-			"## Settings\n- Review: off\n- Deliverable: report\n",
+			"## Settings\n- Review: off\n- Deliverable: report ★\n",
 			Issue{"review": "off", "deliverable": "report"}},
 		{"知らない値は SettingsOf が読む値で写す",
 			"## Settings\n- Deliverable: survey\n- Merge: never\n- Review: maybe\n",
 			"## Settings\n- Deliverable: pr\n- Merge: person\n",
 			Issue{"deliverable": "survey", "merge": "never", "review": "maybe"}},
-		{"行の無いキーも知らない値は足さない", "## Settings\n- Review: on\n", "## Settings\n- Review: on\n- Merge: person\n",
+		{"行の無いキーも知らない値は足さない", "## Settings\n- Review: on ★\n", "## Settings\n- Review: on ★\n- Merge: person\n",
 			Issue{"review": "on", "merge": "never", "estimate": "huge"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -321,14 +331,58 @@ func TestRewriteSettings(t *testing.T) {
 			if want == "" {
 				want = c.brief
 			}
-			got, changed := RewriteSettings(c.brief, c.issue)
+			got, changed := RewriteSettings(c.brief, c.issue, nil)
 			if got != want || changed != (want != c.brief) {
 				t.Errorf("changed=%v\n got %q\nwant %q", changed, got, want)
 			}
-			if again, ch := RewriteSettings(got, c.issue); ch || again != got {
+			if again, ch := RewriteSettings(got, c.issue, nil); ch || again != got {
 				t.Errorf("2回目で変わった: %q", again)
 			}
 		})
+	}
+}
+
+// 既定から変えた行には ★ を付け、理由があれば ★ に続けて添える。既定どおりの行・見込み・受け入れ条件には付けない。
+// 理由のあるキーは、値の頭が同じ行も理由つきに書き直す（ADR-0053 決めたこと 19）。
+func TestRewriteSettingsMarks(t *testing.T) {
+	issue := Issue{"profile": "claude", "review": "on", "reviewer": "codex-review", "must_fix": "minor", "review_rounds": "2",
+		"merge": "person", "estimate": "large", "acceptance": "9,10"}
+	reasons := map[string]string{"review": "新しい module", "must_fix": "細かい誤りも直す"}
+	for _, c := range []struct{ name, brief, want string }{
+		{"足す", "# x\n", "# x\n\n## Settings\n- Review: on ★新しい module\n- Reviewer: codex-review\n- Must fix: minor ★細かい誤りも直す\n" +
+			"- Review rounds: 2\n- Merge: person\n- Acceptance: 9,10\n- Estimate: 大\n"},
+		{"値の同じ行も理由つきに書き直す", "## Settings\n- Review: on\n- Must fix: minor ★前の理由\n- Merge: person\n- Estimate: 大\n",
+			"## Settings\n- Review: on ★新しい module\n- Must fix: minor ★細かい誤りも直す\n- Merge: person\n- Estimate: 大\n- Reviewer: codex-review\n- Review rounds: 2\n- Acceptance: 9,10\n"},
+	} {
+		got, _ := RewriteSettings(c.brief, issue, reasons)
+		if got != c.want {
+			t.Errorf("%s:\n got %q\nwant %q", c.name, got, c.want)
+		}
+		if again, ch := RewriteSettings(got, issue, reasons); ch {
+			t.Errorf("%s: 2回目で変わった: %q", c.name, again)
+		}
+	}
+	// Codex の担当の既定のレビュアーは claude-review なので印を付けず、codex-review に印を付ける
+	if got, _ := RewriteSettings("# x\n", Issue{"profile": "codex", "reviewer": "claude-review"}, nil); got != "# x\n\n## Settings\n- Reviewer: claude-review\n" {
+		t.Errorf("codex の既定のレビュアー: %q", got)
+	}
+	if got, _ := RewriteSettings("# x\n", Issue{"profile": "codex", "reviewer": "codex-review"}, nil); got != "# x\n\n## Settings\n- Reviewer: codex-review ★\n" {
+		t.Errorf("codex と同じブランドのレビュアー: %q", got)
+	}
+}
+
+// 欄にだけ値のある行（課題に無いキーで、書き直すと値が変わるか消える行）を返す。課題にあるキーの行・既定と同じ値の行・
+// 知らない行・コードの囲みの中の行は返さない。andon issue create が渡し忘れた予約キーを断るのに使う。
+func TestSettingsDropped(t *testing.T) {
+	brief := "# x\n\n```\n## Settings\n- Review: on\n```\n\n## Settings\n- Review: off\n- Merge: person\n- Deliverable: candidates ★調べる\n" +
+		"- Acceptance: 9,10\n- Estimate: 中\n- 横展開: 指された箇所だけ\n\n- Merge: auto\n"
+	got := SettingsDropped(brief, Issue{"profile": "claude", "estimate": "medium"})
+	want := []string{"- Review: off", "- Deliverable: candidates ★調べる", "- Acceptance: 9,10"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	if got := SettingsDropped(brief, Issue{"review": "off", "deliverable": "candidates", "acceptance": "9,10", "estimate": "small"}); !slices.Equal(got, []string(nil)) {
+		t.Errorf("全部のキーを渡したのに: %q", got)
 	}
 }
 

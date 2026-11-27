@@ -353,7 +353,7 @@ func (c *ctx) checkSettings(p *startPlan) error {
 }
 
 func (c *ctx) copySettings(p *startPlan) {
-	if p.Profile == chiefengineer.Profile {
+	if settingsKept(p.Profile) {
 		return
 	}
 	t := ledger.Issue{}
@@ -365,9 +365,9 @@ func (c *ctx) copySettings(p *startPlan) {
 		t[k] = v
 	}
 	p.settings = t
-	brief, changed := ledger.RewriteSettings(p.Brief, t)
+	brief, changed := ledger.RewriteSettings(p.Brief, t, nil)
 	if !changed {
-		p.check("copy", "ok", "依頼書の ## Settings の写しは予約キーと合っている（写しが無ければ書き足さない）")
+		p.check("copy", "ok", "依頼書の ## Settings の写しは予約キーと合っている")
 		return
 	}
 	p.Brief = brief
@@ -378,21 +378,38 @@ func (c *ctx) writeSettingsCopy(p *startPlan) error {
 	if p.settings == nil {
 		return nil
 	}
-	unlock, err := lockKanban(filepath.Join(c.l.Dir, ".lock"), kanbanLockWait)
+	brief, err := writeSettings(c.l, p.BriefPath, p.settings, nil)
 	if err != nil {
 		return err
+	}
+	p.Brief = brief
+	return nil
+}
+
+// settingsKept は、依頼書の ## Settings の写しを command が触らない課題か: 予約キーを置かない Chief Engineer の課題と
+// レビュアーの課題（profile が -review で終わる。ADR-0053 決めたこと 19）。
+func settingsKept(profile string) bool {
+	return profile == chiefengineer.Profile || strings.HasSuffix(profile, "-review")
+}
+
+// writeSettings は kanban の CLI と同じ鍵（kanban/.lock）を取ってから依頼書 path を読み直し、## Settings の写しを
+// 予約キー t から書き直す（確かめのあと書くまでの間に足された追記を消さない。変わらなければ書かない）。書いたあとの中身を返す。
+// andon issue create・start・resume が打つ（ADR-0053 決めたこと 19）。
+func writeSettings(l *ledger.Ledger, path string, t ledger.Issue, reasons map[string]string) (string, error) {
+	unlock, err := lockKanban(filepath.Join(l.Dir, ".lock"), kanbanLockWait)
+	if err != nil {
+		return "", err
 	}
 	defer unlock()
-	cur, err := os.ReadFile(p.BriefPath)
+	cur, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return "", err
 	}
-	brief, changed := ledger.RewriteSettings(string(cur), p.settings)
-	p.Brief = brief
+	brief, changed := ledger.RewriteSettings(string(cur), t, reasons)
 	if !changed {
-		return nil
+		return brief, nil
 	}
-	return writeAtomic(p.BriefPath, []byte(brief))
+	return brief, writeAtomic(path, []byte(brief))
 }
 
 const kanbanLockWait = 10 * time.Second

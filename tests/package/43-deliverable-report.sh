@@ -1,6 +1,6 @@
 # tests/package/43-deliverable-report.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail・tmp・pb は入口と前の節が置く）。
 #  43. 成果が報告の課題の印（ADR-0066 受け入れ条件 8）: 検証の雛形の Settings に `- Deliverable: report` があり、雛形の下
-#      （雛形の囲みを閉じたあと）に `kanban set <id> deliverable=report` がある。点検の課題の起動の手引き（idle.md）の、点検の課題を
+#      （雛形の囲みを閉じたあと）に `andon issue create` に `deliverable=report` を渡す一手がある。点検の課題の起動の手引き（idle.md）の、点検の課題を
 #      起動する文にも同じ一手がある。
 #      CoS の手引き brief.md の表と worker skill の表の deliverable の行に `report` がある。
 #      どの検査も、その行を消した写しか、行を雛形の外へ動かした写しで当たることを確かめる。
@@ -22,14 +22,14 @@ report_miss() {
     m="$m [検証の雛形の Settings に - Deliverable: report が無い]"
   else
     close=$(tail -n +"$at" "$1" | grep -nxF '   ```' | sed -n 1p | cut -d: -f1)
-    set=$(tail -n +"$at" "$1" | grep -nF 'kanban set <id> deliverable=report' | sed -n 1p | cut -d: -f1)
+    set=$(tail -n +"$at" "$1" | grep -nF '`andon issue create` に `deliverable=report` を渡す' | sed -n 1p | cut -d: -f1)
     if [ -z "$close" ] || [ -z "$set" ] || [ "$set" -le "$close" ]; then
-      m="$m [検証の雛形の下に kanban set <id> deliverable=report が無い]"
+      m="$m [検証の雛形の下に andon issue create に deliverable=report を渡す一手が無い]"
     fi
   fi
   # 点検の課題を起動する文（「点検の課題」と言う行）の中に、印を打つ一手がある（ファイルのどこかにあるだけでは足りない）
   grep -qF '`kanban set <id> deliverable=report`' <<<"$(grep -F '点検の課題' "$2")" || m="$m [点検の課題の起動に kanban set <id> deliverable=report が無い]"
-  grep -qE '^\| `deliverable`（Deliverable） \| `pr` / `candidates` / `report` \|.*`kanban set <id> deliverable=report`' "$3" \
+  grep -qE '^\| `deliverable`（Deliverable） \| `pr` / `candidates` / `report` \|.*`deliverable=report` を渡す' "$3" \
     || m="$m [brief.md の表の deliverable の行に report が無い]"
   grep -qE '^   \| `deliverable`（Deliverable） \| `pr` / `candidates` / `report` \|.*`report` は' "$4" \
     || m="$m [worker skill の表の deliverable の行に report が無い]"
@@ -50,10 +50,10 @@ grep -qxF '   - Deliverable: report' "$tmp/r-verify.md" || fail "ADR-0066 受け
 miss=$(report_miss "$tmp/r-verify.md" "$ri" "$rb" "$rw")
 [[ "$miss" == *"[検証の雛形の Settings に - Deliverable: report が無い]"* ]] && pass "ADR-0066 受け入れ条件 8: 雛形の Settings の外へ動かした Deliverable の行で当たる" \
   || fail "ADR-0066 受け入れ条件 8: 雛形の Settings の外へ動かした Deliverable の行で当たらない: [$miss]"
-grep -vF 'kanban set <id> deliverable=report' "$rv" | sed 's/^   - Deliverable: report$/   - Deliverable: report\n   kanban set <id> deliverable=report/' >"$tmp/r-verify.md"
+grep -vF '`andon issue create` に `deliverable=report` を渡す' "$rv" | sed 's/^   - Deliverable: report$/   - Deliverable: report\n   `andon issue create` に `deliverable=report` を渡す/' >"$tmp/r-verify.md"
 miss=$(report_miss "$tmp/r-verify.md" "$ri" "$rb" "$rw")
-[[ "$miss" == *"[検証の雛形の下に kanban set <id> deliverable=report が無い]"* ]] && pass "ADR-0066 受け入れ条件 8: kanban set の行を雛形の中へ動かした写しで当たる" \
-  || fail "ADR-0066 受け入れ条件 8: kanban set の行を雛形の中へ動かした写しで当たらない: [$miss]"
+[[ "$miss" == *"[検証の雛形の下に andon issue create に deliverable=report を渡す一手が無い]"* ]] && pass "ADR-0066 受け入れ条件 8: create に渡す行を雛形の中へ動かした写しで当たる" \
+  || fail "ADR-0066 受け入れ条件 8: create に渡す行を雛形の中へ動かした写しで当たらない: [$miss]"
 sed 's/`pr` \/ `candidates` \/ `report`/`pr` \/ `candidates`/' "$rb" >"$tmp/r-brief.md"
 sed 's/`pr` \/ `candidates` \/ `report`/`pr` \/ `candidates`/' "$rw" >"$tmp/r-worker.md"
 miss=$(report_miss "$rv" "$ri" "$tmp/r-brief.md" "$tmp/r-worker.md")

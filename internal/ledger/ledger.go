@@ -549,16 +549,19 @@ func SettingsCopy(keys []string) string {
 }
 
 // RewriteSettings は依頼書 brief の ## Settings の写しを、課題 t の予約キー（正）に合わせて書き直す。書き換えたかを返す。
-// 写しは見出しの直後に続く「- 名前: 値」の行の並びで、その後ろ（空行・地の文・追記の節）は触らない。見出しが無ければ書き足さない。
+// 写しは見出しの直後に続く「- 名前: 値」の行の並びで、その後ろ（空行・地の文・追記の節）は触らない。見出しが無ければ、
+// 依頼書の末尾に空行を挟んで足す（予約キーが1つも無ければ足さない。ADR-0053 決めたこと 19）。
 // 見出しが2つ以上あれば（追記の節に写しを書き直した依頼書）、どれも書き直す。コード例（``` か ~~~ の囲み）の中の見出しは写しでないので触らない。
 // 行の値は SettingsOf が読む値（無いキーと知らない値は既定か空。gate・dispatcher が読む値と同じ）で、値の頭が同じ行は
 // そのまま残す（「Deliverable: candidates ★調べる」）。値の無い行は消し、行の無いキーで issue.yaml にあるものは並びの末尾に足す。
-// 知らない名前の行は残す。課題があとから kanban set で予約キーを書き直しても、担当に渡る写しが正と食い違わないように、
-// andon issue start が起動の前に打つ。
-func RewriteSettings(brief string, t Issue) (string, bool) {
+// 知らない名前の行は残す。書く行のうち既定（playbooks/brief.md の表）から変えた行には行末に ★ を付け、reasons にそのキーの理由が
+// あれば ★ に続けて添える（値の頭が同じ行も、印の無い行と、理由のあるキーの行は書き直す）。見込み（Estimate）と受け入れ条件（Acceptance）には
+// 既定が無いので印を付けない。課題があとから kanban set で予約キーを書き直しても、担当に渡る写しが正と食い違わないように、
+// andon issue create・start・resume が打つ。
+func RewriteSettings(brief string, t Issue, reasons map[string]string) (string, bool) {
 	lines := strings.SplitAfter(brief, "\n")
 	var out strings.Builder
-	fence := ""
+	fence, found := "", false
 	for i := 0; i < len(lines); i++ {
 		ln := lines[i]
 		trim := strings.TrimRight(ln, " \t\r\n")
@@ -574,6 +577,7 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 			out.WriteString(ln)
 			continue
 		}
+		found = true
 		end := i + 1
 		for end < len(lines) && strings.HasPrefix(lines[end], "- ") {
 			end++
@@ -582,21 +586,114 @@ func RewriteSettings(brief string, t Issue) (string, bool) {
 		if strings.HasSuffix(ln, "\r\n") {
 			eol = "\r\n"
 		}
-		block := settingsBlock(lines[i+1:end], t, eol)
+		block := settingsBlock(lines[i+1:end], t, eol, reasons)
 		if len(block) > 0 && !strings.HasSuffix(ln, "\n") {
 			ln += eol
 		}
 		out.WriteString(ln + strings.Join(block, ""))
 		i = end - 1
 	}
+	if !found && strings.TrimSpace(brief) != "" { // 空の依頼書には欄だけを書かない（start の「依頼書が無い」の断りを残す）
+		eol := "\n"
+		if strings.Contains(brief, "\r\n") {
+			eol = "\r\n"
+		}
+		if block := settingsBlock(nil, t, eol, reasons); len(block) > 0 {
+			switch {
+			case brief == "" || strings.HasSuffix(brief, eol+eol):
+			case strings.HasSuffix(brief, eol):
+				out.WriteString(eol)
+			default:
+				out.WriteString(eol + eol)
+			}
+			out.WriteString("## Settings" + eol + strings.Join(block, ""))
+		}
+	}
 	return out.String(), out.String() != brief
 }
 
-func settingsBlock(old []string, t Issue, eol string) []string {
+// SettingsDropped は、依頼書 brief の ## Settings の写しの行のうち、課題 t に無いキーの行で、RewriteSettings が値を
+// 書き換えるか消すもの（行のまま）を返す。andon issue create が、欄にだけ書いた値（渡し忘れた予約キー）を黙って捨てずに断るのに使う。
+func SettingsDropped(brief string, t Issue) []string {
+	byName := map[string]string{}
+	for k, n := range settingNames {
+		byName[strings.ToLower(n)] = k
+	}
+	var out []string
+	fence, in := "", false
+	for _, ln := range strings.Split(brief, "\n") {
+		trim := strings.TrimRight(ln, " \t\r")
+		if m := fenceRe.FindStringSubmatch(trim); m != nil {
+			switch {
+			case fence == "":
+				fence = m[1]
+			case m[2] == "" && m[1][0] == fence[0] && len(m[1]) >= len(fence):
+				fence = ""
+			}
+		}
+		switch {
+		case fence != "":
+			in = false
+		case trim == "## Settings":
+			in = true
+		case in && strings.HasPrefix(ln, "- "):
+			name, cur, ok := strings.Cut(strings.TrimPrefix(trim, "- "), ":")
+			k, known := byName[strings.ToLower(strings.TrimSpace(name))]
+			if !ok || !known || t.Str(k) != "" {
+				continue
+			}
+			if f := strings.Fields(cur); len(f) == 0 || f[0] != settingsValue(t, k) {
+				out = append(out, trim)
+			}
+		default:
+			in = false
+		}
+	}
+	return out
+}
+
+// settingsValue は RewriteSettings が写しの行に書くキー k の値（無ければ空）。
+func settingsValue(t Issue, k string) string {
 	s := SettingsOf(t)
-	vals := map[string]string{"review": s.Review, "must_fix": s.MustFix, "reviewer": s.Reviewer, "review_rounds": s.ReviewRounds,
-		"merge": s.Merge, "deliverable": s.Deliverable, "acceptance": s.Acceptance, "estimate": copyValue("estimate", s.Estimate)}
-	value := func(k string) string { return vals[k] }
+	return map[string]string{"review": s.Review, "must_fix": s.MustFix, "reviewer": s.Reviewer, "review_rounds": s.ReviewRounds,
+		"merge": s.Merge, "deliverable": s.Deliverable, "acceptance": s.Acceptance, "estimate": copyValue("estimate", s.Estimate)}[k]
+}
+
+// settingDefault は印を付けるかを決める既定（playbooks/brief.md の表の既定の欄）。reviewer は実装と別ブランド。
+// 見込みと受け入れ条件は既定が無いので空（印を付けない）。
+func settingDefault(t Issue, k string) string {
+	switch k {
+	case "review":
+		return "off"
+	case "must_fix":
+		return "major"
+	case "reviewer":
+		return SettingsOf(Issue{"profile": t.Str("profile")}).Reviewer
+	case "review_rounds":
+		return "2"
+	case "merge":
+		return "person"
+	case "deliverable":
+		return "pr"
+	}
+	return ""
+}
+
+// Marked は、予約キー k の値 v が写しで印 ★ の付く値（既定から変えた値）か。
+func Marked(t Issue, k, v string) bool {
+	d := settingDefault(t, k)
+	return d != "" && v != d
+}
+
+func settingsBlock(old []string, t Issue, eol string, reasons map[string]string) []string {
+	value := func(k string) string { return settingsValue(t, k) }
+	row := func(k, v string) string {
+		ln := "- " + settingNames[k] + ": " + v
+		if Marked(t, k, v) {
+			ln += " ★" + reasons[k]
+		}
+		return ln + eol
+	}
 	byName := map[string]string{}
 	for k, n := range settingNames {
 		byName[strings.ToLower(n)] = k
@@ -623,15 +720,15 @@ func settingsBlock(old []string, t Issue, eol string) []string {
 		v := value(k)
 		switch f := strings.Fields(cur); {
 		case v == "":
-		case len(f) > 0 && f[0] == v:
+		case len(f) > 0 && f[0] == v && (!Marked(t, k, v) || (reasons[k] == "" && strings.Contains(cur, "★"))):
 			add(ln)
 		default:
-			add("- " + settingNames[k] + ": " + v + eol)
+			add(row(k, v))
 		}
 	}
 	for _, k := range settingOrder {
 		if v := value(k); !seen[k] && t.Str(k) != "" && v != "" {
-			add("- " + settingNames[k] + ": " + v + eol)
+			add(row(k, v))
 		}
 	}
 	return block

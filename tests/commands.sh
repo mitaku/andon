@@ -227,6 +227,7 @@ while IFS= read -r l; do
     gate) a=(J-0001 --dry-run) ;;
     issue\ board) a=(--since 2026-01-01T00:00:00Z) ;;
     issue\ start) a=(J-0002 --dry-run) ;;
+    issue\ create) a=("A6 の課題" review=off estimate=small --dry-run) ;;
     issue\ resume) a=(J-0003 --dry-run) ;;
     process\ json) a=("$PWD/process/states/issue.yaml") ;;
     *) bad+="$l: 打つ引数を tests/commands.sh の A6 に足していない"$'\n'; continue ;;

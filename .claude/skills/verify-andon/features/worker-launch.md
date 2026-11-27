@@ -27,9 +27,12 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `wl-tools` worktree の根に `mise.toml` がある課題で、当てたあとに起動した担当・レビュアー・Chief Engineer の端末が、誰も `mise install` を打たずに `mise.toml` のバージョンの道具を引く。端末の環境の `MISE_SYSTEM_CONFIG_FILE` が自分の worktree の `mise.toml` を指し、一時の置き場でも同じバージョンを引く（ADR-0063 決めたこと 6・10）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `internal/tools/tools.go`、`internal/tools/env.go`、`internal/cli/leaves.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/dispatcher/loop.go`、`internal/dispatcher/resume.go`、`internal/chiefengineer/chiefengineer.go`、`package/templates/`
 
+- `wl-settings` 当てたパッケージの `andon issue create` が、予約キーでないキーを課題を足さずに断り、`--dry-run` で予約キーから書いた依頼書の `## Settings` 欄と、足りないもの（profile）を書く次の1手を出す。当てたあとに足した起動前の課題の依頼書が、予約キーから書き直した欄と同じ（ADR-0053 受け入れ条件 A9・A10）。見る道: 検証の担当だけ。
+  - 見るファイル: `internal/issue/create.go`、`internal/issue/start.go`、`internal/issue/resume.go`、`internal/ledger/ledger.go`、`internal/cli/leaves.go`、`package/skills/chief-of-staff/playbooks/brief.md`、`package/skills/chief-of-staff/playbooks/cut.md`、`package/skills/chief-of-staff/playbooks/start.md`、`package/skills/chief-of-staff/playbooks/verify.md`
+
 ## 辿り着き方（利用者から）
 
-- Chief of Staff が `andon issue start <id>` を打つ。
+- Chief of Staff が `andon issue create "<タイトル>" … <予約キー>…` で担当の課題を足し、`andon issue start <id>` を打つ。
 - dispatcher がレビューの頼みを見てレビュアーを起動する（`role` が `reviewer`、`launch` が `start`。使用量の上限で別のプロファイルに起動し直すと `fallback`）。
 - 起き直した担当を Chief of Staff が `andon issue resume <id>` で起動し直す（`launch` が `resume`。`--fresh` を付けると `fresh`）。
 
@@ -72,6 +75,8 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
   見たのが自分の端末なら、そう `evidence` に書く。
   道具がもう入っているセルでは、1 と 2 は入れる手を通らなくても ok になる。入れる手（「道具を入れた」の1行と、入れられないときの警告）を通すには、試しの課題の branch の `mise.toml` に、セルにまだ入っていない小さな道具のバージョンを足してから起動してもらい、起動を打った Chief of Staff の出力か dispatcher の端末のログに「道具を入れた」の1行が出ることを見る。dispatcher が `andon issue resume` で起動し直した回の行は、dispatcher の端末のログに「<課題> の resume: 」を頭に付けて出る。行が無ければ、入れる手は未確認と書き、1 と 2 だけを ok にする。
 
+- **依頼書の欄を読む（`wl-settings`）。** 同じ `drive.sh` の出力の `wl-settings` の行を読む。道は、当てたパッケージの `andon` で、`andon issue create "verify wl-settings" who=person --dry-run` が終了コード 1 で断ることと、`--brief - review=off estimate=small --dry-run` が `- Review: off`・`- Estimate: 小` の欄と `kanban set <足した id> 'profile=<名前>'` の次の1手を出すことを見る（どちらも何も書かない）。続けて、当てたあとに足した（`log.jsonl` の `change.add` の行）課題のうち、`todo` で、予約キーを書いた行が1行だけ（足した直後の分。あとから `kanban set` で変えた値は次の起動まで欄に写らないのが正しいので比べない）のものを選び、依頼書が `andon issue start <id> --dry-run --json` の `.brief`（予約キーから書き直した欄）と同じで `## Settings` の見出しを持つかを見る。起動の確かめで断る課題は比べない。`ok   wl-settings` が見えれば動いた。`ok` は、`--dry-run` の確かめと依頼書の比べの両方を通したときだけ出る。セルにプロジェクトが無いか、比べられる課題が無ければ `note wl-settings` だけが出て未確認になる。そのときは報告の `## Next` に「Chief of Staff が `andon issue create` で課題を足したあとで打ち直す」と書く。
+
 ## 変えたら動かすパス
 
 - `internal/tools/`
@@ -80,6 +85,12 @@ Chief of Staff が `andon issue start <id>` で担当を起動する道（レビ
 - `internal/chiefofstaff/chiefofstaff.go`
 - `internal/issue/start.go`
 - `internal/issue/resume.go`
+- `internal/issue/create.go`
+- `internal/ledger/ledger.go`
+- `package/skills/chief-of-staff/playbooks/brief.md`
+- `package/skills/chief-of-staff/playbooks/cut.md`
+- `package/skills/chief-of-staff/playbooks/start.md`
+- `package/skills/chief-of-staff/playbooks/verify.md`
 - `internal/dispatcher/loop.go`
 - `internal/dispatcher/fallback.go`
 - `internal/launch/`

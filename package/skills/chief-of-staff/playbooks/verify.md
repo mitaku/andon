@@ -33,7 +33,7 @@
    | 機能の名前が出た | 4 で切る |
    | 0 以外（地図が壊れている） | 切らない。出力の理由を読み、地図を直す課題に切る（`cut.md`） |
 
-4. **切る。** タイトルは「検証: <当てた commit の先頭 12 桁> を当てたあとの機能」。プロファイルは、雛形の見込みで `cut.md` のプロファイルの表から選ぶ。依頼書は次の雛形で、Settings は `brief.md` の「Settings の埋め方」のとおり予約キーも書く:
+4. **切る。** タイトルは「検証: <当てた commit の先頭 12 桁> を当てたあとの機能」。プロファイルは、雛形の見込みで `cut.md` のプロファイルの表から選ぶ。依頼書は次の雛形で、`brief.md` の「Settings の埋め方」のとおり `andon issue create` に予約キーを渡して足す（Settings の欄は command が予約キーから書く）:
 
    ```
    # <id> 検証: <当てた commit の先頭 12 桁> を当てたあとの機能
@@ -57,7 +57,7 @@
    - Estimate: 中
    ```
 
-   - `Deliverable` は `report`（成果は報告で、地図を直すときだけ PR がある）。依頼書に書き、**自分の端末で** `kanban set <id> deliverable=report` も打つ（正は `issue.yaml`。写しだけでは待つ課題に「やめになった」が付く。ADR-0066 決めたこと 4・6）。
+   - `Deliverable` は `report`（成果は報告で、地図を直すときだけ PR がある）。`andon issue create` に `deliverable=report` を渡す（正は `issue.yaml`。写しだけでは待つ課題に「やめになった」が付く。ADR-0066 決めたこと 4・6）。
    - `Review` は `off` のまま書く（independent-review の §1 の条件に当たらない）。地図を直す PR はレベル B なので gate がレビューを求め、担当は依頼書の `レビュー:` の行のとおり頼む。`on` に書き直さない。`Reviewer`・`Must fix`・`Review rounds` は、そのレビューと gate が読むので省かない（`must_fix` が無いと gate はオーナーへ回す）。
    - `Merge` は、委譲がこのプロジェクトのマージを任せていれば `auto`（`brief.md` の表）。地図の直しは `.claude/skills/` の中だけなので、gate の条件表で自動でマージできる側に入る。
    - 起動は `start.md` のとおり（枠〈`andon waiting list` の `slots.free`〉とぶつかりの確かめは守る）。枠が無くて待たせた課題も done でないので、1 が次の切り過ぎを止める。

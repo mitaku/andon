@@ -113,6 +113,12 @@ func (c *ctx) resume(stdout, stderr io.Writer, dry, asJSON, fresh bool) error {
 	if s, a := now.Str("status"), now.Str("agent"); s != "doing" || a != p.Agent {
 		return fail("%s の kanban が変わった（status %s・agent %s）。起動していない", id, s, a)
 	}
+	// 依頼書の ## Settings の写しを、起き直す前に予約キーから書き直す（ADR-0053 決めたこと 19。Chief Engineer とレビュアーの課題は触らない）
+	if !settingsKept(p.Profile) {
+		if _, err := writeSettings(c.l, p.BriefPath, now, nil); err != nil {
+			return fail("依頼書 %s の ## Settings の写しを書き直せない: %v。kanban は変えていない", p.BriefPath, err)
+		}
+	}
 	// hc の名前は live の端末の中で1つなので、素のシェルの端末は起動する前に片付ける（中身はシェルだけで、失うものは無い）
 	if p.AgentState == "bare_shell" {
 		if err := spawn.Discard(p.Agent); err != nil {

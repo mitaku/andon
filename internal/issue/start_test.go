@@ -926,7 +926,7 @@ func TestStartFirstMessageGuide(t *testing.T) {
 func TestStartRewritesSettingsCopy(t *testing.T) {
 	const tail = "\n## 根拠\n- 前の課題の記録\n\n## 追記（Chief of Staff）\n- 完了条件に画面の確かめを足す\n"
 	const old = "# タイトル\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: off\n- Must fix: major\n- Merge: person\n- Estimate: 中\n" + tail
-	const want = "# タイトル\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: on\n- Must fix: major\n- Merge: auto\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail
+	const want = "# タイトル\n解決すべき問題: ボタンが無い\n\n## Settings\n- Review: on ★\n- Must fix: major\n- Merge: auto ★\n- Estimate: 中\n- Reviewer: codex-review\n- Review rounds: 2\n" + tail
 	setup := func(t *testing.T) (*startFixture, string) {
 		f := newStart(t)
 		path := filepath.Join(f.root, "kanban", "issues", "S-0007", "brief.md")
@@ -1037,7 +1037,7 @@ func TestWriteSettingsCopyTakesTheKanbanLock(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if got, want := read(t, path), "## Settings\n- Review: on\n"+added; got != want {
+	if got, want := read(t, path), "## Settings\n- Review: on ★\n"+added; got != want {
 		t.Errorf("鍵を持つ書き手の追記が消えた:\n got %q\nwant %q", got, want)
 	}
 }

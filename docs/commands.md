@@ -28,6 +28,7 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 
 | コマンド | 打つ者 | 説明 |
 |---|---|---|
+| `andon issue create` | 役 | 担当の課題を足し、予約キーを書き、依頼書の Settings 欄を予約キーから書く |
 | `andon issue start` | 役・機械 | worktree と branch を切り、担当を起動して kanban start で結ぶ |
 | `andon issue resume` | 役・機械 | 止まった担当・Chief Engineer を同じ worktree でセッションの続きから起動する |
 | `andon issue finish` | 役・機械 | 端末と worktree を片付け、origin に入った branch を消して done にする |
