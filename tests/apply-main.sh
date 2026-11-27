@@ -203,17 +203,19 @@ hold_passlock() {
   done
   fail "鍵を持つ側が 30 秒で見回りの鍵を取らない"
 }
-# 当てる道具が見回りの鍵を待ち始める（鍵のファイルを fd 9 に開いた flock が /proc に現れる）まで待つ（上限 $1 秒）。
+# 当てる道具が見回りの鍵を待ち始めるまで待つ（上限 $1 秒）。待ち始めは、カーネルの /proc/locks に、鍵のファイルの inode を
+# 待って止まっている FLOCK の行（「->」の行）があり、その pid が鍵のファイルを fd 9 に開いていることで見る。プロセスの名前や
+# 開いた fd だけでは見ない（鍵を一度だけ試して放したプロセスも同じ名前と fd を持てる）。
 # 鍵を持つ側がこれを待ってから放すと、道具が鍵を見る前に鍵が外れる道が無くなる（負荷の下でも、鍵を待たない道具を見逃さない）
 cat >"$tmp/lock-waiter" <<'EOF'
 #!/usr/bin/env bash
 lock=$(readlink -f "$PASSLOCK")
+ino=$(stat -c %i "$lock") || exit 1
 for _ in $(seq $(($1 * 10))); do
-  for p in /proc/[0-9]*; do
-    [ "$(readlink "$p/fd/9" 2>/dev/null)" = "$lock" ] || continue
-    mapfile -d '' -t argv 2>/dev/null <"$p/cmdline" || continue
-    [ "${argv[0]##*/}" = flock ] && exit 0
-  done
+  while read -r _ arrow kind _ _ pid id _; do
+    [ "$arrow $kind" = "-> FLOCK" ] && [ "${id##*:}" = "$ino" ] || continue
+    [ "$(readlink "/proc/$pid/fd/9" 2>/dev/null)" = "$lock" ] && exit 0
+  done </proc/locks
   sleep 0.1
 done
 exit 1
@@ -510,7 +512,7 @@ else
 fi
 wait "$holder"
 if grep -q '^lock-waiter-missing' "$CALLS"; then
-  fail "7 戻す道具が見回りの鍵を待たなかった（鍵を fd 9 に開いた flock が 60 秒現れない）: $(cat "$CALLS")"
+  fail "7 戻す道具が見回りの鍵を待たなかった（/proc/locks に鍵を待つ行が 60 秒現れない）: $(cat "$CALLS")"
 elif [ "$(grep -n '^released' "$CALLS" | cut -d: -f1)" -lt "$(grep -n '^hc kill' "$CALLS" | cut -d: -f1)" ]; then
   pass "7 見回りの鍵が外れてから dispatcher を止める"
 else
