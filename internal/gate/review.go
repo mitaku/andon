@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,8 +23,9 @@ func ReviewRequired(tier, review string) bool {
 // review が on なら PR を読まずに要る。off なら PR の差分のレベル（受け入れ条件の manual と risk.one_way で上げる分を含む。
 // review: on で上げる分は含まない）で決め、決めたレベルと理由を返す。on・off のどちらでもなければ要らない（呼ぶ側が断る）。
 // 差分は今の PR のもので、呼ぶ側が PR の head（head）を確かめてから呼ぶ（gate は回すときに自分で読み直す）。
-// 積んだ課題（rows と cos で信じられる stacked_on・stacked_base がある）の差分は、gate と同じく分かれ目から数える（prChanges。ADR-0067 決めたこと 9）。
-func NeedsReview(rows []ledger.Row, cos string, t ledger.Issue, review string, rep *contract.Report, head string) (bool, Classified, error) {
+// 積んだ課題（l の Chief of Staff と rows で信じられる stacked_on・stacked_base がある）の差分は、gate と同じ規則（stackedFrom。
+// PR が前の課題の branch に向いている間だけ分かれ目から）で数える（ADR-0067 決めたこと 9）。l は review が off のときだけ読む。
+func NeedsReview(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue, review string, rep *contract.Report, head string) (bool, Classified, error) {
 	repo := t.Str("repo")
 	switch review {
 	case "on":
@@ -44,8 +46,21 @@ func NeedsReview(rows []ledger.Row, cos string, t ledger.Issue, review string, r
 		return false, Classified{}, err
 	}
 	slug := owner + "/" + name
-	// 積んだ課題は分かれ目から数える。PR の向き先はここでは読まない（gate は、向き先が前の課題の branch でなければ PR の差分で数え直す）
-	_, from, _ := ledger.Stacked(rows, t, cos)
+	// 積んだ課題だけ PR の向き先を読む（積んでいない課題は今までどおり gh を余分に呼ばない）
+	from := ""
+	if _, _, ok := ledger.Stacked(rows, t, l.ChiefOfStaff()); ok {
+		out, err := gh("pr", "view", number, "--repo", slug, "--json", "baseRefName")
+		if err != nil {
+			return false, Classified{}, err
+		}
+		var v struct {
+			BaseRefName string `json:"baseRefName"`
+		}
+		if err := json.Unmarshal(out, &v); err != nil || v.BaseRefName == "" {
+			return false, Classified{}, fmt.Errorf("PR の向き先が読めない: %v", err)
+		}
+		from = stackedFrom(l, rows, t, v.BaseRefName)
+	}
 	files, diff, err := prChanges(from, t, slug, number, head)
 	if err != nil {
 		return false, Classified{}, err

@@ -653,6 +653,17 @@ got=$(gate "$kid" --dry-run)
 jq -e '.tier == "C" and .changed_lines == 4' "$tmp/out" >/dev/null || { cat "$tmp/out" "$tmp/err" >&2; die "既定の branch に向いた積んだ PR を分かれ目から数えた（rc $got）"; }
 grep -q 'changedFiles と合わない' "$tmp/out" || { cat "$tmp/out" >&2; die '既定の branch に向いた積んだ PR の件数を GitHub の数と照らさない'; }
 view15 prev
+# レビューが要るかの判定（review: off の課題の andon issue review-request）も gate と同じ差分で決める: 前の課題の branch に向いた PR は
+# 分かれ目からの docs だけでレベル A なので頼めず、既定の branch に向いた PR は前の課題の Dockerfile ごと数えてレベル C なので頼める
+HC_TERMINAL_ID=t5 kanban set "$kid" status=doing review=off >/dev/null
+rr=0; (cd "$tmp/wt" && HC_TERMINAL_ID=t7 "$andon" issue review-request "$kid" </dev/null) >"$tmp/rr.out" 2>&1 || rr=$?
+[ "$rr" = 1 ] && grep -q 'gate はレビューを求めないので頼めない' "$tmp/rr.out" || { cat "$tmp/rr.out" >&2; die "前の課題の branch に向いた積んだ PR で、分かれ目からの docs だけの差分なのに review-request が頼めた（rc $rr）"; }
+view15 main
+(cd "$tmp/wt" && HC_TERMINAL_ID=t7 "$andon" issue review-request "$kid" </dev/null) >"$tmp/rr.out" 2>&1 || { cat "$tmp/rr.out" >&2; die '既定の branch に向いた積んだ PR で、前の課題の Dockerfile ごと数えずに review-request が断った'; }
+grep -q 'レベル C' "kanban/issues/$kid/report.md" || die "既定の branch に向いた積んだ PR のレビュー依頼の行にレベル C が無い: $(sed -n 1,3p "kanban/issues/$kid/report.md")"
+view15 prev
+HC_TERMINAL_ID=t5 kanban set "$kid" review=on >/dev/null
+HC_TERMINAL_ID=t7 kanban review "$kid" >/dev/null
 # 担当の端末が書き直した分かれ目は信じず、GitHub の混ざった差分で数える
 HC_TERMINAL_ID=t7 kanban set "$kid" stacked_base="$fork" >/dev/null
 got=$(gate "$kid" --dry-run)

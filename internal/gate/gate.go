@@ -387,12 +387,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 
 	// 積んだ課題の差分を分かれ目から数えるのは、PR が前の課題の branch に向いている間だけ。既定の branch などほかへ向いた PR は、
 	// マージで入る中身が分かれ目からの差分より多いことがある（前の課題の変更ごと入る）ので、GitHub の PR の差分で数える
-	from := ""
-	if on, base, ok := ledger.Stacked(rows, t, l.ChiefOfStaff()); ok {
-		if p, err := l.Show(on); err == nil && p.Str("branch") != "" && p.Str("branch") == pv.BaseRefName {
-			from = base
-		}
-	}
+	from := stackedFrom(l, rows, t, pv.BaseRefName)
 	files, diff, err := prChanges(from, t, slug, number, head)
 	if err != nil {
 		return nil, "", err
@@ -595,6 +590,19 @@ func ParseCompare(b []byte) ([]File, int, bool, error) {
 		files = append(files, File{Path: f.Filename, PreviousPath: f.PreviousFilename})
 	}
 	return files, *v.AheadBy, len(*v.Files) >= compareFilesLimit, nil
+}
+
+// stackedFrom は、積んだ課題の差分を数える起点（信じられる stacked_base）。PR の向き先 prBase が前の課題（stacked_on）の branch で
+// なければ空（PR の差分で数える）。gate とレビューが要るかの判定（NeedsReview）は、この1つで決める（ADR-0067 決めたこと 9）。
+func stackedFrom(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue, prBase string) string {
+	on, base, ok := ledger.Stacked(rows, t, l.ChiefOfStaff())
+	if !ok {
+		return ""
+	}
+	if p, err := l.Show(on); err == nil && p.Str("branch") != "" && p.Str("branch") == prBase {
+		return base
+	}
+	return ""
 }
 
 // prChanges は PR の変更したファイルと差分。ふつうは GitHub の PR の files と `gh pr diff` で取り、from（積んだ課題の分かれ目。
