@@ -576,7 +576,10 @@ func written(path string, began time.Time) bool {
 // gate は既定ブランチでここが変わったあとの PR を、rebase して checks を回し直すまで通さない（StaleBaseReason）。
 // 検査の置き場の定義はここだけに置く（ほかの command も CheckPlaceFiles・IsCheckPlace で読む）。
 // Go の検査（*_test.go）も入れる: 既定ブランチに足した Go の検査は、それより前の base の PR が変えたコードを見ていない。
-var CheckPlaces = []string{"tests/**", ".github/workflows/**", ".claude/skills/verify-andon/**", "**/*_test.go"}
+// tray の検査（job tray が回す Workers の検査・ブラウザの検査・端から端の検査と、どれを回すかを決める設定）も入れる。
+// tray のコードと依存（package.json・bun.lock）は検査の置き場でない。
+var CheckPlaces = []string{"tests/**", ".github/workflows/**", ".claude/skills/verify-andon/**", "**/*_test.go",
+	"tray/test/**", "tray/browser/**", "tray/scripts/e2e.mjs", "tray/vitest.config.ts", "tray/playwright.config.ts"}
 
 func IsCheckPlace(path string) bool { return matchAny(CheckPlaces, path) }
 

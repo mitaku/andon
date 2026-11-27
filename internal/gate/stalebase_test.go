@@ -157,6 +157,30 @@ func TestStaleBaseGoTests(t *testing.T) {
 	}
 }
 
+// tray の検査も検査の置き場: job tray が回す検査（Workers の検査・ブラウザの検査・端から端の検査と、その設定）だけが既定ブランチで
+// 変わっても、それより前の base で checks を通した PR は今の tray の検査を通っていない。tray のコードと依存は置き場に入れない。
+func TestStaleBaseTrayChecks(t *testing.T) {
+	moved := []string{"tray/test/list.test.ts", "tray/test/helpers.ts", "tray/browser/screens.spec.ts", "tray/scripts/e2e.mjs",
+		"tray/vitest.config.ts", "tray/playwright.config.ts"}
+	for _, p := range moved {
+		files, _, _, err := ParseCompare([]byte(`{"ahead_by": 1, "files": [{"filename": "` + p + `", "previous_filename": null}]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := Facts{PROpen: true, RepoKnown: true, Tier: "B", MergeLevel: "B", Review: ledger.Review{State: "current"},
+			GitHubChecks: GitHubChecks{State: "success"}, StaleBase: CheckPlaceFiles(RepoTable{}, files)}
+		if d, r := Decide(f); d != "fix" || len(r) != 1 || !strings.HasPrefix(r[0], "base が古い: ") || !strings.Contains(r[0], p) {
+			t.Errorf("%s が既定ブランチで変わったあとの古い base を戻さない: %s %v", p, d, r)
+		}
+	}
+	for _, p := range []string{"tray/src/lib/list-api.ts", "tray/public/app.js", "tray/scripts/serve.mjs", "tray/package.json",
+		"tray/bun.lock", "tray/web/main.tsx", "tray/README.md", "tray/testdata.ts", "tray/browser.ts"} {
+		if IsCheckPlace(p) {
+			t.Errorf("%s は tray の検査の置き場ではない", p)
+		}
+	}
+}
+
 // compare の応答にファイルの一覧が無い（欠けた・null）のに既定ブランチが進んでいれば、読めないとして判定しない
 func TestParseCompareMissingFiles(t *testing.T) {
 	for _, s := range []string{`{"ahead_by": 2}`, `{"ahead_by": 2, "files": null}`} {
