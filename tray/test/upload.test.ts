@@ -5,6 +5,7 @@ import contract from "../contract/upload-v1.json";
 import { sha256Hex } from "../src/lib/http";
 import { listAPI } from "../src/lib/list-api";
 import { viewFace } from "../src/lib/view-face";
+import { OLD_CONTENT_MS, uploadAPI } from "../src/lib/upload-api";
 import upload from "../src/upload";
 import { LIST_ORIGIN, listEnv, putKey, putRequest, UPLOAD_ORIGIN, uploadEnv, viewEnv } from "./helpers";
 
@@ -175,6 +176,44 @@ describe("バージョン", () => {
     // 同じ中身の出し直しは、読めている中身のまま上げない
     const again = await send(await putRequest({ name: "race", title: "A", body: "# A", key }));
     expect(again.body.bumped).toBe(false);
+  });
+});
+
+describe("前の中身の掃除", () => {
+  const keys = async (id: string) => (await env.BUCKET.list({ prefix: `${id}/` })).objects.map((o) => o.key).sort();
+  const at = async (name: string, body: string, now: number, project = "andon") => {
+    const res = await uploadAPI(await putRequest({ project, name, body }), uploadEnv(), "c1", now);
+    return String(((await res.json()) as { url: string }).url).split("/").pop() as string;
+  };
+
+  it("上げ直すと、同じ報告の前の中身のうち R2 に置いてから1日を過ぎたものだけを消す", async () => {
+    const t = Date.now();
+    const id = await at("clean", "1", t);
+    const other = await at("clean", "x", t, "other");
+    await at("clean", "2", t);
+    const [s1, s2, s3, s4] = await Promise.all(["1", "2", "3", "4"].map((b) => sha256Hex(b)));
+    expect(await keys(id), "置いたばかりの前の中身は残す").toEqual([`${id}/${s1}`, `${id}/${s2}`].sort());
+    await at("clean", "3", t + OLD_CONTENT_MS - 60_000);
+    expect(await keys(id), "1日に満たない前の中身は残す").toEqual([`${id}/${s1}`, `${id}/${s2}`, `${id}/${s3}`].sort());
+    await at("clean", "4", t + OLD_CONTENT_MS + 60_000);
+    expect(await keys(id), "1日を過ぎた前の中身を消し、今の中身は残す").toEqual([`${id}/${s4}`]);
+    expect(await keys(other), "ほかの報告の中身には触れない").toHaveLength(1);
+    // 同じ中身の出し直しはバージョンを上げず、何も消さない
+    await at("clean", "4", t + 3 * OLD_CONTENT_MS);
+    expect(await keys(id)).toEqual([`${id}/${s4}`]);
+  });
+
+  it("前の中身を消せなくても、上げは成り立つ", async () => {
+    const broken = new Proxy(env.BUCKET, {
+      get(target, prop) {
+        if (prop === "list") return async () => Promise.reject(new Error("list が落ちた"));
+        return Reflect.get(target, prop).bind(target);
+      },
+    });
+    await uploadAPI(await putRequest({ name: "keep", body: "1" }), uploadEnv(), "c1");
+    const res = await uploadAPI(await putRequest({ name: "keep", body: "2" }), { ...uploadEnv(), BUCKET: broken }, "c1", Date.now() + 2 * OLD_CONTENT_MS);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { version: number }).version).toBe(2);
   });
 });
 

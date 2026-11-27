@@ -63,7 +63,7 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
   if (cur.version > 0 && cur.sha256 === want) return json({ url, version: cur.version, bumped: false });
 
   // R2 は中身ごとのキー（<id>/<sha256>）に先に書き、あとで D1 の sha256 とバージョンを1つの文で切り替える。同じ名前への上げが
-  // 重なっても、D1 が指す sha256 の中身は R2 に必ず在り、タイトルや形式と食い違わない。前の中身は消さない（決めたこと 21）
+  // 重なっても、D1 が指す sha256 の中身は R2 に必ず在り、タイトルや形式と食い違わない。前の中身は、切り替えたあとに dropOld が消す
   await env.BUCKET.put(objectKey(cur.id, want), body, { httpMetadata: { contentType } });
   const up = await env.DB.prepare(
     `UPDATE reports SET version = version + 1, sha256 = ?2, title = ?3, kind = ?4, content_type = ?5, size = ?6, updated_at = ?7
@@ -73,7 +73,26 @@ async function put(req: Request, env: UploadEnv, cell: string, project: string, 
     .first<{ version: number }>();
   if (!up) return error(500, "internal", "バージョンを上げられない");
   await env.DB.prepare("INSERT INTO uploads (report_id, version, at) VALUES (?1, ?2, ?3)").bind(cur.id, up.version, now).run();
+  await dropOld(env.BUCKET, cur.id, want, now);
   return json({ url, version: up.version, bumped: true });
+}
+
+// OLD_CONTENT_MS: 上げ直しで指されなくなった前の中身を、R2 に置いてから何ミリ秒で消すか（1日）。
+// 署名付き URL（5分）で開きかけた前の中身と、同じ名前へ重なって上がった中身（D1 が指す前に R2 に在る）を消さない幅
+export const OLD_CONTENT_MS = 24 * 60 * 60 * 1000;
+
+// dropOld: 同じ報告の前の中身のうち、R2 に置いてから OLD_CONTENT_MS を過ぎたものを消す。上げ直しのたびに、その報告の分だけを見る
+// （定期の処理を持たない）。消せなくても上げは成り立つ（次の上げ直しでまた消す）
+async function dropOld(bucket: R2Bucket, id: string, keep: string, now: number) {
+  try {
+    const listed = await bucket.list({ prefix: `${id}/` });
+    const old = listed.objects
+      .filter((o) => o.key !== objectKey(id, keep) && now - o.uploaded.getTime() > OLD_CONTENT_MS)
+      .map((o) => o.key);
+    if (old.length > 0) await bucket.delete(old);
+  } catch {
+    // 掃除の失敗で上げを落とさない
+  }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
