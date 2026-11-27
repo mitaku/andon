@@ -333,7 +333,8 @@ jq -e --arg r "$rev" --arg b "$fork" 'select(.id == $r and .change.review_base =
 grep -qF "git diff $fork..$head" "$L/issues/$rev/brief.md" || die "積んだ課題のレビュアーの依頼書が分かれ目から読ませない: $(grep -n 差分 "$L/issues/$rev/brief.md")"
 if grep -qF "gh pr diff https://github.com/example/app/pull/7" "$L/issues/$rev/brief.md"; then die '積んだ課題のレビュアーの依頼書が gh pr diff を読ませた'; fi
 # 否定の確かめが当たる場合があることを同じ所で見る: 積んでいない課題（0e まで）の依頼書は gh pr diff を読ませる
-grep -lF "gh pr diff https://github.com/example/app/pull/7" "$L"/issues/*-r1/brief.md | grep -qv "/$rev/" || die '積んでいない課題の依頼書にも gh pr diff が無い（否定の確かめが何も見ていない）'
+plain=$(grep -lF "gh pr diff https://github.com/example/app/pull/7" "$L"/issues/*-r1/brief.md || true)
+grep -qv "/$rev/" <<<"$plain" || die '積んでいない課題の依頼書にも gh pr diff が無い（否定の確かめが何も見ていない）'
 HC_TERMINAL_ID=dispatcher kanban done "$rev" --force >/dev/null; HC_TERMINAL_ID=t5 kanban done "$id" >/dev/null; HC_TERMINAL_ID=t5 kanban done "$prv" --force >/dev/null
 ok '積んだ課題のレビュアーを起動するとき、dispatcher が分かれ目を review_base に書き、依頼書に git diff <分かれ目>..<commit> で読むよう書く'
 
