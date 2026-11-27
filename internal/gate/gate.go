@@ -385,15 +385,15 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
 	}
 
-	files, err := PRFiles(slug, number)
+	// 積んだ課題の差分を分かれ目から数えるのは、PR が前の課題の branch に向いている間だけ。既定の branch などほかへ向いた PR は、
+	// マージで入る中身が分かれ目からの差分より多いことがある（前の課題の変更ごと入る）ので、GitHub の PR の差分で数える
+	from := stackedFrom(l, rows, t, pv.BaseRefName)
+	files, diff, err := prChanges(from, t, slug, number, head)
 	if err != nil {
 		return nil, "", err
 	}
-	diff, err := gh("pr", "diff", number, "--repo", slug)
-	if err != nil {
-		return nil, "", err
-	}
-	if len(files) != pv.ChangedFiles {
+	if from == "" && len(files) != pv.ChangedFiles {
+		// 積んだ課題のファイルは分かれ目から数えるので、GitHub の数（PR の base との数）とは比べない
 		facts.Blockers = append(facts.Blockers, "files の件数が changedFiles と合わない（一覧の上限・取得中の変更）")
 	}
 	// 衝突は mergeable でも読む: 必須の check が足りない PR は mergeStateStatus が BLOCKED になり、
@@ -590,6 +590,37 @@ func ParseCompare(b []byte) ([]File, int, bool, error) {
 		files = append(files, File{Path: f.Filename, PreviousPath: f.PreviousFilename})
 	}
 	return files, *v.AheadBy, len(*v.Files) >= compareFilesLimit, nil
+}
+
+// stackedFrom は、積んだ課題の差分を数える起点（信じられる stacked_base）。PR の向き先 prBase が前の課題（stacked_on）の branch で
+// なければ空（PR の差分で数える）。gate とレビューが要るかの判定（NeedsReview）は、この1つで決める（ADR-0067 決めたこと 9）。
+func stackedFrom(l *ledger.Ledger, rows []ledger.Row, t ledger.Issue, prBase string) string {
+	on, base, ok := ledger.Stacked(rows, t, l.ChiefOfStaff())
+	if !ok {
+		return ""
+	}
+	if p, err := l.Show(on); err == nil && p.Str("branch") != "" && p.Str("branch") == prBase {
+		return base
+	}
+	return ""
+}
+
+// prChanges は PR の変更したファイルと差分。ふつうは GitHub の PR の files と `gh pr diff` で取り、from（積んだ課題の分かれ目。
+// 信じられる stacked_base。ledger.Stacked）が空でなければ、from から head までで取る（StackedDiff。ADR-0067 決めたこと 9）。
+// gate とレビューが要るかの判定（NeedsReview）は、この1つで差分を取る。
+func prChanges(from string, t ledger.Issue, slug, number, head string) ([]File, []byte, error) {
+	if from != "" {
+		return StackedDiff(t.Str("repo"), from, head)
+	}
+	files, err := PRFiles(slug, number)
+	if err != nil {
+		return nil, nil, err
+	}
+	diff, err := gh("pr", "diff", number, "--repo", slug)
+	if err != nil {
+		return nil, nil, err
+	}
+	return files, diff, nil
 }
 
 // PRFiles は PR の変更されたファイル（REST を全ページ。GraphQL の files は100件で切れ、rename 元も無い）。

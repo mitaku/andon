@@ -47,7 +47,10 @@ func (l *Ledger) CheckReview(rows []Row, tasks []Issue, t Issue, head, mustFix s
 		return r
 	}
 	r.Issue, r.Commit = reviewer, f.Commit
-	if f.Commit != head && !SamePatch(t.Path("worktree"), f.Commit, head) {
+	// 差分の起点: レビューが見た差分はレビュアーの課題に控えた review_base（dispatcher が書いた値だけ）から、今の head の差分は
+	// 積んでいる間（信じられる stacked_base が在る間）は分かれ目から。どちらも無ければ既定の branch との merge-base から（ADR-0067 決めたこと 9）
+	_, headBase, _ := Stacked(rows, t, l.ChiefOfStaff())
+	if f.Commit != head && !SamePatchFrom(t.Path("worktree"), f.Commit, ReviewBase(rows, issueByID(tasks, reviewer)), head, headBase) {
 		r.State = "stale"
 		r.Reason = fmt.Sprintf("レビュー %s は commit %s を見た（head は %s）。頼み直す", reviewer, short(f.Commit), short(head))
 		return r
@@ -102,15 +105,31 @@ func (l *Ledger) previousFiles(earlier []string, commit string) map[string]bool 
 // git patch-id は空白の違いを無視するので使わない（文字列の中の空白だけが変わった差分を同じと見て、見ていない変更のレビューを引き継ぐ）。
 // worktree が無い・commit が無い・origin/HEAD が引けない・差分が空のときは同じと言わない（引き継がずに頼み直す側に倒す）。
 func SamePatch(dir, a, b string) bool {
+	return SamePatchFrom(dir, a, "", b, "")
+}
+
+// SamePatchFrom は SamePatch と同じ比べを、それぞれの差分の起点を名指して行う（ADR-0067 決めたこと 9）。起点 aBase・bBase が空なら
+// 既定の branch との merge-base から数え、空でなければその commit から数える（積んだ課題の分かれ目と、レビュアーの課題に控えた
+// review_base）。名指した起点が commit の祖先でなければ同じと言わない（キーと commit が食い違う。頼み直す側に倒す）。
+func SamePatchFrom(dir, a, aBase, b, bBase string) bool {
 	if dir == "" || a == "" || b == "" {
 		return false
 	}
-	pa, ok := prDiff(dir, a)
+	pa, ok := prDiff(dir, a, aBase)
 	if !ok {
 		return false
 	}
-	pb, ok := prDiff(dir, b)
+	pb, ok := prDiff(dir, b, bBase)
 	return ok && bytes.Equal(pa, pb)
+}
+
+func issueByID(tasks []Issue, id string) Issue {
+	for _, c := range tasks {
+		if CanonID(c.Str("id")) == CanonID(id) {
+			return c
+		}
+	}
+	return Issue{"id": id}
 }
 
 var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+[0-9]+(?:,[0-9]+)? @@ ?(.*)$`)
@@ -120,13 +139,19 @@ var hunkRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+[0-9]+(?:,[0-9]+)? @@
 // それぞれ hunk の見出しの囲みの行を添える。「\ No newline at end of file」の行は直前の行に付ける。消した行と足した行を
 // 分けて並べるので、main が PR の変えた行の間に行を足して hunk が割れても同じになる。差分はバイナリの中身も含める
 // （--binary。含めないと中身の違うバイナリが同じに見える）。rename は git の設定に依らず見ない（--no-renames）。
-func prDiff(dir, commit string) ([]byte, bool) {
+// from が空でなければ、既定の branch との merge-base の代わりに from から数える（from が commit の祖先のときだけ）。
+func prDiff(dir, commit, from string) ([]byte, bool) {
 	git := func(args ...string) ([]byte, bool) {
 		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
 		return out, err == nil
 	}
-	base, ok := git("merge-base", commit+"^{commit}", "refs/remotes/origin/HEAD")
-	if !ok {
+	base := []byte(from)
+	if from == "" {
+		var ok bool
+		if base, ok = git("merge-base", commit+"^{commit}", "refs/remotes/origin/HEAD"); !ok {
+			return nil, false
+		}
+	} else if _, ok := git("merge-base", "--is-ancestor", from+"^{commit}", commit+"^{commit}"); !ok {
 		return nil, false
 	}
 	diff, ok := git("diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--binary", "--full-index",

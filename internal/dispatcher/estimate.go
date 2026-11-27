@@ -73,7 +73,8 @@ func (p *project) estimate(now time.Time, cos string) {
 			"ratio":            math.Round(ratio*100) / 100,
 			"stage":            top,
 		}
-		if s := signs(t.Str("worktree"), est, now); len(s) > 0 {
+		_, from, _ := ledger.Stacked(p.rows, t, cos)
+		if s := signs(t.Str("worktree"), from, est, now); len(s) > 0 {
 			detail["sign"] = s
 		}
 		p.notify(id, "estimate", detail)
@@ -108,7 +109,9 @@ const diffLimit = 500
 // signs は段の estimate に乗せる詰まりの兆し（ADR-0017 決めたこと 11）を、課題の worktree の git で数える。
 // no-commit: worktree の HEAD の commit から見込みの分より長く経った。large-diff: origin/HEAD との merge-base から
 // 作業ツリーまでの変更（追跡しているファイル。テストを除く）が diffLimit 行を超えた。worktree が無い・git で読めない兆しは数えない。
-func signs(wt string, est int, now time.Time) []string {
+// from は積んだ課題の分かれ目（信じられる stacked_base）で、空でなければ merge-base の代わりにそこから数える（前の課題の変更を数えない。
+// ADR-0067 決めたこと 9）。
+func signs(wt, from string, est int, now time.Time) []string {
 	if wt == "" {
 		return nil
 	}
@@ -122,7 +125,11 @@ func signs(wt string, est int, now time.Time) []string {
 			s = append(s, "no-commit")
 		}
 	}
-	if base, ok := git("merge-base", "HEAD", "origin/HEAD"); ok {
+	base, ok := from, from != ""
+	if !ok {
+		base, ok = git("merge-base", "HEAD", "origin/HEAD")
+	}
+	if ok {
 		if out, ok := git("diff", "--numstat", "--no-renames", base); ok && changedLines(out) > diffLimit {
 			s = append(s, "large-diff")
 		}

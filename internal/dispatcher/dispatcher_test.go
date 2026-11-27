@@ -167,7 +167,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 	rep := &contract.Report{PR: "https://github.com/example/app/pull/7",
 		ReviewRequest: &contract.ReviewRequest{Round: 2, Limit: 2, Commit: strings.Repeat("b", 40), Previous: &prev, Reviewer: "codex-review"}}
 	task := ledger.Issue{"id": "D-1", "agent": "t7"}
-	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, span{}, "example/app", "7")
+	b := reviewerBrief(l, task, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, span{}, "example/app", "7", "")
 	for _, want := range []string{
 		"hc send t7 ", "Chief of Staff・dispatcher へは送らない", "宛先はこの1つだけ",
 		"`" + filepath.Join(l.Dir, "issues", "D-1-r2", "library", "findings.json") + "`",
@@ -181,7 +181,7 @@ func TestReviewerBriefAddressesTheWorker(t *testing.T) {
 			t.Errorf("依頼書に %q が無い:\n%s", want, b)
 		}
 	}
-	if b2 := reviewerBrief(l, ledger.Issue{"id": "D-1"}, rep, Reviewer{Issue: "D-1", Round: 2}, span{}, "example/app", "7"); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
+	if b2 := reviewerBrief(l, ledger.Issue{"id": "D-1"}, rep, Reviewer{Issue: "D-1", Round: 2}, span{}, "example/app", "7", ""); strings.Contains(b2, "hc send") || !strings.Contains(b2, "（まだ無い）") {
 		t.Errorf("担当がいないのに宛先を書いた:\n%s", b2)
 	}
 }
@@ -191,7 +191,7 @@ func TestFirstReviewBriefStartsAtMergeBase(t *testing.T) {
 	rep := &contract.Report{PR: pr, ReviewRequest: &contract.ReviewRequest{Round: 1, Limit: 2, Commit: head, Reviewer: "codex-review"}}
 	l := ledger.At(filepath.Join(t.TempDir(), "demo"))
 	brief := func() string {
-		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 1, Worktree: "/w/demo-D-1-r1"}, span{}, "example/app", "7")
+		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 1, Worktree: "/w/demo-D-1-r1"}, span{}, "example/app", "7", "")
 	}
 	has := func(name, text, commit, pr string) {
 		t.Helper()
@@ -293,10 +293,10 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 	l := ledger.At(filepath.Join(t.TempDir(), "demo"))
 	brief := func(p, c string, sp span) string {
 		rep := &contract.Report{PR: pr, ReviewRequest: &contract.ReviewRequest{Round: 2, Limit: 2, Commit: c, Previous: &p, Reviewer: "codex-review"}}
-		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, sp, "example/app", "7")
+		return reviewerBrief(l, ledger.Issue{"id": "D-1", "agent": "t7"}, rep, Reviewer{Issue: "D-1", Round: 2, Worktree: "/w/demo-D-1-r2"}, sp, "example/app", "7", "")
 	}
 
-	sp := reviewSpan(dir, url, pr, prev, head)
+	sp := reviewSpan(dir, url, pr, prev, head, "", "")
 	if sp != (span{Rebased: true, Old: oldBase, New: newBase}) {
 		t.Fatalf("rebase をまたいだ範囲 = %+v（want Old %s New %s）", sp, oldBase, newBase)
 	}
@@ -322,7 +322,7 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 	git("commit", "-q", "-am", "fix2")
 	next := git("rev-parse", "HEAD")
 	os.Remove(calls)
-	if sp := reviewSpan(dir, url, pr, head, next); sp != (span{}) {
+	if sp := reviewSpan(dir, url, pr, head, next, "", ""); sp != (span{}) {
 		t.Errorf("祖先の再レビューの範囲 = %+v", sp)
 	}
 	if _, err := os.Stat(calls); err == nil {
@@ -335,7 +335,7 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "ghfail"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sp = reviewSpan(dir, url, pr, prev, head)
+	sp = reviewSpan(dir, url, pr, prev, head, "", "")
 	if sp != (span{Rebased: true}) {
 		t.Errorf("base が読めないときの範囲 = %+v", sp)
 	}
@@ -344,7 +344,7 @@ func TestReviewSpanAcrossRebase(t *testing.T) {
 	}
 
 	gone := strings.Repeat("c", 40)
-	sp = reviewSpan(dir, url, pr, gone, head)
+	sp = reviewSpan(dir, url, pr, gone, head, "", "")
 	if sp != (span{Unknown: true}) {
 		t.Errorf("前の回の commit が無いときの範囲 = %+v", sp)
 	}

@@ -93,7 +93,7 @@ func TestReReviewRangeReadsBack(t *testing.T) {
 		{"rebase（base を読めた）", span{Rebased: true, Old: mb, New: mb}, true},
 		{"rebase（base を読めない）", span{Rebased: true}, true},
 	} {
-		got, rebased := ledger.BriefReReview(reReviewRange(prev, cur, "https://github.com/example/app/pull/7", c.sp))
+		got, rebased := ledger.BriefReReview(reReviewRange(prev, cur, "`gh pr diff https://github.com/example/app/pull/7`", c.sp))
 		if got != prev || rebased != c.rebased {
 			t.Errorf("%s: 前の回 %q・rebase %v（want %q・%v）", c.name, got, rebased, prev, c.rebased)
 		}

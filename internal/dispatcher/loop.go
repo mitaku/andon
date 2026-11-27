@@ -218,6 +218,33 @@ func (p *project) startLedger(rev, addr, wt string) error {
 	return err
 }
 
+// reviewBaseOf は、レビュアーの課題 rev に控えた信じられる review_base（ledger.ReviewBase。今の見回りの一覧と行で読む）。
+func (p *project) reviewBaseOf(rev string) string {
+	for _, c := range p.tasks {
+		if c.Str("id") == rev {
+			return ledger.ReviewBase(p.rows, c)
+		}
+	}
+	return ""
+}
+
+// previousReviewBase は、課題 id の前の回のレビュー（findings.json の commit が prev のレビュアーの課題。いちばん新しいもの）に
+// 控えた信じられる review_base。無ければ空（再レビューの起点は、今までどおり既定の branch との merge-base から数える）。
+func (p *project) previousReviewBase(id, prev string) string {
+	base, at := "", ""
+	for _, c := range p.tasks {
+		if c.Str("parent") != id || !strings.HasSuffix(c.Str("profile"), "-review") {
+			continue
+		}
+		f, err := contract.ReadFindings(filepath.Join(p.l.Library(c.Str("id")), "findings.json"))
+		if err != nil || f.Commit != prev || c.Str("updated") < at {
+			continue
+		}
+		base, at = ledger.ReviewBase(p.rows, c), c.Str("updated")
+	}
+	return base
+}
+
 func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewer) (why string, final bool) {
 	id, rr, s := t.Str("id"), rep.ReviewRequest, ledger.SettingsOf(t)
 	limit, _ := strconv.Atoi(s.ReviewRounds)
@@ -245,7 +272,7 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 		return fmt.Sprintf("review_request の commit（%s）が PR の head（%s）と違う", rr.Commit[:12], head[:12]), true
 	}
 	if s.Review == "off" {
-		need, cl, err := gate.NeedsReview(r.Repo, s.Review, rep)
+		need, cl, err := gate.NeedsReview(p.l, p.rows, t, s.Review, rep, rr.Commit)
 		if err != nil {
 			return "差分のレベルを決められない: " + err.Error(), false
 		}
@@ -276,18 +303,26 @@ func (p *project) startReviewer(t ledger.Issue, rep *contract.Report, r *Reviewe
 	}
 
 	title := fmt.Sprintf("%s のレビュー（%d 回目）", id, rr.Round)
+	// 積んだ課題（信じられる stacked_on・stacked_base がある）の差分は、分かれ目から数える。起点をレビュアーの課題に
+	// review_base で控え（照合は dispatcher が書いたこの値だけを信じる）、依頼書に git diff <起点>..<commit> で読むよう書く（ADR-0067 決めたこと 9）
+	_, from, _ := ledger.Stacked(p.rows, t, p.l.ChiefOfStaff())
 	if r.ReviewerIssue == "" {
 		var sp span
 		if rr.Previous != nil {
-			sp = reviewSpan(dir, "https://github.com/"+owner+"/"+name, rep.PR, *rr.Previous, rr.Commit)
+			sp = reviewSpan(dir, "https://github.com/"+owner+"/"+name, rep.PR, *rr.Previous, rr.Commit, p.previousReviewBase(id, *rr.Previous), from)
 		}
-		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, sp, owner+"/"+name, number), "add", title, "--profile", s.Reviewer, "--parent", id, "--round", strconv.Itoa(rr.Round), "--brief", "-")
+		rev, err := p.l.Run(reviewerBrief(p.l, t, rep, *r, sp, owner+"/"+name, number, from), "add", title, "--profile", s.Reviewer, "--parent", id, "--round", strconv.Itoa(rr.Round), "--brief", "-")
 		if err != nil || !idRe.MatchString(rev) {
 			return fmt.Sprintf("レビュアーの課題を足せない: %v %q", err, rev), false
 		}
 		r.ReviewerIssue = rev
 	}
 	rev := r.ReviewerIssue
+	if from != "" && p.reviewBaseOf(rev) != from {
+		if _, err := p.l.Run("", "set", rev, "review_base="+from); err != nil {
+			return fmt.Sprintf("%s の kanban に review_base を書けない（todo のまま。次の見回りで書き直す）: %v", rev, err), false
+		}
+	}
 	if term := strings.ToLower(p.l.Slug + "-" + rev); !nameRe.MatchString(term) {
 		return fmt.Sprintf("端末の名前 %s が hc の決まりに合わない（%s は todo のまま残る）", term, rev), true
 	}
@@ -409,7 +444,8 @@ func workerPlace(agent string) []string {
 // 結果の宛先は元の課題の担当（issue.yaml の agent）に固定する。Chief of Staff へは送らない（dispatcher が届ける）。
 // 1回目の差分の読み方は firstReviewRange。再レビューの差分の範囲は sp（reviewSpan）で決める。前の回の commit が今の commit の祖先なら `git diff 前..今`、
 // rebase をまたいだら PR 自身の差分どうしの違い（`git range-diff`）、確かめられなければレビュアーが確かめる手順。
-func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Reviewer, sp span, repo, number string) string {
+// from は積んだ課題の分かれ目（空でなければ、差分は from から commit まで。gh pr diff は前の課題の変更が混ざるので使わせない）。
+func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Reviewer, sp span, repo, number, from string) string {
 	rr := rep.ReviewRequest
 	agent := t.Str("agent")
 	// 置き場は絶対パスで渡す。相対（「自分の課題の library/」）だと kanban の外（<slug>/issues/）に書いたレビュアーがいた（A-0216）。
@@ -418,11 +454,20 @@ func reviewerBrief(l *ledger.Ledger, t ledger.Issue, rep *contract.Report, r Rev
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s のレビュー（%d 回目）\n", r.Issue, r.Round)
 	fmt.Fprintf(&b, "PR #%s（%s）を独立にレビューする。読むだけ。\n", number, repo)
-	fmt.Fprintf(&b, "対象: worktree `%s`（detached）。commit %s。差分は `gh pr diff %s`（PR の base との差）。\n", r.Worktree, rr.Commit, rep.PR)
-	if rr.Previous != nil {
-		b.WriteString(reReviewRange(*rr.Previous, rr.Commit, rep.PR, sp))
-		b.WriteString("この回は直しの確認だけ: 前の回の指摘が直ったか・直しが壊していないか。新しい指摘は critical で、起きる条件と証拠（具体的な入力 → 結果）があるものだけ書く（gate も、前の回に無い file の critical でない指摘は数えない）。\n")
+	whole := fmt.Sprintf("`gh pr diff %s`", rep.PR)
+	if from != "" {
+		whole = fmt.Sprintf("`git diff %s..%s`", from, rr.Commit)
+		fmt.Fprintf(&b, "対象: worktree `%s`（detached）。commit %s。差分は %s（前の課題の PR の上に積んだ課題なので、分かれ目 %s からの差）。\n", r.Worktree, rr.Commit, whole, from)
 	} else {
+		fmt.Fprintf(&b, "対象: worktree `%s`（detached）。commit %s。差分は %s（PR の base との差）。\n", r.Worktree, rr.Commit, whole)
+	}
+	switch {
+	case rr.Previous != nil:
+		b.WriteString(reReviewRange(*rr.Previous, rr.Commit, whole, sp))
+		b.WriteString("この回は直しの確認だけ: 前の回の指摘が直ったか・直しが壊していないか。新しい指摘は critical で、起きる条件と証拠（具体的な入力 → 結果）があるものだけ書く（gate も、前の回に無い file の critical でない指摘は数えない）。\n")
+	case from != "":
+		b.WriteString(firstStackedRange(from, rr.Commit))
+	default:
 		b.WriteString(firstReviewRange(rr.Commit, rep.PR))
 	}
 	fmt.Fprintf(&b, "仕様の正: 元の課題の依頼書 `%s` の完了条件と、repo の README・docs/ のうち差分が触る節。\n", filepath.Join(l.Dir, "issues", r.Issue, "brief.md"))
@@ -465,6 +510,16 @@ func firstReviewRange(commit, pr string) string {
 		commit, pr, commit, pr)
 }
 
+// firstStackedRange は、積んだ課題の1回目の依頼書の、差分の読み方の段（ADR-0067 決めたこと 9）。PR の向き先は前の課題の branch で、
+// 前の課題の PR が rebase で書き直されると、`gh pr diff` と PR の base との merge-base の差分に前の課題の古い commit が混ざる。
+func firstStackedRange(from, commit string) string {
+	return fmt.Sprintf("この課題は前の課題の PR の上に積んである。差分は分かれ目から数える: `git diff %s..%s`（対象の worktree で打つ）。"+
+		"`gh pr diff` と、PR の base との merge-base からの差分は、前の課題の変更が混ざるので使わない。"+
+		"指摘を書く前に、指摘する file がこの差分にあるかを `git diff --name-status %s..%s` で確かめる（名前を変えた file の元のパスも差分に数える）。差分に無い file の変更や削除はこの課題のものと読まない。"+
+		"差分に無い file を指すなら、差分のどの行か、どの完了条件による指摘かを報告に書く（課題の前からあった問題は preexisting: true）。\n",
+		from, commit, from, commit)
+}
+
 type span struct {
 	Unknown bool
 	Rebased bool
@@ -476,7 +531,10 @@ type span struct {
 // 祖先でなければ `git diff prev..commit` は base に入ったほかの変更まで含む（rebase をまたいだ再レビューで、PR の 36 ファイルに
 // 対し 140 ファイルを見せていた）。そのときは PR の base の今の先頭（gh の baseRefOid）を fetch し、それぞれの merge-base を返す。
 // prev が手元に無ければ url から fetch して確かめ直す。読めないものがあれば Unknown か、Old・New を空のまま返す（依頼書が手順で補う）。
-func reviewSpan(dir, url, pr, prev, commit string) span {
+// 起点を名指せるときは merge-base の代わりにそれを使う（ADR-0067 決めたこと 9）。oldFrom は前の回のレビュアーの課題に控えた
+// review_base（積んでいた間のレビュー）、newFrom は今の commit が積んだままなら分かれ目。前の課題が squash で入ったあとの再レビューで、
+// 前の回の範囲に前の課題の commit を混ぜない。
+func reviewSpan(dir, url, pr, prev, commit, oldFrom, newFrom string) span {
 	git := func(args ...string) (string, int, error) {
 		return run("", nil, "", "git", append([]string{"-C", dir}, args...)...)
 	}
@@ -500,6 +558,10 @@ func reviewSpan(dir, url, pr, prev, commit string) span {
 		return span{Unknown: true}
 	}
 	sp := span{Rebased: true}
+	if oldFrom != "" && newFrom != "" {
+		sp.Old, sp.New = oldFrom, newFrom
+		return sp
+	}
 	out, _, err := run("", nil, "", "gh", "pr", "view", pr, "--json", "baseRefOid", "-q", ".baseRefOid")
 	base := strings.TrimSpace(out)
 	if err != nil || !contract.IsSHA(base) {
@@ -515,30 +577,37 @@ func reviewSpan(dir, url, pr, prev, commit string) span {
 	if o, n = strings.TrimSpace(o), strings.TrimSpace(n); oerr == nil && nerr == nil && contract.IsSHA(o) && contract.IsSHA(n) {
 		sp.Old, sp.New = o, n
 	}
+	if sp.Old != "" && oldFrom != "" {
+		sp.Old = oldFrom
+	}
+	if sp.New != "" && newFrom != "" {
+		sp.New = newFrom
+	}
 	return sp
 }
 
-func reReviewRange(prev, commit, pr string, sp span) string {
+// whole は今の差分全体を読む command（`gh pr diff <pr>`。積んだ課題は `git diff <分かれ目>..<commit>`）。
+func reReviewRange(prev, commit, whole string, sp span) string {
 	const tail = "前の回に「問題なし」の観点はやり直さない。\n"
 	switch {
 	case sp.Unknown:
 		return fmt.Sprintf("再レビュー: 前の回の commit %s。dispatcher はこれが今の commit の祖先か確かめられなかった。"+
 			"先に `git merge-base --is-ancestor %s %s` を打ち、通れば見るのは `git diff %s..%s` だけ。"+
-			"通らなければ rebase をまたいでいて、`git diff` は base に入ったほかの変更まで含むので使わない。PR 自身の差分 `gh pr diff %s` で、前の回の指摘の所を見る。"+tail,
-			prev, prev, commit, prev, commit, pr)
+			"通らなければ rebase をまたいでいて、`git diff` は base に入ったほかの変更まで含むので使わない。PR 自身の差分 %s で、前の回の指摘の所を見る。"+tail,
+			prev, prev, commit, prev, commit, whole)
 	case sp.Rebased && sp.Old != "":
 		return fmt.Sprintf("再レビュー: 前の回の commit %s。"+ledger.RebasedMark+"。"+
 			"`git diff %s..%s` は base に入ったほかの変更まで含むので使わない。"+
 			"見るのは PR 自身の差分どうしの違い `git range-diff %s..%s %s..%s` だけ（それぞれの commit と PR の base の merge-base から数えた PR の commit を、前の回と今の回で突き合わせる）。"+
 			"読み方: commit の対応の行の `=` は中身が同じ、`!` は変わった（下に差分の差分。1列目の `-`・`+` が前の回から今の回への違い、2列目は PR の差分そのものの印。rebase で衝突を解いた行もここに出る）、"+
 			"`<` は消えた commit、`>` は今の回で足した commit で、中身は出ないので `git show <その commit>` で読む。"+
-			"直しを前後ごと読むときは `gh pr diff %s`（今の PR の差分全体）の該当の所を見る。"+tail,
-			prev, prev, commit, sp.Old, prev, sp.New, commit, pr)
+			"直しを前後ごと読むときは %s（今の PR の差分全体）の該当の所を見る。"+tail,
+			prev, prev, commit, sp.Old, prev, sp.New, commit, whole)
 	case sp.Rebased:
 		return fmt.Sprintf("再レビュー: 前の回の commit %s。"+ledger.RebasedMark+"。"+
 			"`git diff %s..%s` は base に入ったほかの変更まで含むので使わない（dispatcher は PR の base を読めなかった）。"+
-			"PR 自身の差分 `gh pr diff %s` で、前の回の指摘の所を見る。"+tail,
-			prev, prev, commit, pr)
+			"PR 自身の差分 %s で、前の回の指摘の所を見る。"+tail,
+			prev, prev, commit, whole)
 	}
 	return fmt.Sprintf("再レビュー: 前の回の commit %s。見るのは `git diff %s..%s` だけ。"+tail, prev, prev, commit)
 }

@@ -104,4 +104,49 @@ ok "v2 の kanban は全部の sub command が「$want」の1行で止まり、�
 ) || die "手で移した v2 の写しが lint を通らない・読めない"
 ok "v2 の kanban の写しに手で移す手順を当てると kanban の CLI の lint が通り、list・show が読める"
 
+# 8. 積んだ課題（ADR-0067 決めたこと 5・受け入れ条件 3・16）: Chief of Staff の端末が書いた stacked_on が名指す課題は待つ相手に数えず、
+#    前の課題が review のままでも doing に戻れる。担当の端末が書いた stacked_on は信じず、今までどおり断り、kanban ready にも出ない
+st=$tmp/stacked
+mkdir -p "$st"
+cd "$st"
+"$kanban" init --prefix S >/dev/null
+"$kanban" config set chief_of_staff=t5 >/dev/null
+k() { HC_TERMINAL_ID=$1 "$kanban" "${@:2}"; }
+base=$(printf 'a%.0s' $(seq 40))
+prev=$(k t5 add '前の課題')
+k t7 start "$prev" >/dev/null
+k t7 review "$prev" >/dev/null
+lone=$(k t5 add '積まない後ろの課題' --after "$prev")
+next=$(k t5 add '積んだ後ろの課題' --after "$prev")
+[ "$("$kanban" show "$next" --json | jq -r .issue.status)" = queued ] || die "after の残る課題が queued でない"
+# 担当の端末（t9）が自分で書いたキーは信じない
+k t9 set "$next" stacked_on="$prev" stacked_base="$base" >/dev/null
+if k t9 start "$next" >/dev/null 2>"$tmp/st.err"; then die "担当の端末が書いた stacked_on で kanban start が通った"; fi
+grep -q "waits for $prev" "$tmp/st.err" || die "担当の端末が書いた stacked_on の断りの文: $(cat "$tmp/st.err")"
+if grep -q "$next" <<<"$("$kanban" ready)"; then die "担当の端末が書いた stacked_on で kanban ready に出た"; fi
+# 否定の grep が当たる場合があることを同じ所で確かめる: 待つ相手の無い課題は kanban ready に出る
+free=$(k t5 add '待つ相手の無い課題')
+grep -q "$free" <<<"$("$kanban" ready)" || die "kanban ready が待つ相手の無い課題を出さない（否定の grep が何も見ていない）"
+ok "担当の端末が kanban set で書いた stacked_on では、kanban start が今までどおり断り、kanban ready にも出ない"
+# Chief of Staff の端末が書き直すと、前の課題が review のままでも起動でき、review から doing に戻れる
+k t5 set "$next" stacked_on="$prev" stacked_base="$base" >/dev/null
+grep -q "$next" <<<"$("$kanban" ready)" || die "Chief of Staff の端末が書いた stacked_on で kanban ready に出ない"
+k t9 start "$next" >/dev/null || die "Chief of Staff の端末が書いた stacked_on で kanban start が断った"
+k t9 review "$next" >/dev/null
+k t9 start "$next" >/dev/null || die "積んだ課題が review から doing に戻れない"
+[ "$("$kanban" show "$next" --json | jq -r '.issue.status + " " + (.issue.after | join(","))')" = "doing $prev" ] || die "積んだ課題の status か after が変わった"
+[ "$("$kanban" show "$prev" --json | jq -r .issue.status)" = review ] || die "前の課題が review でない"
+# 担当が分かれ目だけを書き換えると、2 つとも信じない
+k t9 review "$next" >/dev/null
+k t9 set "$next" stacked_base="$(printf 'b%.0s' $(seq 40))" >/dev/null
+if k t9 start "$next" >/dev/null 2>&1; then die "担当が stacked_base を書き換えたのに kanban start が通った"; fi
+ok "Chief of Staff の端末が書いた stacked_on の課題は、前の課題が review のままでも review から kanban start で doing に戻れる（after は残る）"
+# stacked_on の無い課題は今までどおり断る
+k t7 start "$lone" --force >/dev/null
+k t7 review "$lone" >/dev/null
+if k t7 start "$lone" >/dev/null 2>"$tmp/st.err"; then die "stacked_on の無い課題が review から kanban start で戻れた"; fi
+grep -q "waits for $prev" "$tmp/st.err" || die "stacked_on の無い課題の断りの文: $(cat "$tmp/st.err")"
+ok "stacked_on の無い課題は、前の課題が done でない間、review から kanban start で戻るのを今までどおり断られる"
+cd "$OLDPWD"
+
 echo "kanban: $pass ok"

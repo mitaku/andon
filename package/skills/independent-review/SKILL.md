@@ -55,6 +55,9 @@ dispatcher が書く（`internal/dispatcher` の `reviewerBrief`。型を変え�
   祖先でない（rebase をまたいだ）なら素の差分は base に入ったほかの変更まで含むので、PR 自身の差分どうしの違い `git range-diff <前の merge-base>..<前> <今の merge-base>..<今>` を見せる（merge-base は PR の base の今の先頭とのもの）。
   range-diff が中身を出さない足した commit は `git show` で、直しを前後ごと読むときは `gh pr diff` で読むよう依頼書に書く。
   dispatcher が祖先か・PR の base を確かめられなければ、素の差分は使わせず、確かめ方と `gh pr diff` を書く。
+- **積んだ課題（前の課題の PR の branch の上で起動した課題）の差分は、分かれ目から見せる**。分かれ目は課題の予約キー `stacked_base`（Chief of Staff の端末が書いた値だけを信じる）。
+  dispatcher は分かれ目をレビュアーの課題の予約キー `review_base` に控え、依頼書に `git diff <分かれ目>..<commit>` で読むよう書く。`gh pr diff` と PR の base との merge-base からの差分は、前の課題の PR が書き直されると前の課題の古い変更が混ざるので使わせない。
+  載せ替えのあとの再レビューは、前の回の起点を前の回のレビュアーの課題の `review_base` に取って range-diff を書く。
 - **結果の宛先は元の課題の担当だけ**。Chief of Staff・dispatcher へは送らない（Chief of Staff へは dispatcher が届ける）。
 
 ## 5. 振り分け・周回・片付け
