@@ -349,7 +349,10 @@ func TestPatternsKeepsChiefOfStaffTokens(t *testing.T) {
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
 	t.Setenv("HC_TERMINAL_ID", "t9")
-	day0 := time.Now().UTC().Format("2006-01-02")
+	// 集める期間の終わりを、baKanban が記録を作った決まった時刻 now に揃える（今の時刻だと、日が経つと前の直しが期間の外に出る）
+	patternsNow = func() time.Time { return now }
+	t.Cleanup(func() { patternsNow = time.Now })
+	day0 := now.UTC().Format("2006-01-02")
 	write(t, filepath.Join(state, "andon", "otel", "sample-site", "roles", "chief-of-staff", day0+".traces.jsonl"),
 		`{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"t1","spanId":"s1","name":"claude_code.llm_request","attributes":[`+
 			`{"key":"input_tokens","value":{"intValue":"5"}},{"key":"output_tokens","value":{"intValue":"6"}}]}]}]}]}`+"\n")
