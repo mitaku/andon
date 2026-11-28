@@ -10,7 +10,7 @@
 
 | 役 | 端末の名前 | 出る場所（Space / tab） | 起動するのは・きっかけ | 止まったら誰が戻すか |
 |---|---|---|---|---|
-| dispatcher | `dispatcher`（セルに1つ） | kanban が1つならその指揮側の Space の tab「dispatcher」、2つ以上なら `<セルの slug> plant` の tab「dispatcher」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起動する | boot と Chief of Staff のフックが、前に出ているものが `andon dispatcher` でなければ片付けて起動し直す（dispatcher.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければオーナーが `andon boot` |
+| dispatcher | `dispatcher`（セルに1つ） | kanban が1つならその指揮側の Space の tab「dispatcher」、2つ以上なら `<セルの slug> plant` の tab「dispatcher」 | boot（起動のたび。`andon boot`）。`hc run --keep` で起動する | boot と Chief of Staff のフックが、前に出ているものが `andon dispatcher run`（名前を変える前のバージョンが起動した `andon dispatcher` も）でなければ片付けて起動し直す（dispatcher.md §5）。作り直しの直後は前に出ているものが取れるまで boot が数秒読み直し、取れなければ「確かめられなかった」と書く（「すでに動いている」とは書かない）。戻らなければオーナーが `andon boot` |
 | Chief of Staff | `<slug>-cos` | 指揮側の Space `<slug>` の tab「CoS」 | オーナーが `projects/<slug>/` で `andon open`（動いていればそれを使う） | オーナーが `hc kill` してから打ち直す。起動し直した Chief of Staff 自身も同じ command を打てる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、打ち直せば command が数えずに片付け（keep を外して kill・rm）、起動し直して chief_of_staff を合わせる。数えるのは hc の agent が Claude Code の端末だけで、どちらとも言えない端末（オーナーが中で使っているなど）があれば触らずに止まる |
 | Chief Engineer | `<slug>-<id を小文字>` | 指揮側の Space `<slug>` の tab（課題ごと） | Chief of Staff かオーナーが `andon design start "<タイトル>"`（Chief of Staff は経緯を `--brief -` で stdin から渡し、依頼書の既定の行の下に入る）。1プロジェクトに同時に複数いてよい | 最初のメッセージが届かなければ dispatcher が送り直す。それ以外は Chief of Staff が `hc read` で見てオーナーへ。作り直しで戻った端末（top-level の argv ごと素のシェル）・端末が無い Chief Engineer は、`andon issue resume <id>` が同じ worktree でセッションの続きから起動する（記録が無ければ止まり、オーナーの go で `--fresh`）。`andon design start` はほかの Chief Engineer の端末に触らない（[ADR-0012](adr/0012-resume-and-worktree-home.md) 決めたこと 12）。Stop フック（`andon issue stop-check`）は Chief Engineer の課題を止めない（オーナーとの対話の間、報告も問いも書かずにターンを終えるのが正常） |
 | 担当 | `<slug>-<id を小文字>` | 作業側の Space ＝ 課題（[ADR-0003](adr/0003-task-spaces.md)）。ラベルの id は `andon-<slug>-<id>`、App での名前は `<id> <タイトル>`、tab は `<id>` | Chief of Staff が `andon issue start <id>` | 最初のメッセージが届かなければ dispatcher が送り直す。止まりは dispatcher が `<news>` で Chief of Staff に知らせ、Chief of Staff が `hc send` で続けさせる。作り直しで戻った端末（top-level の argv ごと素のシェル）は、dispatcher が終わった端末（`finished`）として知らせる。`doing` のままなら `andon issue resume <id>` で同じ worktree・branch のままセッションの続きから起動する（worktree が消えていれば戻す。記録が無ければ止まり、オーナーの go で `--fresh`。[ADR-0012](adr/0012-resume-and-worktree-home.md)） |
@@ -458,7 +458,7 @@ head -3 ~/.codex/config.toml          # approval_policy・sandbox_mode（無か�
 codex execpolicy check -r ~/.codex/rules/andon.rules gh pr merge 1   # "decision":"forbidden"
 ```
 
-- **通ったら見えるもの**: 上の全部。`hc get dispatcher` が通る（dispatcher は `andon dispatcher` を常駐させた端末）。App に tab「dispatcher」が出る（kanban が1つならその指揮側の Space、2つ以上なら `<セルの slug> plant`）。ラベルは `hc get dispatcher --json` の `herdr.space`・`herdr.tab`。
+- **通ったら見えるもの**: 上の全部。`hc get dispatcher` が通る（dispatcher は `andon dispatcher run` を常駐させた端末）。App に tab「dispatcher」が出る（kanban が1つならその指揮側の Space、2つ以上なら `<セルの slug> plant`）。ラベルは `hc get dispatcher --json` の `herdr.space`・`herdr.tab`。
 - **落ちたら見る所**: どれも出なければ boot が走っていない（`bin/bootstrap logs`）。boot は失敗しても続ける作りなので、警告の行を探す。生成だけ失敗したときは `andon boot` を中で打ち直せば同じ結果になる（何度打っても同じ）。`hc` が無い・端末が起動しない — herdr-core は初めて `hc` を叩くと起動する。
 
 ## 6. 中でログインする（セルの中で取る）

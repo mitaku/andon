@@ -33,8 +33,8 @@ jq -c . "$p/project.json" 2>/dev/null | sed 's/^/  project.json: /'
 id=$(cd "$p" && KANBAN_ROOT=$p HC_TERMINAL_ID=to "$kanban" add "$run の最初の課題" --repo "$repo" 2>&1)
 echo "  | kanban add: $id"
 [[ "$id" == VC-* ]] && ok "cr-create: 作った kanban に課題を足すと $id（接頭字 VC）になる" || fail "cr-create: 作った kanban に接頭字 VC の課題を足せない"
-grep -q '^hc run --bg .*--name dispatcher .* dispatcher$' "$tmp/hc.calls" \
-  && ok "cr-create: dispatcher が無いので、置き場を合わせて hc run で起動しようとした（偽の hc に届いた）" \
+grep -q '^hc run --bg .*--name dispatcher .* dispatcher run$' "$tmp/hc.calls" \
+  && ok "cr-create: dispatcher が無いので、置き場を合わせて hc run で andon dispatcher run を起動しようとした（偽の hc に届いた）" \
   || fail "cr-create: dispatcher の置き場合わせの hc run が無い"
 
 # cr-list: andon project list が、立てたプロジェクトの slug を1行で出す（読むだけ）

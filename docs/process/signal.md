@@ -13,7 +13,7 @@ stateDiagram-v2
   state "消えた（active が false。CI が通った・issue が閉じた）" as s_gone
   [*] --> s_active: 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0）
   s_active --> s_active: また見えた（count を 1 増やし、last_seen・url・title・weight を今の値に。release は無いときだけ入れる。github-ci で読んだ run が、記録の url（前に見た最新の失敗の run）のあとに成功を挟んでいれば、新しい出来事として episodes を 1 増やし release を見えた値に）
-  s_active --> s_delivered: weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23）
+  s_active --> s_delivered: weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal mark-delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23）
   s_delivered --> s_delivered: また見えた（count だけ増える。届け直さない）
   s_delivered --> s_active: github-ci で、読んだ run が、記録の url（前に見た最新の失敗の run）のあとに成功を挟んでいた（collect が成功を見ずに出来事が切れた。新しい出来事として episodes を 1 増やし release を見えた値に。now なら届け直す）
   s_active --> s_gone: 読んだ範囲で見えなくなった（結果が分からないものは変えない）
@@ -37,7 +37,7 @@ stateDiagram-v2
 |---|---|---|---|---|---|
 | （始まり・終わり） | `active` | 出所を読んで初めて見えた（count と episodes が 1、delivered_episode が 0） | 機械 | `andon signal collect --due` |  |
 | `active` | `active` | また見えた（count を 1 増やし、last_seen・url・title・weight を今の値に。release は無いときだけ入れる。github-ci で読んだ run が、記録の url（前に見た最新の失敗の run）のあとに成功を挟んでいれば、新しい出来事として episodes を 1 増やし release を見えた値に） | 機械 | `andon signal collect --due` |  |
-| `active` | `delivered` | weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23） | 機械 | `andon signal delivered <fingerprint> <episode>` | はい |
+| `active` | `delivered` | weight が now の出来事を Chief of Staff へ届けた（dispatcher の 1 巡の 4e が通知 signal を積み、控えを保存してから delivered_episode を episodes にする。書くのは andon signal mark-delivered で、dispatcher は直に書かない。出来事ごとに 1 回だけ。§7.2 #23） | 機械 | `andon signal mark-delivered <fingerprint> <episode>` | はい |
 | `delivered` | `delivered` | また見えた（count だけ増える。届け直さない） | 機械 | `andon signal collect --due` |  |
 | `delivered` | `active` | github-ci で、読んだ run が、記録の url（前に見た最新の失敗の run）のあとに成功を挟んでいた（collect が成功を見ずに出来事が切れた。新しい出来事として episodes を 1 増やし release を見えた値に。now なら届け直す） | 機械 | `andon signal collect --due` |  |
 | `active` | `gone` | 読んだ範囲で見えなくなった（結果が分からないものは変えない） | 機械 | `andon signal collect --due` |  |

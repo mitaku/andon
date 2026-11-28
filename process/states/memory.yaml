@@ -8,6 +8,6 @@ states:
     title: 線を超えたと知らせた（線の下に戻るまで 1 回）
     record: memory:Over
 transitions:
-  - { from: "[*]", to: under, on: "dispatcher が kanban を回り始めた", by: machine, command: andon dispatcher }
+  - { from: "[*]", to: under, on: "dispatcher が kanban を回り始めた", by: machine, command: andon dispatcher run }
   - { from: under, to: over, on: "件数が線を超えた。memory を Chief of Staff に届ける（§7.2 #24）", by: machine, once: true }
   - { from: over, to: under, on: "件数が線以下に戻った（トリアージの apply が仕分けの済んだ memory を消した）", by: machine }

@@ -24,6 +24,15 @@
   | `andon init` | `andon cell init` |
 
   プロジェクトの slug を 1 行ずつ出す `andon project list` を足した。
+- **機械が打つコマンドの名前を変えた**（[ADR-0053](docs/adr/0053-command-system.md) の切る案 5）: 打つのは dispatcher・image の build・`image/apply-main.sh` で、オーナーが手で打つことはまず無い。古い名前は同じく、打つと新しい名前を 1 行で言って終了コード 2 で終わる。名詞だけの `andon dispatcher` と `andon dispatcher --once` も断る。
+
+  | 古い名前 | 新しい名前 |
+  |---|---|
+  | `andon dispatcher`・`andon dispatcher --once` | `andon dispatcher run`・`andon dispatcher run --once` |
+  | `andon signal delivered` | `andon signal mark-delivered` |
+  | `andon version stamp` | `andon package stamp` |
+
+  boot とフックは、dispatcher の端末の前に出ているものが `andon dispatcher run` でも、前のバージョンが起動した `andon dispatcher` でも、dispatcher が動いていると読む。`andon boot` と `andon issue session` の名前と引数は変えていない。
 
 ### 上げるときにすること
 
@@ -33,6 +42,7 @@
   - v0.0.14 の「今あるセルの `bin/bootstrap` を置き換える」の手順（セルの中の `andon` で雛形を作る）は使わない。古い入口が止まったとき、セルの中の `andon` は前の image のもので、古い入口が出る。
 - **host-install（雛形が変わった）**: App の mod の `inbox`・`kanban-board`・`waiting` が `andon waiting list --json` を打つようになった。セルを `rebuild` してから、この 3 つを退避して `bin/bootstrap host-install` で入れ直す（[docs/operate.md](docs/operate.md) の「バージョンを上げるとき: host-install が置いたものを退避する」）。部品とセルの andon のバージョンが合わないと、`inbox` と `waiting` は部品を入れ直すよう 1 行で出す。
 - **古い名前を打っている手元のスクリプトや控えを直す**: 上の表のとおり新しい名前に書き換える。`rebuild` のあと、Chief of Staff は `andon open` で開く。
+- **dispatcher は起動し直すまで古い名前を打つ**: `image/apply-main.sh apply` で当てただけで dispatcher を起動し直せなかった（見回りが 15 分終わらなかった）間は、前のバージョンの dispatcher が `andon signal delivered` を打って断られ、同じ外の信号の通知が重ねて届くことがある。見回りが終わってから dispatcher の端末を片付けて（`hc keep dispatcher --off`・`hc kill dispatcher`・`hc rm dispatcher`）`andon boot` を打てば、boot が新しい名前で起動し直して止まる。`andon boot` だけでは、古い形の dispatcher も動いていると読むので起動し直さない。`rebuild` と、dispatcher を起動し直せた当て方では起きない。このバージョンより前へ戻す（`revert`・古い commit の `apply`）ときに起動し直せなかった間も同じで、残った新しい dispatcher が戻した andon に `andon signal mark-delivered` を打って断られる。片付けてから `andon boot` を打つ手も同じ。
 - **入口を分ける前のバージョンへ戻すとき**: 入口も前のものに戻してから `rebuild` を打つ（[docs/operate.md](docs/operate.md) の「GHCR のバージョンへ戻す」）。
 
 ### 直したこと

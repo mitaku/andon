@@ -105,7 +105,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 // refuseRetired は名前を変えた葉の古い名前（retired）を、実行せずに新しい名前を1行で言って終了コード 2 で断る（決めたこと 17）。
 // 古い名詞がまだ名詞として生きている（waiting）ときは、名詞だけを打ったときと --help の無いフラグだけを打ったときに断る。
-// 古い名詞が消えた（delegate）ときは、動詞が何でも新しい名詞を言う。
+// 古い名詞が消えた（delegate）ときは、動詞が何でも新しい名詞を言う。古い名前の1語目が1語の葉のまま残る（version stamp の
+// version）ときは、名詞が消えたとは読まず、その1語の葉を打つ。
 func refuseRetired(args []string, kids []leaf, verb bool, stderr io.Writer) (int, bool) {
 	typed, neu := "", ""
 	if len(args) > 1 {
@@ -118,7 +119,7 @@ func refuseRetired(args []string, kids []leaf, verb bool, stderr io.Writer) (int
 			typed, neu = args[0], n
 		}
 	}
-	if neu == "" && len(kids) == 0 {
+	if _, leaf := find(args[0]); neu == "" && len(kids) == 0 && !leaf {
 		for old, n := range retired {
 			if w := strings.Fields(old); len(w) == 2 && w[0] == args[0] {
 				typed, neu = args[0], strings.Fields(n)[0]

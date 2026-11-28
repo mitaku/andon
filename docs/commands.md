@@ -72,17 +72,17 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon issue history` | 機械・オーナー | 片付いた課題を新しい順に件数まで出す（ボードの History が読む。読むだけ） |
 | `andon issue session` | 機械 | 自分の端末のラベル session を出す（テンプレートが読む） |
 | `andon issue stop-check` | 機械 | 担当・レビュアーの Stop フック: doing で報告も問いも無ければ止める |
-| `andon dispatcher` | 機械 | kanban を回り、レビュアーの起動・gate・merge: auto のマージと片付けを回す（常駐） |
+| `andon dispatcher run` | 機械 | kanban を回り、レビュアーの起動・gate・merge: auto のマージと片付けを回す（常駐） |
 | `andon dispatcher drain` | 機械 | Chief of Staff のフック: 待ちの通知を届ける |
 | `andon dispatcher wait` | 機械 | 待ち役のフック: 離席中に合図が来るまで待つ |
 | `andon dispatcher rewake` | 機械 | 待ち役のフック: 合図で Chief of Staff を起動し直す |
 | `andon signal collect` | 機械 | project.json の signals の出所を読み、信号の記録を書く |
-| `andon signal delivered` | 機械 | 通知 signal で届けた出来事を記録に書く |
+| `andon signal mark-delivered` | 機械 | 通知 signal で届けた出来事を記録に書く |
 | `andon tray serve` | 機械 | ローカルの tray を動かす常駐（boot が起動する） |
 | `andon otel serve` | 機械 | ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く |
 | `andon otel env` | 機械 | 役の起動の行に、Claude Code か Codex が受け口へトレースとログを送る設定を出す（template が読む） |
 | `andon tools env` | 機械 | 役の起動の行に、端末の課題の worktree の mise.toml をいちばん弱い既定として渡す設定を出す（template が読む） |
-| `andon version stamp` | 機械 | 焼くときに置き場の中身を数えて version.json を書く |
+| `andon package stamp` | 機械 | 焼くときに置き場の中身を数えて version.json を書く |
 | `andon schema check` | 機械・役 | JSON を約束の schema と照らす |
 | `andon schema batch` | 機械・役 | 1行1件の表を、検査器を1度読むだけでまとめて照らす |
 | `andon process render` | 機械 | process/ の YAML から docs/process/&lt;名&gt;.md を作る |

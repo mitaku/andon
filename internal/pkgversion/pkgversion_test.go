@@ -225,7 +225,7 @@ func TestMain_(t *testing.T) {
 	}
 	for _, args := range [][]string{nil, {"unknown", "extra"}} {
 		errb.Reset()
-		if rc := StampMain(args, strings.NewReader(""), &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon version stamp") {
+		if rc := StampMain(args, strings.NewReader(""), &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon package stamp") {
 			t.Errorf("stamp %v: rc=%d err=%q", args, rc, errb.String())
 		}
 	}

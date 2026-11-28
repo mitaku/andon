@@ -87,5 +87,5 @@ S-0009 の担当 t5 が止まったまま 21 分
 この Chief of Staff の端末が live でない間（留守）も、dispatcher は拾う・レビュアーの起動・gate とマージと片付けを回し、届ける通知を待ちに積む。起動し直したら（`andon open` で address を合わせたら）最初の `<news>` の先頭に「留守の間（いつ〜いつ）に N 件」の1行が付く。
 留守の間の出来事は、起動したときに kanban を自分で読む（`wake.md`）。dispatcher の様子は `hc read dispatcher`。
 dispatcher の端末が素のシェルのまま（core が起動し直したあと）でも、自分の端末のフックが毎ターン確かめて、端末を片付けて起動し直す。`hc send dispatcher` で手で打ち込まない（二重に起動する・打ちかけに足す）。
-戻らなければ（`hc get dispatcher --json` の `foreground.argv` が `andon dispatcher` にならない）、オーナーへ「`andon boot` を打ち直すか」を1問。
+戻らなければ（`hc get dispatcher --json` の `foreground.argv` が `andon dispatcher run` にならない）、オーナーへ「`andon boot` を打ち直すか」を1問。
 dispatcher が止まっていた間に出たレビュー依頼も、起動し直した dispatcher が拾う（初めて見る kanban でも）。担当に頼み直させなくてよい。

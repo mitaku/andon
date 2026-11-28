@@ -17,7 +17,6 @@ tests/andon-dispatcher.sh	lastmark "$head" | grep -q '' || die ''
 tests/andon-dispatcher.sh	lastmark "$head" | grep -q '' || die "止める口が黄を書かない: $(lastmark "$head")"
 tests/andon-dispatcher.sh	grep -A2 "^$addr \[dispatcher\] 課題" "$tmp/hc/sent" | grep -q "^先に \`.*/skills/worker/SKILL.md\` を読む。" || die "送り直した文がレビュアーの最初のメッセージでない（$first）"
 tests/andon-dispatcher.sh	! grep '' "$tmp/hc/log" | tail -n 1 | grep -q '' || die "担当の端末のラベルが読めないのに herdr.space・herdr.tab を付けた: $(grep ^run "$tmp/hc/log" | tail -n 1)"
-tests/andon-dispatcher.sh	! tail -n +"$((logs + 1))" "$tmp/hc/log" | grep -q '' || die ''
 tests/andon-dispatcher.sh	ups p1 | grep -q "$id report:" || die ''
 tests/andon-dispatcher.sh	ups p2 | grep -q "$id report:" || die ''
 tests/andon-dispatcher.sh	ups p3 | grep -q "$id report:" && die ''

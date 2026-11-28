@@ -204,8 +204,8 @@ var leaves = []leaf{
 		usage: issue.SessionUsage, examples: []string{"issue session"}, run: issue.Session},
 	{name: "issue stop-check", who: []who{machine}, about: "担当・レビュアーの Stop フック: doing で報告も問いも無ければ止める",
 		usage: issue.StopCheckUsage, examples: []string{"issue stop-check S-0012 < hook.json"}, project: true, hook: true, run: issue.StopCheck},
-	{name: "dispatcher", who: []who{machine}, about: "kanban を回り、レビュアーの起動・gate・merge: auto のマージと片付けを回す（常駐）",
-		usage: dispatcher.Usage, examples: []string{"dispatcher --once"}, writes: true, project: true, ownFlag: true, every: true, run: dispatcher.Main},
+	{name: "dispatcher run", who: []who{machine}, about: "kanban を回り、レビュアーの起動・gate・merge: auto のマージと片付けを回す（常駐）",
+		usage: dispatcher.Usage, examples: []string{"dispatcher run", "dispatcher run --once"}, writes: true, project: true, ownFlag: true, every: true, run: dispatcher.Main},
 	{name: "dispatcher drain", who: []who{machine}, about: "Chief of Staff のフック: 待ちの通知を届ける",
 		usage: dispatcher.DrainUsage, examples: []string{"dispatcher drain < hook.json"}, writes: true, project: true, ownFlag: true, hook: true, run: dispatcher.Drain},
 	{name: "dispatcher wait", who: []who{machine}, about: "待ち役のフック: 離席中に合図が来るまで待つ",
@@ -214,8 +214,8 @@ var leaves = []leaf{
 		usage: dispatcher.RewakeUsage, examples: []string{"dispatcher rewake < hook.json"}, project: true, ownFlag: true, hook: true, run: dispatcherRewake},
 	{name: "signal collect", who: []who{machine}, about: "project.json の signals の出所を読み、信号の記録を書く",
 		usage: signal.CollectUsage, examples: []string{"signal collect --due"}, writes: true, project: true, ownFlag: true, run: signal.CollectMain},
-	{name: "signal delivered", who: []who{machine}, about: "通知 signal で届けた出来事を記録に書く",
-		usage: signal.DeliveredUsage, examples: []string{"signal delivered <fingerprint> <episode>"}, writes: true, project: true, ownFlag: true, run: signal.DeliveredMain},
+	{name: "signal mark-delivered", who: []who{machine}, about: "通知 signal で届けた出来事を記録に書く",
+		usage: signal.DeliveredUsage, examples: []string{"signal mark-delivered <fingerprint> <episode>"}, writes: true, project: true, ownFlag: true, run: signal.DeliveredMain},
 	{name: "tray serve", who: []who{machine}, about: "ローカルの tray を動かす常駐（boot が起動する）",
 		usage: tray.ServeUsage, examples: []string{"tray serve"}, writes: true, run: tray.ServeMain},
 	{name: "otel serve", who: []who{machine}, about: "ハーネスのトレースとログを 127.0.0.1:4318 で受け、課題ごとのファイルに書く",
@@ -224,8 +224,8 @@ var leaves = []leaf{
 		usage: otel.EnvUsage, examples: []string{"otel env", "otel env --codex"}, run: otel.EnvMain},
 	{name: "tools env", who: []who{machine}, about: "役の起動の行に、端末の課題の worktree の mise.toml をいちばん弱い既定として渡す設定を出す（template が読む）",
 		usage: tools.EnvUsage, examples: []string{"tools env"}, run: tools.EnvMain},
-	{name: "version stamp", who: []who{machine}, about: "焼くときに置き場の中身を数えて version.json を書く",
-		usage: pkgversion.StampUsage, examples: []string{"version stamp unknown"}, writes: true, run: pkgversion.StampMain},
+	{name: "package stamp", who: []who{machine}, about: "焼くときに置き場の中身を数えて version.json を書く",
+		usage: pkgversion.StampUsage, examples: []string{"package stamp unknown"}, writes: true, run: pkgversion.StampMain},
 	{name: "schema check", who: []who{machine, role}, about: "JSON を約束の schema と照らす",
 		usage: schema.CheckUsage, examples: []string{"schema check report library/report.json"},
 		exits: []exit{{1, "合わない（理由は標準出力）"}, {2, "検査できない（使い方の誤りも）"}}, run: schema.CheckMain},
@@ -237,16 +237,13 @@ var leaves = []leaf{
 		usage: process.JSONUsage, examples: []string{"process json process/states/issue.yaml"}, json: jsonAlways, run: process.JSONMain},
 }
 
-// renames は名前を変える葉の、今の名前と新しい名前（ADR-0053 決めたこと 8 の 18 個のうち、まだ変えていないもの。dispatcher と
-// dispatcher --once は1行）。名前を変えるまでの間は、葉の形の決まり（2語・1語の4つ・1語の葉を名詞にしない）から外れていても、
+// renames は名前を変える葉の、今の名前と新しい名前（ADR-0053 決めたこと 8 の 18 個のうち、まだ変えていないもの）。
+// 名前を変えるまでの間は、葉の形の決まり（2語・1語の4つ・1語の葉を名詞にしない）から外れていても、
 // ここにある葉だけは表に置いてよい。変えたら retired へ移す。
 var renames = map[string]string{
-	"gate":             "issue gate",
-	"issue ready":      "issue submit",
-	"publish":          "file publish",
-	"dispatcher":       "dispatcher run",
-	"signal delivered": "signal mark-delivered",
-	"version stamp":    "package stamp",
+	"gate":        "issue gate",
+	"issue ready": "issue submit",
+	"publish":     "file publish",
 }
 
 // retired は名前を変えた葉の、古い名前と新しい名前（決めたこと 17）。古い名前は実行せず、新しい名前を1行で言って終了コード 2 で断る。
@@ -262,6 +259,10 @@ var retired = map[string]string{
 	"delegate revoke": "delegation revoke",
 	"measure":         "metrics show",
 	"init":            "cell init",
+	// 切る案 5（機械が打つ葉）。dispatcher は名詞だけの形が古い葉だった（dispatcher と dispatcher --once）
+	"dispatcher":       "dispatcher run",
+	"signal delivered": "signal mark-delivered",
+	"version stamp":    "package stamp",
 }
 
 // oneWord は1語で打てる葉（決めたこと 5）。

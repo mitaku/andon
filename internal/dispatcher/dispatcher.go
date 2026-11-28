@@ -1,4 +1,4 @@
-// Package dispatcher は andon dispatcher: セルに1つ常駐し、kanban を周期で回ってインナーループの決まった次の工程を起動する
+// Package dispatcher は andon dispatcher run: セルに1つ常駐し、kanban を周期で回ってインナーループの決まった次の工程を起動する
 // （docs/dispatcher.md §5 の P6a）。判断はしない。判断は gate（andon gate）・Chief of Staff・オーナーが持つ。
 //
 //	report.json の review_request   → レビュアーを起動する（kanban add --parent ＋ detached worktree ＋ hc run）
@@ -12,7 +12,7 @@
 //	担当の端末に first_message.sent=false → 入力を受けられれば最初のメッセージを送り直す（pickup.go の sendFirst）
 //	担当・Chief of Staff がプロバイダに切られた → 1・2・4・8 分あとに「続けて」、5 回目に切られたら知らせる（pickup.go。§2.4）
 //	project.json の signals           → andon signal collect --due（組ごとに every 分に1回）。届けていない now の信号を
-//	                                     通知 signal で積み、andon signal delivered で届けたと書く（signals.go。§2.2.1）
+//	                                     通知 signal で積み、andon signal mark-delivered で届けたと書く（signals.go。§2.2.1）
 //	前の振り返りのあとに片付いた担当の課題が project.json の chief_of_staff.retro_every 件（既定 25）
 //	                                  → kanban routine run retro（ルーチン retro が無い・paused・振り返りが残っていれば数えない。retro.go）
 //	ハーネスの生の記録（~/.local/state/andon/otel/<slug>/） → 1 日に 1 回、30 日を過ぎたものと 10 GB を超えた分を消す（otel.go。§2.14）
@@ -45,7 +45,7 @@ import (
 	"andon/internal/otel"
 )
 
-const Usage = "usage: andon dispatcher [--once] [--project <slug>]\n" +
+const Usage = "usage: andon dispatcher run [--once] [--project <slug>]\n" +
 	"回り続ける（hc の端末 dispatcher の中で動く）。--once は1回だけ回して終わる。\n" +
 	"セル（ANDON_WORKSPACE。無ければ /workspace）の projects/*/kanban を回り、レビュアーを起動する・gate を回す・\n" +
 	"merge: auto をマージして片付ける・fix を担当へ返す・needs_human を問いにする。\n" +

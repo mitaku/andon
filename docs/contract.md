@@ -31,7 +31,7 @@
 
 `schema/process/` の2本（`workstream`・`state`）は、エージェントと機械の間の約束ではなく、オーナーが書く流れと状態の定義（`process/` の YAML）の形。読み方は [process/README.md](process/README.md)、検査は `tests/process.sh`（[ADR-0017](adr/0017-process-definitions.md)）。
 
-- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegation`・`andon metrics show`・`andon waiting list`・`andon digest`・`andon issue board`・`andon issue history`）・dispatcher（`andon dispatcher`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
+- 読み手: command（`andon issue …`・`andon gate`・`andon triage`・`andon retro`・`andon delegation`・`andon metrics show`・`andon waiting list`・`andon digest`・`andon issue board`・`andon issue history`）・dispatcher（`andon dispatcher run`）・フック・ボード（オーナーの Interface）・振り返り。語は [design.md](design.md) §0.1。
 - kanban を読み書きするコマンドは `kanban`（`cmd/kanban`。command と形式は [ledger.md](ledger.md)）。
 - kanban の形式（形式 3。[ledger.md](ledger.md)・`schema/ledger/`）は Andon が持つ（[design.md](design.md) §3.5 で移した）。Andon のキーは「Any other key is allowed and kept」の上に置き、形式そのものを変えるときは形式のバージョンで変える。
 
@@ -772,7 +772,7 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 ## 15. 信号の記録（`<slug>.signals.json`）
 
-外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は kanban の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect` と、`delivered_episode` だけを書く `andon signal delivered`。どちらも記録の lock `<slug>.signals.json.lock` の中で書く）だけ、読み手はトリアージ・観察の課題の担当・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
+外の出所（GitHub の main の CI・issue、Sentry・Linear・Cloudflare）から読んだ信号の記録（[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・16）。**置き場は kanban の外の `~/.local/state/andon/dispatcher/<slug>.signals.json`**（`XDG_STATE_HOME` があればその下。dispatcher の控えと同じ所）で、プロジェクトに1ファイル。書き手は dispatcher（`andon signal collect` と、`delivered_episode` だけを書く `andon signal mark-delivered`。どちらも記録の lock `<slug>.signals.json.lock` の中で書く）だけ、読み手はトリアージ・観察の課題の担当・measure・ボード。どの出所を読むかは `project.json` の `signals`（§11）。
 
 ```json
 {"signals": [
@@ -822,8 +822,8 @@ repo の無い課題（`commit` を書かない）で、候補が無かったと
 
 届け方（dispatcher。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・8、[dispatcher.md](dispatcher.md) §2.2.1）:
 
-- dispatcher は1巡ごとに `collect --due` を打ち、記録のうち `weight: now`・`active`・`delivered_episode` < `episodes` のものを通知 `signal`（§6）で積む。積んだ待ちを控えに保存してから、1件ずつ `andon signal delivered [--project <slug>] <fingerprint> <episode>` で `delivered_episode` を `episodes` にする。
-- `andon signal delivered` は、記録に無い信号・`episodes` を超える出来事は断る（終了コード 1）。もう届けた出来事（`delivered_episode` 以上）なら何も書かない。打つのは dispatcher だけで、`HC_TERMINAL_ID=dispatcher` でなければ記録を変えずに終了コード 2 で断る（担当が打って `now` の信号が届かなくなるのを止める。同じユーザーなので守りではない）。
+- dispatcher は1巡ごとに `collect --due` を打ち、記録のうち `weight: now`・`active`・`delivered_episode` < `episodes` のものを通知 `signal`（§6）で積む。積んだ待ちを控えに保存してから、1件ずつ `andon signal mark-delivered [--project <slug>] <fingerprint> <episode>` で `delivered_episode` を `episodes` にする。
+- `andon signal mark-delivered` は、記録に無い信号・`episodes` を超える出来事は断る（終了コード 1）。もう届けた出来事（`delivered_episode` 以上）なら何も書かない。打つのは dispatcher だけで、`HC_TERMINAL_ID=dispatcher` でなければ記録を変えずに終了コード 2 で断る（担当が打って `now` の信号が届かなくなるのを止める。同じユーザーなので守りではない）。
 
 トリアージの読み方（`andon triage`。[ADR-0011](adr/0011-signals-and-value-loop.md) 決めたこと 6・7）:
 

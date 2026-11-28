@@ -14,7 +14,7 @@ import (
 // signals は外の信号の段（dispatcher.md §2.1.1 の 4e。ADR-0011 決めたこと 5・6・8、ADR-0017 決めたこと 14）。
 // andon signal collect --due を打ち（出所と repo の組ごとに signals[].every 分に1回だけ読む。読むかは collect が
 // 記録の read_at で決める）、記録のうち届けていない now の信号（active で delivered_episode < episodes）を通知 signal で積む。
-// 届けたことは控えではなく記録に持つ（andon signal delivered。書くのは andon signal の口）ので、初めて見る kanban・
+// 届けたことは控えではなく記録に持つ（andon signal mark-delivered。書くのは andon signal の口）ので、初めて見る kanban・
 // 控えを失った巡でも同じ規則で届く。積んだ待ちを控えに保存してから delivered を書く（落ちても届けそこねない。
 // 保存のあと delivered の前に落ちたら、次の巡で同じ信号を積み直し、待ちの中では置き換わる）。
 // gh の上限で gate を止めている間（控えの GHReset）は collect を打たない（届けるのは続ける）。
@@ -46,7 +46,7 @@ func (p *project) signals(at time.Time) {
 		return
 	}
 	for _, r := range todo {
-		if _, _, err := p.andon("", "signal", "delivered", "--project", slug, r.Fingerprint, strconv.Itoa(r.Episodes)); err != nil {
+		if _, _, err := p.andon("", "signal", "mark-delivered", "--project", slug, r.Fingerprint, strconv.Itoa(r.Episodes)); err != nil {
 			p.logf("信号 %s を届けたと書けない（次の巡で積み直す）: %v", r.Key, err)
 		}
 	}

@@ -174,8 +174,8 @@ func TestUnlistedLeaf(t *testing.T) {
 	}
 }
 
-// A2: 名詞だけを打つと、その名詞の葉の一覧が出る（名詞だけで動く今の葉 dispatcher と、1語の葉 boot・version を除く。
-// 名詞だけの形が古い葉だった waiting は、名詞だけでは断り、--help では一覧を出す）。
+// A2: 名詞だけを打つと、その名詞の葉の一覧が出る（1語の葉 boot・version を除く。
+// 名詞だけの形が古い葉だった waiting と dispatcher は、名詞だけでは断り、--help では一覧を出す）。
 func TestNounLists(t *testing.T) {
 	stubLeaves(t)
 	nouns := map[string]bool{}
@@ -203,9 +203,9 @@ func TestNounLists(t *testing.T) {
 			}
 		}
 	}
-	// 名詞だけで動く葉は、名詞の --help に同じ名詞の葉も並べる
-	if _, out, _ := run("dispatcher", "--help"); !strings.Contains(out, "\n  dispatcher drain  ") {
-		t.Errorf("dispatcher --help に dispatcher drain が無い:\n%s", out)
+	// 名詞だけの形が古い葉だった名詞も、--help では同じ名詞の葉を並べる
+	if _, out, _ := run("dispatcher", "--help"); !strings.Contains(out, "\n  dispatcher drain  ") || !strings.Contains(out, "\n  dispatcher run  ") {
+		t.Errorf("dispatcher --help に dispatcher drain・run が無い:\n%s", out)
 	}
 }
 
@@ -225,8 +225,8 @@ func TestRetiredNames(t *testing.T) {
 			t.Errorf("%s が renames と retired の両方にある", old)
 		}
 		for _, args := range [][]string{strings.Fields(old), append(strings.Fields(old), "S-0012", "--json"), append(strings.Fields(old), "--help")} {
-			if old == "waiting" && len(args) > 1 {
-				continue // 名詞が生きている waiting は、--help で名詞の一覧（TestNounLists）、2語目で動詞を探す。フラグだけの形は下で見る
+			if len(children(old)) > 0 && len(args) > 1 {
+				continue // 名詞が生きている waiting・dispatcher は、--help で名詞の一覧（TestNounLists）、2語目で動詞を探す。フラグだけの形は下で見る
 			}
 			rc, out, errs := run(args...)
 			want := "andon " + neu + " "
@@ -235,25 +235,34 @@ func TestRetiredNames(t *testing.T) {
 			}
 		}
 	}
-	// 名詞だけの古い形とフラグだけの形（ホストの部品の古い写しが打つ andon waiting --json）
-	for _, args := range [][]string{{"waiting", "--json"}, {"waiting", "--json", "--project", "sample-site"}, {"delegate"}, {"delegate", "zzzz"}} {
+	// 名詞だけの古い形とフラグだけの形（ホストの部品の古い写しが打つ andon waiting --json、名前を変える前の検査と
+	// dispatcher の端末が打つ andon dispatcher --once・andon dispatcher）
+	for _, args := range [][]string{{"waiting", "--json"}, {"waiting", "--json", "--project", "sample-site"}, {"delegate"}, {"delegate", "zzzz"},
+		{"dispatcher", "--once"}, {"dispatcher", "--once", "--project", "sample-site"}, {"dispatcher", "--project", "sample-site"}} {
 		rc, out, errs := run(args...)
-		if rc != 2 || out != "" || !regexp.MustCompile(`andon (waiting list|delegation) で打ち直す\n$`).MatchString(errs) {
+		if rc != 2 || out != "" || !regexp.MustCompile(`andon (waiting list|delegation|dispatcher run) で打ち直す\n$`).MatchString(errs) {
 			t.Errorf("%v: rc=%d out=%q err=%q", args, rc, out, errs)
 		}
 	}
 	// 新しい名詞の葉と、古い名詞の下の残った葉は動く
-	for _, args := range [][]string{{"waiting", "list", "--json"}, {"waiting", "answer", "S-0012#1", "--option", "1"}, {"open"}, {"cell", "init", "x"}} {
+	for _, args := range [][]string{{"waiting", "list", "--json"}, {"waiting", "answer", "S-0012#1", "--option", "1"}, {"open"}, {"cell", "init", "x"},
+		{"dispatcher", "run", "--once"}, {"dispatcher", "drain"}, {"signal", "mark-delivered", "fp", "1"}, {"package", "stamp", "unknown"}, {"version"}} {
 		if rc, _, errs := run(args...); rc != 0 || errs != "" {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
 		}
 	}
-	if want := []string{"waiting list --json", "waiting answer S-0012#1 --option 1", "open", "cell init x"}; !slices.Equal(*calls, want) {
+	if want := []string{"waiting list --json", "waiting answer S-0012#1 --option 1", "open", "cell init x",
+		"dispatcher run --once", "dispatcher drain", "signal mark-delivered fp 1", "package stamp unknown", "version"}; !slices.Equal(*calls, want) {
 		t.Errorf("打った葉: %v（%v のはず）", *calls, want)
 	}
-	// 切る案 3 で名前を変えた 10 個（delegate の 4 つを別に数える）が、どれも断りの表にある
-	if len(retired) != 10 {
-		t.Errorf("retired は %d 個（切る案 3 の 10 個のはず）", len(retired))
+	// 切る案 3 で名前を変えた 10 個（delegate の 4 つを別に数える）と、切る案 5 で名前を変えた 3 個が、どれも断りの表にある
+	if len(retired) != 13 {
+		t.Errorf("retired は %d 個（切る案 3 の 10 個と切る案 5 の 3 個のはず）", len(retired))
+	}
+	for old, neu := range map[string]string{"dispatcher": "dispatcher run", "signal delivered": "signal mark-delivered", "version stamp": "package stamp"} {
+		if retired[old] != neu {
+			t.Errorf("retired[%q] = %q（%q のはず）", old, retired[old], neu)
+		}
 	}
 }
 
@@ -355,8 +364,8 @@ func TestPassesArgsToLeaf(t *testing.T) {
 	// プロジェクトは一時のセルのもの（決める段でセルの本物の kanban を読まない）
 	ws := cell(t, "a")
 	t.Setenv("KANBAN_ROOT", filepath.Join(ws, "projects", "a"))
-	if rc, _, errs := run("dispatcher", "--bogus"); rc != 2 || !strings.HasPrefix(errs, "usage: andon dispatcher") {
-		t.Errorf("dispatcher: rc=%d err=%q", rc, errs)
+	if rc, _, errs := run("dispatcher", "run", "--bogus"); rc != 2 || !strings.HasPrefix(errs, "usage: andon dispatcher run") {
+		t.Errorf("dispatcher run: rc=%d err=%q", rc, errs)
 	}
 	if rc, _, errs := run("open", "a", "b"); rc != 2 || !strings.HasPrefix(errs, "usage: andon open") {
 		t.Errorf("open: rc=%d err=%q", rc, errs)

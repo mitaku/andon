@@ -3,7 +3,7 @@
 //
 // 印は2つ。どちらも置き場の直下にあり、中身には数えない:
 //
-//	version.json  焼いたときの印（image の build と image/apply-main.sh が andon version stamp で書く）。
+//	version.json  焼いたときの印（image の build と image/apply-main.sh が andon package stamp で書く）。
 //	              {"commit": <40桁か null>, "dirty": <焼いた checkout に commit していない変更があったか>, "digest": "sha256:…"}
 //	applied.json  当て直しの記録（ADR-0027。image/apply-main.sh が書く）。あれば commit はこちらを読む
 //
@@ -32,9 +32,9 @@ const Usage = "usage: andon version\n" +
 	"  source   commit をどこから読んだか（applied・image・none）\n" +
 	"  drift    中身が commit と食い違うか。true なら当時の文を git から復元できない。確かめられなければ null\n" +
 	"  reasons  drift が true か null のときの理由\n" +
-	"焼いたときの印は andon version stamp が書く。\n"
+	"焼いたときの印は andon package stamp が書く。\n"
 
-const StampUsage = "usage: andon version stamp <revision>\n" +
+const StampUsage = "usage: andon package stamp <revision>\n" +
 	"焼くとき（image の build・image/apply-main.sh）だけ打つ。置き場（ANDON_HOME。既定 /opt/andon）の中身を数えて version.json を書く。\n" +
 	"<revision> は 40 桁の commit（汚れた checkout なら末尾に -dirty）か unknown。\n"
 

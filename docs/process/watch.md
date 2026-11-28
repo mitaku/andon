@@ -76,7 +76,7 @@ flowchart LR
 
 | id | コマンド | 記録 | 2 回起きてはいけない |
 |---|---|---|---|
-| `look` | `andon dispatcher` | `dispatcher/<slug>.json` |  |
+| `look` | `andon dispatcher run` | `dispatcher/<slug>.json` |  |
 | `resume` | `andon issue resume` | `dispatcher/<slug>.json` | はい |
 
 ## AI がやる手順

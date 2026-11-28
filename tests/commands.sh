@@ -28,7 +28,7 @@ n=$(wc -l <"$tmp/leaves")
 grep -qx 'issue start' "$tmp/leaves" && grep -qx 'open' "$tmp/leaves" && [ "$n" -ge 50 ] \
   && pass "andon help --all から葉 $n を読む" || { fail "andon help --all から葉が読めない（n=$n。下の確かめが何も見ない）"; exit 1; }
 andon_retired_nouns "$tmp/leaves" >"$tmp/retired"
-[ "$(cat "$tmp/retired")" = waiting ] && pass "名詞だけの形が古い名前の名詞は waiting だけ（andon waiting は andon waiting list と断られる）" \
+[ "$(cat "$tmp/retired")" = "$(printf 'dispatcher\nwaiting')" ] && pass "名詞だけの形が古い名前の名詞は dispatcher と waiting だけ（andon dispatcher・andon waiting は andon dispatcher run・andon waiting list と断られる）" \
   || fail "名詞だけの形が古い名前の名詞: [$(tr '\n' ' ' <"$tmp/retired")]"
 
 # === A7 生成物が表と揃う ===
@@ -74,7 +74,7 @@ mkdir -p "$tmp/pkg/skills/x/playbooks" "$tmp/pkg/hooks"
 cat >"$tmp/pkg/skills/x/SKILL.md" <<'EOF'
 古い名前は `andon task start S-0012` だった。
 `andon issue recrd S-0012` で残す。
-名前を変えた葉の古い名前 `andon init sample`・`andon delegate show --json`・`andon waiting --json`・`andon measure` を書き戻す。
+名前を変えた葉の古い名前 `andon init sample`・`andon delegate show --json`・`andon waiting --json`・`andon measure`・`andon signal delivered fp 1` を書き戻す。
 ```
 andon  issue   submit S-0012
 "andon" 'metrics' shw
@@ -82,14 +82,14 @@ andon  issue   submit S-0012
 ```
 句読点のつく `andon issue sumbit,` と `andon issue revue.` も見る。
 用語集の行 `andon task` <!-- andon の古い名前 -->
-通る: `andon <名詞> <動詞>`・`andon open sample-site`・`andon gate S-0012`・`andon waiting list --json`・`andon waiting answer S-0012#1`・`andon issue`・`andon issue start <id>`
+通る: `andon <名詞> <動詞>`・`andon dispatcher run --once`・`andon signal mark-delivered fp 1`・`andon open sample-site`・`andon gate S-0012`・`andon waiting list --json`・`andon waiting answer S-0012#1`・`andon issue`・`andon issue start <id>`
 地の文の andon chief-engineer は見ない（`` の外）。
 EOF
 printf '%s\n' '| `andon chief-engineer "<タイトル>"` | 入れ子の置き場 |' >"$tmp/pkg/skills/x/playbooks/deep.md"
-printf '%s\n' '#!/bin/sh' 'out=$(andon dispatcher drian 2>/dev/null)' >"$tmp/pkg/hooks/stop"
+printf '%s\n' '#!/bin/sh' 'out=$(andon dispatcher drian 2>/dev/null)' 'andon dispatcher --once' >"$tmp/pkg/hooks/stop"
 { andon_refs md "$tmp/pkg/skills/x/SKILL.md" "$tmp/pkg/skills/x/playbooks/deep.md"; andon_refs code "$tmp/pkg/hooks/stop"; } >"$tmp/refs.bad"
 got=$(andon_bad_refs "$tmp/leaves" "$tmp/retired" <"$tmp/refs.bad" | sed 's/^.*: andon /andon /' | LC_ALL=C sort | tr '\n' '|')
-want='andon chief-engineer|andon delegate show|andon dispatcher drian|andon init sample|andon issue recrd|andon issue revue|andon issue stat|andon issue submit|andon issue sumbit|andon measure|andon metrics shw|andon task start|andon waiting|'
+want='andon chief-engineer|andon delegate show|andon dispatcher|andon dispatcher drian|andon init sample|andon issue recrd|andon issue revue|andon issue stat|andon issue submit|andon issue sumbit|andon measure|andon metrics shw|andon signal delivered|andon task start|andon waiting|'
 [ "$got" = "$want" ] && pass "書き戻した古い名前・誤った綴り・表に無い動詞は、引用符・空白・パス・句読点・入れ子・フックの中でも落ち、印の行と名指しの形は通る" \
   || fail "変種: got=[$got] want=[$want]"
 
