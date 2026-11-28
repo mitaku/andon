@@ -38,7 +38,7 @@ func stubLeaves(t *testing.T) *[]string {
 }
 
 // shapeErrors は葉の形の決まり（ADR-0053 決めたこと 5）から外れた葉を返す: 2語であること、1語は open・help・version・boot
-// だけ、1語の葉を名詞にしないこと。名前を変えるまでの今の名前（renames）だけは外れていてよい。
+// だけ、1語の葉を名詞にしないこと。例外は無い。
 func shapeErrors(ls []leaf) []string {
 	var errs []string
 	single := map[string]bool{}
@@ -50,7 +50,6 @@ func shapeErrors(ls []leaf) []string {
 	seen := map[string]bool{}
 	for _, l := range ls {
 		w := strings.Fields(l.name)
-		_, pending := renames[l.name]
 		switch {
 		case seen[l.name]:
 			errs = append(errs, l.name+": 2回載っている")
@@ -58,30 +57,20 @@ func shapeErrors(ls []leaf) []string {
 			errs = append(errs, l.name+": 名前の形が違う")
 		case len(w) > 2:
 			errs = append(errs, l.name+": 3語以上")
-		case len(w) == 1 && !oneWord[l.name] && !pending:
+		case len(w) == 1 && !oneWord[l.name]:
 			errs = append(errs, l.name+": 1語で打てるのは open・help・version・boot だけ")
-		case len(w) == 2 && single[w[0]] && !pending:
-			if _, nounPending := renames[w[0]]; !nounPending {
-				errs = append(errs, l.name+": 1語の葉を名詞にしている")
-			}
+		case len(w) == 2 && single[w[0]]:
+			errs = append(errs, l.name+": 1語の葉を名詞にしている")
 		}
 		seen[l.name] = true
 	}
 	return errs
 }
 
-// A1: 表の全部の葉が2語で、1語は open・help・version・boot だけ（名前を変えるまでの今の名前を除く）。
+// A1: 表の全部の葉が2語で、1語は open・help・version・boot だけ。
 func TestLeafShape(t *testing.T) {
 	if errs := shapeErrors(leaves); len(errs) > 0 {
 		t.Errorf("葉の形の決まりから外れる:\n%s", strings.Join(errs, "\n"))
-	}
-	for old, neu := range renames {
-		if _, ok := find(old); !ok {
-			t.Errorf("renames の %s が表に無い（例外の表は今の名前だけを持つ）", old)
-		}
-		if w := strings.Fields(neu); len(w) > 2 || (len(w) == 1 && !oneWord[neu]) {
-			t.Errorf("renames の新しい名前 %s が決まりの形でない", neu)
-		}
 	}
 }
 
@@ -92,13 +81,6 @@ func TestLeafShapeRejects(t *testing.T) {
 		if errs := shapeErrors(ls); len(errs) == 0 {
 			t.Errorf("%q を足しても落ちない", bad)
 		}
-	}
-	// 名前を変えるまでの例外は renames にあるものだけ。例外から外せば、今の名前は落ちる
-	saved := renames["gate"]
-	delete(renames, "gate")
-	defer func() { renames["gate"] = saved }()
-	if errs := shapeErrors(leaves); !slices.ContainsFunc(errs, func(e string) bool { return strings.HasPrefix(e, "gate:") }) {
-		t.Errorf("例外から外した gate が落ちない: %v", errs)
 	}
 }
 
@@ -221,9 +203,6 @@ func TestRetiredNames(t *testing.T) {
 		if _, ok := find(neu); !ok {
 			t.Errorf("新しい名前 %s が表に無い", neu)
 		}
-		if _, ok := renames[old]; ok {
-			t.Errorf("%s が renames と retired の両方にある", old)
-		}
 		for _, args := range [][]string{strings.Fields(old), append(strings.Fields(old), "S-0012", "--json"), append(strings.Fields(old), "--help")} {
 			if len(children(old)) > 0 && len(args) > 1 {
 				continue // 名詞が生きている waiting・dispatcher は、--help で名詞の一覧（TestNounLists）、2語目で動詞を探す。フラグだけの形は下で見る
@@ -246,20 +225,23 @@ func TestRetiredNames(t *testing.T) {
 	}
 	// 新しい名詞の葉と、古い名詞の下の残った葉は動く
 	for _, args := range [][]string{{"waiting", "list", "--json"}, {"waiting", "answer", "S-0012#1", "--option", "1"}, {"open"}, {"cell", "init", "x"},
-		{"dispatcher", "run", "--once"}, {"dispatcher", "drain"}, {"signal", "mark-delivered", "fp", "1"}, {"package", "stamp", "unknown"}, {"version"}} {
+		{"dispatcher", "run", "--once"}, {"dispatcher", "drain"}, {"signal", "mark-delivered", "fp", "1"}, {"package", "stamp", "unknown"}, {"version"},
+		{"issue", "gate", "S-0012", "--dry-run"}, {"issue", "submit", "S-0012"}, {"file", "publish", "report.html"}} {
 		if rc, _, errs := run(args...); rc != 0 || errs != "" {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
 		}
 	}
 	if want := []string{"waiting list --json", "waiting answer S-0012#1 --option 1", "open", "cell init x",
-		"dispatcher run --once", "dispatcher drain", "signal mark-delivered fp 1", "package stamp unknown", "version"}; !slices.Equal(*calls, want) {
+		"dispatcher run --once", "dispatcher drain", "signal mark-delivered fp 1", "package stamp unknown", "version",
+		"issue gate S-0012 --dry-run", "issue submit S-0012", "file publish report.html"}; !slices.Equal(*calls, want) {
 		t.Errorf("打った葉: %v（%v のはず）", *calls, want)
 	}
-	// 切る案 3 で名前を変えた 10 個（delegate の 4 つを別に数える）と、切る案 5 で名前を変えた 3 個が、どれも断りの表にある
-	if len(retired) != 13 {
-		t.Errorf("retired は %d 個（切る案 3 の 10 個と切る案 5 の 3 個のはず）", len(retired))
+	// 切る案 3 で名前を変えた 10 個（delegate の 4 つを別に数える）と、切る案 4・5 で名前を変えた 3 個ずつが、どれも断りの表にある
+	if len(retired) != 16 {
+		t.Errorf("retired は %d 個（切る案 3 の 10 個と切る案 4・5 の 3 個ずつのはず）", len(retired))
 	}
-	for old, neu := range map[string]string{"dispatcher": "dispatcher run", "signal delivered": "signal mark-delivered", "version stamp": "package stamp"} {
+	for old, neu := range map[string]string{"dispatcher": "dispatcher run", "signal delivered": "signal mark-delivered", "version stamp": "package stamp",
+		"gate": "issue gate", "issue ready": "issue submit", "publish": "file publish"} {
 		if retired[old] != neu {
 			t.Errorf("retired[%q] = %q（%q のはず）", old, retired[old], neu)
 		}
@@ -296,9 +278,9 @@ func TestSuggestsNearLeaf(t *testing.T) {
 		}
 	}
 	// 名詞の誤り（2語目が引数でも勧める）
-	for _, args := range [][]string{{"isue", "start", "S-0001"}, {"gat", "S-0001"}, {"triag", "collect"}} {
+	for _, args := range [][]string{{"isue", "start", "S-0001"}, {"fil", "publish", "x"}, {"triag", "collect"}} {
 		rc, _, errs := run(args...)
-		if rc != 2 || !regexp.MustCompile(`近いのは andon (issue start|gate|triage collect)\n`).MatchString(errs) {
+		if rc != 2 || !regexp.MustCompile(`近いのは andon (issue start|file publish|triage collect)\n`).MatchString(errs) {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errs)
 		}
 	}
@@ -379,8 +361,8 @@ func TestPassesArgsToLeaf(t *testing.T) {
 	if rc, _, errs := run("design", "start"); rc != 2 || !strings.HasPrefix(errs, "usage: andon design start") {
 		t.Errorf("design start: rc=%d err=%q", rc, errs)
 	}
-	if rc, _, errs := run("publish", "/nonexistent/none.html"); rc != 1 || !strings.Contains(errs, "not a file") {
-		t.Errorf("publish: rc=%d err=%q", rc, errs)
+	if rc, _, errs := run("file", "publish", "/nonexistent/none.html"); rc != 1 || !strings.Contains(errs, "not a file") {
+		t.Errorf("file publish: rc=%d err=%q", rc, errs)
 	}
 	// フックが打つ wait と rewake は、使い方の誤りでも 0（決めたこと 15）
 	for _, v := range []string{"wait", "rewake"} {

@@ -62,7 +62,7 @@ stateDiagram-v2
 | `todo` | `todo` | オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3） | AI | `andon issue ask` |  |
 | `queued` | `queued` | 前の課題を待つオーナーの課題（who: person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る） | AI | `andon issue ask` |  |
 | `doing` | `doing` | 報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた | AI | `andon issue report・review-request・candidates・record・ask` |  |
-| `doing` | `review` | 確かめて返した（受け取られていない問いが無い） | AI | `andon issue ready` |  |
+| `doing` | `review` | 確かめて返した（受け取られていない問いが無い） | AI | `andon issue submit` |  |
 | `doing` | `review` | Chief Engineer・トリアージが返した（受け取られていない問いが無い） | kanban の CLI | `kanban review` |  |
 | `review` | `review` | gate がオーナーの判断を問うた・片付けそこねた（from: gate） | 機械 | `andon issue ask` |  |
 | `review` | `doing` | 直しが届いた | kanban の CLI | `kanban start` |  |

@@ -18,7 +18,7 @@
   - 見るファイル: `package/settings.json`
 - `bt-skills` `/opt/andon/skills` の skill ごとに、`~/.agents/skills/andon-<名>` の symlink がその置き場を指す。リンクが無いもの・パッケージの外を指す `andon-*` があれば落ちる。見る道: 検証の担当だけ。
   - 見るファイル: `internal/boot/extskills.go`、`package/skills/`、`package/gh-skills.txt`
-- `bt-tray-rules` 当てたあと、Chief of Staff に3行を超える報告（試しの課題の片付けの報告など）を頼むと、返事は `andon publish` が出した tray の URL と要る判断だけで、`andon tray status` の上がった枚数が1つ増える（ADR-0064 決めたこと 13）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
+- `bt-tray-rules` 当てたあと、Chief of Staff に3行を超える報告（試しの課題の片付けの報告など）を頼むと、返事は `andon file publish` が出した tray の URL と要る判断だけで、`andon tray status` の上がった枚数が1つ増える（ADR-0064 決めたこと 13）。見る道: Chief of Staff が試しの課題を起動し、検証の担当が画面を読む。
   - 見るファイル: `package/skills/chief-of-staff/SKILL.md`、`package/skills/chief-engineer/SKILL.md`、`package/environment.md`
 
 ## 辿り着き方（利用者から）

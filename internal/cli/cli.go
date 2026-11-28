@@ -167,7 +167,7 @@ func dropJSON(args []string) []string {
 }
 
 // unknown は表に無い名前を断り、綴りの近い葉を1つ勧める（決めたこと 12）。typed は打った1語か2語。
-// 2語で近い葉が無ければ1語目で探す（andon gat S-0012 に gate を勧める）。
+// 2語で近い葉が無ければ1語目で探す（andon isue S-0012 に issue を勧める）。
 func unknown(typed []string, stderr io.Writer) int {
 	near := nearest(strings.Join(typed, " "))
 	if near == "" && len(typed) > 1 {

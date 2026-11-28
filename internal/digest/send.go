@@ -293,7 +293,7 @@ func Send(env Env, id string) (string, error) {
 }
 
 // placeLocal は照らした中身そのもの（digest.html を読み直さない）をローカルの tray に送り、その URL を返す。
-// ローカルの tray に届かなければ、andon publish と同じく files/ に置き、セルの repo からのパスを返す（ADR-0064 決めたこと 8）。
+// ローカルの tray に届かなければ、andon file publish と同じく files/ に置き、セルの repo からのパスを返す（ADR-0064 決めたこと 8）。
 func placeLocal(env Env, in *Input, r tray.Report) (url, path string, err error) {
 	d := tray.Send(r, nil)
 	if d.Local != nil {

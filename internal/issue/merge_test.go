@@ -135,14 +135,14 @@ func TestRetryMerge(t *testing.T) {
 
 // ADR-0056 A7（決めたこと 14 の細部）: gate が判定できなかったときの問いの先頭（推奨）は「原因を直して回し直す」。
 func TestGateFailedQuestion(t *testing.T) {
-	q := GateFailedQuestion("T-0001", "タイトル", "andon gate T-0001: 終了コード 3 x")
+	q := GateFailedQuestion("T-0001", "タイトル", "andon issue gate T-0001: 終了コード 3 x")
 	if len(q.Options) != 2 || q.Options[0].Pick == nil || !*q.Options[0].Pick || !strings.Contains(q.Options[0].Label, "原因を直して") || !strings.Contains(q.Options[0].Label, "回し直す") {
 		t.Errorf("先頭が原因を直して回し直すでない: %+v", q.Options)
 	}
 	if q.Options[1].Pick != nil || !strings.Contains(q.Options[1].Label, "オーナーが PR を読んで") {
 		t.Errorf("2 つ目がオーナーが読むでない: %+v", q.Options[1])
 	}
-	if q.From != "gate" || q.Kind != "irreversible" || q.Facts[0] != "andon gate T-0001: 終了コード 3 x" {
+	if q.From != "gate" || q.Kind != "irreversible" || q.Facts[0] != "andon issue gate T-0001: 終了コード 3 x" {
 		t.Errorf("問いの形: %+v", q)
 	}
 }

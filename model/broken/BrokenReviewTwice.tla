@@ -1,7 +1,7 @@
 ---- MODULE BrokenReviewTwice ----
 \* 壊した見本（R7 で落ちるはず）: review-request が断るのは head を見るレビュアーが動いているときだけで、古い commit を見る
 \* レビュアーが動いていても頼み直せる（ADR-0032 決めたこと 8 で直す前の動き）。CI が落ちて直した commit で頼み直すと
-\* レビュアーが 2 人走り、古い commit のレビュアーが後に終わると、ready は stale で断り、review-request は「head のレビューは
+\* レビュアーが 2 人走り、古い commit のレビュアーが後に終わると、submit は stale で断り、review-request は「head のレビューは
 \* もうある」で断る。直すことが無ければ push もしないので、取り消しのほかにマージへ進む道が無い。
 EXTENDS IssueRules
 

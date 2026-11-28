@@ -12,7 +12,7 @@ disable-model-invocation: true
 |---|---|
 | 当てた差分に当たる機能を `scripts/drive.sh` で動かし、`andon issue record` で記録に撮る | 製品のコード（`cmd/`・`internal/`・`package/`・`schema/` など）を直す。動かなかった機能は報告に書き、直す課題は Chief of Staff が切る |
 | 地図と手順の食い違いを、この skill の置き場（`.claude/skills/verify-andon/`）の中だけで直し、PR 1本にする | エージェントを起動する。本物のエージェントが要る機能は、地図の「見る道」のとおり Chief of Staff かオーナーに回す |
-| セルの本物の記録・端末を読む（`hc get`・`hc read`・kanban のファイル） | セルの本物の kanban に書く・ほかの担当の端末に `hc send`・`hc kill` する・`andon boot`・`andon gate`・`andon dispatcher drain` を手で打つ |
+| セルの本物の記録・端末を読む（`hc get`・`hc read`・kanban のファイル） | セルの本物の kanban に書く・ほかの担当の端末に `hc send`・`hc kill` する・`andon boot`・`andon issue gate`・`andon dispatcher drain` を手で打つ |
 
 ## 1. 当てたものと範囲を決める
 

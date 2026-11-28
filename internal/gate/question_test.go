@@ -14,7 +14,7 @@ func TestQuestionHead(t *testing.T) {
 		want  string
 	}{
 		{"記録の行から head を読む", []string{"delegation: merge=B < tier C", "PR https://github.com/example/app/pull/7", RecordFact(record)}, head},
-		{"記録の行が無い", []string{"andon gate T-0001: 終了コード 3"}, ""},
+		{"記録の行が無い", []string{"andon issue gate T-0001: 終了コード 3"}, ""},
 		{"事実が無い", nil, ""},
 		{"gate の置き場でない", []string{RecordFact("/p/kanban/issues/T-0001/library/" + head + ".json")}, ""},
 		{"名前が sha でない", []string{RecordFact("/p/kanban/issues/T-0001/library/gate/abc.json")}, ""},

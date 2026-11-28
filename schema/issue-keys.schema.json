@@ -32,7 +32,7 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
     },
     "deliverable": {
-      "description": "What the issue delivers. pr: a pull request (fix issues, Chief Engineer documents). candidates: library/candidates.json without a pull request (survey issues); andon issue ready asks for the file instead of a PR and the dispatcher does not run the gate. report: the report, and a pull request is optional (verification after apply, check issues added by routines, reviews after merge); a pull request it does open goes the same way as a pr issue, and the dispatcher does not tell an issue waiting on it that it was abandoned (ADR-0066). report counts only when the Chief of Staff at the time wrote it; otherwise it reads as pr. Default: pr.",
+      "description": "What the issue delivers. pr: a pull request (fix issues, Chief Engineer documents). candidates: library/candidates.json without a pull request (survey issues); andon issue submit asks for the file instead of a PR and the dispatcher does not run the gate. report: the report, and a pull request is optional (verification after apply, check issues added by routines, reviews after merge); a pull request it does open goes the same way as a pr issue, and the dispatcher does not tell an issue waiting on it that it was abandoned (ADR-0066). report counts only when the Chief of Staff at the time wrote it; otherwise it reads as pr. Default: pr.",
       "enum": ["pr", "candidates", "report"]
     },
     "estimate": {
@@ -40,12 +40,12 @@
       "enum": ["small", "medium", "large"]
     },
     "acceptance": {
-      "description": "Numbers of the acceptance criteria the issue must meet, comma-separated without spaces and spelled as the report's acceptance[].id (A4,A13). The Chief of Staff writes it when cutting the issue (ADR-0035). andon issue ready refuses while the report has no acceptance[] row for one of them, and refuses a malformed value. Missing: the issue names no criteria and nothing is checked.",
+      "description": "Numbers of the acceptance criteria the issue must meet, comma-separated without spaces and spelled as the report's acceptance[].id (A4,A13). The Chief of Staff writes it when cutting the issue (ADR-0035). andon issue submit refuses while the report has no acceptance[] row for one of them, and refuses a malformed value. Missing: the issue names no criteria and nothing is checked.",
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$"
     },
     "hold": {
-      "description": "The Chief of Staff holds the issue's pull request until the answer of this issue (its id) is reflected (ADR-0056). Written by andon issue hold and removed by andon issue unhold. While it holds, the gate does not run (andon gate answers wait), the dispatcher does not merge and discards a gate decision made before the hold, the gate's commit status is yellow, and andon waiting list keeps the pull request out of the merge requests. An empty value whose last change in log.jsonl was written by the issue's own worker terminal (or its reviewer's) still holds. The reason issue being done does not release it. Missing: not held.",
+      "description": "The Chief of Staff holds the issue's pull request until the answer of this issue (its id) is reflected (ADR-0056). Written by andon issue hold and removed by andon issue unhold. While it holds, the gate does not run (andon issue gate answers wait), the dispatcher does not merge and discards a gate decision made before the hold, the gate's commit status is yellow, and andon waiting list keeps the pull request out of the merge requests. An empty value whose last change in log.jsonl was written by the issue's own worker terminal (or its reviewer's) still holds. The reason issue being done does not release it. Missing: not held.",
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
     },

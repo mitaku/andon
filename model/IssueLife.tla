@@ -194,7 +194,7 @@ ReviewerReturns ==
     /\ UNCHANGED <<status, worker, wt, pr, ci, gate, fixSent, told, q, cancel, mergeAuto, moved, autoMerged, qVars>>
     /\ UNCHANGED <<mark, hold, required, rel, badMerge>>
 
-\* andon issue ready（internal/issue/issue.go ready）: unreceived で受け取られていない問いがあれば断り、doing のまま残す。
+\* andon issue submit（internal/issue/issue.go ready）: unreceived で受け取られていない問いがあれば断り、doing のまま残す。
 \* gate の問いのうち前の head について出たもの（staleGateQuestions）は数えない（q は担当の問いだけ。gate が今の head で決めたとき
 \* internal/issue/merge.go closeStaleGateQuestions が閉じる）。
 \* 照合が head のレビューを読めなければ（CheckReview が current でない）断る。CI は読まない（gate が待つ）

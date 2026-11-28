@@ -20,7 +20,7 @@
 - 調べる課題（`deliverable: candidates`）は PR が無いので、報告と `candidates.json` を読んで直す課題を切ったあと（切らない候補は報告の Next に残っている）、オーナーの go は要らず `andon issue finish <id>`。commit していない変更があって止まったら、担当に捨てさせる（報告の Next に「commit は捨ててよい」と書かせる）。
 - dispatcher が止まっているときは、`review`・`doing` の課題なら `andon issue settle <id>` を打つ（dispatcher が打つのと同じ。マージを確かめ、gate の問いを閉じて片付ける。出力の `notify[]` が届くはずだった行）。`report.json` に `pr` が無い課題をオーナーがマージしたときだけ、`gh pr view <n> --repo <owner/repo> --json state -q .state` が `MERGED` を確かめてから `andon issue finish <id>`（レビュアーの子課題と detached worktree も片付く）。
   受け取られていない問い（`open`・`answered`。レビュアーの子課題のものも）があると、端末にも worktree にも触らずに止まる（課題は元の状態のまま）。commit していない変更があっても止まる。そのときは担当に聞くか、オーナーへ。やめる課題も、問いを閉じて（`kanban answer --decided-by chief-of-staff`・`kanban received`）から打ち直す。
-- マージせずにやめる課題は、**オーナーの go を取ってから** `andon issue finish <id>`（branch は残る）。その課題の上に積んだ課題（`kanban list --json | jq '.[] | select(.stacked_on == "<id>")'`）があれば、go を取る同じ返事で「S-y（タイトル）がこの上に積んである。やめると、S-y もやめるか、この変更なしで続けるかを次に聞く」と言う（ADR-0067 決めたこと 14）。積んだ課題が `review` なら、次の問いは gate の `behind` の通知が届いてから `watch.md` の表で出す。積んだ課題が `doing` なら gate は回っておらず通知は届かないうえ、担当が PR の前か ready の前の `andon issue restack` で黙って載せ替えてしまう。そこで finish の前に担当へ `hc send <agent> "前の課題 <id>（タイトル）をやめる。答えを送るまで andon issue restack・PR・ready を打たずに待って"` を送り、finish のあと同じ問いを出す（選択肢と答えのあとは `watch.md` の「マージされずに終わった」の行と同じ）。
+- マージせずにやめる課題は、**オーナーの go を取ってから** `andon issue finish <id>`（branch は残る）。その課題の上に積んだ課題（`kanban list --json | jq '.[] | select(.stacked_on == "<id>")'`）があれば、go を取る同じ返事で「S-y（タイトル）がこの上に積んである。やめると、S-y もやめるか、この変更なしで続けるかを次に聞く」と言う（ADR-0067 決めたこと 14）。積んだ課題が `review` なら、次の問いは gate の `behind` の通知が届いてから `watch.md` の表で出す。積んだ課題が `doing` なら gate は回っておらず通知は届かないうえ、担当が PR の前か submit の前の `andon issue restack` で黙って載せ替えてしまう。そこで finish の前に担当へ `hc send <agent> "前の課題 <id>（タイトル）をやめる。答えを送るまで andon issue restack・PR・submit を打たずに待って"` を送り、finish のあと同じ問いを出す（選択肢と答えのあとは `watch.md` の「マージされずに終わった」の行と同じ）。
 - レビュアーの課題は、元の課題の `andon issue finish` で片付く。元の課題をやめずにレビュアーだけ残っていれば `andon issue finish <レビュアーの id>` と detached の worktree の `git worktree remove`。
 - finish のたびに、報告とオーナーの手直しを wiki の `raw/` に写して ingest する（`wiki.md`）。
 - 太らせて寝かせない（規約4）: MERGED を確かめたら `andon issue finish`。
@@ -46,7 +46,7 @@
 | 上のどれでもない | 影響なし | 何もしない |
 
 - 決めたことは、オーナーがいるターンならその返事で知らせる（`S-0011（…）に rebase を頼んだ。S-0012（…）は止めて、向きを確かめている。`）。影響なしだけなら `andon news ack` を打って文は書かない。
-- **rebase を頼むときは、`Review: on` の課題と、`Review: off` で差分がレベル B・C の課題（gate がレビューを求める）には「review-request を打ち直して ready」まで書く**。rebase で差分が変わると、最後のレビューが見た commit と食い違い、`andon issue ready` は stale で止まる。衝突の無い rebase で差分が同じなら、review-request は前のレビューを引き継いで頼まず、担当は報告を書き直して ready へ進む。回数が `review_rounds` を超えるなら、頼む前に `kanban set <id> review_rounds=<数>` で上げておく。
+- **rebase を頼むときは、`Review: on` の課題と、`Review: off` で差分がレベル B・C の課題（gate がレビューを求める）には「review-request を打ち直して submit」まで書く**。rebase で差分が変わると、最後のレビューが見た commit と食い違い、`andon issue submit` は stale で止まる。衝突の無い rebase で差分が同じなら、review-request は前のレビューを引き継いで頼まず、担当は報告を書き直して submit へ進む。回数が `review_rounds` を超えるなら、頼む前に `kanban set <id> review_rounds=<数>` で上げておく。
 - 同じ担当に同じマージで二度頼まない。rebase を頼んだ担当が `blocked`・答えないときは `blocked.md`・`watch.md` の表で扱う。
 - **ほかの「前提が変わった」も同じ口で担当へ届ける**: 動いている課題の依頼書に追記したら、そのターンで担当へ `hc send <agent> "依頼書に追記した（<要点>）。読んでから続けて"`（kanban の依頼書は担当の画面に届かない）。
   オーナーの答え（`blocked.md` の「オーナーに聞くこと」）が、問うた課題のほかに動いている課題の前提にも触れるなら、その担当にも同じく知らせる。

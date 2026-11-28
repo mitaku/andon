@@ -11,7 +11,7 @@ import (
 	"andon/internal/ledger/ledgertest"
 )
 
-// deliverable: candidates の課題に andon gate を打つと、回さずに理由1行と終了コード 3。記録を書かない
+// deliverable: candidates の課題に andon issue gate を打つと、回さずに理由1行と終了コード 3。記録を書かない
 // （ADR-0006 受け入れ条件 4）。最後に書いたのが今の Chief of Staff でなくても PR を求めない（Chief of Staff が起き直して
 // 書き直す前。ADR-0006 決めたこと 17）。理由の文で照合が外れたことを言う。
 func TestGateRefusesCandidates(t *testing.T) {

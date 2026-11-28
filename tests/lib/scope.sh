@@ -20,11 +20,11 @@ go_issue='embed.go init/ process/states/issue.yaml schema/*.schema.json cmd/ando
   internal/ledger/ internal/flock/ internal/delegate/ internal/spawn/ internal/contract/ internal/redact/
   internal/waiting/ internal/board/ internal/otel/ internal/trace/ internal/tools/ internal/tray/'
 declare -A heavy=(
-  # andon dispatcher・andon issue・andon gate・kanban を打つ。ANDON_HOME を package/ に向け、gate.json とフックを読む
+  # andon dispatcher・andon issue・andon issue gate・kanban を打つ。ANDON_HOME を package/ に向け、gate.json とフックを読む
   [tests/andon-dispatcher.sh]="$go_issue package/gate.json package/hooks/"
   # andon issue・andon design start・kanban を打つ。ANDON_HOME を package/ に向け、gate.json を読む（review: off の課題のレベル）
   [tests/andon-issue.sh]="$go_issue package/gate.json"
-  # andon gate・andon delegation・andon issue・kanban を打つ。ANDON_HOME を package/ に向け、gate.json を読む
+  # andon issue gate・andon delegation・andon issue・kanban を打つ。ANDON_HOME を package/ に向け、gate.json を読む
   [tests/andon-gate.sh]="$go_issue package/gate.json"
   # image/apply-main.sh を当て、焼いた andon の help・version と kanban --version を打つ
   [tests/apply-main.sh]="image/apply-main.sh cmd/andon/ cmd/kanban/ internal/cli/ internal/pkgversion/

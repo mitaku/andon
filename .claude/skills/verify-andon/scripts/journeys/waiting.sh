@@ -50,11 +50,13 @@ rc=0; step "ow-old-name: 古い名前 andon waiting --json を打つ" "$andon" w
   && ok "ow-old-name: andon waiting --json は andon waiting list を1行で言って終了コード 2 で終わり、オーナー待ちを出さない" \
   || fail "ow-old-name: 古い名前が終了コード 2 と新しい名前の1行で断られない（終了コード $rc）"
 # 2語の古い名前・消えた名詞だけ・子の無い1語の古い名前・名詞が生きている名詞だけの古い名前のフラグだけの形・
-# 1語目が1語の葉のまま残る2語の古い名前も、同じく断る（振り分けの分かれ道ごとに1つ。機械が打つ葉は ADR-0053 切る案 5）。
+# 1語目が1語の葉のまま残る2語の古い名前も、同じく断る（振り分けの分かれ道ごとに1つ。機械が打つ葉は ADR-0053 切る案 5、
+# 役が打つ葉は切る案 4）。
 # 断れずに実行しても本物を書かないよう、置き場は一時の空の所に向ける
 mkdir -p "$tmp/old-name/ws" "$tmp/old-name/pkg"
 for pair in 'delegate show --json|andon delegation show' 'delegate|andon delegation' 'measure --json|andon metrics show' \
-  'dispatcher --once|andon dispatcher run' 'signal delivered fp 1|andon signal mark-delivered' 'version stamp unknown|andon package stamp'; do
+  'dispatcher --once|andon dispatcher run' 'signal delivered fp 1|andon signal mark-delivered' 'version stamp unknown|andon package stamp' \
+  'gate S-0001|andon issue gate' 'issue ready S-0001|andon issue submit' 'publish x.md|andon file publish'; do
   old=${pair%%|*} neu=${pair#*|}
   rc=0; step "ow-old-name: 古い名前 andon $old を打つ" env ANDON_WORKSPACE="$tmp/old-name/ws" ANDON_HOME="$tmp/old-name/pkg" "$andon" $old || rc=$?
   [ "$rc" = 2 ] && [ "$(wc -l <"$tmp/step.out")" = 1 ] && grep -qF "$neu に名前が変わった" "$tmp/step.out" \
@@ -63,13 +65,13 @@ for pair in 'delegate show --json|andon delegation show' 'delegate|andon delegat
 done
 
 # ow-json: JSON を出せる葉は --json を受け、標準出力が JSON として読める（ADR-0053 決めたこと 13）。いつも JSON を出す葉（issue show・version・
-# gate）は葉が --json を読まず、振り分けが外して渡す。--help は JSON の出し方の行を持ち、JSON を出せない葉は持たない
+# issue gate）は葉が --json を読まず、振り分けが外して渡す。--help は JSON の出し方の行を持ち、JSON を出せない葉は持たない
 step "ow-json: andon issue show $p1 --json を打つ" "$andon" issue show "$p1" --json \
   && jq -e --arg p "$p1" '.id == $p' "$tmp/step.out" >/dev/null \
   && step "ow-json: andon version --json を打つ" "$andon" version --json && jq -e '.root' "$tmp/step.out" >/dev/null \
   && ok "ow-json: いつも JSON を出す issue show と version は --json を受けて JSON を出す" \
   || fail "ow-json: issue show か version が --json を受けないか、JSON を出さない"
-rc=0; step "ow-json: andon gate $p1 --dry-run --json を打つ（report.json が無いので fix）" "$andon" gate "$p1" --dry-run --json || rc=$?
+rc=0; step "ow-json: andon issue gate $p1 --dry-run --json を打つ（report.json が無いので fix）" "$andon" issue gate "$p1" --dry-run --json || rc=$?
 [ "$rc" = 1 ] && jq -e '.decision == "fix"' "$tmp/step.out" >/dev/null \
   && ok "ow-json: gate は --json を受け、判定を JSON で出す（fix は終了コード 1）" \
   || fail "ow-json: gate が --json を受けないか、判定を JSON で出さない（終了コード $rc）"

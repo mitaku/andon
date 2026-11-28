@@ -100,5 +100,5 @@ andon digest send "$id"
 ```
 
 - 要旨とテーマの文を報告に写さない。
-- `andon issue report <id>` → `kanban review <id>`（repo の無い課題なので `andon issue ready` は打たない）。Chief of Staff へ `hc send` しない（dispatcher が届ける）。片付けるのは Chief of Staff。
+- `andon issue report <id>` → `kanban review <id>`（repo の無い課題なので `andon issue submit` は打たない）。Chief of Staff へ `hc send` しない（dispatcher が届ける）。片付けるのは Chief of Staff。
 - 報告を書いたら、続けて `kanban review <id>` まで打ってからターンを終える（`doing` のままだと片付かない）。

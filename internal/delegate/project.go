@@ -29,7 +29,7 @@ type Project struct {
 }
 
 // Tray は Cloudflare の tray へも送るというオーナーの選び（contract.md §11・ADR-0064 決めたこと 5・14）。書いてあることが、
-// このプロジェクトの報告を Cloudflare へ送ってよいという毎回の go。読むのは andon publish・andon digest send・andon issue report・andon tray status。
+// このプロジェクトの報告を Cloudflare へ送ってよいという毎回の go。読むのは andon file publish・andon digest send・andon issue report・andon tray status。
 type Tray struct {
 	Upload string `json:"upload"`
 }

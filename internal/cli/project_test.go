@@ -58,7 +58,7 @@ func projectLeaves() []leaf {
 }
 
 // A11: プロジェクトが決まらないとき、プロジェクトを読む葉はどれも終了コード 2 を返し、セルのプロジェクトの一覧と
-// --project を付ける1行を出す。葉は打たない。フックが打つ葉とプロジェクトが無くてよい葉（publish・tray status。ADR-0064 決めたこと 8）は
+// --project を付ける1行を出す。葉は打たない。フックが打つ葉とプロジェクトが無くてよい葉（file publish・tray status。ADR-0064 決めたこと 8）は
 // 2 を返さずに葉に渡し、省くと全部を回る dispatcher は決めない。
 func TestProjectUndecided(t *testing.T) {
 	cell(t, "a", "b")

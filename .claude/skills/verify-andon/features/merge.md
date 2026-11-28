@@ -13,7 +13,7 @@ gate が approve を決め、`merge: auto` で委譲の範囲の中なら、disp
 
 ## 辿り着き方（利用者から）
 
-- 担当が `andon issue ready <id>` で `review` に入れ、Chief of Staff が `merge: auto` を書いた課題を、dispatcher の見回りが gate からマージまで進める。
+- 担当が `andon issue submit <id>` で `review` に入れ、Chief of Staff が `merge: auto` を書いた課題を、dispatcher の見回りが gate からマージまで進める。
 - オーナーは、マージできなかった課題の問い（`from: gate`）だけを受け取る。
 
 ## 動かし方
@@ -22,7 +22,7 @@ gate が approve を決め、`merge: auto` で委譲の範囲の中なら、disp
 
 - `scripts/doctor.sh` が終了コード 0。
 
-- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh merge <検証する commit>` を打つ。偽のセルの repo（オーナーが条件表と委譲 preset work を commit したもの）のプロジェクト `mg` で、本物の `andon dispatcher run --once --project mg` を回す。課題は担当が文書1行の PR で `andon issue ready` まで進めた `merge: auto` のもの（レベル A）。偽の `gh` の `gh pr merge` は記録してマージ済みにし、読み直しを決めた回数だけ 502 で落とす。
+- **通しで動かす。** `andon issue record <自分の課題> -- bash .claude/skills/verify-andon/scripts/drive.sh merge <検証する commit>` を打つ。偽のセルの repo（オーナーが条件表と委譲 preset work を commit したもの）のプロジェクト `mg` で、本物の `andon dispatcher run --once --project mg` を回す。課題は担当が文書1行の PR で `andon issue submit` まで進めた `merge: auto` のもの（レベル A）。偽の `gh` の `gh pr merge` は記録してマージ済みにし、読み直しを決めた回数だけ 502 で落とす。
 - **1回落ちる。** `mg-reread` の行に、巡の出力（「PR … をマージした」）、偽の `gh` への `gh pr view 7 … --json state,mergeCommit` が2行、`status`・gate の記録の `merged: true`・問い `[]` が出る。`ok   mg-reread` が見えれば動いた。
 - **3回とも落ちる。** `mg-reread-exhausted` の行に、巡の出力（「… をマージしない: マージを打ったが PR を読み直せない（3 回）」）、読み直しが3行、`status: review`・`merged` が true でないこと・開いた問い1つが出る。`ok   mg-reread-exhausted` が見えれば、確かめずに片付けていない。
 - **オーナーが先にマージしていた。** `mg-reread-race` の行に、巡の出力（「… は gh pr merge の前に同じ head でマージされていた」）、`gh pr view 7 … --json state,mergeCommit,headRefOid` が2行（読み直し）、問い `[]` が出る。`ok   mg-reread-race` が見えれば動いた。

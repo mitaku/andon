@@ -192,7 +192,7 @@ func (c *ctx) mergeOne(w contract.Merging, fresh bool, res *contract.Merge, stde
 	var gr gateResult
 	if (code != 0 && code != 1 && code != 4 && code != 5 && code != 6) || json.Unmarshal(out.Bytes(), &gr) != nil {
 		w.Approved, w.Retries = "", 0
-		why := fmt.Sprintf("andon gate %s: 終了コード %d %s", c.id, code, firstLine(errb.String()))
+		why := fmt.Sprintf("andon issue gate %s: 終了コード %d %s", c.id, code, firstLine(errb.String()))
 		res.Log = append(res.Log, fmt.Sprintf("%s の gate が判定できない: %s", c.id, why))
 		// 積んだ課題では、判定できないときも前の PR 待ちに置く（オーナーに押せないマージの問いを出さない。ADR-0067 決めたこと 8）。
 		// 記録は無いので、報告の commit を判定した head として控え、head が動けば回し直す
@@ -499,7 +499,7 @@ func (c *ctx) gatedSince(head, since string) *gate.Record {
 	return &g
 }
 
-// gateResult は andon gate の出力のうち merge が読むもの（記録 contract.md §7。信じられる PR が無いときは decision・reasons だけ）。
+// gateResult は andon issue gate の出力のうち merge が読むもの（記録 contract.md §7。信じられる PR が無いときは decision・reasons だけ）。
 type gateResult struct {
 	Decision   string   `json:"decision"`
 	Restack    bool     `json:"restack"` // 載せ替えを頼む直し（ADR-0067 決めたこと 12）
@@ -573,9 +573,9 @@ func (c *ctx) sendFix(gr gateResult, record string, res *contract.Merge) {
 	}
 	if gr.Restack {
 		// 載せ替えの直し（ADR-0067 決めたこと 12・13）: 検査やレビューより先に、自分の commit を既定の branch の先へ移す
-		msg += "kanban start で doing に戻して andon issue restack で既定の branch の先へ載せ替え、検査を通して andon issue review-request（レビューが引き継がれないとき）か andon issue ready からやり直す。"
+		msg += "kanban start で doing に戻して andon issue restack で既定の branch の先へ載せ替え、検査を通して andon issue review-request（レビューが引き継がれないとき）か andon issue submit からやり直す。"
 	} else {
-		msg += "kanban start で doing に戻して直し、push して andon issue review-request（レビューが要るとき）か andon issue ready からやり直す。"
+		msg += "kanban start で doing に戻して直し、push して andon issue review-request（レビューが要るとき）か andon issue submit からやり直す。"
 	}
 	// 先頭に送り手の印を置く（端末の外から送るので hc の包みが付かない。spawn.Mark）
 	if out, err := exec.Command("hc", "send", agent, spawn.Mark(spawn.FromGate, msg)).CombinedOutput(); err != nil {

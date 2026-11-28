@@ -643,7 +643,7 @@ func pageDay() string {
 	return until.In(time.Local).Format("2006-01-02")
 }
 
-// ADR-0064 決めたこと 8: ローカルの tray が止まっていれば、andon publish と同じく files/ に置いて済みにする（終了コードは 0）。
+// ADR-0064 決めたこと 8: ローカルの tray が止まっていれば、andon file publish と同じく files/ に置いて済みにする（終了コードは 0）。
 func TestSendWithoutLocalTray(t *testing.T) {
 	f := newFake(t)
 	traytest.Local(t, nil)

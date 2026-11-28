@@ -61,7 +61,7 @@ grep -q '^\*\*検査\*\*（checks）:' "$g" && grep -q '条件表' "$g" \
 old_terms() {
   local m=''
   grep -q '^\*\*kanban\*\*（コードと schema の名前は `ledger`）:' "$1" || m="$m [用語集に kanban の項が無い]"
-  grep -q '^\*\*gate\*\*（`andon gate`）:' "$1" || m="$m [用語集に gate の項が無い]"
+  grep -q '^\*\*gate\*\*（`andon issue gate`）:' "$1" || m="$m [用語集に gate の項が無い]"
   if grep -qE '^\*\*(台帳|ゲート)\*\*' "$1"; then m="$m [用語集に「台帳」か「ゲート」の項がある]"; fi  # 古い語を見る（ADR-0040 決めたこと 10）
   grep -q '^_避ける_: 台帳（2026-11-20 までの語）' "$1" || m="$m [kanban の項の避けるに「台帳」が無い]"  # 古い語を見る（ADR-0040 決めたこと 10）
   grep -q '^_避ける_: ゲート（2026-11-20 までの語）' "$1" || m="$m [gate の項の避けるに「ゲート」が無い]"  # 古い語を見る（ADR-0040 決めたこと 10）
@@ -75,7 +75,7 @@ miss=$(old_terms "$g" "$wr")
 miss=
 sed 's/^\*\*kanban\*\*（コードと schema の名前は `ledger`）:/**台帳**（ledger）:/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0040 決めたこと 10）
 [ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [「台帳」の項を戻した]"
-sed 's/^\*\*gate\*\*（`andon gate`）:/**ゲート**（gate）:/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0040 決めたこと 10）
+sed 's/^\*\*gate\*\*（`andon issue gate`）:/**ゲート**（gate）:/' "$g" >"$tmp/glossary.md"  # 古い語を見る（ADR-0040 決めたこと 10）
 [ -n "$(old_terms "$tmp/glossary.md" "$wr")" ] || miss="$miss [「ゲート」の項を戻した]"
 sed 's/もともと日本語で言う語（課題/もともと日本語で言う語（台帳・課題/' "$wr" >"$tmp/writing.md"  # 古い語を見る（ADR-0040 決めたこと 10）
 [ -n "$(old_terms "$g" "$tmp/writing.md")" ] || miss="$miss [writing.md の例に「台帳」を戻した]"

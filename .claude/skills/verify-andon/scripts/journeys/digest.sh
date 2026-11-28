@@ -85,7 +85,7 @@ step "dg-check-refuse: 送り先の無いまま確かめを打つ" "$andon" dige
     && ok "dg-check-refuse: 送り先が無ければ何も送らずに断る" || fail "dg-check-refuse: 断りの理由が違う"; }
 
 # dg-tray: 切り離した置き場で当てたパッケージのローカルの tray を起動し、送りを入れて（ANDON_TRAY_OFF=0）打ち直す。
-# files/ に倒れた files の行は tray の URL に置き直され、andon publish は tray の URL を返し、andon tray status が枚数を出す。
+# files/ に倒れた files の行は tray の URL に置き直され、andon file publish は tray の URL を返し、andon tray status が枚数を出す。
 # 一覧の面は 0 番（空いている番号）で起動する（セルの本物の tray が既定の番号を持っている）。データは切り離した HOME の下
 pkg=${VERIFY_PACKAGE:-/opt/andon}
 if [ ! -f "$pkg/tray/scripts/serve.mjs" ]; then
@@ -108,7 +108,7 @@ else
     turl=$(grep -m1 '^http' "$tmp/step.out")
     jq -c . "$d/sent.json" 2>/dev/null | sed 's/^/  sent.json: /'
     echo "dg-tray の確かめ" >"$tmp/tray-check.md"
-    step "dg-tray: publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+    step "dg-tray: publish" env ANDON_TRAY_OFF=0 "$andon" file publish "$tmp/tray-check.md" tray-check
     purl=$(grep -m1 '^http' "$tmp/step.out")
     step "dg-tray: status" env ANDON_TRAY_OFF=0 "$andon" tray status
     traystatus=$(cat "$tmp/step.out")
@@ -130,7 +130,7 @@ else
     fetch_view() { local hp=${1#http://}; hp=${hp%%/*}; curl -s -H "Host: $hp" "$lst${1#http://"$hp"}"; }
     u1=$(open_report "$rid")
     echo "dg-tray-old の確かめ 2" >"$tmp/tray-check.md"
-    step "dg-tray-old: 同じ slug で中身を変えて publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+    step "dg-tray-old: 同じ slug で中身を変えて publish" env ANDON_TRAY_OFF=0 "$andon" file publish "$tmp/tray-check.md" tray-check
     u2=$(open_report "$rid")
     # Markdown は報告の面が HTML にして出すので、本文の段落（<p>…</p>）を取り出して比べる
     b1=$(fetch_view "$u1" | sed -n 's/.*<p>\([^<]*\)<\/p>.*/\1/p') b2=$(fetch_view "$u2" | sed -n 's/.*<p>\([^<]*\)<\/p>.*/\1/p')
@@ -152,7 +152,7 @@ else
       ' "$r2db" "$@"
     }
     echo "dg-tray-old の確かめ 3" >"$tmp/tray-check.md"
-    step "dg-tray-old: 3 つ目の中身を publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+    step "dg-tray-old: 3 つ目の中身を publish" env ANDON_TRAY_OFF=0 "$andon" file publish "$tmp/tray-check.md" tray-check
     mapfile -t k < <(r2 keys "$rid/")
     oid=${turl##*/r/}
     okey=$(r2 keys "$oid/" | sed -n 1p)
@@ -160,7 +160,7 @@ else
     if [ "${#k[@]}" = 3 ] && [ -n "$okey" ]; then
       r2 age "${k[0]}" 25 && r2 age "${k[1]}" 23 && r2 age "$okey" 25 || fail "dg-tray-old: R2 の置いた時刻を書き換えられない"
       echo "dg-tray-old の確かめ 4" >"$tmp/tray-check.md"
-      step "dg-tray-old: 置いた時刻を戻したあとに publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-check.md" tray-check
+      step "dg-tray-old: 置いた時刻を戻したあとに publish" env ANDON_TRAY_OFF=0 "$andon" file publish "$tmp/tray-check.md" tray-check
       after=$(r2 keys "$rid/")
       echo "  | 出し直したあとのこの報告の中身: $(tr '\n' ' ' <<<"$after")。ほかの報告の中身: $(r2 keys "$oid/" | tr '\n' ' ')"
       if ! grep -qxF "${k[0]}" <<<"$after" && grep -qxF "${k[1]}" <<<"$after" && grep -qxF "${k[2]}" <<<"$after" \
@@ -183,7 +183,7 @@ else
     step "dg-tray-remote: status" env ANDON_TRAY_OFF=0 "$andon" tray status
     chosen=$(cat "$tmp/step.out")
     echo "dg-tray-remote の確かめ" >"$tmp/tray-remote.md"
-    step "dg-tray-remote: publish" env ANDON_TRAY_OFF=0 "$andon" publish "$tmp/tray-remote.md" tray-remote
+    step "dg-tray-remote: publish" env ANDON_TRAY_OFF=0 "$andon" file publish "$tmp/tray-remote.md" tray-remote
     rurl=$(grep -m1 '^http' "$tmp/step.out")
     published=$(cat "$tmp/step.out")
     printf ' \n' >>"$ANDON_WORKSPACE/projects/${slug:-none}/project.json"

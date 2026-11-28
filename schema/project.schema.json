@@ -126,7 +126,7 @@
       }
     },
     "tray": {
-      "description": "Also send this project's reports to the Cloudflare tray (ADR-0064 decisions 5 and 14). Written only by the owner: the key here is the owner's go for each sending. Absent: reports go only to the local tray in the cell. Read by andon publish, andon digest send, andon issue report and andon tray status.",
+      "description": "Also send this project's reports to the Cloudflare tray (ADR-0064 decisions 5 and 14). Written only by the owner: the key here is the owner's go for each sending. Absent: reports go only to the local tray in the cell. Read by andon file publish, andon digest send, andon issue report and andon tray status.",
       "type": "object",
       "required": [
         "upload"

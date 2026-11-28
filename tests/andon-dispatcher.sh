@@ -451,7 +451,7 @@ ok '積んだ課題のレビュアーを起動するとき、dispatcher が分�
 #     behind の通知にする（オーナーに押せないマージの問いを出さない）
 jq --arg b "demo/$prv" '.isDraft = true | .baseRefName = $b' "$tmp/gh/view.json" > "$tmp/gh/view.new" && mv "$tmp/gh/view.new" "$tmp/gh/view.json"
 review_by "$rev" '[]'
-as_worker "$id" ready
+as_worker "$id" submit
 dispatcher
 [ ! -e "$L/issues/$id/library/gate/$head.json" ] && [ ! -e "$L/issues/$id/library/questions" ] || die '前の課題の branch が無いのに gate が記録を書いた・問いを出した'
 pending "$id" gate | jq -e --arg p "$prv" '.detail.decision == "behind" and (.detail | has("record") | not)
@@ -538,7 +538,7 @@ ok '同じ review_request（issue と commit）で二度起動しない'
 
 review_by "$rev" '[{"severity":"minor","file":"docs/a.md","line":1}]'
 as_worker "$id" report --data '{"waived":[{"severity":"minor","file":"docs/a.md","line":1,"reason":"起きる条件が無い"}]}'
-as_worker "$id" ready
+as_worker "$id" submit
 dispatcher
 rec=$L/issues/$id/library/gate/$head.json
 jq -e '.decision == "approve" and .merged == true and .tier == "B"' "$rec" >/dev/null || die "gate の記録が approve・merged でない: $(cat "$rec")"
@@ -686,7 +686,7 @@ as_worker "$id" review-request
 dispatcher
 rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 review_by "$rev" '[{"severity":"major","file":"docs/a.md","line":1}]'
-as_worker "$id" ready
+as_worker "$id" submit
 dispatcher
 grep -q "^t7	\[gate\] $id（説明を足す）: gate が fix を返した。理由: Must fix 以上が 1 件" "$tmp/hc/sent" || die "fix が担当に届いていない: $(cat "$tmp/hc/sent" 2>/dev/null)"
 [ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'fix なのにマージした・片付けた'
@@ -707,7 +707,7 @@ kanban list --all --json | jq -e '[.[].id | select(test("^D-[0-9]+$")) | ltrimst
   kanban list --all --json | jq -e 'all(.[]; (.id | test("^D-[0-9]{4}(-r[1-9][0-9]*)?$")) and ((.id | test("-r")) == (.profile == "codex-review")))' >/dev/null ||
     die "レビュアーの課題が通し番号を使った・id の形が違う: $(kanban list --all --json | jq -c 'map([.id, .profile])')"
 review_by "$rev" '[]'
-as_worker "$id" ready
+as_worker "$id" submit
 dispatcher
 q=$L/issues/$id/library/questions/1.json
 jq -e '.from == "gate" and .kind == "line" and (.facts | any(contains("delegation: merge=B < tier C"))) and .options[0].pick == true' "$q" >/dev/null || die "問いが無い・形が違う: $(cat "$q" 2>/dev/null)"
@@ -748,7 +748,7 @@ as_worker "$id" review-request
 dispatcher
 rev=$(kanban list --all --json | jq -r --arg p "$id" '.[] | select(.parent == $p) | .id')
 review_by "$rev" '[]'
-as_worker "$id" ready
+as_worker "$id" submit
 dispatcher
 pending "$id" gate | jq -e '.detail.decision == "approve"' >/dev/null || die '通知 `gate` が無い'
 [ ! -e "$tmp/gh/merged" ] && kanban show "$id" --json | jq -e '.issue.status == "review"' >/dev/null || die 'merge: person なのにマージした'
@@ -768,7 +768,7 @@ to_gate() { # to_gate <id> <path>: 担当が commit・PR・レビュー（指摘
     as_worker "$1" review-request
     dispatcher
     review_by "$(kanban list --all --json | jq -r --arg p "$1" '[.[] | select(.parent == $p)] | last | .id')" '[]'
-    as_worker "$1" ready
+    as_worker "$1" submit
     dispatcher
 }
 # merge: person の approve（オーナーのマージを待つ間）
@@ -814,13 +814,13 @@ as_worker "$pb" report --pr https://github.com/example/app/pull/7
 as_worker "$pb" review-request
 dispatcher
 review_by "$(kanban list --all --json | jq -r --arg p "$pb" '[.[] | select(.parent == $p)] | last | .id')" '[]'
-as_worker "$pb" ready || die 'rebase のあとの ready が、前の head についての gate の問いで断った'
+as_worker "$pb" submit || die 'rebase のあとの ready が、前の head についての gate の問いで断った'
 kanban show "$pb" --json | jq -e '.issue.status == "review"' >/dev/null || die 'rebase のあとの ready が review にしていない'
 dispatcher
 [ "$(hv "$pb")" = "needs_human $head" ] || die "今の head で gate を回していない: $(hv "$pb")"
 kanban show "$pb" --json | jq -e '.questions[0].status == "received"' >/dev/null || die "前の head の gate の問いが閉じていない: $(kanban show "$pb" --json | jq -c '.questions')"
 grep -q "PR の head が動いた（${old:0:12} → ${head:0:12}）。gate が今の head で決め直した" "$L/issues/$pb/questions.yaml" || die '前の head の gate の問いに、閉じた理由を答えていない'
-# 事実の行の頭の語は andon gate が決める（RecordFact）。ここは今の head の記録を指す「gate の記録 <パス>」の行があることを見る
+# 事実の行の頭の語は andon issue gate が決める（RecordFact）。ここは今の head の記録を指す「gate の記録 <パス>」の行があることを見る
 jq -e --arg p "$L/issues/$pb/library/gate/$head.json" '.from == "gate" and (.facts | any(startswith("gate の記録 ") and endswith(" " + $p)))' "$L/issues/$pb/library/questions/2.json" >/dev/null ||
     die '今の head の gate の問いを出していない'
 kanban show "$pb" --json | jq -e '.questions[1].status == "open"' >/dev/null || die '今の head の gate の問いまで閉じた'
@@ -855,7 +855,7 @@ as_worker "$hm" report --pr https://github.com/example/app/pull/7
 as_worker "$hm" review-request
 dispatcher
 review_by "$(kanban list --all --json | jq -r --arg p "$hm" '[.[] | select(.parent == $p)] | last | .id')" '[]'
-as_worker "$hm" ready
+as_worker "$hm" submit
 dispatcher
 jq -e '.from == "gate"' "$L/issues/$hm/library/questions/1.json" >/dev/null || die '前提: needs_human の問いが無い'
 HC_TERMINAL_ID=dispatcher "$andon" issue ask "$hm" - >/dev/null <<<'{"kind":"irreversible","question":"重なった gate の問い","options":[{"label":"オーナーが見る","pick":true},{"label":"x"}],"from":"gate"}'
@@ -950,7 +950,7 @@ as_worker "$hm" report --pr https://github.com/example/app/pull/7
 as_worker "$hm" review-request
 dispatcher
 review_by "$hm-r1" '[]'
-as_worker "$hm" ready
+as_worker "$hm" submit
 touch "$tmp/gh/race"; watch_due "$hm"   # doing のうちに聞いた分は待たせない（ほかの課題は聞かない）
 merges=$(wc -l < "$tmp/gh/merges"); n=$(wc -l < "$tmp/gh/states")
 dispatcher
@@ -974,7 +974,7 @@ as_worker "$hm" report --pr https://github.com/example/app/pull/7
 as_worker "$hm" review-request
 dispatcher
 review_by "$hm-r1" '[]'
-as_worker "$hm" ready
+as_worker "$hm" submit
 echo 'HTTP 502: Bad Gateway' > "$tmp/gh/viewfail"; watch_due "$hm"
 dispatcher
 [ ! -e "$tmp/gh/viewfail" ] && [ -e "$tmp/gh/merged" ] || die "前提: マージして読み直しを打っていない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
@@ -994,7 +994,7 @@ as_worker "$hm" report --pr https://github.com/example/app/pull/7
 as_worker "$hm" review-request
 dispatcher
 review_by "$hm-r1" '[]'
-as_worker "$hm" ready
+as_worker "$hm" submit
 touch "$tmp/gh/race"; echo 'HTTP 502: Bad Gateway' > "$tmp/gh/rereadfail"; watch_due "$hm"
 dispatcher
 [ ! -e "$tmp/gh/race" ] && [ ! -e "$tmp/gh/rereadfail" ] || die "前提: gh pr merge の失敗のあとの読み直しを打っていない: $(grep "$hm" "$tmp/dispatcher.log" | tail -3)"
@@ -1015,9 +1015,9 @@ as_worker "$qa" report --pr https://github.com/example/app/pull/7
 as_worker "$qa" review-request
 dispatcher
 review_by "$qa-r1" '[]'
-# andon issue ready は受け取られていない問いがあれば断る（入口の守り）。ここでは ready を通らずに review へ入った課題として、
+# andon issue submit は受け取られていない問いがあれば断る（入口の守り）。ここでは submit を通らずに review へ入った課題として、
 # finish の守り（奥の守り）を確かめる。kanban review も問いを確かめて断るので、--force で直に打つ
-! as_worker "$qa" ready 2>/dev/null || die 'ready が受け取られていない問いを残したまま通った'
+! as_worker "$qa" submit 2>/dev/null || die 'ready が受け取られていない問いを残したまま通った'
 kanban show "$qa" --json | jq -e '.issue.status == "doing"' >/dev/null || die "ready が断ったのに課題が doing でない: $(kanban show "$qa" --json | jq -c .issue)"
 ! (cd "$qwt" && HC_TERMINAL_ID=t7 kanban review "$qa" >/dev/null 2>&1) || die 'kanban review が受け取られていない問いを残したまま通った'
 (cd "$qwt" && HC_TERMINAL_ID=t7 kanban review "$qa" --force >/dev/null)
@@ -1156,7 +1156,7 @@ as_worker "$al" report --pr https://github.com/example/app/pull/7
 as_worker "$al" review-request
 dispatcher
 review_by "$(kanban list --all --json | jq -r --arg p "$al" '[.[] | select(.parent == $p)] | last | .id')" '[]'
-as_worker "$al" ready
+as_worker "$al" submit
 dispatcher
 jq -e '.from == "gate"' "$L/issues/$al/library/questions/1.json" >/dev/null || die '前提: needs_human の問いが無い'
 lastmark "$head" | grep -q 'state=success .*description=andon gate: メンテナーの判断が要る変更です（自動でマージしてよい範囲を超える変更） -f target_url=https://' ||
@@ -1229,7 +1229,7 @@ as_worker "$hd" report --pr https://github.com/example/app/pull/7
 as_worker "$hd" review-request
 dispatcher
 review_by "$(kanban list --all --json | jq -r --arg p "$hd" '[.[] | select(.parent == $p)] | last | .id')" '[]'
-as_worker "$hd" ready
+as_worker "$hd" submit
 dispatcher
 kanban show "$hd" --json | jq -e '.questions[0].status == "open"' >/dev/null && lastmark "$head" | grep -q 'state=success' || die '前提: gate の問いと緑が無い'
 hrec=$L/issues/$hd/library/gate/$head.json; hat=$(jq -r .at "$hrec")   # gate の記録は head ごとに1つ（回し直すと上書き）
@@ -1300,7 +1300,7 @@ stack_on() {
     as_worker "$sk" review-request
     dispatcher
     review_by "$(kanban list --all --json | jq -r --arg p "$sk" '[.[] | select(.parent == $p)] | last | .id')" '[]'
-    as_worker "$sk" ready
+    as_worker "$sk" submit
     dispatcher
     jq -e --arg p "$1" '.decision == "behind" and .reasons[0] == "前の課題 \($p) の PR がまだ main に入っていない"' "$L/issues/$sk/library/gate/$head.json" >/dev/null ||
         die "前提: 積んだ課題の gate が behind を決めていない: $(cat "$L/issues/$sk/library/gate/$head.json" 2>/dev/null)"
@@ -1472,7 +1472,7 @@ dispatcher
 ok '上限を超えた回（extra）は起動せず通知 report。Chief of Staff が review_rounds を上げたら次の見回りで起動する'
 
 # 5b. deliverable: candidates（調べる課題。Chief of Staff が書いた）はインナーループを通らない: review_request があってもレビュアーを起動せず、
-#     review に入っても andon gate を回さない（通知は届ける）。ADR-0006 受け入れ条件 3
+#     review に入っても andon issue gate を回さない（通知は届ける）。ADR-0006 受け入れ条件 3
 sid=$(newtask '誤りの候補を調べる' person)
 HC_TERMINAL_ID=t5 kanban set "$sid" deliverable=candidates >/dev/null
 mkdir -p "$L/issues/$sid/library"
@@ -1698,7 +1698,7 @@ ok 'fetch の一時の失敗は控えで成功と分け、次の見回りで起�
 gate_through() { # gate_through <id>: レビュアーが指摘なしで返し、担当が ready まで
     local rev; rev=$(kanban list --all --json | jq -r --arg p "$1" '[.[] | select(.parent == $p)] | last | .id')
     review_by "$rev" '[]'
-    as_worker "$1" ready
+    as_worker "$1" submit
 }
 gate_through "$id"
 merges=$(wc -l < "$tmp/gh/merges")
@@ -1980,7 +1980,7 @@ lost_merge_record "$id"
 [ "$(tried)" = 4 ] && [ ! -e "$L/issues/$id/library/questions/2.json" ] || die "受け取った問いのあとに記録が消えたら、打ち直した・問いを出し直した: $(tried) $(cat "$tmp/merge.out")"
 printf '%s\n' "$basemod" > "$tmp/gh/mergefail"
 (cd "$ANDON_WORKSPACE/.worktrees/app/demo-$id" && HC_TERMINAL_ID=t7 kanban start "$id" >/dev/null)
-as_worker "$id" ready
+as_worker "$id" submit
 dispatcher
 [ "$(tried)" = 5 ] && jq -e --arg t "$id" '.[$t] | (.decision // "") == "" and .retries == 1' "$mergerec" >/dev/null ||
     die "前提: ready し直した回で gate が approve して打ち直しを待っていない: $(tried) $(jq -c --arg t "$id" '.[$t]' "$mergerec")"

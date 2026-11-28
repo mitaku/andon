@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/andon.sh — 入口 andon（振り分け・一覧・--help・知らない sub-command）。
-# 中身（publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。kanban も hc も起動しない。
+# 中身（file publish・triage）の振る舞いは go test と tests/andon-triage.sh が見る。kanban も hc も起動しない。
 set -u
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -94,9 +94,9 @@ KANBAN_ROOT=$tmp/k "$andon" issue start X-1 extra >/dev/null 2>"$tmp/err"; r=$?
 { "$andon" --help; "$andon" issue --help; } 2>&1 | grep -qiw 'task' && fail "andon --help・andon issue --help に task が出る" || pass "andon --help・andon issue --help に task が出ない"
 KANBAN_ROOT=$tmp/k "$andon" design start >/dev/null 2>"$tmp/err"; r=$?
 [ "$r" = 2 ] && grep -q '^usage: andon design start' "$tmp/err" && pass "andon design start（引数なし）は usage で rc 2" || fail "andon design start: rc=$r $(cat "$tmp/err")"
-"$andon" publish >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 2 ] && grep -q '^usage: andon publish' "$tmp/err" && pass "andon publish（引数なし）は usage で rc 2" || fail "andon publish: rc=$r $(cat "$tmp/err")"
-"$andon" publish "$tmp/none.html" >/dev/null 2>"$tmp/err"; r=$?
-[ "$r" = 1 ] && grep -q 'not a file' "$tmp/err" && pass "andon publish（無いファイル）は中身の誤りで rc 1" || fail "andon publish: rc=$r $(cat "$tmp/err")"
+"$andon" file publish >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 2 ] && grep -q '^usage: andon file publish' "$tmp/err" && pass "andon file publish（引数なし）は usage で rc 2" || fail "andon file publish: rc=$r $(cat "$tmp/err")"
+"$andon" file publish "$tmp/none.html" >/dev/null 2>"$tmp/err"; r=$?
+[ "$r" = 1 ] && grep -q 'not a file' "$tmp/err" && pass "andon file publish（無いファイル）は中身の誤りで rc 1" || fail "andon file publish: rc=$r $(cat "$tmp/err")"
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed" >&2; exit 1; }

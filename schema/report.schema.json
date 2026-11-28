@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://andon.example.com/schema/report/2",
   "title": "Machine part of an issue report",
-  "description": "issues/<id>/library/report.json, written by the issue's agent right before `kanban report`, whole each time. Only these keys. pr is required once a PR is open; that is checked by `andon issue ready`, not by this schema.",
+  "description": "issues/<id>/library/report.json, written by the issue's agent right before `kanban report`, whole each time. Only these keys. pr is required once a PR is open; that is checked by `andon issue submit`, not by this schema.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "commit": {
-      "description": "HEAD when the report was written. Required for an issue with a repository (andon issue report writes it and andon issue ready checks it); absent for an issue without one.",
+      "description": "HEAD when the report was written. Required for an issue with a repository (andon issue report writes it and andon issue submit checks it); absent for an issue without one.",
       "$ref": "#/$defs/sha"
     },
     "pr": {

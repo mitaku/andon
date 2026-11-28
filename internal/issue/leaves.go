@@ -25,7 +25,7 @@ const (
 		"report.json に review_request を足して報告する（レビューを頼む。回数・前回の commit は command が数える）。\n" +
 		"stdin を省くと前の報告の本文にレビュー依頼の行を足す。渡せば置き換える。\n" +
 		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
-	ReadyUsage = "usage: andon issue ready <id>\n" +
+	ReadyUsage = "usage: andon issue submit <id>\n" +
 		"HEAD・report.json・PR の head・レビューが揃えば kanban を review にする。\n" +
 		"deliverable: candidates なら PR の代わりに candidates.json を確かめる。\n" +
 		"レビューが要るかは gate と同じ条件で決める: review: on か、PR の差分がレベル B・C（review: off でも）。\n"
@@ -154,11 +154,11 @@ func ReviewRequest(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 }
 
 func Ready(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	return leaf("ready", ReadyUsage, args, stderr, func(id string, rest []string) error {
+	return leaf("submit", ReadyUsage, args, stderr, func(id string, rest []string) error {
 		if len(rest) > 0 {
 			return errUsage
 		}
-		return withIssue(id, guard("ready", func(c *ctx) error { return c.ready(stdout) }))
+		return withIssue(id, guard("submit", func(c *ctx) error { return c.ready(stdout) }))
 	})
 }
 

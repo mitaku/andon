@@ -21,8 +21,8 @@ stack_miss() {
   if grep -qE 'gh pr ready|gh pr edit --base' <<<"$w3s"; then m="$m [worker §3 が積んでいる間に draft か向き先を変える]"; fi
   grep -qF '`git diff <stacked_base>..HEAD`' <<<"$w3s" || m="$m [worker §3 の分かれ目からの差分]"
   grep -qF '前の課題の branch へも main へも rebase しない' <<<"$w3s" || m="$m [worker §3 の rebase しない]"
-  grep -qF '`andon issue ready` の前にも `andon issue restack <id>` を打つ' <<<"$w3s" || m="$m [worker §3 の ready の前の restack]"
-  grep -qF '答えが届くまで `andon issue restack`・PR・`andon issue ready` を打たない' <<<"$w3s" || m="$m [worker §3 のやめるときの待ち]"
+  grep -qF '`andon issue submit` の前にも `andon issue restack <id>` を打つ' <<<"$w3s" || m="$m [worker §3 の submit の前の restack]"
+  grep -qF '答えが届くまで `andon issue restack`・PR・`andon issue submit` を打たない' <<<"$w3s" || m="$m [worker §3 のやめるときの待ち]"
   grep -qF '**載せ替え**（積んだ課題。' <<<"$w7" || m="$m [worker §7 の載せ替え]"
   grep -qF 'rebase は打ち直さない' <<<"$w7" || m="$m [worker §7 の打ち直さない]"
   grep -q '^- どちらも、頼まれていない rebase や向きの変更はしない.*積んでいる間は、前の課題の branch へも rebase しない' <<<"$w7" || m="$m [worker §7 の頼まれていない rebase]"
@@ -38,7 +38,7 @@ stack_miss() {
   grep -qF '積んだ課題の PR が open なら、dispatcher が gate を回し直し' "$2" || m="$m [finish.md の積んだ相手の行の open の条件]"
   grep -qF '「既定の branch でない base」の行で手で片付けた課題なら、聞かずに' "$3" || m="$m [watch.md の手で片付けた前の課題の但し書き]"
   grep -qF 'その課題の上に積んだ課題' "$2" || m="$m [finish.md のやめる課題]"
-  grep -qF '答えを送るまで andon issue restack・PR・ready を打たずに待って' "$2" || m="$m [finish.md の doing の担当を待たせる]"
+  grep -qF '答えを送るまで andon issue restack・PR・submit を打たずに待って' "$2" || m="$m [finish.md の doing の担当を待たせる]"
   wb=$(grep -F '`<id> gate: behind（前の課題 <id> の PR がまだ main に入っていない…）`' "$3")
   wg=$(grep -F '`<id> gate: behind（前の課題 <id> がマージされずに終わった…）`' "$3")
   [ -n "$wb" ] && grep -qF 'オーナーには何も言わない' <<<"$wb" && grep -qF '`start.md` の 1 で枠を数え直す' <<<"$wb" || m="$m [watch.md の前の PR 待ち]"

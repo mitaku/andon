@@ -1,7 +1,7 @@
 // Package ledger は kanban を読む（docs/contract.md §1・§2・§3）。kanban を書くのは kanban の CLI だけで、
 // ここはそれを打つか、kanban のファイルを読むだけ。Markdown（依頼書・報告）は読まない。
 //
-// command（andon issue・andon gate）が共有するもの: 課題の項目（issue.yaml の Andon の予約キー）と履歴の照合・
+// command（andon issue・andon issue gate）が共有するもの: 課題の項目（issue.yaml の Andon の予約キー）と履歴の照合・
 // レビュアーの課題の選び方・findings.json の読み方・library/ の置き場。
 package ledger
 
@@ -400,7 +400,7 @@ func (l *Ledger) Hold(rows []Row, logErr error, t Issue) (string, bool, error) {
 
 // Candidates は、課題の成果が候補の一覧（予約キー deliverable が candidates）で、それを最後に書いたのが
 // Chief of Staff か（contract.md §2 の履歴の照合）。無い・知らない値・照合が合わないときは false。
-// 読み手は andon gate（終了コード 3 の理由の文を分ける）。dispatcher と andon issue ready は照合を見ずに
+// 読み手は andon issue gate（終了コード 3 の理由の文を分ける）。dispatcher と andon issue submit は照合を見ずに
 // SettingsOf の Deliverable で読む（Chief of Staff の起き直しのあと書き直す前でも PR を求めない。ADR-0006 決めたこと 7・17）。
 func (l *Ledger) Candidates(rows []Row, t Issue) bool {
 	return t.Str("deliverable") == "candidates" && l.Trusted(rows, t, "deliverable")
@@ -420,7 +420,7 @@ func DeliverableOf(rows []Row, t Issue, cos string) string {
 }
 
 // Deliverable は課題 t の成果の形を、kanban の履歴を読んで DeliverableOf で返す（PR の無い報告の課題を分ける andon issue merge・
-// andon gate・andon issue ready の読み手。ADR-0066 決めたこと 7・8・10）。値が report なのに pr と読んだときは、why にその理由の
+// andon issue gate・andon issue submit の読み手。ADR-0066 決めたこと 7・8・10）。値が report なのに pr と読んだときは、why にその理由の
 // 1 句を返す（読み手が理由の文に添える）。履歴を読み切れない・読めない行があるときは、report を書いたのが Chief of Staff か
 // 確かめられない（交代の行が抜けると前の端末を Chief of Staff と読む）ので pr と読む。pr と読むのは今までの動きに戻るだけである。
 func (l *Ledger) Deliverable(t Issue) (form, why string) {
@@ -779,7 +779,7 @@ func SettingsOf(t Issue) Settings {
 // AcceptanceOf は予約キー acceptance（課題が満たす受け入れ条件の番号をコンマで並べた文字列。4,13）を並びにする
 // （ADR-0035 決めたこと 3）。キーが無ければ nil と true（番号を持たない課題）。番号は書いた綴りのまま返し、
 // 同じ番号（AcceptanceKey が同じもの。4 と A4）の重なりは先のものだけを残す。
-// 文字列でない・空の番号・知らない文字があれば nil と false（読み手の andon issue ready は黙って通さず断る）。
+// 文字列でない・空の番号・知らない文字があれば nil と false（読み手の andon issue submit は黙って通さず断る）。
 // 履歴の照合（Trusted）は見ない: 担当が書き換えても求める行が増えるか、キーを消して今までどおりになるだけで、
 // 照合を求めると Chief of Staff が起き直したあと書き直す前の課題で番号が消える。
 func AcceptanceOf(t Issue) ([]string, bool) {

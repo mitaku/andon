@@ -10,10 +10,10 @@ done
 [ -z "$miss" ] && pass "contract.md §4 の acceptance[] の行・CE skill の受け入れ条件の節・worker skill §7 に、証拠はテストの command と出力のパスで staged な出力と mock は証拠でない、とある" || fail "受け入れ条件の証拠の質:$miss"
 
 # ADR-0035 受け入れ条件 13 の前半（決めたこと 3）: Chief of Staff が課題を切るとき受け入れ条件の番号を予約キー acceptance で持たせる手順があり、
-# brief.md の Settings の表・contract.md §2・worker skill §1 の表が同じキーを持つ（andon issue ready が行の無い報告を断る）
+# brief.md の Settings の表・contract.md §2・worker skill §1 の表が同じキーを持つ（andon issue submit が行の無い報告を断る）
 miss=
 grep -q '^4\. 「依頼書に切る案」.*完了条件に受け入れ条件の番号を書く。同じ番号を `andon issue create` に `acceptance=4,13`' "$pb/cut.md" || miss="$miss [cut.md の4に番号を持たせる手順]"
 grep -q '^| `acceptance`（Acceptance） | .*`acceptance=4,13` を渡す' "$pb/brief.md" || miss="$miss [brief.md の Settings の表]"
-sed -n '/^## 2\. /,/^## 3\. /p' docs/contract.md | grep -q '^| `acceptance` | .*`andon issue ready`' || miss="$miss [contract.md §2]"
+sed -n '/^## 2\. /,/^## 3\. /p' docs/contract.md | grep -q '^| `acceptance` | .*`andon issue submit`' || miss="$miss [contract.md §2]"
 grep -q '^   | `acceptance`（Acceptance） |' "$w" && grep -q '番号ごとに同じ番号の行が要る' "$w" || miss="$miss [worker skill §1・§7]"
 [ -z "$miss" ] && pass "ADR-0035 A13: Chief of Staff の cut.md と brief.md に受け入れ条件の番号を予約キー acceptance で持たせる手順があり、contract.md §2 と worker skill が同じキーを持つ" || fail "ADR-0035 A13 の前半:$miss"

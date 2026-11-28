@@ -10,7 +10,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
   - 見るファイル: `internal/ledger/ask.go`
 - `ow-waiting` `andon waiting list --json` と人が読む出力に、足したオーナーの課題が答えられる判断の行として出る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`internal/waiting/open_unix.go`、`internal/waiting/open_other.go`、`schema/waiting.schema.json`
-- `ow-old-name` 名前を変える前の andon waiting --json（古いホストの部品が打つ形）は、`andon waiting list` に名前が変わったと1行で言って終了コード 2 で終わり、オーナー待ちを出さない。2語の古い名前（andon delegate show --json）・消えた名詞だけ（andon delegate）・子の無い1語の古い名前（andon measure --json）・名詞が生きている名詞だけの古い名前のフラグだけの形（andon dispatcher --once）・2語の古い名前で1語目が1語の葉のまま残るもの（andon version stamp unknown）と、機械が打つ2語の古い名前（andon signal delivered fp 1）も、新しい名前の1行で断る。見る道: 検証の担当だけ。
+- `ow-old-name` 名前を変える前の andon waiting --json（古いホストの部品が打つ形）は、`andon waiting list` に名前が変わったと1行で言って終了コード 2 で終わり、オーナー待ちを出さない。2語の古い名前（andon delegate show --json）・消えた名詞だけ（andon delegate）・子の無い1語の古い名前（andon measure --json）・名詞が生きている名詞だけの古い名前のフラグだけの形（andon dispatcher --once）・2語の古い名前で1語目が1語の葉のまま残るもの（andon version stamp unknown）と、機械が打つ2語の古い名前（andon signal delivered fp 1）と、役が打つ古い名前（andon gate S-0001・andon issue ready S-0001・andon publish x.md）も、新しい名前の1行で断る。見る道: 検証の担当だけ。
   - 見るファイル: `internal/cli/cli.go`、`internal/cli/leaves.go`
 - `ow-slots` オーナー待ちの担当の課題が上限以上でも、動いている課題が上限より少なければ、`andon waiting list --json` の `slots.free` は上限から動いている課題の数を引いた正の数で、`slots` に `waiting_full` は無い。人が読む出力の枠の行にも、新しい課題を起動しないの文が無い。今の回の gate の記録が `behind` の `review` の課題と、今の回の gate の記録がまだ無い信じられる積んだ `review` の課題は、`slots.working` にも `slots.waiting` にも数えず `slots.behind` に数え、`items` に行を足さない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/waiting/waiting.go`、`internal/waiting/cmd.go`、`schema/waiting.schema.json`
@@ -24,7 +24,7 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
   - 見るファイル: `internal/issue/leaves.go`、`internal/ledger/ask.go`
 - `ow-anywhere` セルの根で `andon waiting list --project <slug>` を打つと、そのプロジェクトのオーナー待ちを出す。プロジェクトが1つのセルでは、根でもその下のフォルダでも `--project` を省いて出し、`kanban list` も根で同じ kanban を読む。プロジェクトが2つのセルの根で省くと、終了コード 2 で2つの slug と `--project <slug>` を付ける1行を出し、`--project` に無いプロジェクトを渡しても終了コード 2 で断る。`--project` を自分で読む `andon delegation show` も同じに決まり、kanban の無い `projects/<slug>/` の下でも今いるフォルダで決まる。`andon signal mark-delivered` は後ろに置いた `--project` も受ける。プロジェクトを読む葉の `--help` は `--project` の行を持ち、どこで打つかを言わない。`kanban --help` は根の探し方の最後の段を言う。見る道: 検証の担当だけ。
   - 見るファイル: `internal/cli/project.go`、`internal/cli/cli.go`、`internal/cli/leaves.go`、`internal/waiting/cmd.go`、`internal/ledger/ledger.go`、`cmd/kanban/ledger.go`、`cmd/kanban/main.go`、`internal/retro/retro.go`、`internal/signal/signal.go`、`internal/signal/cmd.go`、`internal/chiefengineer/chiefengineer.go`
-- `ow-json` JSON を出せる葉に `--json` を付けると、標準出力が JSON として読める。いつも JSON を出す葉（`andon issue show`・`andon version`・`andon gate`）も `--json` を受ける。`--help` は JSON の出し方の行（`JSON: `）を持ち、JSON を出せない葉は持たない。見る道: 検証の担当だけ。
+- `ow-json` JSON を出せる葉に `--json` を付けると、標準出力が JSON として読める。いつも JSON を出す葉（`andon issue show`・`andon version`・`andon issue gate`）も `--json` を受ける。`--help` は JSON の出し方の行（`JSON: `）を持ち、JSON を出せない葉は持たない。見る道: 検証の担当だけ。
   - 見るファイル: `internal/cli/cli.go`、`internal/cli/leaves.go`
 - `ow-pane` Herdr App のオーナー待ちのパネル（`package/host/waiting/`）に、オーナーの課題が判断の行として出て、選択肢で答えられる。枠の行は、オーナー待ちが上限の数以上でも「Slots <working>/<limit> working · <waiting> waiting on you」の形のままで、「full」を出さず、色を変えない。見る道: オーナーが見る。
   - 見るファイル: `internal/waiting/answer.go`
@@ -46,8 +46,8 @@ Chief of Staff がオーナーの判断を要る問いを `andon issue ask --new
 - **取り違えない。** `ow-same-title` の行に、親の違う2つ目の課題の id と、同じ親で打ち直したときの「同じ問いのオーナーの課題 … がもうある」が出る。`ok   ow-same-title` が2行見えれば動いた。
 - **呼ぶか置いておくかを言い切らせる。** `ow-ask-later` の行に、旗なしの断り（「呼ぶか置いておくかを言い切る」）、担当の端末 `tw` の `--later` の断り（「Chief of Staff の端末だけ」）、`--later --until` で足した課題の `andon waiting list --json` の行が出る。`ok   ow-ask-later` が3行見えれば動いた。
 - **オーナー待ちを読む。** `ow-waiting` の行に、`andon waiting list --json` の枠と判断の行、人が読む出力が出る。`ok   ow-waiting` が2行見えれば動いた。
-- **古い名前を断る。** `ow-old-name` の行に、andon waiting --json の終了コード 2 と「`andon waiting list` に名前が変わった」の1行が出る。`ok   ow-old-name` が7行見えれば動いた。
-- **JSON を読む。** `ow-json` の行に、`andon issue show <id> --json`・`andon version --json`・`andon gate <id> --dry-run --json` の出力と終了コードと、`andon issue show --help`・`andon issue finish --help` の出力が出る。`ok   ow-json` が3行見えれば動いた。
+- **古い名前を断る。** `ow-old-name` の行に、andon waiting --json の終了コード 2 と「`andon waiting list` に名前が変わった」の1行が出る。`ok   ow-old-name` が10行見えれば動いた。
+- **JSON を読む。** `ow-json` の行に、`andon issue show <id> --json`・`andon version --json`・`andon issue gate <id> --dry-run --json` の出力と終了コードと、`andon issue show --help`・`andon issue finish --help` の出力が出る。`ok   ow-json` が3行見えれば動いた。
 - **Cloudflare へ出す葉を読む。** `ow-tray-deploy` の行に、`andon help --all` と `andon tray deploy --help` の出力と、トークンなしで打った `andon tray deploy --config` の終了コードと出力が出る。`ok   ow-tray-deploy` が2行見えれば動いた。
 - **枠の空きを読む。** `ow-slots` の行に、担当の課題 2 つを担当の端末 `tw1`・`tw2` で `doing` にして判断の問いを出したあとの `andon waiting list --json` の `slots` が出る。オーナー待ちが上限（既定の 2）以上で、`free` が上限から動いている数を引いた正の数で、続く `andon waiting list` の枠の行に新しい課題を起動しないの文が無ければ、`ok   ow-slots` が 2 行見えれば動いた。
 - **積める課題を読む。** `ow-stackable` の行に、前の課題を review にして今の回の gate の記録（approve）を置いたあとの `andon waiting list --json` の `stackable` が出る。積める課題が前の課題の上に出て、待つ相手が2つの課題が出なければ `ok   ow-stackable` が1行、人が読む出力に「積める課題 N 件」の行があればもう1行見える。

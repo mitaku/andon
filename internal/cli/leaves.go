@@ -142,8 +142,8 @@ var leaves = []leaf{
 	{name: "issue impact", who: []who{role, machine}, about: "マージした PR が、動いている課題にぶつかる・重なるかを JSON で出す",
 		usage: issue.ImpactUsage, examples: []string{"issue impact S-0012"},
 		exits: []exit{{4, "PR がまだ MERGED でない"}}, project: true, json: jsonAlways, run: issue.Impact},
-	{name: "gate", who: []who{role}, about: "課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
-		usage: gate.Usage, examples: []string{"gate S-0012 --dry-run"},
+	{name: "issue gate", who: []who{role}, about: "課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない）",
+		usage: gate.Usage, examples: []string{"issue gate S-0012 --dry-run"},
 		exits:  []exit{{1, "fix（担当へ戻す）"}, {3, "道具か kanban の誤り"}, {4, "needs_human（オーナーが見る）"}, {5, "wait（記録しない）"}, {6, "behind（積んだ課題の前の PR 待ち）"}},
 		writes: true, project: true, json: jsonAlways, run: gate.Main},
 	{name: "issue show", who: []who{role}, about: "予約キー・report.json・レビューの照合を JSON で出す",
@@ -161,14 +161,14 @@ var leaves = []leaf{
 		usage: issue.AskUsage, examples: []string{"issue ask S-0012 -"}, writes: true, project: true, run: issue.Ask},
 	{name: "issue record", who: []who{role}, about: "worktree で command を走らせ、出力と終了コードを証拠として残す",
 		usage: issue.RecordUsage, examples: []string{"issue record S-0012 -- go test ./..."}, writes: true, project: true, run: issue.Record},
-	{name: "issue ready", who: []who{role}, about: "HEAD・report.json・PR・レビューが揃っていれば kanban を review にする",
-		usage: issue.ReadyUsage, examples: []string{"issue ready S-0012"}, writes: true, project: true, run: issue.Ready},
+	{name: "issue submit", who: []who{role}, about: "HEAD・report.json・PR・レビューが揃っていれば kanban を review にする",
+		usage: issue.ReadyUsage, examples: []string{"issue submit S-0012"}, writes: true, project: true, run: issue.Ready},
 	{name: "issue restack", who: []who{role}, about: "積んだ課題を、前の課題が main に入ったあと既定の branch の先へ載せ替える",
 		usage: issue.RestackUsage, examples: []string{"issue restack S-0012"}, writes: true, project: true, run: issue.Restack},
 	{name: "news ack", who: []who{role}, about: "届いた <news> にオーナーへ言うことが無いと示す",
 		usage: dispatcher.NewsUsage, examples: []string{"news ack"}, writes: true, run: dispatcher.NewsAck},
-	{name: "publish", who: []who{role}, about: "生成したファイルを tray へ出し、オーナーに渡す URL を1行返す",
-		usage: publish.Usage, examples: []string{"publish report.html weekly", "publish notes.md --title 週の報告"}, writes: true, project: true, optional: true, run: publish.Main},
+	{name: "file publish", who: []who{role}, about: "生成したファイルを tray へ出し、オーナーに渡す URL を1行返す",
+		usage: publish.Usage, examples: []string{"file publish report.html weekly", "file publish notes.md --title 週の報告"}, writes: true, project: true, optional: true, run: publish.Main},
 	{name: "triage collect", who: []who{role}, about: "kanban の溜まったものと repo ごとの最新の main を JSON に集める",
 		usage: triage.CollectUsage, examples: []string{"triage collect --limit 50"},
 		exits: []exit{{4, "項目が上限を超えた"}}, project: true, json: jsonAlways, run: triage.Collect},
@@ -237,15 +237,6 @@ var leaves = []leaf{
 		usage: process.JSONUsage, examples: []string{"process json process/states/issue.yaml"}, json: jsonAlways, run: process.JSONMain},
 }
 
-// renames は名前を変える葉の、今の名前と新しい名前（ADR-0053 決めたこと 8 の 18 個のうち、まだ変えていないもの）。
-// 名前を変えるまでの間は、葉の形の決まり（2語・1語の4つ・1語の葉を名詞にしない）から外れていても、
-// ここにある葉だけは表に置いてよい。変えたら retired へ移す。
-var renames = map[string]string{
-	"gate":        "issue gate",
-	"issue ready": "issue submit",
-	"publish":     "file publish",
-}
-
 // retired は名前を変えた葉の、古い名前と新しい名前（決めたこと 17）。古い名前は実行せず、新しい名前を1行で言って終了コード 2 で断る。
 // 別名ではない。消す時期は決めない。
 var retired = map[string]string{
@@ -263,6 +254,10 @@ var retired = map[string]string{
 	"dispatcher":       "dispatcher run",
 	"signal delivered": "signal mark-delivered",
 	"version stamp":    "package stamp",
+	// 切る案 4（役が打つ葉）
+	"gate":        "issue gate",
+	"issue ready": "issue submit",
+	"publish":     "file publish",
 }
 
 // oneWord は1語で打てる葉（決めたこと 5）。

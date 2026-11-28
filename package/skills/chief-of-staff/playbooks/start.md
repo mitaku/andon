@@ -32,5 +32,5 @@
      コマンドが「ラベルを付けられず、dispatcher は送り直さない」と出したときは、答えてから手で送る。
 4. 起動したら、オーナーに知らせる。場所はコマンドの `出た場所` の行を写す（`S-0003（返事の下書きボタン）を claude で起動した。S-0003 返事の下書きボタン / S-0003（t7）`）。積んで起動したら、前の課題の上に積んだことも1文で言い添える（`S-0002（…）の PR の上に積んだ`）。そのあと `hc wait` で自分を止めない（オーナーと話す役なので、届いたものをそのターンで処理する）。
 
-担当は `kanban start` → 実装 → PR → `andon issue report` → `andon issue ready`（オーナーへの問いは `andon issue ask`）までを自分でする（worker skill §7）。
+担当は `kanban start` → 実装 → PR → `andon issue report` → `andon issue submit`（オーナーへの問いは `andon issue ask`）までを自分でする（worker skill §7）。
 担当は `--no-notify` で起動し、この Chief of Staff へ `hc send` しない。通知は dispatcher が `<news>` で届ける（`watch.md` の「`<news>` の読み方」）。

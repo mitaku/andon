@@ -1,5 +1,5 @@
 ---- MODULE BrokenReady ----
-\* 壊した見本（R6 で落ちるはず）: andon issue ready が開いた問いを確かめずに review へ移す（A-0006 で直す前の動き）。
+\* 壊した見本（R6 で落ちるはず）: andon issue submit が開いた問いを確かめずに review へ移す（A-0006 で直す前の動き）。
 EXTENDS IssueRules
 
 BrokenWorkerReady ==

@@ -241,7 +241,7 @@ _避ける_: 承認ポイント、要対応
 **委譲**（delegation）:
 オーナーが Chief of Staff（と dispatcher・担当）に任せた範囲。プロジェクトごとのファイルで持ち、オーナーだけが書く。範囲の中は聞かずに進める。「何を作るか」は委譲できない。
 
-**gate**（`andon gate`）:
+**gate**（`andon issue gate`）:
 PR をマージしてよいかの決定式。条件表（`gate.json`）を読み、`approve`／`fix`／`needs_human` を返す。Markdown を読まない。
 _避ける_: ゲート（2026-11-20 までの語）、merge-gate
 

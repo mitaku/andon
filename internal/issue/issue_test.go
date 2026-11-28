@@ -155,7 +155,7 @@ func (f *fixture) ready() (int, string, bool) {
 		f.write("questions.json", f.questions)
 	}
 	var out, errb bytes.Buffer
-	rc := Main([]string{"ready", "T-0001"}, strings.NewReader(""), &out, &errb)
+	rc := Main([]string{"submit", "T-0001"}, strings.NewReader(""), &out, &errb)
 	_, err := os.Stat(filepath.Join(f.root, "reviewed-T-0001"))
 	return rc, errb.String(), err == nil
 }

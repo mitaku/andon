@@ -9,5 +9,5 @@ grep -q '^     | Yes と答える | オーナーへ回す |$' <<<"$cos4" && grep
   && pass "chief-of-staff の原則4が worker skill §5 の線を指し、blocked.md に Yes と答える操作とオーナーへ回す操作が並ぶ（自分の PR の branch への force-with-lease は Yes）" || fail "chief-of-staff の原則4か blocked.md に承認の段の表が無い"
 grep -q '^2\. \*\*オーナーの go を取ってから\*\*起動する。.*委譲の範囲の中.*`projects/<slug>/AGENTS.md` の Chief of Staff の節が「起動にオーナーの go は要らない」' "$pb/start.md" \
   && pass "chief-of-staff の start.md の起動の go に、ルーチン・委譲・プロジェクトの設定の例外がある" || fail "chief-of-staff の start.md に起動の go の例外が無い"
-! grep -q '続きをして。終わったら kanban' <<<"$cosall" && grep -q '続きをして。終わり方は worker skill §7（andon issue report → andon issue ready）' "$pb/watch.md" \
+! grep -q '続きをして。終わったら kanban' <<<"$cosall" && grep -q '続きをして。終わり方は worker skill §7（andon issue report → andon issue submit）' "$pb/watch.md" \
   && pass "chief-of-staff skill の担当への続きの文が worker skill §7 を指す" || fail "chief-of-staff skill の続きの文が古い"

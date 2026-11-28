@@ -38,17 +38,17 @@ andon の葉（実際に打てる1つのコマンド）の一覧。`andon help -
 | `andon issue hold` | 役 | 課題の PR を止める（理由の課題を書き、渡していれば印を黄にしてから返る） |
 | `andon issue unhold` | 役 | 課題の PR の止めを外す |
 | `andon issue impact` | 役・機械 | マージした PR が、動いている課題にぶつかる・重なるかを JSON で出す |
-| `andon gate` | 役 | 課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない） |
+| `andon issue gate` | 役 | 課題の PR を予約キー・findings.json・条件表・委譲で照合し、記録を書く（マージはしない） |
 | `andon issue show` | 役 | 予約キー・report.json・レビューの照合を JSON で出す |
 | `andon issue report` | 役 | report.json を書き、標準入力の Markdown で kanban に報告する |
 | `andon issue review-request` | 役 | report.json に review_request を足して、レビューを頼む |
 | `andon issue candidates` | 役 | 候補の一覧の JSON を検査し、library/candidates.json に置く |
 | `andon issue ask` | 役 | 問いの JSON を検査し、kanban に問う |
 | `andon issue record` | 役 | worktree で command を走らせ、出力と終了コードを証拠として残す |
-| `andon issue ready` | 役 | HEAD・report.json・PR・レビューが揃っていれば kanban を review にする |
+| `andon issue submit` | 役 | HEAD・report.json・PR・レビューが揃っていれば kanban を review にする |
 | `andon issue restack` | 役 | 積んだ課題を、前の課題が main に入ったあと既定の branch の先へ載せ替える |
 | `andon news ack` | 役 | 届いた &lt;news&gt; にオーナーへ言うことが無いと示す |
-| `andon publish` | 役 | 生成したファイルを tray へ出し、オーナーに渡す URL を1行返す |
+| `andon file publish` | 役 | 生成したファイルを tray へ出し、オーナーに渡す URL を1行返す |
 | `andon triage collect` | 役 | kanban の溜まったものと repo ごとの最新の main を JSON に集める |
 | `andon triage apply` | 役 | 仕分けの決定（decisions.json）を kanban に当てる |
 | `andon triage verdict` | 役 | 判断の閉じと課題を閉じる判定を1件ずつ「閉じてよい」か「覆す」と書く |

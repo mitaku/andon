@@ -24,7 +24,7 @@ import (
 // 大きいもの（動画など）は拒む。LFS は使わない。tray の上限も同じ。
 const MaxSize = tray.MaxBytes
 
-const Usage = "usage: andon publish <file> [slug] [--title <タイトル>]\n" +
+const Usage = "usage: andon file publish <file> [slug] [--title <タイトル>]\n" +
 	"ファイルを tray へ出し、オーナーに渡す URL を1行出す（Cloudflare の tray に届けばその URL、届かなければローカルの tray の URL）。\n" +
 	"名前は <日付>-<slug>。同じ日に同じ slug で出し直すと新しいバージョン（中身が同じなら上がらない）。slug を省くとファイルの名前に時刻を足し、いつも別の報告。\n" +
 	"タイトルは --title、無ければ HTML の <title>・Markdown の最初の見出し・ファイルの名前の順。\n" +
@@ -67,7 +67,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	out, err := Publish(Env{Workspace: delegate.Workspace(), Project: Project(), Now: time.Now(), Warn: stderr}, pos[0], slug, title)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon publish: %v\n", err)
+		fmt.Fprintf(stderr, "andon file publish: %v\n", err)
 		return 1
 	}
 	fmt.Fprintln(stdout, out)
@@ -177,7 +177,7 @@ func Title(contentType string, body []byte, base string) string {
 
 func warn(env Env, format string, a ...any) {
 	if env.Warn != nil {
-		fmt.Fprintf(env.Warn, "andon publish: "+format+"\n", a...)
+		fmt.Fprintf(env.Warn, "andon file publish: "+format+"\n", a...)
 	}
 }
 
