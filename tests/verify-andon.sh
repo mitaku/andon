@@ -1023,7 +1023,8 @@ fi
 #     道が名指さなくなった名前を残すと落ちる。base から HEAD までに scripts/ の下で控えの細かい機能の道を変えたら（touched_names）、控えから外して当たる場合を書く。
 #     ただし名前が tests/ の下に書けない語（workflow_test.go の TestWorkflowTrayOnlyInTrayJob が断る語。控えでは - を _ で書く理由）を含む細かい機能は、
 #     その語の部品を走らせて確かめる道で、同じ守りが tests/ の下でその部品を走らせることも 7 に 'FAIL <名前>' を書くことも断る。
-#     7 に当たる場合を書けないので、道を変えても控えに残してよい（unnameable）。当たる場合は、当てたあとの検証の課題が道を回して見る
+#     7 に当たる場合を書けないので、道を変えても控えに残してよい（unnameable）。代わりに、その名前の段・ok・fail の行と段の "$andon" の
+#     呼び出しの数を base より減らすと落ちる（name_marks）。当たる場合は、当てたあとの検証の課題が道を回して見る
 #   当たる場合が、変えた振る舞いを本当に通るか（記録の形だけを見ていないか）と、名前の出ない共通の部品の変更は見ない
 if [ "$self" = true ]; then
   # 控えの名前の - は _ で書き、読むときに - に戻す（tests/ の下に書いてはいけない語を含む名前がある。workflow_test.go の TestWorkflowTrayOnlyInTrayJob）
@@ -1108,7 +1109,8 @@ wl_review_brief wl_terminal
     grep -q "^  hits_allow='\$" <<<"$t" || die "base の検査のシェルに 8 の節があるのに、控え hits_allow が読めない（控えの置き方を変えたなら、読み方も同じ変更で直す）"
     allow_of <<<"$t"
   }
-  # hit_gaps <hit_names の出力> <控え> <base の控え（- は比べない）> <base から HEAD までに道を変えた細かい機能の名前>: 足りないものを1行ずつ出す
+  # hit_gaps <hit_names の出力> <控え> <base の控え（- は比べない）> <base から HEAD までに道を変えた細かい機能の名前>
+  #   [<base の道の置き場（- は比べない）> <今の道の置き場>]: 足りないものを1行ずつ出す
   hit_gaps() {
     local st n
     while read -r st n; do
@@ -1123,13 +1125,35 @@ wl_review_brief wl_terminal
         echo "$n: 控えにあるが、道が名指す細かい機能でない（控えから消す）"
       fi
       if [ "$3" != - ] && ! grep -qxF -- "$n" <<<"$3"; then echo "$n: base の控えに無い名前を、控えに足した（控えは減らすだけ。7 に当たる場合を書く）"; fi
-      if grep -qxF -- "$n" <<<"$4" && ! unnameable "$n"; then echo "$n: 道の行を変えたのに、控えに残る（控えから外し、7 に当たる場合を書く）"; fi
+      if grep -qxF -- "$n" <<<"$4"; then
+        if ! unnameable "$n"; then
+          echo "$n: 道の行を変えたのに、控えに残る（控えから外し、7 に当たる場合を書く）"
+        elif [ "${5:--}" != - ] && shrunk "$(name_marks "$5" "$n")" "$(name_marks "$6" "$n")"; then
+          echo "$n: 名前を書けない細かい機能の道で、段・ok・fail の行か段の andon の呼び出しが減った（base $(name_marks "$5" "$n") → 今 $(name_marks "$6" "$n")。段と判定を消さない）"
+        fi
+      fi
     done <<<"$2"
+  }
+  # name_marks <道の置き場> <名前>: 置き場の下の、名前の段（step "<名前>: …）・ok・fail の行の数と、その段の "$andon" の呼び出しの数を空白で区切って出す
+  name_marks() {
+    local s
+    s=$(grep -rhE "step \"$2: " "$1" || true)
+    printf '%s %s %s %s\n' "$(grep -c . <<<"$s" || true)" "$(grep -rhE "ok \"$2: " "$1" | grep -c . || true)" \
+      "$(grep -rhE "fail \"$2: " "$1" | grep -c . || true)" "$(grep -oF '"$andon"' <<<"$s" | grep -c . || true)"
+  }
+  # shrunk <base の name_marks> <今の name_marks>: 今のどれかの数が base より少ないか
+  shrunk() {
+    local a b i
+    read -ra a <<<"$1"; read -ra b <<<"$2"
+    for i in 0 1 2 3; do
+      if (( b[i] < a[i] )); then return 0; fi
+    done
+    return 1
   }
   hits=$(hit_names "$skill" tests/verify-andon.sh "$hits_ran")
   allow=$(tr ' _' '\n-' <<<"$hits_allow" | grep . || true)
   [ "$(allow_of <tests/verify-andon.sh)" = "$allow" ] || die "控え hits_allow を検査のシェルから読み直せない（base の控えと比べられない）"
-  base_allow=- touched=
+  base_allow=- touched= base_scripts=-
   if [ -z "$base" ]; then
     echo "skip verify-andon: 当たる場合の控えの減り方と、変えた道（比べる base が無い。PR の CI は ANDON_VERIFY_BASE で渡す）"
   else
@@ -1137,11 +1161,33 @@ wl_review_brief wl_terminal
     bt=$(git show "$base:tests/verify-andon.sh")
     base_allow=$(base_allow_of <<<"$bt")
     touched=$(touched_names "$root" "$skill" "$base")
+    mkdir -p "$tmp/base-tree"
+    git archive "$base" "$skill/scripts" | tar -x -C "$tmp/base-tree" || die "比べる base $base の $skill/scripts を展開できない"
+    base_scripts=$tmp/base-tree/$skill/scripts
   fi
-  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$touched")
+  gaps=$(hit_gaps "$hits" "$allow" "$base_allow" "$touched" "$base_scripts" "$skill/scripts")
   [ -z "$gaps" ] || die "当たる場合の確かめが足りない（道が名指す細かい機能は、7 の偽のセルで、証拠が足りないか中身の違う記録では ok にならないことを確かめる。SKILL.md の 6）:
 $gaps"
   ok "verify-andon: 道が名指す細かい機能 $(grep -c . <<<"$hits") 件のうち、7 に当たる場合を持つものは $(grep -c '^HIT ' <<<"$hits") 件で、ほかは前からの控え $(grep -c . <<<"$allow") 件"
+
+  # 自分の確かめ: 名前を書けない細かい機能（dg-$w）の道を変えたとき、ok の行・publish の段・段の andon の呼び出しを消した写しで落ち、
+  # そのままの写しでは落ちない
+  n="dg-$w"
+  for cut in keep ok step call; do
+    rm -rf "$tmp/cut"; cp -r "$skill/scripts" "$tmp/cut"
+    case $cut in
+      ok) sed -i "/ok \"$n: /d" "$tmp/cut/journeys/digest.sh" ;;
+      step) sed -i "/step \"$n: publish\"/d" "$tmp/cut/journeys/digest.sh" ;;
+      call) sed -i "/step \"$n: publish\"/s/\"\\\$andon\" file publish/true/" "$tmp/cut/journeys/digest.sh" ;;
+    esac
+    g=$(hit_gaps "MISS $n" "$n" - "$n" "$skill/scripts" "$tmp/cut")
+    if [ "$cut" = keep ]; then
+      [ -z "$g" ] || die "名前を書けない細かい機能の道をそのままにした写しで落ちる: $g"
+    else
+      grep -qF "$n: 名前を書けない細かい機能の道で" <<<"$g" || die "名前を書けない細かい機能の道から $cut を消した写しで落ちない: $g"
+    fi
+  done
+  ok "verify-andon: 名前を書けない細かい機能は、道を変えても控えに残れるが、段・ok・fail の行か段の andon の呼び出しを base より減らすと落ちる"
 
   # 自分の確かめ: 7 から当たる場合を消した写し（確かめを打てない回に ok を出す wl-settings・理由の空な記録を通す gt-record）で、名前つきで落ちる
   sed '/"$drc" = 3 \].*wl-settings/d' tests/verify-andon.sh >"$tmp/hits-a.sh"
