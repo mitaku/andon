@@ -66,6 +66,13 @@
 | `spawn.Look` は Unsure のあいだ上限まで読み直す。読み直しの確かめは 2 回目を Running にした場面で、上限で止まる確かめは `SettleWait = 0` で書く。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | 実装が `time.Sleep` で待つ間に起きることを検査するときは、待ちを `var` に出して検査が差し替え、待ちの中で変化を打つ。 | 無し。検査の書き方の決まりで、見るものが無い。 |
 | この表の「守らせるもの」の列は、repo に在るパスを名指す。無いものを名指さない。 | 無し。書き方の決まり。 |
+| CI の go の job には kanban の CLI が無い。Go のテストで kanban を打つ所は、偽の kanban を PATH に置いて受けた引数を見る（`internal/dispatcher/fallback_test.go` の `fakeKanban` が形の見本）。 | 無し。作法。仕組みは無い。 |
+| mod の偽の API でフォーカスを移す検査は、refresh を呼ぶ前の窓（クリックが描き直しより先に届く）も別に検査する。refresh の後だけを見ると `this.where` が先に替わって隙間が隠れる。 | 無し。作法。仕組みは無い。 |
+| `tests/host/screen.mjs` の `waitingPane` の偽の `exec` は、引数 `a[1]` で command を見分ける。書く口（`andon waiting answer`）の返事は `answer` の引数で渡すと、場合ごとに作り直せる。 | 無し。作法。仕組みは無い。 |
+| mod の書く口（`package/host/waiting/main.js`）は、今の画面の data に行が入っているか（`items.includes`）と、今の `location()` が data を読んだ場所か、の両方で守る。片方だけだと、場所の移った直後か読み直しの後のどちらかで古いボタンが通る。 | 無し。作法。仕組みは無い。 |
+| `tests/host/screen.mjs` の偽の spawn で返らない promise を待つと、検査が終了コード 13 で黙って終わる。FAIL の行を数えるだけでは気づかないので、終了コードも見る。 | 無し。作法。仕組みは無い。 |
+| `tests/host/screen.mjs` で VM の中の配列を `assert.deepEqual` で比べると、中身が同じでも別の realm として落ちる。`fromMod` か JSON を通して比べる。 | 無し。作法。仕組みは無い。 |
+| ADR にオーナーの言葉を引用するとき、役を指す「人」を含む文は `tests/words.sh` に当たる。引用を言い直すか、`tests/words.sh` の名指しの引用に足す。 | `tests/words.sh`。役を指す形の「人」が ADR や決定の記録に残ると落ちる。名指しした引用だけを外す。 |
 
 ## 約束と文書
 
