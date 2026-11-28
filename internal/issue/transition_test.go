@@ -21,7 +21,7 @@ func TestRefusesUndefinedMove(t *testing.T) {
 		args   []string
 		want   string
 	}{
-		{"todo", []string{"ready", "T-0001"}, "T-0001 は todo（andon issue ready は doing の課題にだけ打てる。process/states/issue.yaml）"},
+		{"todo", []string{"submit", "T-0001"}, "T-0001 は todo（andon issue submit は doing の課題にだけ打てる。process/states/issue.yaml）"},
 		{"done", []string{"review-request", "T-0001"}, "T-0001 は done（andon issue review-request は doing の課題にだけ打てる。process/states/issue.yaml）"},
 		{"review", []string{"report", "T-0001"}, "andon issue report は doing の課題にだけ打てる"},
 		{"queued", []string{"candidates", "T-0001", "-"}, "andon issue candidates は doing の課題にだけ打てる"},
@@ -54,7 +54,7 @@ func TestRefusesUndefinedMove(t *testing.T) {
 
 func TestAllowsDefinedMove(t *testing.T) {
 	for _, c := range []struct{ sub, status string }{
-		{"ready", "doing"}, {"ask", "review"}, {"ask", "todo"}, {"ask", "queued"}, {"finish", "doing"}, {"finish", "review"}, {"start", "todo"},
+		{"submit", "doing"}, {"ask", "review"}, {"ask", "todo"}, {"ask", "queued"}, {"finish", "doing"}, {"finish", "review"}, {"start", "todo"},
 	} {
 		if err := allowed(c.sub, "T-0001", c.status); err != nil {
 			t.Errorf("%s を %s で断った: %v", c.sub, c.status, err)

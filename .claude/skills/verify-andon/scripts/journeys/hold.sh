@@ -69,7 +69,7 @@ sed 's/^/  gh.calls: /' "$tmp/gh.calls"
 
 # hd-gate-wait: 止めている間、gate は GitHub を読まずに wait を返し、記録を書かない
 : >"$tmp/gh.calls"
-step "hd-gate-wait: 止めている課題に andon gate を打つ" "$andon" gate "$id"
+step "hd-gate-wait: 止めている課題に andon issue gate を打つ" "$andon" issue gate "$id"
 rc=$?
 [ "$rc" = 5 ] && jq -e --arg w "$why" '.decision == "wait" and (.reasons[0] | contains($w))' "$tmp/step.out" >/dev/null \
   && [ ! -s "$tmp/gh.calls" ] && ! compgen -G "$lib/gate/*.json" >/dev/null \
@@ -86,7 +86,7 @@ cleared=false
 [ "$wrc" = 0 ] && [ -z "$(hold_of)" ] && [ "$(last_hold_by)" = terminal:tw ] && cleared=true
 [ "$cleared" = true ] || fail "hd-worker: 担当が hold を消せていない（終了コード $wrc・hold '$(hold_of)'・最後に変えた端末 $(last_hold_by)）"
 : >"$tmp/gh.calls"
-step "hd-worker: 担当が消したあとに andon gate を打つ" "$andon" gate "$id"
+step "hd-worker: 担当が消したあとに andon issue gate を打つ" "$andon" issue gate "$id"
 rc=$?
 [ "$cleared" = true ] && [ "$rc" = 5 ] && jq -e --arg w "$why" '.decision == "wait" and (.reasons[0] | contains($w))' "$tmp/step.out" >/dev/null && [ ! -s "$tmp/gh.calls" ] \
   && ok "hd-worker: 担当が消した hold は止めたままと読み、gate は wait のまま" \
@@ -170,7 +170,7 @@ mkpr() {
   printf '%s\n' 'diff --git a/docs/verify.md b/docs/verify.md' '--- /dev/null' '+++ b/docs/verify.md' '@@ -0,0 +1 @@' "+$i" >"$d/diff"
   rm -f "$d/merged" "$d/merges"
   (cd "$wt" && HC_TERMINAL_ID=tw "$andon" issue report "$i" --pr https://github.com/example/sample-site/pull/7 <<<"## Report" >/dev/null \
-    && HC_TERMINAL_ID=tw "$andon" issue ready "$i" >/dev/null) >&2 || return 1
+    && HC_TERMINAL_ID=tw "$andon" issue submit "$i" >/dev/null) >&2 || return 1
   echo "$i"
 }
 dwhy=$(HC_TERMINAL_ID=tc "$kanban" add "$run の答えを待つ問い")

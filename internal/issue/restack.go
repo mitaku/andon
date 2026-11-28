@@ -140,7 +140,7 @@ func (c *ctx) restack(stdout io.Writer) error {
 	if _, err := c.l.Run("", "set", c.id, "stacked_on=", "stacked_base=", "restack_onto="); err != nil {
 		return fail("stacked_on・stacked_base・restack_onto を消せない（andon issue restack %s を打ち直す）: %v", c.id, err)
 	}
-	fmt.Fprintf(stdout, "%s を %s の先（%.12s）へ載せ替えた（%.12s → %.12s）。前の課題 %s の上に積んでいない、ふつうの課題になった。検査を通し、andon issue report で書き直し、レビューが引き継がれなければ andon issue review-request、引き継がれれば andon issue ready へ進む\n",
+	fmt.Fprintf(stdout, "%s を %s の先（%.12s）へ載せ替えた（%.12s → %.12s）。前の課題 %s の上に積んでいない、ふつうの課題になった。検査を通し、andon issue report で書き直し、レビューが引き継がれなければ andon issue review-request、引き継がれれば andon issue submit へ進む\n",
 		c.id, def, onto, before, head, on)
 	return nil
 }

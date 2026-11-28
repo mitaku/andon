@@ -1,8 +1,8 @@
 // Package dispatcher は andon dispatcher run: セルに1つ常駐し、kanban を周期で回ってインナーループの決まった次の工程を起動する
-// （docs/dispatcher.md §5 の P6a）。判断はしない。判断は gate（andon gate）・Chief of Staff・オーナーが持つ。
+// （docs/dispatcher.md §5 の P6a）。判断はしない。判断は gate（andon issue gate）・Chief of Staff・オーナーが持つ。
 //
 //	report.json の review_request   → レビュアーを起動する（kanban add --parent ＋ detached worktree ＋ hc run）
-//	{"status": "review"} に入った    → andon gate を回す（deliverable: candidates の課題は回さない。通知だけ）
+//	{"status": "review"} に入った    → andon issue gate を回す（deliverable: candidates の課題は回さない。通知だけ）
 //	approve ＋ merge: auto ＋ 委譲    → マージ → andon issue finish（レビュアーの課題も片付ける）
 //	fix                             → 理由を担当へ hc send
 //	needs_human                     → 問い（from: gate）を出す

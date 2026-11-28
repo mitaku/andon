@@ -33,6 +33,15 @@
   | `andon version stamp` | `andon package stamp` |
 
   boot とフックは、dispatcher の端末の前に出ているものが `andon dispatcher run` でも、前のバージョンが起動した `andon dispatcher` でも、dispatcher が動いていると読む。`andon boot` と `andon issue session` の名前と引数は変えていない。
+- **役が打つコマンドの名前を変えた**（[ADR-0053](docs/adr/0053-command-system.md) の切る案 4）: 打つのは Chief of Staff・Chief Engineer・担当で、skill と流れの定義とモデルの対応表を新しい名前にした。古い名前は同じく、打つと新しい名前を 1 行で言って終了コード 2 で終わる。これで全部の葉が `andon <名詞> <動詞>` の 2 語（1 語は `open`・`help`・`version`・`boot` だけ）になった。
+
+  | 古い名前 | 新しい名前 |
+  |---|---|
+  | `andon gate` | `andon issue gate` |
+  | `andon issue ready` | `andon issue submit` |
+  | `andon publish` | `andon file publish` |
+
+  gate が PR に付けるコメントと commit status の頭 `andon gate: ` は変えていない。当てた時点で動いている担当と Chief of Staff は、古い skill の文のまま古い名前を打って断られ、断りの 1 行が言う新しい名前で打ち直す。
 
 ### 上げるときにすること
 

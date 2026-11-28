@@ -23,7 +23,7 @@ transitions:
   - { from: todo, to: todo, on: "オーナーの課題（who: person）に問いを置いた（ask-one-by-one skill §3）", by: ai, command: andon issue ask }
   - { from: queued, to: queued, on: "前の課題を待つオーナーの課題（who: person）に問いを置いた（andon issue ask --new・ADR-0057 決めたこと 7。担当の課題は断る）", by: ai, command: andon issue ask }
   - { from: doing, to: doing, on: "報告・レビュー依頼・候補の一覧・走らせた記録・問いを書いた", by: ai, command: andon issue report・review-request・candidates・record・ask }
-  - { from: doing, to: review, on: "確かめて返した（受け取られていない問いが無い）", by: ai, command: andon issue ready }
+  - { from: doing, to: review, on: "確かめて返した（受け取られていない問いが無い）", by: ai, command: andon issue submit }
   - { from: doing, to: review, on: "Chief Engineer・トリアージが返した（受け取られていない問いが無い）", by: kanban, command: kanban review }
   - { from: review, to: review, on: "gate がオーナーの判断を問うた・片付けそこねた（from: gate）", by: machine, command: andon issue ask }
   - { from: review, to: doing, on: "直しが届いた", by: kanban, command: kanban start }

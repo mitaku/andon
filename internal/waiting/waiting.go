@@ -425,7 +425,7 @@ func mergeItem(l *ledger.Ledger, t *issue, rows []ledger.Row, since, lib string)
 		if ask == nil || ask.From != "gate" {
 			continue
 		}
-		// どの head の問いか読めない問いは今の head の問いとして数える（andon issue ready の staleGateQuestions と同じ）
+		// どの head の問いか読めない問いは今の head の問いとして数える（andon issue submit の staleGateQuestions と同じ）
 		if h := gate.QuestionHead(ask.Facts); h != "" && h != head {
 			continue
 		}

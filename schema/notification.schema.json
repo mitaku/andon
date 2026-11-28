@@ -110,7 +110,7 @@
       }
     },
     "gate": {
-      "description": "kind gate: the result of `andon gate` run by the dispatcher.",
+      "description": "kind gate: the result of `andon issue gate` run by the dispatcher.",
       "type": "object", "required": ["decision", "reasons"], "additionalProperties": false,
       "properties": {
         "decision": { "description": "As in the gate record. behind without record: the gate could not decide on a stacked issue, which waits on the previous PR all the same.", "enum": ["approve", "fix", "needs_human", "behind"] },

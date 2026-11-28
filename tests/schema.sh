@@ -5,7 +5,7 @@
 #   2. contract.md の ```json の例が、属する節の schema を全部通る。
 #   3. 例に知らないキーを足す・必須のキーを消すと落ちる。値や入れ子を壊した形も落ちる（下の表）。
 #   4. 制約を緩めた schema の写しでは、この検査全体が落ちる（期待値を schema から作っていない証し）。
-#   5. command（andon issue・andon gate・andon delegation・andon dispatcher・andon metrics show・andon retro collect と patterns・andon signal・andon design start・andon open・andon waiting list・andon digest）と
+#   5. command（andon issue・andon issue gate・andon delegation・andon dispatcher・andon metrics show・andon retro collect と patterns・andon signal・andon design start・andon open・andon waiting list・andon digest）と
 #      kanban の CLI が書いた JSON が schema を通る（下の emitters の検査が ANDON_EMIT_DIR に写す。*.jsonl は1行ずつ）。
 #      tests/lib/run-tests.sh が同じ回で emitters の検査を走らせたときは、その1度目の実行が写したもの（ANDON_EMITTED）を読み、回し直さない。
 #      ANDON_EMITTED に結果の無い検査（単独で bash tests/schema.sh を打った・run-tests.sh に渡されていない）は、ここで走らせて写させる。
@@ -636,7 +636,7 @@ fail|gate-record|.acceptance.stale_runs = [{id: "A1", run: 0, commit: "000000000
 fail|gate-record|.at = "2026-13-01T09:10:00Z"|at の月が 13
 fail|gate-record|.review.state = "unknown"|review.state が知らない値
 fail|gate-record|.decision = "approved"|decision が知らない値
-pass|gate-record|.decision = "wait" | .github_checks = {state: "pending", names: ["test"]}|wait（andon gate の出力。記録には書かない）
+pass|gate-record|.decision = "wait" | .github_checks = {state: "pending", names: ["test"]}|wait（andon issue gate の出力。記録には書かない）
 fail|gate-record|.github_checks.state = "green"|github_checks.state が知らない値
 fail|gate-record|.tier = "D"|tier が A/B/C でない
 fail|gate-record|. + {"size_review_lines": 500}|記録に条件表のキーが混ざる
@@ -1348,12 +1348,12 @@ candidates.json|candidates|andon issue candidates の candidates.json
 report-norepo.json|report|andon issue report の report.json（repo の無い課題。commit 無し）
 candidates-norepo.json|candidates|andon issue candidates の candidates.json（repo の無い課題。commit 無し）
 issue-keys-candidates.json|issue-keys|andon issue show の settings（deliverable: candidates）
-gate-record.json|gate|andon gate の記録（approve）
-gate-record-stale.json|gate|andon gate の記録（stale）
-gate-record-stale-runs.json|gate|andon gate の記録（受け入れ条件の行が指す記録が head と違う commit）
-gate-record-wait.json|gate|andon gate の出力（wait。記録には書かない）
-gate-record-named.json|gate|andon gate の出力（名指しの grant がレベルを通した）
-gate-record-behind.json|gate|andon gate の記録（behind。積んだ課題の前の PR 待ち）
+gate-record.json|gate|andon issue gate の記録（approve）
+gate-record-stale.json|gate|andon issue gate の記録（stale）
+gate-record-stale-runs.json|gate|andon issue gate の記録（受け入れ条件の行が指す記録が head と違う commit）
+gate-record-wait.json|gate|andon issue gate の出力（wait。記録には書かない）
+gate-record-named.json|gate|andon issue gate の出力（名指しの grant がレベルを通した）
+gate-record-behind.json|gate|andon issue gate の記録（behind。積んだ課題の前の PR 待ち）
 project.json|project|andon delegation grant の project.json
 project-named.json|project|andon delegation grant --issues の project.json（名指しの grant）
 gate-record-merged.json|gate|andon dispatcher がマージしたあとの gate の記録（merged）

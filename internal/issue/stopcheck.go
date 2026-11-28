@@ -114,7 +114,7 @@ func stopCheck(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return pass("控えが書けない: " + err.Error())
 	}
 	reason := fmt.Sprintf("%s は doing のまま、報告も問いも kanban に無い。報告（andon issue report。レビューを頼むなら review-request）か"+
-		"問い（andon issue ask）を書いてから止まる。終わったなら andon issue ready まで。", id)
+		"問い（andon issue ask）を書いてから止まる。終わったなら andon issue submit まで。", id)
 	b, _ := json.Marshal(map[string]string{"decision": "block", "reason": reason})
 	fmt.Fprintln(stdout, string(b))
 	return 0

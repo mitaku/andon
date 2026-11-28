@@ -1,6 +1,6 @@
 # tray
 
-セルが出した報告（`andon publish` の HTML や Markdown・ダイジェスト・担当の報告）を1か所に集めて読む場所。設計は [ADR-0064](../docs/adr/0064-tray.md)。
+セルが出した報告（`andon file publish` の HTML や Markdown・ダイジェスト・担当の報告）を1か所に集めて読む場所。設計は [ADR-0064](../docs/adr/0064-tray.md)。
 
 ## 3つの面
 

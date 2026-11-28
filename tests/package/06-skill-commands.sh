@@ -13,7 +13,7 @@ chk() { "$andon" schema check "$1" "$2" >"$tmp/why" 2>&1; }
 
 # 担当の機械向けの手順は command（andon issue …）。skill に JSON を手で書く手順・一致を手で確かめる手順が残っていない
 w=package/skills/worker/SKILL.md
-for c in 'andon issue report' 'andon issue review-request' 'andon issue ready' 'andon issue ask' 'andon issue show'; do
+for c in 'andon issue report' 'andon issue review-request' 'andon issue submit' 'andon issue ask' 'andon issue show'; do
   grep -q "$c" "$w" && pass "worker skill は $c を使う" || fail "worker skill に $c が無い"
 done
 left=$(grep -nE 'schema_check|report\.json"? *$|> "\$lib/report\.json"|questions/\$\{n|一致を確かめる|headRefOid' "$w" || true)
@@ -121,8 +121,8 @@ grep -q '`auto` は\*\*委譲がこのプロジェクトのマージを任せて
 cos6=$(cat "$pb/gate.md")
 grep -q '^3\. \*\*作った者に合否を決めさせない\*\*。.*指摘を中継しない・gate を手で回さない・マージしない' "$cos" \
   && grep -q '^# レビューと gate（オーナーの判断が要るときだけ）' <<<"$cos6" && grep -q '^## `needs_human` のとき' <<<"$cos6" \
-  && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cosall" \
-  && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon gate <id>' <<<"$cos6" \
+  && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon (issue )?gate <id>' <<<"$cosall" \
+  && ! grep -qE 'andon issue start "\$new"|worktree add --detach|andon (issue )?gate <id>' <<<"$cos6" \
   && ! grep -qE 'worktree add --detach|andon issue start "\$new"' package/skills/independent-review/SKILL.md \
   && pass "Chief of Staff の原則3と gate の手引きは needs_human のときだけ。レビュアーを起動するのと gate は dispatcher" || fail "chief-of-staff・independent-review にレビュアーを手で起動する手順・gate を手で回す手順が残る"
 grep -q '元の課題（`issue.yaml` の `parent`）の担当だけ' package/skills/worker/SKILL.md && grep -q '結果の宛先は元の課題の担当だけ' package/skills/independent-review/SKILL.md \

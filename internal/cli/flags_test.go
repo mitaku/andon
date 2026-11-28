@@ -17,7 +17,7 @@ import (
 // 葉が --json を読まないので、振り分けが -- より前の --json を外して渡す。--json を読む葉には、そのまま渡す。
 func TestJSONLeaves(t *testing.T) {
 	want := map[jsonForm][]string{
-		jsonAlways: {"gate", "issue impact", "issue merge", "issue settle", "issue show", "process json", "retro collect", "triage collect", "version"},
+		jsonAlways: {"issue gate", "issue impact", "issue merge", "issue settle", "issue show", "process json", "retro collect", "triage collect", "version"},
 		jsonFlag:   {"delegation show", "issue board", "issue create", "issue history", "issue trace", "metrics show", "waiting list"},
 		jsonDryRun: {"issue resume", "issue start"},
 	}
@@ -71,12 +71,12 @@ func TestJSONLeaves(t *testing.T) {
 }
 
 // A11: 3 以上の終了コードを使う葉は、--help にその数と意味が出る（決めたこと 15）。表の exits は、葉のパッケージが返す数と
-// 突き合わせて書いたもの（open・design start・issue start の 3、issue impact・triage collect の 4、gate の 3・4・5）。
+// 突き合わせて書いたもの（open・design start・issue start の 3、issue impact・triage collect の 4、issue gate の 3・4・5・6）。
 // schema check の 2 は「検査できない」で、使い方の誤りと別の意味を持つので、同じく help に出す。
 func TestExitsInHelp(t *testing.T) {
 	want := map[string][]int{
 		"open": {3}, "design start": {3}, "issue start": {3}, "issue impact": {4}, "triage collect": {4},
-		"gate": {1, 3, 4, 5, 6}, "schema check": {1, 2},
+		"issue gate": {1, 3, 4, 5, 6}, "schema check": {1, 2},
 	}
 	got := map[string][]int{}
 	for _, l := range leaves {
@@ -115,7 +115,7 @@ func TestExitsMatchCode(t *testing.T) {
 		"internal/chiefengineer/chiefengineer.go": "design start",
 		"internal/issue/start.go":                 "issue start",
 		"internal/issue/impact.go":                "issue impact",
-		"internal/gate/gate.go":                   "gate",
+		"internal/gate/gate.go":                   "issue gate",
 		"internal/triage/triage.go":               "triage collect",
 	}
 	root := filepath.Join("..", "..")

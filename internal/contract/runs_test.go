@@ -85,7 +85,7 @@ func TestCheckRuns(t *testing.T) {
 			}
 		})
 	}
-	// head が空（andon issue ready）なら古さは見ない
+	// head が空（andon issue submit）なら古さは見ない
 	lib := t.TempDir()
 	putRun(t, lib, 1, "pass", 0, otherSHA, false)
 	if p, s := CheckRuns(lib, []Acceptance{row("A1", 1)}, ""); len(p) > 0 || len(s) > 0 {

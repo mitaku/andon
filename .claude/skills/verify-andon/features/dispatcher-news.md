@@ -23,7 +23,7 @@ dispatcher は kanban と端末を見回り、報告・問い・gate・マージ
 
 ## 辿り着き方（利用者から）
 
-- 担当が `andon issue report`・`ask`・`ready` を打つと、次の見回りで通知になる。
+- 担当が `andon issue report`・`ask`・`submit` を打つと、次の見回りで通知になる。
 - Chief of Staff の turn の終わり（Stop）とオーナーの送信（UserPromptSubmit）で、待ちの通知が届く。
 - 担当の課題が片付く（`andon issue finish`・Chief of Staff の `kanban done`）と、次の見回りで dispatcher がその課題の手直しの記録を1回だけ書く。
 - 枠が空いたまま `idle_minutes`（既定 15 分）を2回またぐと、dispatcher がルーチンを撃ち、通知 `idle` を積む。誰も打たない。

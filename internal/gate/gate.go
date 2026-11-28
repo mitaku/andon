@@ -1,4 +1,4 @@
-// Package gate は andon gate（docs/contract.md §7。仮設の gate lib/yard/gate を Go に移したもの）。
+// Package gate は andon issue gate（docs/contract.md §7。仮設の gate lib/yard/gate を Go に移したもの）。
 // Markdown（依頼書・報告）は読まない。マージはしない（dispatcher が記録を読んでする。P6a）。
 //
 // 終了コード: approve 0・fix 1・使い方 2・道具や kanban の誤り 3・needs_human 4・wait 5（記録しない）・behind 6（積んだ課題の前の PR 待ち）。
@@ -26,7 +26,7 @@ import (
 	"andon/internal/tools"
 )
 
-const Usage = "usage: andon gate <id> [--dry-run]\n" +
+const Usage = "usage: andon issue gate <id> [--dry-run]\n" +
 	"kanban の課題の PR（report.json の pr）を、issue.yaml の予約キー・findings.json・条件表・委譲で照合し、記録を JSON で出す。\n" +
 	"記録は issues/<id>/library/gate/<head>.json に書き、PR に commit status（andon/gate）とコメントを付ける（--dry-run は書かない）。\n" +
 	"GitHub の checks がまだ揃っていなければ wait（記録も PR への書き込みもしない。回し直す）。\n" +
@@ -91,25 +91,25 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	var h holding
 	if errors.As(err, &h) {
 		if err := writeShort(stdout, "wait", string(h)); err != nil {
-			fmt.Fprintf(stderr, "andon gate: %v\n", err)
+			fmt.Fprintf(stderr, "andon issue gate: %v\n", err)
 			return exitError
 		}
 		return exitWait
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "andon gate: %v\n", err)
+		fmt.Fprintf(stderr, "andon issue gate: %v\n", err)
 		return exitError
 	}
 	if early != "" {
 		if err := writeShort(stdout, "fix", early); err != nil {
-			fmt.Fprintf(stderr, "andon gate: %v\n", err)
+			fmt.Fprintf(stderr, "andon issue gate: %v\n", err)
 			return exitError
 		}
 		return exitFix
 	}
 	b, err := contract.Encode(contract.SchemaGate, rec)
 	if err != nil {
-		fmt.Fprintf(stderr, "andon gate: 記録を出せない: %v\n", err)
+		fmt.Fprintf(stderr, "andon issue gate: 記録を出せない: %v\n", err)
 		return exitError
 	}
 	stdout.Write(b)
@@ -348,7 +348,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		return nil, "", err
 	}
 	if warn != "" {
-		fmt.Fprintln(stderr, "andon gate:", warn)
+		fmt.Fprintln(stderr, "andon issue gate:", warn)
 	}
 
 	// L1 kanban: PR の場所は report.json の pr だけ（Markdown も issue.yaml の pr も読まない）
@@ -413,7 +413,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		facts.LedgerReasons = append(facts.LedgerReasons, fmt.Sprintf("kanban の課題が review でない（%s）", t.Str("status")))
 	}
 	if rep.Commit != head {
-		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue ready からやり直す）")
+		facts.LedgerReasons = append(facts.LedgerReasons, "report.json の commit が PR の head と違う（andon issue submit からやり直す）")
 	}
 
 	// 積んだ課題の差分を分かれ目から数えるのは、PR が前の課題の branch に向いている間だけ（from。stackedFrom と同じ決まりを、上で読んだ
@@ -543,7 +543,7 @@ func run(id string, dry bool, stderr io.Writer) (*Record, string, error) {
 		var p Record
 		if json.Unmarshal(prev, &p) == nil {
 			if !dry && written(path, began) {
-				// 同時に打たれたほかの run が、この run が lock を待つ間に同じ head を記録した（dispatcher の巡と手の andon gate）。
+				// 同時に打たれたほかの run が、この run が lock を待つ間に同じ head を記録した（dispatcher の巡と手の andon issue gate）。
 				// 同じ事実から決めた記録なので、それを返す（「同じ head で2度目の Must fix」に数えない・PR に二重に付けない）
 				return &p, "", nil
 			}
@@ -910,7 +910,7 @@ func readChecks(number, slug string) (checksRead, error) {
 func postGitHub(slug, number string, rec *Record, have Mark, haveLink string, stderr io.Writer) {
 	url := ""
 	if out, err := gh("pr", "comment", number, "--repo", slug, "--body", CommentBody(rec)); err != nil {
-		fmt.Fprintln(stderr, "andon gate: コメントの記録に失敗:", err)
+		fmt.Fprintln(stderr, "andon issue gate: コメントの記録に失敗:", err)
 	} else if u := strings.TrimSpace(string(out)); strings.HasPrefix(u, "https://") && !strings.ContainsAny(u, " \n") {
 		url = u
 	}
@@ -923,6 +923,6 @@ func postGitHub(slug, number string, rec *Record, have Mark, haveLink string, st
 		args = append(args, "-f", "target_url="+url)
 	}
 	if _, err := gh(args...); err != nil {
-		fmt.Fprintln(stderr, "andon gate: commit status の記録に失敗:", err)
+		fmt.Fprintln(stderr, "andon issue gate: commit status の記録に失敗:", err)
 	}
 }

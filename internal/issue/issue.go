@@ -402,7 +402,7 @@ func (c *ctx) reviewRequest(stdin io.Reader, stdout, stderr io.Writer) error {
 		return fail("差分のレベルを決められない（レビューが要るか分からない）: %v", err)
 	}
 	if !need {
-		return fail("issue.yaml の review が off で、差分は%s。gate はレビューを求めないので頼めない。andon issue ready へ進む", gate.TierLine(cl))
+		return fail("issue.yaml の review が off で、差分は%s。gate はレビューを求めないので頼めない。andon issue submit へ進む", gate.TierLine(cl))
 	}
 	round, previous, err := c.rounds(head)
 	if err != nil {
@@ -508,7 +508,7 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 			continue
 		}
 		if f.Commit == head {
-			return 0, nil, fail("commit %s のレビューはもうある（%s）。andon issue ready へ進む", head[:12], t.Str("id"))
+			return 0, nil, fail("commit %s のレビューはもうある（%s）。andon issue submit へ進む", head[:12], t.Str("id"))
 		}
 		seen[f.Commit] = true
 		if at := t.Str("updated"); last == nil || at >= lastAt {
@@ -519,7 +519,7 @@ func (c *ctx) rounds(head string) (int, *string, error) {
 	// rebase で head が変わっても、照合が読むレビューと PR の差分（足した行と消した行）が同じなら、そのレビューを head に
 	// 引き継ぐ（ledger.CheckReview）。頼むとレビュアーが同じ差分をもう一度見るので頼まない（decisions/2026-11-21-review-carry-ignores-context-lines.md）
 	if rv := c.l.CheckReview(c.l.Log(), tasks, c.issue, head, "", nil, nil); rv.State == "current" {
-		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（足した行と消した行が空白も含めて同じ）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue ready へ進む", head[:12], rv.Issue, rv.Commit)
+		return 0, nil, fail("HEAD（%s）の PR の差分は、レビュー %s が見た commit %.12s と同じ（足した行と消した行が空白も含めて同じ）。そのレビューを引き継ぐので頼まない。andon issue report で書き直して andon issue submit へ進む", head[:12], rv.Issue, rv.Commit)
 	}
 	return max(len(seen), taken) + 1, last, nil
 }

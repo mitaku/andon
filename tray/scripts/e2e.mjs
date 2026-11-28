@@ -3,7 +3,7 @@
 // 一覧・既読・報告の面までを HTTP で通す。job tray の中でだけ回す（tests/ のシェルにしない）。
 // 先に `bun run build` を打っておく。終了コード 0 で全部通った。
 //
-// 後半はセルの側（ADR-0064 受け入れ条件 1・4・15）: 偽のセルで andon boot を打ってローカルの tray を起動させ、andon publish と
+// 後半はセルの側（ADR-0064 受け入れ条件 1・4・15）: 偽のセルで andon boot を打ってローカルの tray を起動させ、andon file publish と
 // andon digest send の出力の URL・一覧・既読・files/ を見る。andon のバイナリは ANDON_BIN（job tray が repo から焼く）。
 // ANDON_BIN が無ければ後半を飛ばす（CI では落とす）。
 
@@ -189,10 +189,10 @@ async function cell() {
     const mb = rss(pid);
     check(mb > 0 && mb < 600, `boot が起動した tray の止まっている間のメモリは 600 MB を超えない（andon tray serve と子の RSS 合計 ${mb} MB）`);
 
-    // 受け入れ条件 1: andon publish の1行がローカルの tray の URL で、一覧・既読・出し直し・files/ に無い
+    // 受け入れ条件 1: andon file publish の1行がローカルの tray の URL で、一覧・既読・出し直し・files/ に無い
     const md = join(c, "notes.md");
     writeFileSync(md, "# 週の報告\n\n本文\n");
-    const p1 = run(["publish", md, "weekly"]);
+    const p1 = run(["file", "publish", md, "weekly"]);
     const url = p1.out.trim();
     check(p1.rc === 0 && url.startsWith(`${t.list_origin}/r/`) && p1.out.split("\n").length === 2, `publish の1行はローカルの tray の URL（${p1.out.trim()} ${p1.err}）`);
     const id = url.split("/").pop();
@@ -201,11 +201,11 @@ async function cell() {
     check(row?.unread === true && row?.title === "週の報告", "出した報告が一覧に未読で出て、タイトルは最初の見出し");
     await open(t, id);
     check(!(await list(t)).json?.reports?.some((r) => r.id === id), "開くと既読になる");
-    check(run(["publish", md, "weekly"]).out.trim() === url && !(await list(t)).json?.reports?.some((r) => r.id === id), "同じ中身の出し直しは既読のまま");
+    check(run(["file", "publish", md, "weekly"]).out.trim() === url && !(await list(t)).json?.reports?.some((r) => r.id === id), "同じ中身の出し直しは既読のまま");
     writeFileSync(md, "# 週の報告\n\n直した本文\n");
-    check(run(["publish", md, "weekly"]).out.trim() === url && (await list(t)).json?.reports?.some((r) => r.id === id), "同じ slug で中身を変えると未読に戻る");
-    const a1 = run(["publish", md]).out.trim();
-    const a2 = run(["publish", md]).out.trim();
+    check(run(["file", "publish", md, "weekly"]).out.trim() === url && (await list(t)).json?.reports?.some((r) => r.id === id), "同じ slug で中身を変えると未読に戻る");
+    const a1 = run(["file", "publish", md]).out.trim();
+    const a2 = run(["file", "publish", md]).out.trim();
     check(a1.startsWith(`${t.list_origin}/r/`) && a2.startsWith(`${t.list_origin}/r/`) && a1 !== a2, "slug を省いて2度出すと2件の報告になる");
     check(!existsSync(join(ws, "files")), "tray に届いた報告は files/ に無い");
 

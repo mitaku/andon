@@ -18,7 +18,7 @@
    | 状態 | すること |
    |---|---|
    | `done` なら何もしない | 2つ目の通知 |
-   | `doing` | 待つ。報告があるのに担当が止まっている（`stalled`）なら、`kanban review <id>` を打つよう1回頼む（`andon issue ready` は PR が無いので通らない）。端末が終わっていれば `watch.md` |
+   | `doing` | 待つ。報告があるのに担当が止まっている（`stalled`）なら、`kanban review <id>` を打つよう1回頼む（`andon issue submit` は PR が無いので通らない）。端末が終わっていれば `watch.md` |
    | `review` | `issues/<id>/library/digest/sent.json` と報告の「送った結果」を読んで `andon issue finish <id>`。送れていない送り先があっても（`sent.json` が無くても）片付け、理由をオーナーに知らせる |
 
    文は検収しない（もう届いている）。送り直しは担当が報告の前に1回しているので、頼まない。片付けにオーナーの go は要らない。

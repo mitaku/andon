@@ -8,7 +8,7 @@
 #     hc の端末（HC_*）を外す。検査が HOME を一時に向ければ、置き場もその下になる。要る検査はこのあとで一時の置き場を指す。
 #   - セルの repo（ANDON_WORKSPACE）と clone の根（GHQ_ROOT）は、外すと既定（/workspace・ghq root）がセルの本物を指すので、
 #     一時ディレクトリの中の無い場所へ向ける。要る検査はこのあとで自分の置き場を指す。
-#   - 報告を集めて読む場所へ送るのを切る（ANDON_TRAY_OFF。ADR-0064 決めたこと 15）。andon publish と andon digest send は
+#   - 報告を集めて読む場所へ送るのを切る（ANDON_TRAY_OFF。ADR-0064 決めたこと 15）。andon file publish と andon digest send は
 #     送らずに files/ へ写し、andon issue report は kanban にだけ書く。セルで動いている本物の送り先に検査の報告を届けない。
 #     image/apply-main.sh もその場所を組まない（組む道具は検査の環境に無いことがあり、その検査は別の CI の job が回す）。
 # 呼ぶ側は $tmp（後片付けする一時ディレクトリ。mktemp -d）を先に作っておく。

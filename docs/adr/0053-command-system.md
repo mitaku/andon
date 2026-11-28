@@ -16,7 +16,7 @@
 | 5 | 葉の形は `andon <名詞> <動詞>` の2語。1語で打てるのは、andon そのものを扱う `open`・`help`・`version`・`boot` だけ | この ADR | まだ実装していない |
 | 6 | 名詞は扱うものの名前にし、役の名前を名詞にしない。Chief of Staff を開くのは `andon open`、Chief Engineer を起動するのは `andon design start` | この ADR | まだ実装していない |
 | 7 | 2語目は動詞か、その葉が出す・受け取るものの名前にする。形容詞と過去分詞は使わない | この ADR | まだ実装していない |
-| 8 | 新しい葉の一覧は「細部」の表のとおり。18 の葉の名前が変わり、37 は変わらない | この ADR | まだ実装していない |
+| 8 | 新しい葉の一覧は「細部」の表のとおり。18 の葉の名前が変わり、37 は変わらない | `internal/cli/leaves.go` | 生きている |
 | 9 | 別のバージョンから呼ばれる葉は、名前を変えないか、呼び手の入れ直しを手順に書く | この ADR | まだ実装していない |
 | 10 | 機械だけが打つ葉は、名詞を分けずに、表の「打つ者」の欄で分ける | この ADR | まだ実装していない |
 | 11 | 葉の表を1つ持ち、振り分けと help と人向けの一覧と補完をそこから作る | この ADR | まだ実装していない |
@@ -25,7 +25,7 @@
 | 14 | 状態を変えた葉は、何をしたかと次に打つ1手を出す。断るときは直す1手を出す | `internal/issue/start.go`・`internal/issue/resume.go`・`internal/chiefofstaff/chiefofstaff.go`・`internal/chiefengineer/chiefengineer.go` | 生きている |
 | 15 | 終了コードは 0・1・2 の意味を揃え、3 以上は葉ごとに help に書く。フックが打つ葉は 2 を使わない | `internal/cli/leaves.go`・`internal/cli/project.go` | 生きている |
 | 16 | 人向けの文書は生成した一覧 `docs/commands.md` の1枚だけ。詳細は `--help` が持つ | この ADR | まだ実装していない |
-| 17 | 名前は群ごとに一度に替え、別名は作らない。古い名前を打つと新しい名前を言って断る | この ADR | まだ実装していない |
+| 17 | 名前は群ごとに一度に替え、別名は作らない。古い名前を打つと新しい名前を言って断る | `internal/cli/leaves.go`・`internal/cli/cli.go` | 生きている |
 | 18 | `andon issue create` を足す。担当の課題を足すのと予約キーを書くのを1回で打つ | `internal/issue/create.go` | 生きている |
 | 19 | 依頼書の Settings 欄は command が予約キーから書く | `internal/ledger/ledger.go` | 生きている |
 | 20 | kanban の CLI は名前を変えない。足すのは、kanban の場所の探し方の最後の1段だけ。`hc` は案内だけ | `cmd/kanban/ledger.go`・`docs/ledger.md` の Finding the root | 生きている |

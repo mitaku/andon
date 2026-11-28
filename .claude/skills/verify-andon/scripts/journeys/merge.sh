@@ -86,7 +86,7 @@ mkpr() {
   printf '%s\n' 'diff --git a/docs/verify.md b/docs/verify.md' '--- /dev/null' '+++ b/docs/verify.md' '@@ -0,0 +1 @@' "+$i" >"$d/diff"
   rm -f "$d/merged" "$d/merges" "$d/marks" "$d/viewfail" "$d/rereadfail" "$d/race"
   (cd "$wt" && HC_TERMINAL_ID=tw "$andon" issue report "$i" --pr https://github.com/example/sample-site/pull/7 <<<"## Report" >/dev/null \
-    && HC_TERMINAL_ID=tw "$andon" issue ready "$i" >/dev/null) >&2 || return 1
+    && HC_TERMINAL_ID=tw "$andon" issue submit "$i" >/dev/null) >&2 || return 1
   echo "$i"
 }
 

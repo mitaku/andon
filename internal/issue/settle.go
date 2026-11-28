@@ -325,7 +325,7 @@ func mergedByGate(record string) bool {
 // kanban set で hold を直に書いたときと、andon issue hold が黄を書けなかったときは、ここで黄になる。
 // gh pr view の statusCheckRollup は説明文を出さないので、今の印とは状態だけで比べる。書けなければ記録に残して次の読みで直す。
 // settle は課題の lock の中で走るので、dispatcher の巡が回す同じ課題の gate（andon issue merge の中）とは重ならない。
-// 手で打つ andon gate は gate の lock だけを取るので重なりうる（印は次に聞いたとき揃え直す。リンクは付かない）。
+// 手で打つ andon issue gate は gate の lock だけを取るので重なりうる（印は次に聞いたとき揃え直す。リンクは付かない）。
 func (c *ctx) alignMark(slug, head string, have gate.Mark, res *contract.Settle) {
 	if !contract.IsSHA(head) {
 		return

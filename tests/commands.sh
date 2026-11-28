@@ -62,7 +62,7 @@ skills=$(find package/skills -name '*.md' | sort)
 { andon_refs md $skills; andon_refs code package/hooks/* package/templates/*; } >"$tmp/refs"
 bad=$(andon_bad_refs "$tmp/leaves" "$tmp/retired" <"$tmp/refs")
 m=$(wc -l <"$tmp/refs")
-for want in 'package/hooks/stop:.*	dispatcher	drain' 'package/templates/claude.md:.*	issue	session' 'package/skills/worker/SKILL.md:.*	issue	ready'; do
+for want in 'package/hooks/stop:.*	dispatcher	drain' 'package/templates/claude.md:.*	issue	session' 'package/skills/worker/SKILL.md:.*	issue	submit'; do
   grep -q "$want" "$tmp/refs" || fail "andon のコマンドの読み方が壊れている（$want を拾わない）"
 done
 [ -z "$bad" ] && [ "$m" -gt 100 ] && pass "package/ の skill・フック・テンプレートの andon のコマンド $m 件が、全部表にある" \
@@ -74,22 +74,22 @@ mkdir -p "$tmp/pkg/skills/x/playbooks" "$tmp/pkg/hooks"
 cat >"$tmp/pkg/skills/x/SKILL.md" <<'EOF'
 古い名前は `andon task start S-0012` だった。
 `andon issue recrd S-0012` で残す。
-名前を変えた葉の古い名前 `andon init sample`・`andon delegate show --json`・`andon waiting --json`・`andon measure`・`andon signal delivered fp 1` を書き戻す。
+名前を変えた葉の古い名前 `andon init sample`・`andon delegate show --json`・`andon waiting --json`・`andon measure`・`andon signal delivered fp 1`・`andon gate S-0012`・`andon publish report.html` を書き戻す。
 ```
-andon  issue   submit S-0012
+andon  issue   ready S-0012
 "andon" 'metrics' shw
 /opt/andon/bin/andon issue stat S-0012
 ```
 句読点のつく `andon issue sumbit,` と `andon issue revue.` も見る。
 用語集の行 `andon task` <!-- andon の古い名前 -->
-通る: `andon <名詞> <動詞>`・`andon dispatcher run --once`・`andon signal mark-delivered fp 1`・`andon open sample-site`・`andon gate S-0012`・`andon waiting list --json`・`andon waiting answer S-0012#1`・`andon issue`・`andon issue start <id>`
+通る: `andon <名詞> <動詞>`・`andon dispatcher run --once`・`andon signal mark-delivered fp 1`・`andon open sample-site`・`andon issue gate S-0012`・`andon file publish report.html`・`andon waiting list --json`・`andon waiting answer S-0012#1`・`andon issue`・`andon issue start <id>`
 地の文の andon chief-engineer は見ない（`` の外）。
 EOF
 printf '%s\n' '| `andon chief-engineer "<タイトル>"` | 入れ子の置き場 |' >"$tmp/pkg/skills/x/playbooks/deep.md"
 printf '%s\n' '#!/bin/sh' 'out=$(andon dispatcher drian 2>/dev/null)' 'andon dispatcher --once' >"$tmp/pkg/hooks/stop"
 { andon_refs md "$tmp/pkg/skills/x/SKILL.md" "$tmp/pkg/skills/x/playbooks/deep.md"; andon_refs code "$tmp/pkg/hooks/stop"; } >"$tmp/refs.bad"
 got=$(andon_bad_refs "$tmp/leaves" "$tmp/retired" <"$tmp/refs.bad" | sed 's/^.*: andon /andon /' | LC_ALL=C sort | tr '\n' '|')
-want='andon chief-engineer|andon delegate show|andon dispatcher|andon dispatcher drian|andon init sample|andon issue recrd|andon issue revue|andon issue stat|andon issue submit|andon issue sumbit|andon measure|andon metrics shw|andon signal delivered|andon task start|andon waiting|'
+want='andon chief-engineer|andon delegate show|andon dispatcher|andon dispatcher drian|andon gate|andon init sample|andon issue ready|andon issue recrd|andon issue revue|andon issue stat|andon issue sumbit|andon measure|andon metrics shw|andon publish|andon signal delivered|andon task start|andon waiting|'
 [ "$got" = "$want" ] && pass "書き戻した古い名前・誤った綴り・表に無い動詞は、引用符・空白・パス・句読点・入れ子・フックの中でも落ち、印の行と名指しの形は通る" \
   || fail "変種: got=[$got] want=[$want]"
 
@@ -152,8 +152,8 @@ while IFS= read -r l; do
   [[ "$h" == *$'\nプロジェクト: --project <slug>'*'決まらなければプロジェクトに依らずに動く'* ]] && echo "$l" >>"$tmp/optional-leaves"
 done <"$tmp/leaves"
 np=$(wc -l <"$tmp/project-leaves")
-# 当たる場合があること: 省いてよい葉が1つ以上あり（publish）、プロジェクトを読む葉の中にある
-grep -qx publish "$tmp/optional-leaves" && [ -z "$(comm -23 <(sort "$tmp/optional-leaves") <(sort "$tmp/project-leaves"))" ] \
+# 当たる場合があること: 省いてよい葉が1つ以上あり（file publish）、プロジェクトを読む葉の中にある
+grep -qx 'file publish' "$tmp/optional-leaves" && [ -z "$(comm -23 <(sort "$tmp/optional-leaves") <(sort "$tmp/project-leaves"))" ] \
   && pass "省いてよい葉 $(wc -l <"$tmp/optional-leaves") を --help の行から選ぶ" || fail "省いてよい葉が選べない: $(tr '\n' ' ' <"$tmp/optional-leaves")"
 grep -qx 'issue show' "$tmp/project-leaves" && grep -qx 'waiting list' "$tmp/project-leaves" && ! grep -qx 'schema check' "$tmp/project-leaves" && [ "$np" -ge 30 ] \
   && pass "プロジェクトを読む葉 $np を --help の行から選ぶ" || fail "プロジェクトを読む葉が選べない（$np）"
@@ -191,7 +191,7 @@ while IFS= read -r l; do
   [[ "$h" == *$'\nJSON: '* ]] && echo "$l" >>"$tmp/json-leaves"
 done <"$tmp/leaves"
 nj=$(wc -l <"$tmp/json-leaves")
-grep -qx 'gate' "$tmp/json-leaves" && grep -qx 'issue start' "$tmp/json-leaves" && grep -qx 'waiting list' "$tmp/json-leaves" \
+grep -qx 'issue gate' "$tmp/json-leaves" && grep -qx 'issue start' "$tmp/json-leaves" && grep -qx 'waiting list' "$tmp/json-leaves" \
   && ! grep -qx 'issue finish' "$tmp/json-leaves" && [ "$nj" -ge 17 ] \
   && pass "JSON を出せる葉 $nj を --help の行から選ぶ" || fail "JSON を出せる葉が選べない（$nj）"
 
@@ -234,7 +234,7 @@ while IFS= read -r l; do
   case "$l" in # 葉ごとの引数（--json と --project は下で足す）。JSON の葉を足したら、ここに引数を足す
     version | waiting\ list | delegation\ show | metrics\ show | triage\ collect | retro\ collect | issue\ history) a=() ;;
     issue\ show | issue\ trace | issue\ impact | issue\ merge | issue\ settle) a=(J-0001) ;;
-    gate) a=(J-0001 --dry-run) ;;
+    issue\ gate) a=(J-0001 --dry-run) ;;
     issue\ board) a=(--since 2026-01-01T00:00:00Z) ;;
     issue\ start) a=(J-0002 --dry-run) ;;
     issue\ create) a=("A6 の課題" review=off estimate=small --dry-run) ;;
@@ -275,7 +275,7 @@ while IFS= read -r l; do
   codes=$(sed 's/・/\n/g' <<<"$line" | sed -n 's/^\([3-9]\|[1-9][0-9][0-9]*\) ..*/\1/p' | tr '\n' ',')
   if [ -n "$codes" ]; then got+="$l:$codes|"; fi
 done <"$tmp/leaves"
-want='open:3,|design start:3,|issue start:3,|issue impact:4,|gate:3,4,5,6,|triage collect:4,|'
+want='open:3,|design start:3,|issue start:3,|issue impact:4,|issue gate:3,4,5,6,|triage collect:4,|'
 [ "$got" = "$want" ] && pass "3 以上の終了コードを使う葉（open・design start・issue start・issue impact・gate・triage collect）は --help にその数と意味を出す" \
   || fail "--help の 3 以上の終了コード: got=[$got] want=[$want]"
 h=$("$andon" schema check --help)

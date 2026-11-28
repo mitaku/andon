@@ -132,7 +132,7 @@
             "grant": { "description": "Id of the grant naming this issue that let the tier through (the project-wide merge alone would not). Absent otherwise.", "type": "string", "pattern": "^d[1-9][0-9]*$" }
           }
         },
-        "decision": { "description": "Output of the decision function. wait (GitHub checks not settled) is printed by andon gate but never written as a record. behind (waiting on the previous PR): a stacked issue (trusted stacked_on) whose PR would now be approve or needs_human; the first reason names the previous issue and the owner reasons follow.", "enum": ["approve", "fix", "needs_human", "wait", "behind"] },
+        "decision": { "description": "Output of the decision function. wait (GitHub checks not settled) is printed by andon issue gate but never written as a record. behind (waiting on the previous PR): a stacked issue (trusted stacked_on) whose PR would now be approve or needs_human; the first reason names the previous issue and the owner reasons follow.", "enum": ["approve", "fix", "needs_human", "wait", "behind"] },
         "reasons": { "description": "Output of the decision function, one line each. Empty on approve.", "type": "array", "items": { "type": "string" } },
         "merged": { "description": "Whether the dispatcher merged the PR.", "type": "boolean" },
         "restack": { "description": "Only with decision fix: the fix asks the worker to restack the stacked issue onto the default branch (andon issue restack) after the previous issue entered main. Metrics and the retro do not count such records as send-backs.", "const": true }

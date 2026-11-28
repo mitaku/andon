@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 報告と ready（features/report-ready.md）。切り離した kanban で、担当が打つ道（record → report → ready）をそのまま通す。
+# 報告と ready（features/report-ready.md）。切り離した kanban で、担当が打つ道（record → report → submit）をそのまま通す。
 set -uo pipefail
 . "$(dirname "$0")/../sandbox.sh"
 
@@ -32,10 +32,11 @@ step "rr-record: 証拠の command を記録で撮る" "$andon" issue record "$i
 jq -c . "$lib/runs/1.json" 2>/dev/null | sed 's/^/  runs\/1.json: /'
 
 # rr-ready-refuse: 報告の前の ready は断られ、kanban は動かない
-step "rr-ready-refuse: 報告の前に ready を打つ" "$andon" issue ready "$id" \
-  && fail "rr-ready-refuse: 報告が無いのに ready が通った" \
-  || { [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
-    && ok "rr-ready-refuse: 報告が無ければ断り、課題は doing のまま" || fail "rr-ready-refuse: 断ったのに status が動いた"; }
+step "rr-ready-refuse: 報告の前に submit を打つ" "$andon" issue submit "$id" \
+  && fail "rr-ready-refuse: 報告が無いのに submit が通った" \
+  || { grep -q 'library/report.json が無い' "$tmp/step.out" && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
+    && ok "rr-ready-refuse: 報告が無ければ report.json が無いと言って断り、課題は doing のまま" \
+    || fail "rr-ready-refuse: 断る理由が report.json が無いことでないか、status が動いた"; }
 
 # rr-report: PR の branch が課題の branch と違えば（ほかの課題の PR）、report --pr は書かずに断る。課題の branch の PR なら書く
 step "rr-report: ほかの branch の PR を報告に書く" "$andon" issue report "$id" --pr "$pr" <<<"## Report" \
@@ -48,25 +49,25 @@ step "rr-report: 報告を書く（pr 無し）" "$andon" issue report "$id" <<<
 # rr-ready-report: 報告の課題（Chief of Staff が deliverable=report を書いた）で pr の無い報告の ready は、kanban review で返すと案内して
 # 断り（--pr を案内しない）、手で打った gate も回さずに終了コード 3 で記録を書かない（ADR-0066 決めたこと 8）。PR の課題に戻して続ける
 HC_TERMINAL_ID=tc "$kanban" set "$id" deliverable=report >/dev/null
-step "rr-ready-report: 報告の課題で pr の無い報告の ready を打つ" "$andon" issue ready "$id" \
-  && fail "rr-ready-report: 報告の課題で pr が無いのに ready が通った" \
+step "rr-ready-report: 報告の課題で pr の無い報告の submit を打つ" "$andon" issue submit "$id" \
+  && fail "rr-ready-report: 報告の課題で pr が無いのに submit が通った" \
   || { grep -q "deliverable: report の課題で PR が無いときは kanban review $id で返す" "$tmp/step.out" \
     && ! grep -q -- '--pr' "$tmp/step.out" \
     && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
-    && ok "rr-ready-report: 報告の課題で pr が無ければ、ready は kanban review で返すと案内して断り（--pr を案内しない）、課題は doing のまま" \
+    && ok "rr-ready-report: 報告の課題で pr が無ければ、submit は kanban review で返すと案内して断り（--pr を案内しない）、課題は doing のまま" \
     || fail "rr-ready-report: 断る理由が kanban review の案内でないか、--pr を案内したか、status が動いた"; }
-grc=0; step "rr-ready-report: 報告の課題で pr の無い報告に gate を打つ" "$andon" gate "$id" || grc=$?
+grc=0; step "rr-ready-report: 報告の課題で pr の無い報告に gate を打つ" "$andon" issue gate "$id" || grc=$?
 [ "$grc" = 3 ] && grep -q 'deliverable: report の課題で PR が無い。gate を回すものが無い' "$tmp/step.out" && [ ! -e "$lib/gate" ] \
   && ok "rr-ready-report: 報告の課題で pr が無ければ、手で打った gate は回さずに終了コード 3 で、記録を書かない" \
   || fail "rr-ready-report: 報告の課題で pr が無いのに、gate が終了コード 3 でないか、理由が違うか、記録を書いた"
 # 上の「--pr を案内しない」の確かめが何も見ない形でないこと: 担当が書いた report は PR の課題として --pr を案内する
 "$kanban" set "$id" deliverable=report >/dev/null
-step "rr-ready-report: 担当が書いた report で pr の無い報告の ready を打つ" "$andon" issue ready "$id" \
-  && fail "rr-ready-report: 担当が report を書いた課題で pr が無いのに ready が通った" \
+step "rr-ready-report: 担当が書いた report で pr の無い報告の submit を打つ" "$andon" issue submit "$id" \
+  && fail "rr-ready-report: 担当が report を書いた課題で pr が無いのに submit が通った" \
   || { grep -q -- '--pr' "$tmp/step.out" && grep -q 'Chief of Staff でない' "$tmp/step.out" \
     && ok "rr-ready-report: 担当が書いた report は PR の課題として --pr を案内し、外れた理由を添える" \
-    || fail "rr-ready-report: 担当が書いた report の ready が --pr を案内しないか、外れた理由を添えない"; }
-step "rr-ready-report: 担当が書いた report で pr の無い報告に gate を打つ" "$andon" gate "$id" \
+    || fail "rr-ready-report: 担当が書いた report の submit が --pr を案内しないか、外れた理由を添えない"; }
+step "rr-ready-report: 担当が書いた report で pr の無い報告に gate を打つ" "$andon" issue gate "$id" \
   && fail "rr-ready-report: 担当が report を書いた課題で pr が無いのに gate が通った" \
   || { grep -q 'report.json に pr が無い' "$tmp/step.out" && grep -q 'Chief of Staff でない' "$tmp/step.out" && [ ! -e "$lib/gate" ] \
     && ok "rr-ready-report: 担当が書いた report は、手で打った gate も PR の課題として pr を求める fix を返し、外れた理由を添える（記録は書かない）" \
@@ -106,19 +107,19 @@ jq -c '{commit, pr, acceptance}' "$lib/report.json" 2>/dev/null | sed 's/^/  rep
 # rr-acceptance: 予約キー acceptance は数字だけで書く（Chief Engineer の文書の振り方）。報告の行は A1 のまま。
 # 行の無い番号（2）だけを名指して断り、A1 の行は番号 1 に数える。断ったあとキーを 1 にすると、rr-ready が A1 の行で通す
 HC_TERMINAL_ID=tc "$kanban" set "$id" acceptance=1,2 >/dev/null
-step "rr-acceptance: 予約キー acceptance=1,2 で ready を打つ（報告の行は A1 だけ）" "$andon" issue ready "$id" \
-  && fail "rr-acceptance: 番号 2 の行が無いのに ready が通った" \
+step "rr-acceptance: 予約キー acceptance=1,2 で submit を打つ（報告の行は A1 だけ）" "$andon" issue submit "$id" \
+  && fail "rr-acceptance: 番号 2 の行が無いのに submit が通った" \
   || { grep -q '無いので review にしない: 2。' "$tmp/step.out" \
     && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = doing ] \
     && ok "rr-acceptance: 行の無い番号 2 だけを名指して断り（A1 の行は番号 1 に数える）、課題は doing のまま" \
     || fail "rr-acceptance: 断る理由が番号 2 だけでないか、status が動いた"; }
 HC_TERMINAL_ID=tc "$kanban" set "$id" acceptance=1 >/dev/null
 
-# rr-ready: ready で review へ進む。課題は Chief of Staff が deliverable=report を書いた報告の課題で、pr があるので PR の課題と同じ確かめを通る
-step "rr-ready: ready を打つ" "$andon" issue ready "$id" \
+# rr-ready: submit で review へ進む。課題は Chief of Staff が deliverable=report を書いた報告の課題で、pr があるので PR の課題と同じ確かめを通る
+step "rr-ready: submit を打つ" "$andon" issue submit "$id" \
   && [ "$("$kanban" show "$id" --json | jq -r .issue.status)" = review ] \
-  && ok "rr-ready: ready が通り、課題が review に入る" \
-  || fail "rr-ready: ready が通らないか、status が review でない"
+  && ok "rr-ready: submit が通り、課題が review に入る" \
+  || fail "rr-ready: submit が通らないか、status が review でない"
 "$kanban" show "$id" --json | jq -c '.issue | {id, status, review, merge, acceptance, deliverable}' | sed 's/^/  kanban show: /'
 jq -c --arg id "$id" 'select(.id == $id and .change.status) | {by, change}' "$tmp/project/kanban/log.jsonl" | sed 's/^/  log.jsonl: /'
 

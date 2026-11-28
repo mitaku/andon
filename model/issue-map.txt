@@ -20,7 +20,7 @@ action WorkerPushes -
 action WorkerRebasesSamePatch -
 action ReviewerStarts andon issue review-request
 action ReviewerReturns -
-action WorkerReady andon issue ready
+action WorkerReady andon issue submit
 action WorkerTerminalDies -
 action DispatcherResumes -
 action GateSaysFix -

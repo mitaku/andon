@@ -24,7 +24,7 @@ func recordReasons(t *testing.T) []string {
 	mods := []func(*Facts){
 		func(f *Facts) {
 			f.LedgerReasons = []string{"kanban の課題が review でない（doing）", "PR の branch（feat）が issue.yaml の branch と違う",
-				"report.json の commit が PR の head と違う（andon issue ready からやり直す）"}
+				"report.json の commit が PR の head と違う（andon issue submit からやり直す）"}
 		},
 		func(f *Facts) { f.PROpen = false },
 		func(f *Facts) {

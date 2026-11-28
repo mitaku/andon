@@ -55,6 +55,10 @@ func readInput(stdin io.Reader, src string) ([]byte, error) {
 	return os.ReadFile(src)
 }
 
+// patternsNow は runPatterns が集める期間の終わりにする時刻。検査は決まった時刻に差し替える（今の時刻で集めると、
+// 決まった時刻で作った記録が日が経つと期間の外に出る）
+var patternsNow = time.Now
+
 func runPatterns(root, id string, days int, src string, stdin io.Reader, stdout io.Writer) error {
 	b, err := readInput(stdin, src)
 	if err != nil {
@@ -75,7 +79,7 @@ func runPatterns(root, id string, days int, src string, stdin io.Reader, stdout 
 	if err != nil {
 		return fmt.Errorf("パターンの一覧の形が違う: %v", err)
 	}
-	col, err := Collect(Options{Root: root, Now: time.Now(), Days: days, GH: GH,
+	col, err := Collect(Options{Root: root, Now: patternsNow(), Days: days, GH: GH,
 		ClaudeDir: sessionlog.ClaudeDir(), Package: pkgversion.Home(), Exclude: id, Otel: filepath.Join(otel.Root(), filepath.Base(root))})
 	if err != nil {
 		return err

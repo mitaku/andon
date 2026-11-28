@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `andon gate` と `andon delegation`。本物の kanban の CLI と git・一時のセルの repo・偽の gh で回す。
+# `andon issue gate` と `andon delegation`。本物の kanban の CLI と git・一時のセルの repo・偽の gh で回す。
 # PR の head は手元の origin から取る（git の insteadOf）。GitHub には出ない。kanban の CLI は tests/lib/kanban.sh が焼く。
 # ANDON_EMIT_DIR があれば、gate の記録と委譲を写す（tests/schema.sh が schema に通す）。
 set -euo pipefail
@@ -97,7 +97,7 @@ git clone -q "$tmp/origin" "$tmp/wt"
 id=$(HC_TERMINAL_ID=t5 kanban add 'docs を直す' --profile claude)
 HC_TERMINAL_ID=t5 kanban set "$id" status=doing review=on must_fix=major branch=feat "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=kanban/issues/$id/library
-gate() { local rc=0; "$andon" gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
+gate() { local rc=0; "$andon" issue gate "$@" >"$tmp/out" 2>"$tmp/err" || rc=$?; echo "$rc"; }
 # rereport: 担当が直して返し直す（doing に戻し、andon issue report、kanban を review へ。andon issue は review の課題に report を打てない）
 rereport() {
     HC_TERMINAL_ID=t5 kanban set "$id" status=doing >/dev/null
@@ -124,7 +124,7 @@ mkdir -p "kanban/issues/$rev/library"
 findings() { jq -n --arg c "$1" --argjson f "${2:-[]}" '{commit: $c, findings: $f}' > "kanban/issues/$rev/library/findings.json"; }
 findings "$head"
 HC_TERMINAL_ID=t5 kanban review "$rev" >/dev/null
-"$andon" issue ready "$id" >/dev/null
+"$andon" issue submit "$id" >/dev/null
 unset HC_TERMINAL_ID
 
 # 2. 委譲が無ければ approve にならない（全部オーナー）
@@ -176,10 +176,10 @@ got=$(gate "$id" --dry-run); expect 4 needs_human 'delegation'
 cp "$tmp/view0.json" "$tmp/gh/view.json"
 ok 'mergeStateStatus が BLOCKED で mergeable が CONFLICTING なら衝突として needs_human（BLOCKED だけでは衝突にしない）'
 
-# 2b. 同時に2本（dispatcher の巡と手の andon gate）: 後の run は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（書かない・写さない）
+# 2b. 同時に2本（dispatcher の巡と手の andon issue gate）: 後の run は lock を待ち、待つ間にほかが書いた同じ head の記録を返す（書かない・写さない）
 posted=$(wc -l < "$tmp/gh/posted")
 exec 9>"$lib/.gate.lock"; flock 9
-"$andon" gate "$id" >"$tmp/out" 2>"$tmp/err" & bg=$!
+"$andon" issue gate "$id" >"$tmp/out" 2>"$tmp/err" & bg=$!
 sleep 1   # 後の run が lock を待ち始める
 jq '.reasons = ["ほかの run の記録"]' "$rec" > "$tmp/rec" && mv "$tmp/rec" "$rec"
 flock -u 9; exec 9>&-

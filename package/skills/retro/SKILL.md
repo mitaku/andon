@@ -96,7 +96,7 @@ r="$(ghq root)/<repo>"; git -C "$r" fetch -q origin && git -C "$r" show origin/H
 |---|---|---|
 | `design` 設計・型 | schema・command の照合・状態の定義を変え、起きようのない形にする | command が断る・必須のキーにする |
 | `test` テスト・lint | テストか CI の検査にして検出する。gate の条件表もここ | PR のタイトルを検査するテスト |
-| `check` 決まった手順の確かめ | hook か、command の中の確かめにする | `Stop` フック・`andon issue ready` の確かめ |
+| `check` 決まった手順の確かめ | hook か、command の中の確かめにする | `Stop` フック・`andon issue submit` の確かめ |
 | `skill` skill・指針 | skill・プロファイル・手引き・`AGENTS.md`・`REVIEW.md` の構成や手順を直す | 手順の抜けを足す |
 | `text` 文面 | 言い回しを直す。最後の手段 | 読み違えた1文を書き直す |
 
@@ -174,5 +174,5 @@ Chief of Staff のトークン: <chief_of_staff.tokens の 4 つ>（<days> 日�
 ```
 
 - 報告にオーナーが打った文の本文と、問いの答えの文を写さない（id と問いの番号で指す）。
-- `andon issue report <id>` → `kanban review <id>`（repo の無い課題なので `andon issue ready` は打たない）。Chief of Staff へ `hc send` しない（dispatcher が届ける）。
+- `andon issue report <id>` → `kanban review <id>`（repo の無い課題なので `andon issue submit` は打たない）。Chief of Staff へ `hc send` しない（dispatcher が届ける）。
 - 直しが届いたら（`<hc from=…>`）、`kanban start <id>` で戻し、`andon retro patterns` から打ち直す。

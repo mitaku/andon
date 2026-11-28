@@ -3,7 +3,7 @@
 _andon() {
   local cur=${COMP_WORDS[COMP_CWORD]}
   if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=($(compgen -W "help open version boot design project waiting delegation metrics signal digest tray cell issue gate news publish triage retro dispatcher otel tools package schema process" -- "$cur"))
+    COMPREPLY=($(compgen -W "help open version boot design project waiting delegation metrics signal digest tray cell issue news file triage retro dispatcher otel tools package schema process" -- "$cur"))
     return 0
   fi
   [ "$COMP_CWORD" -eq 2 ] || return 0
@@ -17,8 +17,9 @@ _andon() {
     digest) COMPREPLY=($(compgen -W "auth collect build send check" -- "$cur")) ;;
     tray) COMPREPLY=($(compgen -W "auth status deploy serve" -- "$cur")) ;;
     cell) COMPREPLY=($(compgen -W "init" -- "$cur")) ;;
-    issue) COMPREPLY=($(compgen -W "create start resume finish hold unhold impact show trace report review-request candidates ask record ready restack merge settle board history session stop-check" -- "$cur")) ;;
+    issue) COMPREPLY=($(compgen -W "create start resume finish hold unhold impact gate show trace report review-request candidates ask record submit restack merge settle board history session stop-check" -- "$cur")) ;;
     news) COMPREPLY=($(compgen -W "ack" -- "$cur")) ;;
+    file) COMPREPLY=($(compgen -W "publish" -- "$cur")) ;;
     triage) COMPREPLY=($(compgen -W "collect apply verdict" -- "$cur")) ;;
     retro) COMPREPLY=($(compgen -W "collect patterns apply" -- "$cur")) ;;
     dispatcher) COMPREPLY=($(compgen -W "run drain wait rewake" -- "$cur")) ;;

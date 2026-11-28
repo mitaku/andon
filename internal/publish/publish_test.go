@@ -207,7 +207,7 @@ func TestMainUsage(t *testing.T) {
 	traytest.Local(t, nil)
 	for _, args := range [][]string{nil, {"a", "b", "c"}, {"a", "--title"}, {"a", "--x"}} {
 		var out, errb bytes.Buffer
-		if rc := Main(args, nil, &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon publish") {
+		if rc := Main(args, nil, &out, &errb); rc != 2 || !strings.HasPrefix(errb.String(), "usage: andon file publish") {
 			t.Errorf("%v: rc=%d err=%q", args, rc, errb.String())
 		}
 	}

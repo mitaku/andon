@@ -114,7 +114,7 @@ export KANBAN_ROOT=$PWD
 kanban config set chief_of_staff=t5 >/dev/null
 as() { HC_TERMINAL_ID=$1 "${@:2}"; }   # kanban の by を選ぶ（t5 が Chief of Staff、t7 が担当）
 id=$(as t5 kanban add 'andon issue を足す' --profile claude)
-expect_fail "$id は todo（andon issue ready は doing の課題にだけ打てる" "$andon" issue ready "$id"
+expect_fail "$id は todo（andon issue submit は doing の課題にだけ打てる" "$andon" issue submit "$id"
 ok 'ready: 定義（process/states/issue.yaml）に無い移り方（todo から ready）は断る（ADR-0017 受け入れ条件 11）'
 as t5 kanban set "$id" status=doing review=on must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 lib=kanban/issues/$id/library
@@ -159,7 +159,7 @@ jq -e --slurpfile was "$tmp/rr1.json" '.review_request == $was[0].review_request
 ok 'report: HEAD が前の report.json の commit と同じなら、打ち直しても review_request を引き継ぐ'
 
 # ready の負: レビューが無い
-expect_fail 'レビューが missing' "$andon" issue ready "$id"
+expect_fail 'レビューが missing' "$andon" issue submit "$id"
 ok 'ready: レビューが無ければ止まる'
 
 # レビュアー（Chief of Staff が足す）。commit c1 を見た
@@ -170,15 +170,15 @@ as t5 kanban review "$rev" >/dev/null
 
 # HEAD を進める（直した）。report.json の commit は古い
 c2=$(commit two)
-expect_fail 'report.json の commit' "$andon" issue ready "$id"
+expect_fail 'report.json の commit' "$andon" issue submit "$id"
 ok 'ready: report.json の commit が HEAD と違えば止まる（HEAD 不一致）'
 "$andon" issue report "$id" <<<'## Report' >/dev/null
 jq -e --arg c "$c2" '.commit == $c and (has("review_request") | not)' "$lib/report.json" >/dev/null || die "HEAD が進んだのに review_request を引き継いだ: $(jq -c .review_request "$lib/report.json")"
 ok 'report: HEAD が前の report.json の commit と違えば、review_request を引き継がない'
-expect_fail 'PR の head' "$andon" issue ready "$id"
+expect_fail 'PR の head' "$andon" issue submit "$id"
 ok 'ready: PR の head が HEAD と違えば止まる（push 前）'
 echo "$c2" > "$tmp/prhead"
-expect_fail 'レビューが stale' "$andon" issue ready "$id"
+expect_fail 'レビューが stale' "$andon" issue submit "$id"
 ok 'ready: レビューが古い commit を見ていれば止まる（stale）'
 
 # review-request（2 回目）: 前回は c1
@@ -191,7 +191,7 @@ fake=$(kanban add "$id の自作レビュー" --parent "$id" --profile codex-rev
 mkdir -p "kanban/issues/$fake/library"
 jq -n --arg c "$c2" '{commit: $c, findings: []}' > "kanban/issues/$fake/library/findings.json"
 kanban review "$fake" >/dev/null
-expect_fail 'レビューが stale' "$andon" issue ready "$id"
+expect_fail 'レビューが stale' "$andon" issue submit "$id"
 ok 'ready: Chief of Staff が足していないレビューは数えない'
 
 # 形の壊れた findings.json は missing
@@ -199,7 +199,7 @@ rev2=$(as t5 kanban add "$id のレビュー 2" --parent "$id" --profile codex-r
 mkdir -p "kanban/issues/$rev2/library"
 jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "Major", file: "f", line: 1}]}' > "kanban/issues/$rev2/library/findings.json"
 as t5 kanban review "$rev2" >/dev/null
-expect_fail 'findings.json が無い・形が違う' "$andon" issue ready "$id"
+expect_fail 'findings.json が無い・形が違う' "$andon" issue submit "$id"
 ok 'ready: findings.json の形が違えば missing'
 jq -n --arg c "$c2" '{commit: $c, findings: [{severity: "minor", file: "f", line: 2}]}' > "kanban/issues/$rev2/library/findings.json"
 
@@ -227,19 +227,19 @@ echo "$c2" > "$tmp/prhead"
 # report.json の形が壊れていれば止まる
 cp "$lib/report.json" "$tmp/good"
 jq '. + {"x_unknown": 1}' "$tmp/good" > "$lib/report.json"
-expect_fail 'report.json の形が違う' "$andon" issue ready "$id"
+expect_fail 'report.json の形が違う' "$andon" issue submit "$id"
 jq '.commit = "abc"' "$tmp/good" > "$lib/report.json"
-expect_fail 'report.json の形が違う' "$andon" issue ready "$id"
+expect_fail 'report.json の形が違う' "$andon" issue submit "$id"
 jq 'del(.pr)' "$tmp/good" > "$lib/report.json"
-expect_fail 'pr が無い' "$andon" issue ready "$id"
+expect_fail 'pr が無い' "$andon" issue submit "$id"
 ok 'ready: report.json の知らないキー・壊れた commit・pr 無しで止まる'
 # 報告の課題（deliverable: report を Chief of Staff が書いた）で pr が無ければ、断って kanban review で返すと案内し、--pr を案内しない
 # （ADR-0066 決めたこと 8・受け入れ条件 6）。担当が書いた report は PR の課題として --pr を案内し、外れた理由を添える
 as t5 kanban set "$id" deliverable=report >/dev/null
-expect_fail "deliverable: report の課題で PR が無いときは kanban review $id で返す" "$andon" issue ready "$id"
+expect_fail "deliverable: report の課題で PR が無いときは kanban review $id で返す" "$andon" issue submit "$id"
 if grep -q -- '--pr' "$tmp/err"; then die "PR の無い報告の課題の ready が --pr を案内した: $(cat "$tmp/err")"; fi
 as t7 kanban set "$id" deliverable=report >/dev/null
-expect_fail 'deliverable: report を書いたのが Chief of Staff でない' "$andon" issue ready "$id"
+expect_fail 'deliverable: report を書いたのが Chief of Staff でない' "$andon" issue submit "$id"
 grep -q -- '--pr' "$tmp/err" || die "照合が外れた report の ready が --pr を案内しない: $(cat "$tmp/err")"
 as t5 kanban set "$id" deliverable=pr >/dev/null
 ok 'ready: 報告の課題で pr が無ければ kanban review で返すと案内し（--pr を出さない）、担当が書いた report は PR の課題として --pr を案内する'
@@ -254,7 +254,7 @@ ok 'show: 予約キー（既定で埋める）・report.json・レビューの�
 
 # ready の正。pr のある報告の課題は PR の課題と同じ確かめを通る（ADR-0066 受け入れ条件 6）
 as t5 kanban set "$id" deliverable=report >/dev/null
-"$andon" issue ready "$id" >/dev/null
+"$andon" issue submit "$id" >/dev/null
 [ "$(kanban show "$id" --json | jq -r .issue.status)" = review ] || die 'pr のある報告の課題を ready が review にしない'
 as t5 kanban set "$id" deliverable=pr >/dev/null
 ok 'ready: HEAD ＝ report.json ＝ PR の head ＝ レビューの commit で review にする（pr のある報告の課題も同じ）'
@@ -266,13 +266,13 @@ as t5 kanban set "$id2" status=doing review=off "worktree=$tmp/wt" repo=github.c
 expect_fail 'review が off で、差分はレベル A。gate はレビューを求めないので頼めない' "$andon" issue review-request "$id2" <<<'## Report'
 # 受け取られていない問い（open・answered）があれば、ready は断って doing のまま（finish と kanban done と同じ確かめ）
 kanban ask "$id2" 'どちらか' >/dev/null
-expect_fail "受け取られていない問いがあるので review にしない: $id2#1（open）" "$andon" issue ready "$id2"
+expect_fail "受け取られていない問いがあるので review にしない: $id2#1（open）" "$andon" issue submit "$id2"
 kanban answer "$id2#1" A >/dev/null
-expect_fail "$id2#1（answered）" "$andon" issue ready "$id2"
+expect_fail "$id2#1（answered）" "$andon" issue submit "$id2"
 [ "$(kanban show "$id2" --json | jq -r .issue.status)" = doing ] || die 'ready: 問いで断ったのに status が変わった'
 kanban received "$id2#1" >/dev/null
 ok 'ready: 受け取られていない問いがあれば断り、課題は doing のまま'
-"$andon" issue ready "$id2" >/dev/null
+"$andon" issue submit "$id2" >/dev/null
 ok 'ready: review: off で差分がレベル A ならレビューを照合しない。問いを受け取ったあとは通る。review-request は断る'
 
 # review: off で始めたコードの課題でも、差分がレベル B・C なら gate はレビューを求める。ready は review に入る前に断り、
@@ -281,14 +281,14 @@ id6=$(as t5 kanban add 'review: off のコードの課題' --profile claude)
 as t5 kanban set "$id6" status=doing review=off must_fix=major "worktree=$tmp/wt" repo=github.com/example/app >/dev/null
 "$andon" issue report "$id6" --pr "$pr" <<<'## Report' >/dev/null
 prfiles internal/issue/start_test.go
-expect_fail 'review は off だが、差分がレベル B（実行面 internal/issue/start_test.go' "$andon" issue ready "$id6"
+expect_fail 'review は off だが、差分がレベル B（実行面 internal/issue/start_test.go' "$andon" issue submit "$id6"
 [ "$(kanban show "$id6" --json | jq -r .issue.status)" = doing ] || die 'ready: review: off で差分がレベル B なのに review にした'
 "$andon" issue review-request "$id6" <<<'## Report' >/dev/null || die 'review-request: review: off で差分がレベル B なのに断った'
 jq -e --arg c "$(git -C "$tmp/wt" rev-parse HEAD)" '.review_request.round == 1 and .review_request.commit == $c' "kanban/issues/$id6/library/report.json" >/dev/null || die 'review-request: review_request を書いていない'
 grep -q 'review は off だが、差分がレベル B' "kanban/issues/$id6/report.md" || die 'review-request: レビュー依頼の行に review: off で頼んだ理由が無い'
 [ "$(kanban show "$id6" --json | jq -r .issue.review)" = off ] || die 'review-request: review の値を書き換えた'
 prfiles model/issue-map.txt
-expect_fail '差分がレベル C' "$andon" issue ready "$id6"
+expect_fail '差分がレベル C' "$andon" issue submit "$id6"
 prfiles docs/a.md
 as t5 kanban done "$id6" >/dev/null
 ok 'review: off でも差分がレベル B・C なら、ready はレビューを求めて断り、review-request は受ける（review は off のまま）'
@@ -311,13 +311,13 @@ cat > "$tmp/late-bin/kanban" <<EOF
 exec "$kanban" "\$@"
 EOF
 chmod +x "$tmp/late-bin/kanban"
-rc=0; PATH="$tmp/late-bin:$PATH" "$andon" issue ready "$id5" >"$tmp/out" 2>"$tmp/err" || rc=$?
+rc=0; PATH="$tmp/late-bin:$PATH" "$andon" issue submit "$id5" >"$tmp/out" 2>"$tmp/err" || rc=$?
 [ "$rc" = 1 ] && grep -q "$id5#2 (open)" "$tmp/err" || { cat "$tmp/err" >&2; die "ready: 確かめのあとに足された問いを越えた（rc $rc）"; }
 grep -q "$id5#1" "$tmp/err" && die 'ready: 前の head の gate の問いで断った'
 [ "$(kanban show "$id5" --json | jq -r .issue.status)" = doing ] || die 'ready: 確かめのあとに足された問いがあるのに review にした'
 ok 'ready: 前の head の gate の問いだけを越え、確かめのあとに足された問いがあれば review にせず doing のまま'
 kanban answer "$id5#2" A >/dev/null; kanban received "$id5#2" >/dev/null
-"$andon" issue ready "$id5" >/dev/null
+"$andon" issue submit "$id5" >/dev/null
 [ "$(kanban show "$id5" --json | jq -r .issue.status)" = review ] || die 'ready: 前の head の gate の問いだけが残るのに review にしない'
 jq -se --arg t "$id5" '[.[] | select(.id == $t and .change.status == "review")] | last | .change.forced == [1]' kanban/log.jsonl >/dev/null ||
     die 'ready: 越えた前の head の gate の問いの番号を log.jsonl に残していない'
@@ -328,7 +328,7 @@ ok 'review-request: review の課題には打てない（定義に無い移り�
 id3=$(as t5 kanban add 'Settings 無し')
 as t5 kanban set "$id3" status=doing "worktree=$tmp/wt" repo=github.com/example/app review_rounds=1 >/dev/null
 "$andon" issue report "$id3" --pr "$pr" <<<'## Report' >/dev/null
-expect_fail 'review が on/off でない' "$andon" issue ready "$id3"
+expect_fail 'review が on/off でない' "$andon" issue submit "$id3"
 ok 'ready: issue.yaml の review が無ければ止まる'
 as t5 kanban set "$id3" review=on >/dev/null
 r3=$(as t5 kanban add "$id3 のレビュー" --parent "$id3" --profile codex-review)
@@ -544,21 +544,21 @@ as t5 kanban set "$sv" deliverable=candidates review=off "worktree=$tmp/wt2" rep
 kanban start "$sv" >/dev/null
 lsv=kanban/issues/$sv/library
 "$andon" issue report "$sv" --data '{"next":[{"to":"chief-of-staff","text":"candidates.json から切る"}]}' <<<'## Report' >/dev/null
-expect_fail 'candidates.json が無い' "$andon" issue ready "$sv"
+expect_fail 'candidates.json が無い' "$andon" issue submit "$sv"
 ok 'ready（candidates）: candidates.json が無ければ止まる'
 echo '{"candidates":[' > "$lsv/candidates.json"
-expect_fail 'candidates.json の形が違う' "$andon" issue ready "$sv"
+expect_fail 'candidates.json の形が違う' "$andon" issue submit "$sv"
 ok 'ready（candidates）: 手で壊した candidates.json で止まる'
 "$andon" issue candidates "$sv" - <<<'{"candidates":[]}' >/dev/null
 s2=$(commit2 two)
 "$andon" issue report "$sv" <<<'## Report' >/dev/null
-expect_fail 'candidates.json の commit' "$andon" issue ready "$sv"
+expect_fail 'candidates.json の commit' "$andon" issue submit "$sv"
 ok 'ready（candidates）: candidates.json の commit が HEAD と違えば止まる'
 "$andon" issue candidates "$sv" - <<<'{"candidates":[]}' >/dev/null
 "$andon" issue show "$sv" > "$tmp/show-sv"
 jq -e '.settings.deliverable == "candidates"' "$tmp/show-sv" >/dev/null
 jq .settings "$tmp/show-sv" > "$tmp/settings-sv.json"; emit "$tmp/settings-sv.json" issue-keys-candidates.json
-"$andon" issue ready "$sv" >/dev/null
+"$andon" issue submit "$sv" >/dev/null
 [ "$(kanban show "$sv" --json | jq -r .issue.status)" = review ] || die 'ready（candidates）: review にならない'
 ok 'ready（candidates）: PR 無しで、候補 0 件の candidates.json と HEAD が揃えば review にする（show の settings に deliverable）'
 # Chief of Staff が起き直してアドレスが変わり、前の Chief of Staff が書いた deliverable の照合が外れても、書き直す前に PR を求めない
@@ -567,10 +567,10 @@ as t5 kanban set "$sv2" review=off deliverable=candidates "worktree=$tmp/wt2" re
 kanban start "$sv2" >/dev/null
 kanban config set chief_of_staff=t6 >/dev/null
 "$andon" issue report "$sv2" <<<'## Report' >/dev/null
-expect_fail 'candidates.json が無い' "$andon" issue ready "$sv2"
+expect_fail 'candidates.json が無い' "$andon" issue submit "$sv2"
 "$andon" issue candidates "$sv2" - <<<'{"candidates":[]}' >/dev/null
 "$andon" issue report "$sv2" <<<'## Report' >/dev/null
-"$andon" issue ready "$sv2" >/dev/null
+"$andon" issue submit "$sv2" >/dev/null
 [ "$(kanban show "$sv2" --json | jq -r .issue.status)" = review ] || die 'ready（照合が外れた candidates）: review にならない'
 kanban config set chief_of_staff=t5 >/dev/null
 ok 'ready: deliverable の照合が外れても（Chief of Staff の起き直しのあと）PR を求めず、candidates.json を確かめて review にする'
@@ -588,7 +588,7 @@ commit2 three >/dev/null   # worktree に入った checkout の HEAD が進ん�
 "$andon" issue report "$nr" --data '{"next":[{"to":"chief-of-staff","text":"candidates.json から切る"}]}' <<<'## Report' >/dev/null
 jq -e 'has("commit") | not' library/report.json >/dev/null
 emit library/report.json report-norepo.json
-"$andon" issue ready "$nr" >/dev/null
+"$andon" issue submit "$nr" >/dev/null
 popd >/dev/null
 emit "kanban/issues/$nr/library/candidates.json" candidates-norepo.json
 [ "$(kanban show "$nr" --json | jq -r .issue.status)" = review ] || die 'repo 無し: ready で review にならない'
@@ -1450,7 +1450,7 @@ grep -q 'まだ done でない' "$tmp/out" && [ "$(git -C "$rg" rev-parse HEAD)"
     die "前の課題が done でないのに何か変えた: $(cat "$tmp/out") $(cat "$tmp/rs-log") $(rkey)"
 ok 'restack: 前の課題がまだ done でなければ、何も変えずに 1 行出して 0 で終わる'
 as t5 kanban set "$rp" status=done --force >/dev/null
-expect_fail "前の課題 $rp が done になった。先に andon issue restack $rs" as t7 "$andon" issue ready "$rs"
+expect_fail "前の課題 $rp が done になった。先に andon issue restack $rs" as t7 "$andon" issue submit "$rs"
 ok 'ready: 積んだ課題の前の課題が done になったら、載せ替えるまで review にしない'
 as t7 "$andon" issue restack "$rs" > "$tmp/out" || die "squash の前の課題のあとの restack が落ちた: $(cat "$tmp/out")"
 restacked_ok squash

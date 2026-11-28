@@ -1,6 +1,6 @@
 # gate
 
-課題が `review` に入ると、dispatcher が `andon gate <id>` を回し、PR の head・checks・レビュー・委譲・条件表（`/opt/andon/gate.json`）を照合して、判定（`approve`・`fix`・`needs_human`・積んだ課題の前の PR 待ちの `behind`）とレベル（A・B・C）を記録に書く。`merge: auto` で委譲の範囲の中の `approve` は dispatcher がマージし、`fix` は担当へ、`needs_human` はオーナーへの問いになる。
+課題が `review` に入ると、dispatcher が `andon issue gate <id>` を回し、PR の head・checks・レビュー・委譲・条件表（`/opt/andon/gate.json`）を照合して、判定（`approve`・`fix`・`needs_human`・積んだ課題の前の PR 待ちの `behind`）とレベル（A・B・C）を記録に書く。`merge: auto` で委譲の範囲の中の `approve` は dispatcher がマージし、`fix` は担当へ、`needs_human` はオーナーへの問いになる。
 
 ## 細かい機能
 
@@ -24,8 +24,8 @@
 
 ## 辿り着き方（利用者から）
 
-- 担当が `andon issue ready <id>` で `review` に入れると、dispatcher の見回りが gate を回す。
-- Chief of Staff かオーナーが `andon gate <id>` を打つ（記録を書く。マージはしない）。
+- 担当が `andon issue submit <id>` で `review` に入れると、dispatcher の見回りが gate を回す。
+- Chief of Staff かオーナーが `andon issue gate <id>` を打つ（記録を書く。マージはしない）。
 
 ## 動かし方
 
@@ -72,7 +72,7 @@
 
 - `gt-tools` は、道具がもう入っているセルでは入れる手を通らなくても ok になる。判定しない回は、道具を入れられない PR（`mise.toml` にありもしないバージョンを書いた試しの PR）でしか起きない。作れなければ、判定しない回は未確認と書く。判定しない回は今、オーナーの判断を求める gate の問いになる（次の見回りで打ち直されない）。
 
-- `gate` は `andon gate` を本物の課題に打つと、その課題の記録と GitHub の status を書く。検証の担当は打たない。読むだけにする。
+- `gate` は `andon issue gate` を本物の課題に打つと、その課題の記録と GitHub の status を書く。検証の担当は打たない。読むだけにする。
 - gate が回っても記録（`library/gate/<head>.json`）を書かない回がある。`report.json` に `pr` が無い回と、PR の branch が課題の `branch` と違う回で、gate は理由の `fix` を担当へ送るが、記録も PR の印も書かない。PR が無く、報告の課題（`deliverable: report`）か、報告の `commit` が既定の branch に入っている課題（検証・マージ後のレビューのように PR を出さない課題）には、gate を回さない（merge の記録 `<slug>.merge.json` にも残らない）。記録が無いことを、gate が回っていない証拠にしない。kanban の `log.jsonl`（`review` に入った行のあとの `doing` の行）、dispatcher のログ、担当の画面（`[gate]` の印の付いた fix）も読み、報告には「gate は回ったが記録が無い」と書き分ける。
 - `gt-skip` の「担当が `doing` に戻した」は、gate の fix を受けた形のほかに、Chief of Staff が直しを頼んで担当が戻した場合にも出る。落ちたら担当の画面で、`[gate]` の印の付いた fix が届いていたかを読んで書き分ける。merge の記録は課題が片付くと消えるので、片付いた課題の `decision` は「無し」と出る。
 - dispatcher が問いを閉じるのは2つの場合だけ。1つは、gate がオーナーへ回した PR の head が動いたとき（答えは「PR の head が動いた（前 → 今）」で始まる）。もう1つは、オーナーが手でマージしたとき（答えは「オーナーがマージした」で始まる）。どちらも起きなければ `gt-answer` は未確認になる。オーナーが先に答えていた問いは、dispatcher が受け取るだけで答えを上書きしないので、答えた端末はオーナーのまま。
