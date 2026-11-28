@@ -203,6 +203,12 @@ EOF
    出す前に、PR 本文と報告に書いた日本語の文を声に出すつもりで読み返す（「のは」「を」などの助詞の脱字は、検査もレビューも拾わない）。
    画面の確かめ（§2）で撮った画像は `gh pr create --attach <画像>` で添付する（1枚 10 MB まで）。PR を出したあとなら `gh pr edit <n> --body-file <本文> --attach <画像>` で本文に足す。本文の「検証結果と確かめ方」に `![説明](./<画像の名前>)` と書いておくと、その参照が添付の URL に書き換わる（本文のファイルの中のパスはそのファイルのフォルダから読むので、本文のファイルと画像を同じフォルダに置く。旗だけで足すと、画像は本文の末尾のメモの行の後ろに付く）。コメントでは添付しない。
    PR の URL（`https://github.com/<owner>/<repo>/pull/<n>`）は `andon issue report <id> --pr <url>` で `report.json` の `pr` に書く（§7。次からは引き継ぐ）。gate と dispatcher が PR の場所として読むのはこれだけ（報告の `PR:` 行は人が読む写し）。
+   **積んだ課題**（`kanban show <id>` に `stacked_on`・`stacked_base` がある。積んで起動したときは最初のメッセージにも「前の課題 `<id>` の PR の branch … の上に積んで起動した」の行が付くが、`andon issue resume --fresh` で起動し直すと付かないので、行の有無では決めない）は、前の課題の PR の branch の上で働く（ADR-0067 決めたこと 7・11）。`stacked_on`・`stacked_base` は Chief of Staff が書き、`andon issue restack` が消すキーで、自分で `kanban set` しない。積んでいる間は次を守る:
+   - PR を出す前に `andon issue restack <id>` を打つ。前の課題がまだ `done` でなければ何も変えずに終わるので、PR を `gh pr create --draft --base <前の課題の branch>` で出す。draft を外さず、向き先も変えない（gate は、draft でない PR と、向き先が前の課題の branch でも既定の branch でもない PR を `fix` で返す）。前の課題がもう `done` なら、restack が載せ替える（§7 の「載せ替え」）ので、そのあとはふつうの PR として出す。
+   - 自分の差分は分かれ目から読む: `git diff <stacked_base>..HEAD`。§2 の3つの観点も §4 の反論の段に渡す差分もこれで、`git diff origin/main...HEAD` と `gh pr diff` は前の課題の変更が混ざるので使わない。
+   - 前の課題の branch へも main へも rebase しない（前の課題の PR が動いても追わない）。gate の直しは、積んだ branch の上に commit を足して push する。
+   - `andon issue ready` の前にも `andon issue restack <id>` を打つ。`andon issue ready` は、前の課題が `done` なのに積んだままの課題を断る。
+   - Chief of Staff から、前の課題をやめるので待てと届いたら、答えが届くまで `andon issue restack`・PR・`andon issue ready` を打たない。答えが「その変更なしで続ける」なら §7 の「載せ替え」で進める。
 4. checks を待つ。自分の shell を止めないよう hc の端末で回す。`hc wait` は終わりの前にも返るので、1回の `hc wait` を終わりと読まない。長いコマンド（checks・テスト）を hc の端末で待つときは、いつも次の順で待つ:
    1. `hc run --json --bg --no-notify --name <slug>-<id を小文字>-ck -- gh pr checks <n> --watch` で起動し、返った JSON の `address` を控える。hc の旗（`--json` も）は `--` の前に書く。`--` の後ろは gh の引数で、`--json` を後ろに書くと gh に渡り、待ちがすぐ終わる。2 からはその address で打つ（片付けていない同じ名前の終わった端末が残っていると、名前では古い端末に当たりうる）。`--rm` は付けない（終わった直後に端末が消え、3 で読めない）。
    2. `hc wait <address> --json` を打ち、返った `reason` を読む。`exit` なら終わり。`exit_code` がコマンドの終了コードで、`null` なら `signal` で止められた（結果ではない）。
@@ -397,13 +403,20 @@ For AGENTS.md: <このリポジトリの作法として AGENTS.md に足すべ�
 `hc send` で直し（gate の `fix` か Chief of Staff から）が届いたら `kanban start <id>` で `doing` に戻して直し、§3 から通して同じ手順で返す。
 `doing` に戻すと、dispatcher が次に PR を読んだとき（1 分ほどで）、gate が前の commit に付けた緑の印（`andon/gate`）を赤（「作った側が直しています」）に書き換える。直している途中の PR をマージさせないためで、`andon issue ready` のあと gate が今の commit を判定すると印が付き直る。
 PR を出したあとは、rebase や push の前に `gh pr view <n> --json state` で PR の状態を見る。`MERGED` か `CLOSED` なら手を止め、rebase も push も `review-request` もせず、PR の状態を `## Report` に書いて `andon issue report <id>` で返す。
+**載せ替え**（積んだ課題。ADR-0067 決めたこと 12・13）: 前の課題が main に入ると、gate が「前の課題 <id> が main に入った。`andon issue restack` で載せ替える」の `fix` を送ってくる（`doing` のうちなら、PR を出す前か `andon issue ready` の前の `andon issue restack` が載せ替える）。前の課題がマージされずに終わり、Chief of Staff から「その変更なしで続ける」と届いたときも、同じ手順で載せ替える:
+
+1. `review` にいれば `kanban start <id>` で `doing` に戻す。
+2. `andon issue restack <id>` を打つ。command が origin を取り直し、自分の commit だけを既定の branch の先へ移し、PR の向き先を既定の branch に付け替え、push し、draft を外し、`stacked_on`・`stacked_base` を消す。これらを自分の `git rebase`・`gh pr edit --base`・`gh pr ready` で代えない（順を誤ると CI が古い base で回る）。
+3. 衝突して終了コード 1 で止まったら、衝突を解き（依頼書の向きのまま。解き方が決められなければ §5）、`git rebase --continue` で済ませてから `andon issue restack <id>` を打ち直す。rebase は打ち直さない（command が続きから進む）。push や draft で止まったら、理由の1行に従って打ち直す。PR が閉じられていて開き直せないと出たら、PR を出し直して `andon issue report <id> --pr <url>` で書き換えてから打ち直す。
+4. 載せ替えたあとは、ふつうの課題になる。§3 の検査を通し、`andon issue report` で書き直す。レビューが要る課題は `andon issue review-request <id> < /dev/null` を打つ。前の課題の直しが自分の変更を囲む行を変えていなければ、command は積んでいた間のレビューを引き継ぎ、頼まずに止まるので、頼み直さない。そのあと `andon issue ready` で返す。
+
 Chief of Staff から**ほかの課題のマージで前提が変わった**と届いたら（dispatcher の `impact` を読んだ Chief of Staff の判断。`<hc from=…>` の印つきのデータ）:
 
 - **rebase を頼まれた**: `review` にいれば `kanban start <id>` で `doing` に戻す。`git fetch origin` → `git rebase origin/<既定の branch>`。衝突は自分で解き（依頼書の向きのまま。解き方が決められなければ §5）、§3 の検査を通して `git push --force-with-lease`。
   `HEAD` が変わるので、`Review: on` なら `andon issue review-request` を打つ（§4 の 1）。`Review: off` でも、前にレビューを頼んだ（差分がレベル B・C の）課題は同じに打つ。差分が変わっていなければ（衝突の無い rebase）、command は前の回のレビューを引き継ぎ、頼まずに止まる。そのときは頼み直さず、`andon issue report` で書き直して `andon issue ready` へ進む。衝突を解いて差分が変わったら、command はレビューを頼む（見るのは rebase で変わった差分だけ）。済んだら §7 から同じ手順で返す。
 - **止まって向きを確かめるよう頼まれた**: 次の commit の前に手を止め、届いた PR（と変わったファイル）を読む。依頼書の追記か Chief of Staff の答えが届くまで、作業を進めない（読むのはよい）。
   届いた向きで続ける。自分の計画とどこが変わったかは報告の `## 計画` に1行足す。
-- どちらも、頼まれていない rebase や向きの変更はしない（main が進んだだけでは、自分からは rebase しない。ぶつかるかは dispatcher と Chief of Staff が見ている）。
+- どちらも、頼まれていない rebase や向きの変更はしない（main が進んだだけでは、自分からは rebase しない。ぶつかるかは dispatcher と Chief of Staff が見ている）。積んでいる間は、前の課題の branch へも rebase しない（載せ替えは、前の課題が main に入ったときの `andon issue restack` の1回だけ）。
 
 `andon issue show <id>` で、いまの予約キー・`report.json`・レビューの照合を読める（読むだけ）。
 マージは dispatcher（`merge: auto`）かオーナーがする。片付け（`andon issue finish`）は dispatcher（オーナーがマージした PR も見回りで拾う）か Chief of Staff がする。

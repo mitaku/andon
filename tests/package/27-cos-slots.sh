@@ -1,14 +1,28 @@
 # tests/package/27-cos-slots.sh — tests/package.sh が名前の順に source する節。単独では走らない（pass・fail は入口が置き、前の節が置いた pb も使う）。
 #  27. 並行の枠はオーナー待ちを数えない（ADR-0042 受け入れ条件 8 の後半。決めたこと 10・11）: 手引き start.md の枠の数え方が andon waiting list を指し、
 #      上限で起動を止める手引きが同じ枠を指す。古い数え方（`doing` と `review` の担当の数）が残らない。ask-one-by-one §3 の出す順が andon waiting list の並びで読む。
-#      オーナー待ちの数では起動を止めない（ADR-0065 受け入れ条件 4）。
+#      オーナー待ちの数では起動を止めない（ADR-0065 受け入れ条件 4）。積める課題（stackable）を候補にする（ADR-0067 決めたこと 17）。
 # === 27. 並行の枠はオーナー待ちを数えない（ADR-0042） ===
 start1=$(sed -n '/^1\. \*\*枠を確かめる\*\*/,/^2\. /p' "$pb/start.md")
 miss=
-for want in '`andon waiting list --json`' '`slots.free` が 1 以上のときだけ' '「上限なので S-x（タイトル）が終わってから」' 'ask-one-by-one skill §3 の出す順' '`project.json` の `chief_of_staff.parallel`' '前の課題がオーナーのマージを待っていても先に起動しない' '`items[].holds`'; do
+for want in '`andon waiting list --json`' '`slots.free` が 1 以上のときだけ' '「上限なので S-x（タイトル）が終わってから」' 'ask-one-by-one skill §3 の出す順' '`project.json` の `chief_of_staff.parallel`' '`stackable` に出ていない後ろの課題は先に起動しない' '`items[].holds`'; do
   grep -qF -- "$want" <<<"$start1" || miss="$miss [$want]"
 done
-[ -z "$miss" ] && pass "ADR-0042 A8: start.md の 1 が枠を andon waiting list で数え、上限なら止め、マージ待ちの後ろの課題を先に起動しない" || fail "ADR-0042 A8: start.md の 1 に無い:$miss"
+[ -z "$miss" ] && pass "ADR-0042 A8: start.md の 1 が枠を andon waiting list で数え、上限なら止め、積めないマージ待ちの後ろの課題を先に起動しない" || fail "ADR-0042 A8: start.md の 1 に無い:$miss"
+
+# 積む起動（ADR-0067 決めたこと 17）: start.md の 1 は stackable を候補にし、同じ優先なら積まずに起動できる課題を先にし、前 PR 待ちを枠に数えない。
+# 「前の課題の branch の上で起動しない」の古い行は残らない
+miss=
+for want in '`andon waiting list --json` の `stackable` に出ている課題' '同じ優先なら、積まずに起動できる課題を先にする' '`slots.behind`'; do
+  grep -qF -- "$want" <<<"$start1" || miss="$miss [$want]"
+done
+old_stack='前の課題の branch の上[^。]*起動しない'
+if grep -qE -- "$old_stack" <<<"$start1"; then miss="$miss [古い行が残る]"; fi
+[ -z "$miss" ] && pass "ADR-0067 決めたこと 17: start.md の 1 が stackable を候補にし、積まずに起動できる課題を先にし、前の PR 待ちを枠に数えない" || fail "ADR-0067 決めたこと 17: start.md の 1:$miss"
+# 当たる場合があること: 直す前の start.md の 1 の行に当たる
+grep -qE -- "$old_stack" <<<'   - `after` で前の課題を待つ課題は、前の課題がオーナーのマージを待っていても先に起動しない（`after` を外さない・前の課題の branch の上で起動しない）。' \
+  && grep -qE -- "$old_stack" <<<'   - 前の課題の branch の上では起動しない。' \
+  && pass "ADR-0067 決めたこと 17: 古い行の検査が直す前の行に当たる（検査が見ている）" || fail "ADR-0067 決めたこと 17: 古い行の検査が直す前の行に当たらない"
 
 # オーナー待ちの数では起動を止めない（ADR-0065 受け入れ条件 4）: waiting_full と「オーナー待ちが N 件たまったので」の文が無い
 waits_stop='waiting_full|オーナー待ちが N 件たまったので'
